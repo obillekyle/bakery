@@ -132,6 +132,11 @@ export function evalOperands(where: unknown, params: unknown[]): string {
     return `${q}${Case.snake(key)}${q}.${q}${Case.snake(val as string)}${q}`
   }
   if (typeof where === 'boolean') return where ? 'TRUE' : 'FALSE'
+  if (typeof where === 'string' && where.includes('.')) {
+    const q = getActiveDb().quoteChar
+    const [table, col] = where.split('.')
+    return `${q}${Case.snake(table!)}${q}.${q}${Case.snake(col!)}${q}`
+  }
   params.push(where)
   return '?'
 }

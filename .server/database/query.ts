@@ -1,7 +1,7 @@
 /** biome-ignore-all lint/correctness/noUnusedPrivateClassMembers: secret access */
 /** biome-ignore-all lint/complexity/noBannedTypes: for types */
 import { Case } from '@server/utils'
-import { is, throws } from '@server/utils/common'
+import { throws } from '@server/utils/common'
 import type { DBSchema } from '~/schema'
 import { buildSQL } from './build-sql'
 import { getActiveDb, txStorage } from './connection'
@@ -51,9 +51,7 @@ export namespace DB {
     [K in keyof T]: { [P in K]: T[P] } & { [P in Exclude<keyof T, K>]?: never }
   }[keyof T]
 
-  export type AnyString = {
-    charAt(onlyToAllowStringsDontUse: number): string
-  }
+  export type AnyString = string & {}
 
   export type FilteredGroups<S, J extends string, G> = {
     [Table in keyof S]: Table extends J
@@ -70,13 +68,15 @@ export namespace DB {
   }
 
   export type TakeSelectValues<S, C> = {
-    [A in keyof C]: {
-      [K in keyof S]: C[A] extends { [P in K]: infer ColName }
-        ? ColName extends keyof S[K]
-          ? S[K][ColName]
-          : never
-        : never
-    }[keyof S]
+    [A in keyof C]: C[A] extends string
+      ? ResolveColumnString<S, C[A]>
+      : {
+          [K in keyof S]: C[A] extends { [P in K]: infer ColName }
+            ? ColName extends keyof S[K]
+              ? S[K][ColName]
+              : never
+            : never
+        }[keyof S]
   }
 
   export type TakeSelectMathValues<C> = {
@@ -86,14 +86,23 @@ export namespace DB {
   export type SQLOperators = '=' | '>' | '<' | '>=' | '<=' | '<>'
   export type ValuesOperators = 'IN' | 'NOT IN'
 
-  export type ColumnRef<S, J extends string> = ExactlyOne<{
-    [K in Extract<J, keyof S>]: keyof S[K]
-  }>
+  export type ColumnString<S, J extends string> =
+    | `${Extract<J, keyof S>}.${Extract<keyof S[Extract<J, keyof S>], string>}`
+    | AnyString
+
+  export type ResolveColumnString<S, T extends string> =
+    T extends `${infer Table}.${infer Col}`
+      ? Table extends keyof S
+        ? Col extends keyof S[Table]
+          ? S[Table][Col]
+          : never
+        : never
+      : never
 
   export type SQLFuncArg<S, J extends string> =
     | AnyString
     | number
-    | ColumnRef<S, J>
+    | ColumnString<S, J>
 
   export type SQLStringFunctions<S, J extends string> = ExactlyOne<{
     UPPER: SQLFuncArg<S, J>
@@ -110,7 +119,7 @@ export namespace DB {
     | null
     | number
     | boolean
-    | ColumnRef<S, J>
+    | ColumnString<S, J>
     | SQLStringFunctions<S, J>
 
   export type WhereClause<
@@ -132,7 +141,7 @@ export namespace DB {
     P,
     R = QBHaving<any, any, F, P>,
     K =
-      | ColumnRef<F, J>
+      | ColumnString<F, J>
       | SQLStringFunctions<F, J>
       | keyof P
       | number
@@ -150,14 +159,14 @@ export namespace DB {
   export type SelectMathArgs<F, J extends string, P> = {
     [alias: string]: ExactlyOne<{
       [Op in 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'COUNT']:
-        | ColumnRef<F, J>
+        | ColumnString<F, J>
         | keyof P
         | '*'
     }>
   }
 
   export type SelectColumns<S, J extends string> = {
-    [alias: string]: ColumnRef<S, J>
+    [alias: string]: ColumnString<S, J>
   }
 
   export type CTEAllowed<
@@ -177,7 +186,12 @@ export namespace DB {
       return buildSQL(this)
     }
 
-    private mapRow(row: MapOf<unknown>, rawKeys: string[], mappedKeys: string[], numKeys: number): P {
+    private mapRow(
+      row: MapOf<unknown>,
+      rawKeys: string[],
+      mappedKeys: string[],
+      numKeys: number,
+    ): P {
       const mapped: MapOf<unknown> = {}
       for (let i = 0; i < numKeys; i++) {
         mapped[mappedKeys[i]!] = row[rawKeys[i]!]
@@ -194,7 +208,9 @@ export namespace DB {
       const mappedKeys = rawKeys.map(k =>
         k.replace(/_([a-z0-9])/gi, (_, letter) => letter.toUpperCase()),
       )
-      return rows.map(row => this.mapRow(row as MapOf<unknown>, rawKeys, mappedKeys, numKeys))
+      return rows.map(row =>
+        this.mapRow(row as MapOf<unknown>, rawKeys, mappedKeys, numKeys),
+      )
     }
 
     async *iterable(): AsyncIterable<P> {
@@ -215,7 +231,12 @@ export namespace DB {
               k.replace(/_([a-z0-9])/gi, (_, letter) => letter.toUpperCase()),
             )
           }
-          yield this.mapRow(row as MapOf<unknown>, rawKeys, mappedKeys!, numKeys)
+          yield this.mapRow(
+            row as MapOf<unknown>,
+            rawKeys,
+            mappedKeys!,
+            numKeys,
+          )
         }
       }
     }
@@ -244,6 +265,8 @@ export namespace DB {
       if (!result) return undefined
       return this.mapRowsOptimized([result])[0]
     }
+
+    first = this.fetch
 
     then<TR1 = P[], TR2 = never>(
       onfulfilled?: ((v: P[]) => TR1 | PromiseLike<TR1>) | null,
@@ -324,6 +347,13 @@ export namespace DB {
       return new (QBWhere as any)(this, ` WHERE ${str}`)
     }
 
+    equals(
+      left: ColumnString<S, J> | SQLStringFunctions<S, J>,
+      right: WhereValue<S, J>,
+    ): QBWhere<S, J> {
+      return this.where(left, '=', right)
+    }
+
     select<
       C extends SelectColumns<S, J>,
       P extends TakeSelectValues<FilteredGroups<S, J, {}>, C>,
@@ -390,11 +420,25 @@ export namespace DB {
       return this
     }
 
+    andEquals(
+      left: ColumnString<S, J> | SQLStringFunctions<S, J>,
+      right: WhereValue<S, J>,
+    ): QBWhere<S, J> {
+      return this.and(left, '=', right)
+    }
+
     or: WhereClause<S, J> = (left: any, operator: any, right: any) => {
       const [str, params] = QBWhere.evalClause(left, operator, right)
       pushParamsToRoot(this._previous, params)
       this._where.push(` OR ${str}`)
       return this
+    }
+
+    orEquals(
+      left: ColumnString<S, J> | SQLStringFunctions<S, J>,
+      right: WhereValue<S, J>,
+    ): QBWhere<S, J> {
+      return this.or(left, '=', right)
     }
 
     static evalClause(
@@ -412,7 +456,6 @@ export namespace DB {
       return new QBExists(this).run()
     }
 
-
     then<TResult1 = boolean, TResult2 = never>(
       onfulfilled?:
         | ((value: boolean) => TResult1 | PromiseLike<TResult1>)
@@ -423,18 +466,11 @@ export namespace DB {
     }
 
     groupBy<
-      G extends ColumnRef<S, J>,
+      G extends ColumnString<S, J>,
       F extends FilteredGroups<S, J, G> = FilteredGroups<S, J, G>,
     >(groups: G): QBGroupBy<S, J, F> {
-      const q = getActiveDb().quoteChar
       const qbGroupBy = new (QBGroupBy as any)(this, '')
-      qbGroupBy._groupBy = Object.entries(groups)
-        .filter(([_, val]) => val !== undefined)
-        .map(
-          ([table, column]) =>
-            `${q}${Case.snake(table)}${q}.${q}${Case.snake(column as string)}${q}`,
-        )
-        .join(', ')
+      qbGroupBy._groupBy = safeColumn(groups as string)
       return qbGroupBy
     }
 
@@ -547,12 +583,10 @@ export namespace DB {
     }
 
     orderBy(
-      column: keyof P | ColumnRef<F, J> | AnyString,
+      column: keyof P | ColumnString<F, J>,
       direction: 'ASC' | 'DESC' = 'ASC',
     ): QBOrderBy<S, J, F, P> {
-      const orderStr = is.object(column)
-        ? `${safeColumn(Object.keys(column as any)[0]!)}.${safeColumn(Object.values(column as any)[0] as any)}`
-        : safeColumn(String(column))
+      const orderStr = safeColumn(String(column))
       return new (QBOrderBy as any)(this, `${orderStr} ${direction}`)
     }
 
@@ -598,12 +632,10 @@ export namespace DB {
     }
 
     orderBy(
-      column: keyof P | ColumnRef<F, J> | AnyString,
+      column: keyof P | ColumnString<F, J>,
       direction: 'ASC' | 'DESC' = 'ASC',
     ): QBOrderBy<S, J, F, P> {
-      const orderStr = is.object(column)
-        ? `${safeColumn(Object.keys(column as any)[0]!)}.${safeColumn(Object.values(column as any)[0] as any)}`
-        : safeColumn(String(column))
+      const orderStr = safeColumn(String(column))
       return new (QBOrderBy as any)(this, `${orderStr} ${direction}`)
     }
 
@@ -649,12 +681,10 @@ export namespace DB {
     }
 
     orderBy(
-      column: keyof P | ColumnRef<F, J> | AnyString,
+      column: keyof P | ColumnString<F, J>,
       direction: 'ASC' | 'DESC' = 'ASC',
     ): QBOrderBy<S, J, F, P> {
-      const orderStr = is.object(column)
-        ? `${safeColumn(Object.keys(column as any)[0]!)}.${safeColumn(Object.values(column as any)[0] as any)}`
-        : safeColumn(String(column))
+      const orderStr = safeColumn(String(column))
       return new (QBOrderBy as any)(this, `${orderStr} ${direction}`)
     }
 
@@ -705,7 +735,6 @@ export namespace DB {
 
   export const raw = <T = any>(sql: string, params: any[] = []) =>
     new QBRaw<T>(sql, params)
-
 
   export const Insert = Mutation.Insert
   export const Update = Mutation.Update

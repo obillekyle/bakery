@@ -12,13 +12,13 @@ export function hostKey(path: string): string {
   return host ? `${host}:${path}` : path
 }
 
-export function getHostname(req: Request): string {
+export function getHostname(req: Request, config?: Readonly<ProcessedAppConfig>): string {
   if (req.__hostname) return req.__hostname
 
   let hostname = ''
-  const config = getConfig()
+  const cfg = config ?? Bakery.config
 
-  if (config.trustProxy) {
+  if (cfg.trustProxy) {
     const forwardedHost = req.headers.get('x-forwarded-host')
     if (forwardedHost) {
       hostname = forwardedHost.split(',')[0].trim().split(':')[0]
@@ -29,11 +29,6 @@ export function getHostname(req: Request): string {
     const hostHeader = req.headers.get('host')
     if (hostHeader) hostname = hostHeader.split(':')[0]
     else hostname = new URL(req.url).hostname
-  }
-
-  const hosts = config.hosts || {}
-  if (hostname && !hosts[hostname] && hostname !== config.host) {
-    return new URL(req.url).hostname
   }
 
   return hostname

@@ -1,6 +1,6 @@
 import { expect, test, describe, beforeEach, beforeAll } from 'bun:test'
 import { Bakery, getHostname, hostKey, hostStore } from '../core/bakery'
-import { resolveHostConfig, clearHostConfigCache, initConfig } from '../core/config'
+import { resolveHostConfig, clearHostConfigCache, initConfig, getConfig } from '../core/config'
 import { setLogCallback } from '../logger'
 
 describe('Multi-Host Architecture', () => {
@@ -14,7 +14,7 @@ describe('Multi-Host Architecture', () => {
       const req = new Request('http://localhost:3000/path', {
         headers: { 'x-forwarded-host': 'tenant.example.com' },
       })
-      expect(getHostname(req)).toBe('tenant.example.com')
+      expect(getHostname(req, { trustProxy: true } as any)).toBe('tenant.example.com')
     })
 
     test('extracts hostname from host header when x-forwarded-host is missing', () => {
@@ -27,6 +27,12 @@ describe('Multi-Host Architecture', () => {
     test('falls back to req.url hostname when headers are absent', () => {
       const req = new Request('http://fallback.local:3000/path')
       expect(getHostname(req)).toBe('fallback.local')
+    })
+
+    test('getHostname extracts any hostname, resolveHostConfig handles unknown hosts', () => {
+      const req = new Request('http://unknown.host/test')
+      expect(getHostname(req)).toBe('unknown.host')
+      expect(resolveHostConfig('unknown.host')).toBe(getConfig())
     })
   })
 

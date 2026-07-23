@@ -35,16 +35,27 @@ function processSortAndFilter(c: any, state: any) {
   }
 }
 
+function colRefToSQL(colRef: any, q: string): string {
+  if (typeof colRef === 'string' && colRef.includes('.')) {
+    const [tbl, col] = colRef.split('.')
+    return `${q}${Case.snake(tbl!)}${q}.${q}${Case.snake(col!)}${q}`
+  }
+  if (is.object(colRef)) {
+    const rec = colRef as Record<string, any>
+    const tbl = Object.keys(rec)[0]!
+    const col = Object.values(rec)[0]
+    return `${q}${Case.snake(tbl)}${q}.${q}${Case.snake(col as string)}${q}`
+  }
+  return `${q}${colRef as string}${q}`
+}
+
 function buildSelectColumns(
   selectMap: Record<string, any>,
   q: string,
 ): string[] {
-  return Object.entries(selectMap).map(([alias, colObj]) => {
-    const colObjRec = colObj as Record<string, any>
-    const tbl = Object.keys(colObjRec)[0]!
-    const col = Object.values(colObjRec)[0]
-    return `${q}${Case.snake(tbl)}${q}.${q}${Case.snake(col as string)}${q} AS ${q}${alias}${q}`
-  })
+  return Object.entries(selectMap).map(
+    ([alias, colRef]) => `${colRefToSQL(colRef, q)} AS ${q}${alias}${q}`,
+  )
 }
 
 function buildSelectFunctionArg(
@@ -54,13 +65,7 @@ function buildSelectFunctionArg(
   q: string,
 ): string {
   if (arg === '*') return `${funcName}(*) AS ${q}${alias}${q}`
-  if (is.object(arg)) {
-    const argRec = arg as Record<string, any>
-    const tbl = Object.keys(argRec)[0]!
-    const col = Object.values(argRec)[0]
-    return `${funcName}(${q}${Case.snake(tbl)}${q}.${q}${Case.snake(col as string)}${q}) AS ${q}${alias}${q}`
-  }
-  return `${funcName}(${q}${arg as string}${q}) AS ${q}${alias}${q}`
+  return `${funcName}(${colRefToSQL(arg, q)}) AS ${q}${alias}${q}`
 }
 
 function processSelectNode(c: any, selectParts: string[], q: string) {
