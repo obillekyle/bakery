@@ -1,7 +1,9 @@
 import { Logger, messageLogger } from './logger'
 
-export const serveMsgs = {
+const serveMsgs = {
   STARTING: 'I Starting server in %c{mode}%* mode...',
+  STARTING_THREADS: 'I Starting cluster supervisor with %g{count}%* workers (%creusePort%*)...',
+  THREAD_STARTED: 'I [%cWorker #{id}%*] Server running at:',
   START_WATCHER: 'I Starting %yDEV%* watcher...',
   RESTART_REQ: 'I Dev server restart requested from %ysync engine%*!',
   UNHANDLED_ERR: 'E Unhandled Server Error: %r{error}%*',
@@ -13,16 +15,15 @@ export const serveMsgs = {
   CONFIG_LOADED: 'I Loaded %yserver.config.ts%*',
   TSCONFIG_SYNCED:
     'I Synced %ytsconfig.app.json%* paths with %yserver.config.ts%*!',
-  PRESS_D: 'I Press "%yd%*" to spawn the dedicated client logger terminal!',
-  SPAWN_LOGGER: 'I Spawning client logger terminal...',
   MANUAL_RELOAD: 'I %yManual reload%* triggered from client logger!',
   CONFIG_IMPORT_ERR: 'E Failed to import %yserver.config.ts%*: %r{error}%*',
   WEBSOCKET_ERR: 'E WebSocket error from %y{ip}%*: %r{error}%*',
+  RATE_LIMITED: 'W Rate limited: %y{ip}%*',
 } as const
 
 export const serveLog = messageLogger(new Logger('serve'), serveMsgs)
 
-export const handlerMsgs = {
+const handlerMsgs = {
   API_IMPORT_ERR: 'E Failed to import API module (%y{file}%*): %r{error}%*',
   TSX_IMPORT_ERR: 'E Failed to import TSX module (%y{file}%*): %r{error}%*',
   TSX_EXPORT_NOT_FUNCTION:
@@ -38,7 +39,7 @@ export const handlerMsgs = {
 
 export const handlerLog = messageLogger(new Logger('handlers'), handlerMsgs)
 
-export const compileMsgs = {
+const compileMsgs = {
   FILE_STATUS: 'I File is %y{status}%*: %w{file}%*',
   COMPILE_FAIL: 'E Failed to compile %y{file}%*: %r{error}%*',
   COMPILE_OK: 'I Compiled %w{file}%* %gsuccessfully%*.',
@@ -52,5 +53,5 @@ export const pluginLog = messageLogger(new Logger('plugins'), {
 
 export const errorMsg = (err: any) => err?.stack || err?.message || String(err)
 
-export const toMS = (ns: number) => parseFloat((ns / 1e6).toFixed(2))
+const toMS = (ns: number) => parseFloat((ns / 1e6).toFixed(2))
 export const getElapsed = (start: number) => toMS(Bun.nanoseconds() - start)

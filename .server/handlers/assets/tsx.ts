@@ -2,7 +2,8 @@ import { Bakery } from '@server/core/bakery'
 import { is, jsonResponse } from '@server/utils/common'
 import { fs } from '@server/utils/fs'
 import { injectIfHtml, response } from '@server/utils/http'
-import { DynamicHandler, type Handler } from '../core/$base'
+import type { Handler } from '../core/$base'
+import { DynamicHandler } from '../core/$dynamic'
 import { DynamicErrorHandler } from '../core/$error'
 
 type TSXModule = {
@@ -44,12 +45,12 @@ async function sharedHandler(
   errors?: Handler.Error.Data,
 ) {
   const errorData = errors || (this as any).DEFAULT_ERROR
-  const routeInfo = await this.resolveRoute(path, errorData)
-  if (!routeInfo) return response.error('Not Found')
-  const filePath = routeInfo.info.path
+  const info = await this.resolveRoute(path, errorData)
+  if (!info) return response.error('Not Found')
+  const filePath = info.path
 
   const modulePath = fs.resolve(Bakery.serveRoot, filePath)
-  const params = routeInfo.params || {}
+  const params = info.getParams(path) || {}
   if (import.meta.env.DEV) {
     params.__file = filePath
   }

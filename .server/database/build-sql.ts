@@ -157,11 +157,11 @@ export function buildSQL(node: unknown): { sql: string; params: unknown[] } {
     curr = c._previous
   }
 
-  if (state.isExistsCheck) {
-    state.qSelect = '1'
-  } else if (state.selectParts.length > 0) {
-    state.qSelect = state.selectParts.join(', ')
-  }
+  state.qSelect = state.isExistsCheck
+    ? '1'
+    : state.selectParts.length > 0
+      ? state.selectParts.join(', ')
+      : state.qSelect
 
   const sql = `${state.qWith}SELECT ${state.qSelect} ${state.qFrom}${state.qJoin}${state.qWhere}${state.qGroup}${state.qHaving}${state.qOrder}${state.qLimit}`
   return {

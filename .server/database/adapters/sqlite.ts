@@ -1,20 +1,92 @@
-import { copyFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { Case, Try } from '@server/utils'
 import { SQL } from 'bun'
 import type * as SyncTypes from '../sync/types'
-import type {
-  BackupResult,
-  DBExecutor,
-  RunResult,
-  TableDataResult,
-  TableDetails,
-} from './base'
-import { cleanSQLQuotes, DBAdapter, quoteIdentifier } from './base'
+import { createExecutor, SQLAdapter } from './base'
 
-export class SQLiteAdapter extends DBAdapter {
+export class SQLiteAdapter extends SQLAdapter {
   protected readonly sql: SQL
+  private static readonly sqliteTypes: [
+    string,
+    SyncTypes.ColumnConstraint['type'],
+  ][] = [
+    ['INTEGER', 'integer'],
+    ['TEXT', 'string'],
+    ['REAL', 'number'],
+    ['BLOB', 'buffer'],
+    ['NUMERIC', 'number'],
+    ['BOOLEAN', 'boolean'],
+  ]
+  private static readonly sqlKeywords = new Set([
+    'SELECT',
+    'FROM',
+    'WHERE',
+    'JOIN',
+    'LEFT',
+    'RIGHT',
+    'INNER',
+    'OUTER',
+    'ON',
+    'AS',
+    'AND',
+    'OR',
+    'NOT',
+    'NULL',
+    'IS',
+    'IN',
+    'GROUP',
+    'BY',
+    'ORDER',
+    'HAVING',
+    'LIMIT',
+    'OFFSET',
+    'ASC',
+    'DESC',
+    'CREATE',
+    'TABLE',
+    'VIEW',
+    'DROP',
+    'ALTER',
+    'UPDATE',
+    'SET',
+    'INSERT',
+    'INTO',
+    'VALUES',
+    'DELETE',
+    'PRIMARY',
+    'KEY',
+    'FOREIGN',
+    'REFERENCES',
+    'AUTOINCREMENT',
+    'DEFAULT',
+    'UNIQUE',
+    'CHECK',
+    'CONSTRAINT',
+    'CAST',
+    'INTEGER',
+    'TEXT',
+    'REAL',
+    'BLOB',
+    'NUMERIC',
+    'BOOLEAN',
+  ])
+  private static cleanSQLQuotes(sql: string): string {
+    return sql.replace(/`([^`]+)`/g, (match, word) =>
+      !SQLiteAdapter.sqlKeywords.has(word.toUpperCase()) &&
+      /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(word)
+        ? word
+        : match,
+    )
+  }
+  private static mapSqlToTsType(
+    sqlType: string,
+  ): SyncTypes.ColumnConstraint['type'] {
+    const upperType = (sqlType || '').toUpperCase()
+    for (const [sql, ts] of SQLiteAdapter.sqliteTypes) {
+      if (upperType.includes(sql)) return ts
+    }
+    return 'string'
+  }
 
   constructor(connectionTarget?: string | null, sql?: SQL) {
     const filename = SQLiteAdapter.resolveFilename(connectionTarget)
@@ -23,18 +95,28 @@ export class SQLiteAdapter extends DBAdapter {
       filename,
       typeof connectionTarget === 'string' ? connectionTarget : undefined,
     )
+    if (filename !== ':memory:') {
+      const dir = path.dirname(filename)
+      Try(() => {
+        const { mkdirSync } = require('node:fs')
+        mkdirSync(dir, { recursive: true })
+      })
+    }
     this.sql =
       sql ??
       (filename === ':memory:'
         ? new SQL('sqlite://:memory:')
         : new SQL(filename, { adapter: 'sqlite' }))
     if (filename !== ':memory:') {
+      const cacheSize = import.meta.env.THREAD_WORKER ? -1000 : -10000
+      const journalMode = process.platform === 'win32' ? 'DELETE' : 'WAL'
       this.sql
-        .unsafe('PRAGMA journal_mode = WAL;')
+        .unsafe(`PRAGMA journal_mode = ${journalMode};`)
         .then(() => this.sql.unsafe('PRAGMA synchronous = NORMAL;'))
         .then(() => this.sql.unsafe('PRAGMA temp_store = memory;'))
-        .then(() => this.sql.unsafe('PRAGMA cache_size = -10000;'))
+        .then(() => this.sql.unsafe(`PRAGMA cache_size = ${cacheSize};`))
         .then(() => this.sql.unsafe('PRAGMA busy_timeout = 5000;'))
+        .then(() => this.sql.unsafe('PRAGMA mmap_size = 0;'))
         .catch(() => {})
     }
   }
@@ -49,27 +131,24 @@ export class SQLiteAdapter extends DBAdapter {
     if (!value) return fallback
     if (value === ':memory:' || path.isAbsolute(value)) return value
 
-    switch (true) {
-      case value.startsWith('sqlite://'):
-        return this.resolveFilename(value.slice('sqlite://'.length))
-      case value.startsWith('sqlite:'):
-        return this.resolveFilename(
-          value.slice('sqlite:'.length).replace(/^\/+/, ''),
-        )
-      case value.startsWith('file://'):
-        return Try.return(() => fileURLToPath(new URL(value)), fallback)
-      default:
-        return path.resolve(process.cwd(), value)
-    }
+    if (value.startsWith('sqlite://'))
+      return this.resolveFilename(value.slice('sqlite://'.length))
+    if (value.startsWith('sqlite:'))
+      return this.resolveFilename(
+        value.slice('sqlite:'.length).replace(/^\/+/, ''),
+      )
+    if (value.startsWith('file://'))
+      return Try.return(() => Bun.fileURLToPath(new URL(value)), fallback)
+    return path.resolve(process.cwd(), value)
   }
 
-  readonly execute: DBExecutor = {
-    all: async (sqlText: string, params: unknown[] = []) =>
-      (await this.sql.unsafe(sqlText, params)) as MapOf<unknown>[],
-    run: async (
+  readonly execute: SQLAdapter.Executor = createExecutor(
+    async (sqlText: string, params: unknown[] = []) =>
+      (await this.sql.unsafe(sqlText, params)) as SQLAdapter.RowRecord[],
+    async (
       sqlText: string,
       params: unknown[] = [],
-    ): Promise<RunResult> => {
+    ): Promise<SQLAdapter.RunResult> => {
       const result = (await this.sql.unsafe(sqlText, params)) as any
       return {
         lastInsertRowid:
@@ -82,18 +161,14 @@ export class SQLiteAdapter extends DBAdapter {
         ),
       }
     },
-    iterate: (sqlText: string, params: unknown[] = []) =>
+    (sqlText: string, params: unknown[] = []) =>
       this.sql.unsafe(sqlText, params) as any,
-    get: async (sqlText: string, params: unknown[] = []) =>
-      (await this.execute.all(sqlText, params))[0],
-    values: async (sqlText: string, params: unknown[] = []) =>
-      (await this.execute.all(sqlText, params)).map(Object.values),
-  }
+  )
 
   async hasCol(table: string, column: string): Promise<boolean> {
-    const cols = (await this.query(`PRAGMA table_info('${table}')`).all()) as {
-      name: string
-    }[]
+    const cols = (await this.query(
+      `PRAGMA table_info('${table}')`,
+    ).all()) as SQLAdapter.NameRow[]
     return cols.some(c => c.name === column)
   }
 
@@ -114,13 +189,7 @@ export class SQLiteAdapter extends DBAdapter {
     return out + this.formatDefault(d.default, '1', '0')
   }
 
-  async addCol(table: string, column: string, def: unknown): Promise<void> {
-    await this.query(
-      `ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${this.colDef(def)}`,
-    ).run()
-  }
-
-  async backup(keepCount = 10): Promise<BackupResult | null> {
+  async backup(keepCount = 10): Promise<SQLAdapter.BackupResult | null> {
     if (
       this.filename === ':memory:' ||
       !this.filename ||
@@ -131,25 +200,24 @@ export class SQLiteAdapter extends DBAdapter {
       base = path.basename(this.filename, ext)
     const backupDir = `${path.dirname(this.filename)}/backups`,
       backupName = `${base}.${Date.now()}${ext}`
-    await mkdir(backupDir, { recursive: true })
-    await copyFile(this.filename, `${backupDir}/${backupName}`)
+    await Bun.write(`${backupDir}/${backupName}`, Bun.file(this.filename))
     return {
       file: backupName,
       cleanupCount: await this.cleanupBackups(backupDir, base, ext, keepCount),
     }
   }
 
-  transaction<T>(callback: (tx: DBAdapter) => T | Promise<T>): Promise<T> {
+  transaction<T>(callback: (tx: SQLAdapter) => T | Promise<T>): Promise<T> {
     return this.sql.transaction(async txSql =>
       callback(new SQLiteAdapter(this.filename, txSql)),
     )
   }
 
-  async getSchema(): Promise<TableDetails[]> {
+  async getSchema(): Promise<SQLAdapter.TableDetails[]> {
     const res = (await this.query(
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
-    ).all()) as { name: string }[]
-    const tablesWithDetails: TableDetails[] = []
+    ).all()) as SQLAdapter.NameRow[]
+    const tablesWithDetails: SQLAdapter.TableDetails[] = []
     for (const t of res) {
       const tableName = this.quote(t.name)
 
@@ -157,7 +225,7 @@ export class SQLiteAdapter extends DBAdapter {
         this.query(`SELECT COUNT(*) as count FROM ${tableName}`).get(),
         this.query(`PRAGMA table_info(${tableName})`).all(),
         this.query(`PRAGMA index_list(${tableName})`).all(),
-      ])) as [{ count: number }, any[], any[]]
+      ])) as [SQLAdapter.CountRow, any[], any[]]
 
       tablesWithDetails.push({
         name: t.name,
@@ -176,18 +244,12 @@ export class SQLiteAdapter extends DBAdapter {
 
   async getData(
     tableName: string,
-    options: {
-      page: number
-      pageSize: number
-      sortBy?: string | null
-      sortOrder?: string | null
-      filters?: MapOf<unknown>
-    },
-  ): Promise<TableDataResult> {
+    options: SQLAdapter.TableDataOptions,
+  ): Promise<SQLAdapter.TableDataResult> {
     const tname = this.quote(tableName)
-    const cols = (await this.query(`PRAGMA table_info(${tname})`).all()) as {
-      name: string
-    }[]
+    const cols = (await this.query(
+      `PRAGMA table_info(${tname})`,
+    ).all()) as SQLAdapter.NameRow[]
     const { whereSql, orderSql, whereParams } = this.buildFilterSort(
       options,
       new Set(cols.map(c => c.name)),
@@ -202,7 +264,7 @@ export class SQLiteAdapter extends DBAdapter {
       this.query(
         `SELECT rowid AS rowid, * FROM ${tname}${whereSql}${orderSql} LIMIT ? OFFSET ?`,
       ).all(...whereParams, pageSize, (page - 1) * pageSize),
-    ])) as [{ count: number }, any[]]
+    ])) as [SQLAdapter.CountRow, any[]]
 
     const totalRows = countRes?.count || 0
     return {
@@ -214,25 +276,18 @@ export class SQLiteAdapter extends DBAdapter {
     }
   }
 
-  async remove(table: string, rowid: unknown): Promise<RunResult> {
+  async remove(table: string, rowid: unknown): Promise<SQLAdapter.RunResult> {
     return await this.query(
       `DELETE FROM ${this.quote(table)} WHERE rowid = ?`,
     ).run(rowid)
   }
-  async truncate(table: string): Promise<RunResult> {
+
+  async truncate(table: string): Promise<SQLAdapter.RunResult> {
     await this.query(`DELETE FROM ${this.quote(table)}`).run()
     return this.query(`VACUUM`).run()
   }
-  async insert(table: string, row: MapOf<unknown>): Promise<RunResult> {
-    const keys = Object.keys(row),
-      values = Object.values(row)
-    return await this.query(
-      `INSERT INTO ${this.quote(table)} 
-      (${keys.map(k => this.quote(k)).join(', ')}) 
-      VALUES (${keys.map(() => '?').join(', ')})`,
-    ).run(...values)
-  }
-  async update(table: string, rowid: unknown, row: MapOf<unknown>) {
+
+  async update(table: string, rowid: unknown, row: SQLAdapter.RowRecord) {
     const keys = Object.keys(row).filter(k => k !== 'rowid')
     return await this.query(
       `UPDATE ${this.quote(table)} 
@@ -258,11 +313,14 @@ export class SQLiteAdapter extends DBAdapter {
 
       if (table.type === 'view') {
         const match = table.sql.match(/AS\s+(.*)/is)
-        if (match) dbConstraints[tName]._view = cleanSQLQuotes(match[1].trim())
+        if (match)
+          dbConstraints[tName]._view = SQLiteAdapter.cleanSQLQuotes(
+            match[1].trim(),
+          )
 
         for (const col of cols) {
           dbConstraints[tName][Case.camel(col.name)] = {
-            type: mapSqlToTsType(col.type),
+            type: SQLiteAdapter.mapSqlToTsType(col.type),
             nullable: col.notnull === 0n || col.notnull === 0,
           }
         }
@@ -270,10 +328,9 @@ export class SQLiteAdapter extends DBAdapter {
       }
 
       for (const col of cols) {
-        dbConstraints[tName][Case.camel(col.name)] = buildColumnConstraint(
+        dbConstraints[tName][Case.camel(col.name)] = this.parseConstraints(
           col,
           table.sql,
-          this.dateNowDefaults,
         )
       }
     }
@@ -303,89 +360,50 @@ export class SQLiteAdapter extends DBAdapter {
     )
   }
 
-  protected override async preSync(tx: DBAdapter): Promise<void> {
+  protected override async preSync(tx: SQLAdapter): Promise<void> {
     await tx.query('PRAGMA foreign_keys=OFF').run()
   }
-  protected override async postSync(tx: DBAdapter): Promise<void> {
+  protected override async postSync(tx: SQLAdapter): Promise<void> {
     await tx.query('PRAGMA foreign_keys=ON').run()
   }
   override readonly dateNowDefaults: string[] = [
     "CAST(strftime('%s', 'now') AS INTEGER)",
   ]
-  override async dropTable(tableName: string): Promise<RunResult> {
-    return await this.query(
-      `DROP TABLE IF EXISTS ${quoteIdentifier(tableName, this.quoteChar)}`,
-    ).run()
-  }
-}
 
-function mapSqlToTsType(sqlType: string): SyncTypes.ColumnConstraint['type'] {
-  const upperType = (sqlType || '').toUpperCase()
-  for (const [sql, ts] of Object.entries({
-    INTEGER: 'integer',
-    TEXT: 'string',
-    REAL: 'number',
-    BLOB: 'buffer',
-    NUMERIC: 'number',
-    BOOLEAN: 'boolean',
-  })) {
-    if (upperType.includes(sql)) return ts as any
-  }
-  return 'string'
-}
+  protected override parseConstraints(
+    col: any,
+    tableSql = '',
+  ): SyncTypes.ColumnConstraint {
+    const primary = col.pk > 0
+    const cons: SyncTypes.ColumnConstraint = {
+      type: SQLiteAdapter.mapSqlToTsType(col.type),
+    }
 
-function parseSqliteDefault(def: any, dateNowDefaults: string[]): any {
-  switch (true) {
-    case def === null:
-      return null
-    case def === undefined:
-      return undefined
-    case typeof def === 'string' &&
-      (def.startsWith("'") || def.startsWith('"')): {
+    if (primary) cons.primary = true
+    if (
+      primary &&
+      cons.type === 'integer' &&
+      tableSql?.toUpperCase().includes('AUTOINCREMENT')
+    ) {
+      cons.autoIncrement = true
+    }
+
+    if (col.notnull === 0 && !primary) cons.nullable = true
+
+    const parsedDef = this.parseDefault(col.dflt_value)
+    if (parsedDef !== undefined) cons.default = parsedDef
+
+    return cons
+  }
+
+  private parseDefault(def: any): any {
+    if (def === null || def === undefined) return def
+    const isStr = typeof def === 'string'
+    if (isStr && (def.startsWith("'") || def.startsWith('"'))) {
       const unquoted = def.slice(1, -1)
-      // Stale literal '%dateNow%' must stay quoted so norm() doesn't collapse it
-      // to match the TS sentinel, allowing the diff to detect it needs migration.
       if (unquoted === '%dateNow%') return def
       return unquoted
     }
-    case typeof def === 'string' && def.toUpperCase() === 'NULL':
-      return null
-    case typeof def === 'string' && !Number.isNaN(Number(def)):
-      return Number(def)
-    case typeof def === 'string' && dateNowDefaults.some(dVal => {
-      const norm = def.replace(/[()]/g, '').trim().toUpperCase()
-      const normD = dVal.replace(/[()]/g, '').trim().toUpperCase()
-      return norm === normD || norm.includes(normD)
-    }):
-      return '%dateNow%'
-    default:
-      return def
+    return super.parseDefault(def)
   }
-}
-
-function buildColumnConstraint(
-  col: any,
-  tableSql: string,
-  dateNowDefaults: string[],
-): SyncTypes.ColumnConstraint {
-  const primary = col.pk > 0
-  const cons: SyncTypes.ColumnConstraint = {
-    type: mapSqlToTsType(col.type),
-  }
-
-  if (primary) cons.primary = true
-  if (
-    primary &&
-    cons.type === 'integer' &&
-    tableSql?.toUpperCase().includes('AUTOINCREMENT')
-  ) {
-    cons.autoIncrement = true
-  }
-
-  if (col.notnull === 0 && !primary) cons.nullable = true
-
-  const parsedDef = parseSqliteDefault(col.dflt_value, dateNowDefaults)
-  if (parsedDef !== undefined) cons.default = parsedDef
-
-  return cons
 }

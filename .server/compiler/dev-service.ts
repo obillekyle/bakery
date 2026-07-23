@@ -2,7 +2,6 @@ import { watch } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { initRoutes } from '@server/cache'
 import { Bakery } from '@server/core/bakery'
-import { CLI } from '@server/core/cli'
 import { Try } from '@server/utils'
 import { Glob } from '@server/utils/fs'
 import { compLog, serveLog } from '../logger'
@@ -17,10 +16,6 @@ export function notifySockets(server: any, filename: string) {
   server?.publish('livereload', relativePath)
 }
 
-export function spawnLoggerTerminal() {
-  const scriptArgs = `bun run .server log ${process.pid}`
-  CLI.openTerminal(scriptArgs)
-}
 
 function setupPingInterval(
   url: string,
@@ -52,10 +47,10 @@ function setupPromptCheckInterval(
   disableRaw: () => void,
   enableRaw: () => void,
 ): any {
-  const interval = setInterval(() => {
+  const interval = setInterval(async () => {
     if (signal.aborted) return clearInterval(interval)
 
-    const promptActive = PromptTracker.isActive(workerPid)
+    const promptActive = await PromptTracker.isActive(workerPid)
 
     if (promptActive && isRawModeActive()) return disableRaw()
     if (!promptActive && isServerUp() && !isRawModeActive()) return enableRaw()
@@ -73,9 +68,6 @@ function createTTYManager(getWorker: () => Bun.Subprocess | null) {
         return getWorker()?.kill('SIGINT')
       case 's':
         return process.emit('SIGINT')
-      case 'd':
-        serveLog.SPAWN_LOGGER()
-        return spawnLoggerTerminal()
     }
   }
 
@@ -145,10 +137,9 @@ export async function handleDevMaster(): Promise<never> {
     }
 
     const isDetached = process.env.DETACHED === '1'
-    const inspectArgs = [
-      ...process.execArgv,
-      ...process.argv,
-    ].filter(arg => arg.startsWith('--inspect'))
+    const inspectArgs = [...process.execArgv, ...process.argv].filter(arg =>
+      arg.startsWith('--inspect'),
+    )
 
     workerProc = Bun.spawn(
       [
@@ -191,17 +182,18 @@ export async function handleDevMaster(): Promise<never> {
       PromptTracker.deactivate(workerProc.pid)
     }
 
-    switch (code) {
-      case 42:
-        serveLog.RESTART_REQ()
-        console.clear()
-        return startWatcher()
-      case 130:
-        serveLog.SHUTTING_DOWN()
-        return process.exit(0)
-      default:
-        return process.exit(code)
+    if (code === 42) {
+      serveLog.RESTART_REQ()
+      console.clear()
+      return startWatcher()
     }
+
+    if (code === 130) {
+      serveLog.SHUTTING_DOWN()
+      return process.exit(0)
+    }
+
+    return process.exit(code)
   }
 
   await startWatcher()
@@ -209,8 +201,16 @@ export async function handleDevMaster(): Promise<never> {
 }
 
 const pkgFilesGlob = Glob.strings('package.json', 'bun.lock', 'bun.lockb')
-const fileTypeGlob = Glob.fromExt(['css', 'html', 'ts', 'js', 'tsx', 'jsx'])
-const tsScriptGlob = Glob.fromExt(['ts', 'js', 'html'])
+const fileTypeGlob = Glob.fromExt([
+  'css',
+  'html',
+  'ts',
+  'js',
+  'tsx',
+  'jsx',
+  'vue',
+])
+const tsScriptGlob = Glob.fromExt(['ts', 'js', 'html', 'vue'])
 const watchIgnores = Glob.strings(
   'node_modules/**/*',
   '**/.git/**/*',
@@ -233,15 +233,18 @@ async function processFileEvent(
   isDevWorker: boolean,
 ) {
   if (isDevWorker) {
-    switch (true) {
-      case prioFilesGlob.match(filePath):
-        serveLog.BACKEND_CHANGE({ file: filePath })
-        return process.exit(42)
-      case tsScriptGlob.match(filePath):
-        initRoutes()
-        return notifySockets(server, filePath)
-      case fileTypeGlob.match(filePath):
-        return notifySockets(server, filePath)
+    if (prioFilesGlob.match(filePath)) {
+      serveLog.BACKEND_CHANGE({ file: filePath })
+      return process.exit(42)
+    }
+
+    if (tsScriptGlob.match(filePath)) {
+      initRoutes()
+      return notifySockets(server, filePath)
+    }
+
+    if (fileTypeGlob.match(filePath)) {
+      return notifySockets(server, filePath)
     }
   }
 
@@ -254,22 +257,23 @@ async function processFileEvent(
 }
 
 export async function startCompileService(server: any): Promise<void> {
+  if (!import.meta.env.DEV) return
   const watcher = watch('./', { recursive: true })
-  const isDevWorker = import.meta.env.WORKER
+  const isDevWorker = Boolean(import.meta.env.DEV_WORKER && import.meta.env.DEV)
 
   for await (const { filename } of watcher) {
     if (!filename) continue
     const filePath = filename.replace(/\\/g, '/')
 
-    switch (true) {
-      case watchIgnores.match(filePath):
-      case !fileTypeGlob.match(filePath):
-        continue
-      case pkgFilesGlob.match(filePath):
-        compLog.FILE_STATUS({ status: 'changed', file: filePath })
-        continue
-      default:
-        await processFileEvent(filePath, server, isDevWorker)
+    if (watchIgnores.match(filePath) || !fileTypeGlob.match(filePath)) {
+      continue
     }
+
+    if (pkgFilesGlob.match(filePath)) {
+      compLog.FILE_STATUS({ status: 'changed', file: filePath })
+      continue
+    }
+
+    await processFileEvent(filePath, server, isDevWorker)
   }
 }

@@ -1,5 +1,9 @@
 import type { AnalyticsSnapshot } from './types'
 
+export const RETENTION_MS = 30 * 24 * 3600 * 1000
+export const BOOT_MAX_ITEMS = 5000
+export const HARD_CAP = 50_000
+
 export const history1m: AnalyticsSnapshot[] = []
 export const history1h: AnalyticsSnapshot[] = []
 export const history1d: AnalyticsSnapshot[] = []
@@ -53,33 +57,31 @@ let dbHitsThisSecond = 0
 let errorPageHitsThisSecond = 0
 
 function prunePageHitsLog(now: number) {
-  const RETENTION_MS = 30 * 24 * 3600 * 1000
-  const HARD_CAP = 50_000
-
   let i = 0
   while (
     i < pageHitsLog.length &&
     pageHitsLog[i].timestamp < now - RETENTION_MS
   )
     i++
-  if (i > 0) pageHitsLog.splice(0, i)
+  if (i > 0) {
+    for (let j = 0; j < i; j++) {
+      const p = pageHitsLog[j].path
+      const c = pageHitsMap.get(p)
+      if (c === 1) pageHitsMap.delete(p)
+      else if (c) pageHitsMap.set(p, c - 1)
+    }
+    pageHitsLog.splice(0, i)
+  }
 
   if (pageHitsLog.length > HARD_CAP) {
-    pageHitsLog.splice(0, pageHitsLog.length - HARD_CAP)
-  }
-}
-
-function rebuildPageHitsMap() {
-  try {
-    const agg = new Map<string, number>()
-    for (let i = 0; i < pageHitsLog.length; i++) {
-      const p = pageHitsLog[i].path
-      agg.set(p, (agg.get(p) || 0) + 1)
+    const excess = pageHitsLog.length - HARD_CAP
+    for (let j = 0; j < excess; j++) {
+      const p = pageHitsLog[j].path
+      const c = pageHitsMap.get(p)
+      if (c === 1) pageHitsMap.delete(p)
+      else if (c) pageHitsMap.set(p, c - 1)
     }
-    pageHitsMap.clear()
-    for (const [k, v] of agg) pageHitsMap.set(k, v)
-  } catch (_e) {
-    // best-effort
+    pageHitsLog.splice(0, excess)
   }
 }
 
@@ -89,7 +91,6 @@ export function ensurePageHitsLogPruner() {
   _pageHitsLogPruneTimer = setInterval(() => {
     try {
       prunePageHitsLog(Date.now())
-      rebuildPageHitsMap()
     } catch (_e) {
       // swallow errors; pruner is best-effort
     }
@@ -161,11 +162,19 @@ function loadAccumulator(target: TempAccumulator, loaded: any) {
   }
 }
 
+export function isAssetPath(path: string): boolean {
+  if (!path || typeof path !== 'string') return true
+  if (path.startsWith('/_')) return true
+  return /\.(css|js|mjs|cjs|ts|tsx|jsx|vue|json|map|png|jpg|jpeg|webp|gif|svg|ico|bmp|woff|woff2|ttf|eot|txt|xml|webmanifest)$/i.test(
+    path,
+  )
+}
+
 export function recordRouteHit(method: string, path: string, search = '') {
   routeHitsThisSecond += 1
   if (path.startsWith('/api/')) {
     apiHitsThisSecond += 1
-  } else {
+  } else if (!isAssetPath(path)) {
     pageHitsThisSecond += 1
     pageHitsLog.push({ timestamp: Date.now(), path })
     ensurePageHitsLogPruner()
@@ -345,10 +354,6 @@ export function getFilledHistoryForTimescale(
 
   if (filled.length > limit) return filled.slice(-limit)
   return filled
-}
-
-export function getChildrenMemoryUsage(): number {
-  return 0
 }
 
 export function loadTemps(loaded: any) {

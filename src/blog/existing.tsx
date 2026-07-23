@@ -1,5 +1,5 @@
-import { Bakery, html, HTMLBody, createElement, Fragment } from '@server/core'
-import { Layout, HeroHeader, CardHeader } from '../Layout.tsx'
+import { createElement, Fragment, HTMLBody } from '@server/core'
+import { CardHeader, HeroHeader, Layout } from '../Layout.tsx'
 export default HTMLBody((req: any, body: any) => {
   return (
     <Layout title="Prioritized Route | Bakery 🚀">
@@ -7,7 +7,11 @@ export default HTMLBody((req: any, body: any) => {
         <HeroHeader
           emoji="🛡️"
           title="Prioritized TSX Route"
-          subtitle={<Fragment>Requested path was: <code>/blog/existing.html</code></Fragment>}
+          subtitle={
+            <Fragment>
+              Requested path was: <code>/blog/existing.html</code>
+            </Fragment>
+          }
         />
 
         <div class="card-grid">
@@ -22,8 +26,8 @@ export default HTMLBody((req: any, body: any) => {
 
             <ul class="feature-list">
               <li>
-                <strong>Match Priority:</strong> The server automatically
-                scans for matching files with extensions <code>.tsx</code>,{' '}
+                <strong>Match Priority:</strong> The server automatically scans
+                for matching files with extensions <code>.tsx</code>,{' '}
                 <code>.html</code>, <code>.ts</code>, <code>.js</code> before
                 falling back to dynamic wildcard routes.
               </li>
@@ -42,5 +46,5 @@ export default HTMLBody((req: any, body: any) => {
         </div>
       </main>
     </Layout>
-  );
-});
+  )
+})

@@ -18,9 +18,9 @@ export {
 export default function analyticsPlugin() {
   return definePlugin({
     name: 'analytics',
-    setup: async () => {
+    async setup() {
       const { setupAnalytics } = await import('./setup')
-      await setupAnalytics()
+      setupAnalytics()
     },
     onRoute(req) {
       const url = new URL(req.url)

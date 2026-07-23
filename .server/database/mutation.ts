@@ -78,9 +78,8 @@ export namespace Mutation {
 
       const columns = keys.map(k => `${q}${Case.snake(k)}${q}`).join(', ')
 
-      const placeholders = this._records
-        .map(() => `(${keys.map(() => '?').join(', ')})`)
-        .join(', ')
+      const placeholderGroup = `(${Array(keys.length).fill('?').join(', ')})`
+      const placeholders = Array(this._records.length).fill(placeholderGroup).join(', ')
 
       const params = this._records.flatMap(record =>
         keys.map(k => record[k] ?? null),
@@ -93,7 +92,7 @@ export namespace Mutation {
     }
 
     async run(): Promise<RunResult> {
-      return await getActiveDb().executeInsert(this._table, this._records)
+      return await getActiveDb().insert(this._table, this._records)
     }
     then<TR1 = RunResult, TR2 = never>(
       onf?: ((v: RunResult) => TR1 | PromiseLike<TR1>) | null,
@@ -134,6 +133,12 @@ export namespace Mutation {
       private _whereClause: any,
     ) {}
 
+    private evalWhere(params: any[]): string {
+      const left = evalOperands(this._whereClause.left, params)
+      const right = evalOperands(this._whereClause.right, params)
+      return `${left} ${this._whereClause.operator} ${right}`
+    }
+
     parse(): { sql: string; params: any[] } {
       const q = getActiveDb().quoteChar
       const params: any[] = []
@@ -145,10 +150,9 @@ export namespace Mutation {
         })
         .join(', ')
 
-      const left = evalOperands(this._whereClause.left, params)
-      const right = evalOperands(this._whereClause.right, params)
+      const whereSql = this.evalWhere(params)
       return {
-        sql: `UPDATE ${q}${Case.snake(this._table)}${q} SET ${setClauses} WHERE ${left} ${this._whereClause.operator} ${right}`,
+        sql: `UPDATE ${q}${Case.snake(this._table)}${q} SET ${setClauses} WHERE ${whereSql}`,
         params,
       }
     }
@@ -156,10 +160,9 @@ export namespace Mutation {
     exists(): MutationExistsExecutable {
       const q = getActiveDb().quoteChar
       const params: any[] = []
-      const left = evalOperands(this._whereClause.left, params)
-      const right = evalOperands(this._whereClause.right, params)
+      const whereSql = this.evalWhere(params)
       return new MutationExistsExecutable(
-        `SELECT 1 FROM ${q}${Case.snake(this._table)}${q} WHERE ${left} ${this._whereClause.operator} ${right} LIMIT 1`,
+        `SELECT 1 FROM ${q}${Case.snake(this._table)}${q} WHERE ${whereSql} LIMIT 1`,
         params,
       )
     }
@@ -194,24 +197,27 @@ export namespace Mutation {
       private _whereClause: any,
     ) {}
 
-    parse(): { sql: string; params: any[] } {
-      const q = getActiveDb().quoteChar
+    private evalWhere(): { whereSql: string; params: any[] } {
       const params: any[] = []
       const left = evalOperands(this._whereClause.left, params)
       const right = evalOperands(this._whereClause.right, params)
+      return { whereSql: `${left} ${this._whereClause.operator} ${right}`, params }
+    }
+
+    parse(): { sql: string; params: any[] } {
+      const q = getActiveDb().quoteChar
+      const { whereSql, params } = this.evalWhere()
       return {
-        sql: `DELETE FROM ${q}${Case.snake(this._table)}${q} WHERE ${left} ${this._whereClause.operator} ${right}`,
+        sql: `DELETE FROM ${q}${Case.snake(this._table)}${q} WHERE ${whereSql}`,
         params,
       }
     }
 
     exists(): MutationExistsExecutable {
       const q = getActiveDb().quoteChar
-      const params: any[] = []
-      const left = evalOperands(this._whereClause.left, params)
-      const right = evalOperands(this._whereClause.right, params)
+      const { whereSql, params } = this.evalWhere()
       return new MutationExistsExecutable(
-        `SELECT 1 FROM ${q}${Case.snake(this._table)}${q} WHERE ${left} ${this._whereClause.operator} ${right} LIMIT 1`,
+        `SELECT 1 FROM ${q}${Case.snake(this._table)}${q} WHERE ${whereSql} LIMIT 1`,
         params,
       )
     }

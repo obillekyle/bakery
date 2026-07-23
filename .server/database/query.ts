@@ -9,6 +9,12 @@ import { Mutation } from './mutation'
 import { evalOperands } from './schema-util'
 
 export namespace DB {
+  function pushParamsToRoot(node: any, params: any[]) {
+    let root = node
+    while (root && !root._param) root = root._previous
+    if (root?._param) root._param.push(...params)
+  }
+
   export function safeColumn(col: string): string {
     const q = getActiveDb().quoteChar
     const parts = col.split('.')
@@ -167,57 +173,49 @@ export namespace DB {
     | QBLimit<S, J, F, P>
 
   export abstract class QBExecutable<P> {
-    abstract parse(): { sql: string; params: unknown[] }
+    parse(): { sql: string; params: any[] } {
+      return buildSQL(this)
+    }
+
+    private mapRow(row: MapOf<unknown>, rawKeys: string[], mappedKeys: string[], numKeys: number): P {
+      const mapped: MapOf<unknown> = {}
+      for (let i = 0; i < numKeys; i++) {
+        mapped[mappedKeys[i]!] = row[rawKeys[i]!]
+      }
+      return mapped as P
+    }
 
     private mapRowsOptimized(rows: MapOf<unknown>[]): P[] {
-      switch (true) {
-        case !rows || rows.length === 0:
-          return rows as any
-        case typeof rows[0] !== 'object':
-          return rows as any
-        default: {
-          const keyMap: MapOf<string> = {}
-          for (const key in rows[0]) {
-            keyMap[key] = key.replace(/_([a-z0-9])/gi, (_, letter) =>
-              letter.toUpperCase(),
-            )
-          }
-          return rows.map(row => {
-            const mapped: MapOf<unknown> = {}
-            for (const key in keyMap) {
-              mapped[keyMap[key]!] = (row as MapOf<unknown>)[key]
-            }
-            return mapped as P
-          }) as P[]
-        }
-      }
+      if (!rows || rows.length === 0 || typeof rows[0] !== 'object')
+        return rows as any
+
+      const rawKeys = Object.keys(rows[0])
+      const numKeys = rawKeys.length
+      const mappedKeys = rawKeys.map(k =>
+        k.replace(/_([a-z0-9])/gi, (_, letter) => letter.toUpperCase()),
+      )
+      return rows.map(row => this.mapRow(row as MapOf<unknown>, rawKeys, mappedKeys, numKeys))
     }
 
     async *iterable(): AsyncIterable<P> {
       const { sql, params } = this.parse()
-      let keyMap: MapOf<string> | null = null
+      let rawKeys: string[] | null = null
+      let mappedKeys: string[] | null = null
+      let numKeys = 0
       for await (const row of getActiveDb()
         .query(sql)
         .iterate(...(params as unknown[]))) {
-        switch (true) {
-          case typeof row !== 'object':
-            yield row as P
-            break
-          default: {
-            if (!keyMap) {
-              keyMap = {}
-              for (const key in row as MapOf<unknown>) {
-                keyMap[key] = key.replace(/_([a-z0-9])/gi, (_, letter) =>
-                  letter.toUpperCase(),
-                )
-              }
-            }
-            const mapped: MapOf<unknown> = {}
-            for (const key in keyMap) {
-              mapped[keyMap[key]!] = (row as MapOf<unknown>)[key]
-            }
-            yield mapped as P
+        if (typeof row !== 'object') {
+          yield row as P
+        } else {
+          if (!rawKeys) {
+            rawKeys = Object.keys(row as object)
+            numKeys = rawKeys.length
+            mappedKeys = rawKeys.map(k =>
+              k.replace(/_([a-z0-9])/gi, (_, letter) => letter.toUpperCase()),
+            )
           }
+          yield this.mapRow(row as MapOf<unknown>, rawKeys, mappedKeys!, numKeys)
         }
       }
     }
@@ -319,26 +317,11 @@ export namespace DB {
       this._join[table as any] = { alias: as || table, on } as any
       return this as any
     }
-    JOIN<
-      T extends Extract<keyof S, string>,
-      A extends string | undefined = undefined,
-    >(
-      table: T,
-      on: { [K in J]?: keyof S[K] } & {
-        [K2 in ValidAlias<A> extends never ? T : ValidAlias<A>]?: keyof S[T]
-      },
-      as?: A,
-    ): QB<NewTable<S, A, T> & S, J | T | ValidAlias<A>> {
-      return this.join(table, on, as)
-    }
 
     where: WhereClause<S, J> = (left: any, operator: any, right: any) => {
       const [str, params] = QBWhere.evalClause(left, operator, right)
       this._param.push(...params)
       return new (QBWhere as any)(this, ` WHERE ${str}`)
-    }
-    WHERE: WhereClause<S, J> = (left: any, operator: any, right: any) => {
-      return (this.where as any)(left, operator, right)
     }
 
     select<
@@ -346,12 +329,6 @@ export namespace DB {
       P extends TakeSelectValues<FilteredGroups<S, J, {}>, C>,
     >(columns: C): QBSelect<S, J, FilteredGroups<S, J, {}>, P> {
       return new (QBSelect as any)(this, columns)
-    }
-    SELECT<
-      C extends SelectColumns<S, J>,
-      P extends TakeSelectValues<FilteredGroups<S, J, {}>, C>,
-    >(columns: C): QBSelect<S, J, FilteredGroups<S, J, {}>, P> {
-      return this.select(columns)
     }
 
     selectAll<A extends Extract<J, string>>(
@@ -363,16 +340,6 @@ export namespace DB {
       FilteredGroups<S, J, {}>[A]
     > {
       return new (QBSelectAll as any)(this, alias)
-    }
-    SELECT_ALL<A extends Extract<J, string>>(
-      alias: A,
-    ): QBSelectAll<
-      S,
-      J,
-      FilteredGroups<S, J, {}>,
-      FilteredGroups<S, J, {}>[A]
-    > {
-      return this.selectAll(alias)
     }
   }
 
@@ -387,12 +354,6 @@ export namespace DB {
       if (!alias) throws('Name is required')
       ;(this._with as any)[alias] = qb
       return this as any
-    }
-    WITH<P, A extends string>(
-      qb: CTEAllowed<any, any, any, P>,
-      alias: A,
-    ): WithQB<S & Record<A, P>, J | A> {
-      return this.with(qb, alias)
     }
 
     table<
@@ -410,21 +371,8 @@ export namespace DB {
       qb._with = this._with
       return qb
     }
-    TABLE<
-      T extends Tables | Extract<keyof S, string>,
-      A extends string | undefined = undefined,
-    >(
-      name: T,
-      as?: A,
-    ): QB<
-      NewTable<S, A, Extract<T, string>>,
-      J | Extract<T, string> | ValidAlias<A>
-    > {
-      return this.table(name, as)
-    }
 
     from = this.table
-    FROM = this.table
   }
 
   export class QBWhere<S extends TableSchemas, J extends string> {
@@ -437,26 +385,16 @@ export namespace DB {
 
     and: WhereClause<S, J> = (left: any, operator: any, right: any) => {
       const [str, params] = QBWhere.evalClause(left, operator, right)
-      let root = this._previous
-      while (root && !root._param) root = root._previous
-      if (root?._param) root._param.push(...params)
+      pushParamsToRoot(this._previous, params)
       this._where.push(` AND ${str}`)
       return this
-    }
-    AND: WhereClause<S, J> = (left: any, operator: any, right: any) => {
-      return (this.and as any)(left, operator, right)
     }
 
     or: WhereClause<S, J> = (left: any, operator: any, right: any) => {
       const [str, params] = QBWhere.evalClause(left, operator, right)
-      let root = this._previous
-      while (root && !root._param) root = root._previous
-      if (root?._param) root._param.push(...params)
+      pushParamsToRoot(this._previous, params)
       this._where.push(` OR ${str}`)
       return this
-    }
-    OR: WhereClause<S, J> = (left: any, operator: any, right: any) => {
-      return (this.or as any)(left, operator, right)
     }
 
     static evalClause(
@@ -474,9 +412,6 @@ export namespace DB {
       return new QBExists(this).run()
     }
 
-    EXISTS(): Promise<boolean> {
-      return this.exists()
-    }
 
     then<TResult1 = boolean, TResult2 = never>(
       onfulfilled?:
@@ -502,24 +437,12 @@ export namespace DB {
         .join(', ')
       return qbGroupBy
     }
-    GROUP_BY<
-      G extends ColumnRef<S, J>,
-      F extends FilteredGroups<S, J, G> = FilteredGroups<S, J, G>,
-    >(groups: G): QBGroupBy<S, J, F> {
-      return this.groupBy(groups)
-    }
 
     select<
       C extends SelectColumns<S, J>,
       P extends TakeSelectValues<FilteredGroups<S, J, {}>, C>,
     >(columns: C): QBSelect<S, J, FilteredGroups<S, J, {}>, P> {
       return new (QBSelect as any)(this, columns)
-    }
-    SELECT<
-      C extends SelectColumns<S, J>,
-      P extends TakeSelectValues<FilteredGroups<S, J, {}>, C>,
-    >(columns: C): QBSelect<S, J, FilteredGroups<S, J, {}>, P> {
-      return this.select(columns)
     }
 
     selectAll<A extends Extract<J, string>>(
@@ -531,16 +454,6 @@ export namespace DB {
       FilteredGroups<S, J, {}>[A]
     > {
       return new (QBSelectAll as any)(this, alias)
-    }
-    SELECT_ALL<A extends Extract<J, string>>(
-      alias: A,
-    ): QBSelectAll<
-      S,
-      J,
-      FilteredGroups<S, J, {}>,
-      FilteredGroups<S, J, {}>[A]
-    > {
-      return this.selectAll(alias)
     }
   }
 
@@ -582,22 +495,11 @@ export namespace DB {
     >(columns: C): QBSelect<S, J, F, P> {
       return new (QBSelect as any)(this, columns)
     }
-    SELECT<
-      C extends SelectColumns<F, J>,
-      P extends TakeSelectValues<F, C> = TakeSelectValues<F, C>,
-    >(columns: C): QBSelect<S, J, F, P> {
-      return this.select(columns)
-    }
 
     selectAll<A extends Extract<J, string>>(
       alias: A,
     ): QBSelectAll<S, J, F, F[A]> {
       return new (QBSelectAll as any)(this, alias)
-    }
-    SELECT_ALL<A extends Extract<J, string>>(
-      alias: A,
-    ): QBSelectAll<S, J, F, F[A]> {
-      return this.selectAll(alias)
     }
   }
 
@@ -622,12 +524,6 @@ export namespace DB {
     >(columns: C): QBSelect<S, J, F, P & P2> {
       return new (QBSelect as any)(this, columns)
     }
-    SELECT<
-      C extends SelectColumns<F, J>,
-      P2 extends TakeSelectValues<F, C> = TakeSelectValues<F, C>,
-    >(columns: C): QBSelect<S, J, F, P & P2> {
-      return this.select(columns)
-    }
 
     selectMath<
       C extends SelectMathArgs<S, J, P>,
@@ -639,14 +535,6 @@ export namespace DB {
       qb._selectFunctions = columns
       return qb as any
     }
-    SELECT_MATH<
-      C extends SelectMathArgs<S, J, P>,
-      M extends TakeSelectMathValues<C> = TakeSelectMathValues<C>,
-    >(
-      columns: C,
-    ): Omit<QBSelect<S, J, F, P & M>, 'selectMath' | 'SELECT_MATH'> {
-      return this.selectMath(columns)
-    }
 
     having: HavingClause<F, J, P, QBHaving<S, J, F, P>> = (
       left: any,
@@ -654,17 +542,8 @@ export namespace DB {
       right: any,
     ) => {
       const [str, params] = QBWhere.evalClause(left, operator, right)
-      let root = this._previous
-      while (root && !root._param) root = root._previous
-      if (root?._param) root._param.push(...params)
+      pushParamsToRoot(this._previous, params)
       return new (QBHaving as any)(this, str)
-    }
-    HAVING: HavingClause<F, J, P, QBHaving<S, J, F, P>> = (
-      left: any,
-      operator: any,
-      right: any,
-    ) => {
-      return (this.having as any)(left, operator, right)
     }
 
     orderBy(
@@ -676,22 +555,9 @@ export namespace DB {
         : safeColumn(String(column))
       return new (QBOrderBy as any)(this, `${orderStr} ${direction}`)
     }
-    ORDER_BY(
-      column: keyof P | ColumnRef<F, J> | AnyString,
-      direction: 'ASC' | 'DESC' = 'ASC',
-    ): QBOrderBy<S, J, F, P> {
-      return this.orderBy(column, direction)
-    }
 
     limit(limit: number, offset?: number): QBLimit<S, J, F, P> {
       return new (QBLimit as any)(this, limit, offset)
-    }
-    LIMIT(limit: number, offset?: number): QBLimit<S, J, F, P> {
-      return this.limit(limit, offset)
-    }
-
-    parse(): { sql: string; params: any[] } {
-      return buildSQL(this)
     }
   }
 
@@ -720,14 +586,6 @@ export namespace DB {
       Object.assign(this._selectFunctions, columns)
       return this as any
     }
-    SELECT_MATH<
-      C extends SelectMathArgs<S, J, P>,
-      M extends TakeSelectMathValues<C> = TakeSelectMathValues<C>,
-    >(
-      columns: C,
-    ): Omit<QBSelect<S, J, F, P & M>, 'selectMath' | 'SELECT_MATH'> {
-      return this.selectMath(columns)
-    }
 
     having: HavingClause<F, J, P, QBHaving<S, J, F, P>> = (
       left: any,
@@ -735,17 +593,8 @@ export namespace DB {
       right: any,
     ) => {
       const [str, params] = QBWhere.evalClause(left, operator, right)
-      let root = this._previous
-      while (root && !root._param) root = root._previous
-      if (root?._param) root._param.push(...params)
+      pushParamsToRoot(this._previous, params)
       return new (QBHaving as any)(this, str)
-    }
-    HAVING: HavingClause<F, J, P, QBHaving<S, J, F, P>> = (
-      left: any,
-      operator: any,
-      right: any,
-    ) => {
-      return (this.having as any)(left, operator, right)
     }
 
     orderBy(
@@ -757,22 +606,9 @@ export namespace DB {
         : safeColumn(String(column))
       return new (QBOrderBy as any)(this, `${orderStr} ${direction}`)
     }
-    ORDER_BY(
-      column: keyof P | ColumnRef<F, J> | AnyString,
-      direction: 'ASC' | 'DESC' = 'ASC',
-    ): QBOrderBy<S, J, F, P> {
-      return this.orderBy(column, direction)
-    }
 
     limit(limit: number, offset?: number): QBLimit<S, J, F, P> {
       return new (QBLimit as any)(this, limit, offset)
-    }
-    LIMIT(limit: number, offset?: number): QBLimit<S, J, F, P> {
-      return this.limit(limit, offset)
-    }
-
-    parse(): { sql: string; params: any[] } {
-      return buildSQL(this)
     }
   }
 
@@ -796,18 +632,9 @@ export namespace DB {
       right: any,
     ) => {
       const [str, params] = QBWhere.evalClause(left, operator, right)
-      let root = this._previous
-      while (root && !root._param) root = root._previous
-      if (root?._param) root._param.push(...params)
+      pushParamsToRoot(this._previous, params)
       this._having.push(` AND ${str}`)
       return this as any
-    }
-    AND: HavingClause<F, J, P, QBHaving<S, J, F, P>> = (
-      left: any,
-      operator: any,
-      right: any,
-    ) => {
-      return (this.and as any)(left, operator, right)
     }
 
     or: HavingClause<F, J, P, QBHaving<S, J, F, P>> = (
@@ -816,18 +643,9 @@ export namespace DB {
       right: any,
     ) => {
       const [str, params] = QBWhere.evalClause(left, operator, right)
-      let root = this._previous
-      while (root && !root._param) root = root._previous
-      if (root?._param) root._param.push(...params)
+      pushParamsToRoot(this._previous, params)
       this._having.push(` OR ${str}`)
       return this as any
-    }
-    OR: HavingClause<F, J, P, QBHaving<S, J, F, P>> = (
-      left: any,
-      operator: any,
-      right: any,
-    ) => {
-      return (this.or as any)(left, operator, right)
     }
 
     orderBy(
@@ -839,22 +657,9 @@ export namespace DB {
         : safeColumn(String(column))
       return new (QBOrderBy as any)(this, `${orderStr} ${direction}`)
     }
-    ORDER_BY(
-      column: keyof P | ColumnRef<F, J> | AnyString,
-      direction: 'ASC' | 'DESC' = 'ASC',
-    ): QBOrderBy<S, J, F, P> {
-      return this.orderBy(column, direction)
-    }
 
     limit(limit: number, offset?: number): QBLimit<S, J, F, P> {
       return new (QBLimit as any)(this, limit, offset)
-    }
-    LIMIT(limit: number, offset?: number): QBLimit<S, J, F, P> {
-      return this.limit(limit, offset)
-    }
-
-    parse(): { sql: string; params: any[] } {
-      return buildSQL(this)
     }
   }
 
@@ -875,13 +680,6 @@ export namespace DB {
     limit(limit: number, offset?: number): QBLimit<S, J, F, P> {
       return new (QBLimit as any)(this, limit, offset)
     }
-    LIMIT(limit: number, offset?: number): QBLimit<S, J, F, P> {
-      return this.limit(limit, offset)
-    }
-
-    parse(): { sql: string; params: any[] } {
-      return buildSQL(this)
-    }
   }
 
   export class QBLimit<
@@ -899,9 +697,6 @@ export namespace DB {
       this._limit = limit
       this._offset = offset
     }
-    parse(): { sql: string; params: any[] } {
-      return buildSQL(this)
-    }
   }
 
   export const table = QB.table
@@ -911,23 +706,15 @@ export namespace DB {
   export const raw = <T = any>(sql: string, params: any[] = []) =>
     new QBRaw<T>(sql, params)
 
-  export const TABLE = QB.table
-  export const FROM = QB.from
-  export const WITH = QB.with
-
-  export const RAW = raw
 
   export const Insert = Mutation.Insert
   export const Update = Mutation.Update
   export const Delete = Mutation.Delete
-  export const INSERT = Mutation.Insert
-  export const UPDATE = Mutation.Update
-  export const DELETE = Mutation.Delete
 
   export function transaction<T>(callback: () => Promise<T> | T): Promise<T> {
     const activeConn = getActiveDb()
     return activeConn.transaction(
-      async (tx: import('./adapters').DBAdapter) => {
+      async (tx: import('./adapters').SQLAdapter) => {
         return await txStorage.run(tx, () => callback())
       },
     )

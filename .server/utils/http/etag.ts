@@ -51,7 +51,9 @@ export namespace ETag {
     const cookie = response.headers.get('Set-Cookie')
     response = isNotModified(response) ? response : check(req, etag) || response
 
-    response.headers.set('Cache-Control', 'no-cache')
+    if (!response.headers.has('Cache-Control')) {
+      response.headers.set('Cache-Control', 'no-cache')
+    }
     cookie && response.headers.set('Set-Cookie', cookie)
 
     return response

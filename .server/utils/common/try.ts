@@ -23,6 +23,16 @@ function tryReturn<T extends MixedPromise<any>, D extends MixedPromise<any>>(
 ): T | D {
   try {
     const unwrapped = is.function(value) ? (value as any)() : value
+    if (
+      unwrapped instanceof Promise ||
+      (is.object(unwrapped) && is.function((unwrapped as any).catch))
+    ) {
+      return (unwrapped as any).catch((error: any) =>
+        is.function(defaultValue)
+          ? (defaultValue as any)(error)
+          : defaultValue,
+      ) as any
+    }
     return unwrapped
   } catch (error: any) {
     const unwrappedDefault = is.function(defaultValue)
@@ -30,10 +40,6 @@ function tryReturn<T extends MixedPromise<any>, D extends MixedPromise<any>>(
       : defaultValue
     return unwrappedDefault
   }
-}
-
-function trySilent<T extends MixedPromise<any>>(value: Wrapped<T>) {
-  return tryReturn(value, null)
 }
 
 type TryType = {
@@ -44,12 +50,11 @@ type TryType = {
     defaultValue: Wrapped<D, [Error]>,
   ): T | D
   throw: typeof tryThrow
-  silent<T extends MixedPromise<any>>(value: Wrapped<T>): T | null
 }
 
 export const Try: TryType = Object.assign(
   function Try<T extends MixedPromise<any>>(value: Wrapped<T>): T | null {
-    return trySilent(value)
+    return tryReturn(value, null)
   },
   {
     catch<T extends MixedPromise<any>>(value: Wrapped<T>): CatchReturn<T> {
@@ -67,6 +72,5 @@ export const Try: TryType = Object.assign(
     },
     return: tryReturn,
     throw: tryThrow,
-    silent: trySilent,
   },
 )

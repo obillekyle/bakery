@@ -1,7 +1,8 @@
-import { Bakery } from '@server/core/bakery'
+import { Bakery, hostKey } from '@server/core/bakery'
 import { assembleHtml, fs, toHash } from '@server/utils'
 import { injectIfHtml, response } from '@server/utils/http'
-import { DynamicHandler, type Handler } from '../core/$base'
+import type { Handler } from '../core/$base'
+import { DynamicHandler } from '../core/$dynamic'
 import { DynamicErrorHandler } from '../core/$error'
 
 export class HTMLHandler extends DynamicHandler {
@@ -42,17 +43,17 @@ async function sharedHandler(
   errors?: Handler.Error.Data,
 ) {
   const errorData = errors || (this as any).DEFAULT_ERROR
-  const routeInfo = await this.resolveRoute(path, errorData)
+  const info = await this.resolveRoute(path, errorData)
 
-  if (!routeInfo) return response.error('Not Found')
+  if (!info) return response.error('Not Found')
 
-  const file = routeInfo.info.file
+  const file = info.file
 
-  if (routeInfo.type === 'static' && !errorData) {
-    const cacheHash = toHash(routeInfo.info.path)
+  if (!info.isDynamic && !errorData) {
+    const cacheHash = toHash(hostKey(info.path))
     const cacheName = `${cacheHash}.html`
 
-    const cached = fs.getOrCreateCachedFile(
+    const cached = await fs.getOrCreateCachedFile(
       getCacheDir(),
       cacheName,
       file.lastModified,
@@ -65,12 +66,12 @@ async function sharedHandler(
     if (cached) return cached
   }
 
-  const params = await this.params(req, routeInfo.params)
-  const content = await routeInfo.info.file.text()
+  const params = await this.params(req, info.getParams(path) || {})
+  const content = await info.file.text()
   const data = { ...params, ...errorData }
 
   if (import.meta.env.DEV) {
-    data.__file = routeInfo.info.path
+    data.__file = info.path
   }
 
   const html = await injectIfHtml(content, data)

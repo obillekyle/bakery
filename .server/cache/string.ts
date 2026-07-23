@@ -1,11 +1,9 @@
 import type { Statement } from 'bun:sqlite'
-import { db, registerCache } from './tiered'
-
-type Milliseconds = number & {}
+import { db, registerCache, type Milliseconds } from './tiered'
 
 type StringEntry = { value: string; accessedAt: number }
 
-export class StringCache {
+class StringCache {
   private forwardMap = new Map<string, StringEntry>()
   private reverseMap = new Map<string, string>()
   private dirtyKeys = new Set<string>()
@@ -52,16 +50,14 @@ export class StringCache {
     const existingVal = this.forwardMap.get(key)?.value
     const existingKey = this.reverseMap.get(value)
 
-    switch (true) {
-      case existingVal === value:
-        break
-      case existingKey !== undefined && existingKey !== key:
-        throw new Error(
-          `Collision! Value '${value}' is already mapped to key '${existingKey}'`,
-        )
-      case existingVal !== undefined && existingVal !== value:
-        this.reverseMap.delete(existingVal)
-        break
+    if (existingVal === value) {
+      // already mapped
+    } else if (existingKey !== undefined && existingKey !== key) {
+      throw new Error(
+        `Collision! Value '${value}' is already mapped to key '${existingKey}'`,
+      )
+    } else if (existingVal !== undefined && existingVal !== value) {
+      this.reverseMap.delete(existingVal)
     }
 
     const now = Date.now()

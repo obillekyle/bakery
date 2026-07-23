@@ -1,4 +1,5 @@
-import { mkdir as fsMkdir } from 'node:fs/promises'
+import { existsSync as nodeExistsSync } from 'node:fs'
+import { mkdir as fsMkdir, rm as fsRm } from 'node:fs/promises'
 import { relative as nodeRelative, resolve } from 'node:path'
 import { parse as parsedPath } from 'node:path/posix'
 import { is, Try } from './common'
@@ -15,14 +16,32 @@ function toArray<T>(val?: MixedArray<T>): T[] {
   return Array.isArray(val) ? val : [val]
 }
 
-function safeResolve(...paths: string[]) {
+function safeResolve(...paths: string[]): FileSystem.AbsolutePath {
   return resolve(...paths).replace(/\\/g, '/')
 }
 // prettier-ignore
-const compressable = new Set([ 
-  'html', 'htm', 'xml', 'css', 'js', 'jsx', 'ts', 'tsx', 
-  'json', 'ttf', 'otf', 'txt', 'text', 'svg', 'md', 'wasm', 
-  'map', 'csv', 'yml', 'yaml', 'mdx',
+const compressable = new Set([
+  'html',
+  'htm',
+  'xml',
+  'css',
+  'js',
+  'jsx',
+  'ts',
+  'tsx',
+  'json',
+  'ttf',
+  'otf',
+  'txt',
+  'text',
+  'svg',
+  'md',
+  'wasm',
+  'map',
+  'csv',
+  'yml',
+  'yaml',
+  'mdx',
 ])
 
 export namespace Glob {
@@ -158,8 +177,36 @@ export namespace FileSystem {
     return Boolean((lastMod && lastMod < Date.now()) || file.size > 0)
   }
 
+  export function existsSync(path: string): boolean {
+    return nodeExistsSync(path)
+  }
+
+  export function isForbidden(pathToCheck: string, root: string): boolean {
+    if (!pathToCheck || !root) return false
+    let curr = safeResolve(pathToCheck)
+    const normalizedRoot = safeResolve(root)
+
+    while (curr.startsWith(normalizedRoot) && curr.length >= normalizedRoot.length) {
+      const forbiddenFile = safeResolve(curr, '.forbidden')
+      if (nodeExistsSync(forbiddenFile)) {
+        return true
+      }
+      const parent = safeResolve(curr, '..')
+      if (parent === curr) break
+      curr = parent
+    }
+    return false
+  }
+
   export async function mkdir(path: string) {
     if (!exists(path)) await fsMkdir(path, { recursive: true })
+  }
+
+  export async function rm(
+    path: string,
+    options?: { recursive?: boolean; force?: boolean },
+  ) {
+    await fsRm(path, options).catch(() => {})
   }
 
   export async function* readdir(info?: Glob.PatternInfo, files = false) {
@@ -196,16 +243,17 @@ export namespace FileSystem {
     return exists(file) && (!sourceMtime || sourceMtime <= file.lastModified)
   }
 
+  type FileContent = string | Uint8Array<ArrayBuffer> | ArrayBuffer
+
   export async function getOrCreateCachedFile(
     cacheDir: string,
     cacheName: string,
     sourceMtime: number | null,
-    compiler: () => Promise<
-      string | Uint8Array<ArrayBuffer> | ArrayBuffer | null | undefined
-    >,
+    compiler: () => MixedPromise<FileContent | null>,
+    compress = true,
   ) {
     const ext = parse(cacheName).ext
-    const compressible = isCompressible(ext)
+    const compressible = compress && isCompressible(ext)
 
     const rawPath = resolve(cacheDir, cacheName)
     const rawFile = Bun.file(rawPath)

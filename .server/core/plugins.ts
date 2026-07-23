@@ -24,17 +24,6 @@ async function normalizePluginResult(result: Handler.Response) {
   return null
 }
 
-export async function setupPlugins() {
-  for (const plugin of getPlugins()) {
-    const [err] = await Try.catch(plugin.setup?.(Bakery.config))
-    if (err) {
-      serveLog.UNHANDLED_ERR({
-        error: `Plugin setup error (${plugin.name}): ${errorMsg(err)}`,
-      })
-    }
-  }
-}
-
 export namespace PluginHooks {
   export async function setup() {
     for (const plugin of getPlugins()) {
@@ -109,5 +98,20 @@ export namespace PluginHooks {
         pluginLog.UNHANDLED_ERR({ error: `${plugin.name}: ${errorMsg(err)}` })
       }
     }
+  }
+
+  export async function onCompile(content: string, path: string): Promise<string> {
+    for (const plugin of getPlugins()) {
+      if (!plugin.onCompile) continue
+      const [err, res] = await Try.catch(() => plugin.onCompile!(content, path))
+      if (err) {
+        pluginLog.UNHANDLED_ERR({ error: `${plugin.name}: ${errorMsg(err)}` })
+        continue
+      }
+      if (typeof res === 'string') {
+        content = res
+      }
+    }
+    return content
   }
 }

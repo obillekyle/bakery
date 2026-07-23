@@ -3,8 +3,13 @@ import { is } from '@server/utils/common/misc'
 
 type Server = Bun.Server<any>
 
+const VOID_ELEMENTS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img',
+  'input', 'link', 'meta', 'param', 'source', 'track', 'wbr',
+])
+
 export const Fragment = ({ children }: { children?: any }) => {
-  return is.array(children) ? children.flat(Infinity).join('') : children || ''
+  return is.array(children) ? children.flat(10).join('') : children || ''
 }
 
 export const Comment = ({ children }: { children?: any }) => {
@@ -23,16 +28,10 @@ export const createElement = (
   if (is.function(tag)) return tag({ ...props, children })
 
   const childStr = children
-    .flat(Infinity)
+    .flat(10)
     .map(c => {
-      switch (true) {
-        case c === null:
-        case c === undefined:
-        case is.boolean(c):
-          return ''
-        default:
-          return c
-      }
+      if (c === null || c === undefined || is.boolean(c)) return ''
+      return c
     })
     .join('')
 
@@ -48,35 +47,14 @@ export const createElement = (
 
     let attrKey = key
 
-    switch (true) {
-      case key === 'className':
-        attrKey = 'class'
-        break
-      case key === 'htmlFor':
-        attrKey = 'for'
-        break
-    }
+    if (key === 'className') attrKey = 'class'
+    else if (key === 'htmlFor') attrKey = 'for'
 
     const safeValue = String(value).replace(/"/g, '&quot;')
     attrStr += ` ${attrKey}="${safeValue}"`
   }
 
-  const isVoid = [
-    'area',
-    'base',
-    'br',
-    'col',
-    'embed',
-    'hr',
-    'img',
-    'input',
-    'link',
-    'meta',
-    'param',
-    'source',
-    'track',
-    'wbr',
-  ].includes(tag)
+  const isVoid = VOID_ELEMENTS.has(tag)
 
   return isVoid
     ? `<${tag}${attrStr}>`
@@ -97,19 +75,18 @@ export function html(render: RenderFn) {
       return rawDom
     }
 
-    switch (true) {
-      case rawDom.trim().toLowerCase().startsWith('<html'):
-        return `<!DOCTYPE html>\n${rawDom}`
-      case rawDom.trim().toLowerCase().startsWith('<!doctype'):
-        return rawDom
-      default: {
-        let title = 'Document'
-        const dom = rawDom.replace(/<title>(.*?)<\/title>/i, (_, t) => {
-          title = t
-          return ''
-        })
+    if (rawDom.trim().toLowerCase().startsWith('<html'))
+      return `<!DOCTYPE html>\n${rawDom}`
+    if (rawDom.trim().toLowerCase().startsWith('<!doctype'))
+      return rawDom
 
-        return `
+    let title = 'Document'
+    const dom = rawDom.replace(/<title>(.*?)<\/title>/i, (_, t) => {
+      title = t
+      return ''
+    })
+
+    return `
           <!DOCTYPE html>
           <html>
             <head>
@@ -120,7 +97,5 @@ export function html(render: RenderFn) {
             </body>
           </html>
         `
-      }
-    }
   }
 }

@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/complexity/noExcessiveCognitiveComplexity: '*/
 const matchDefault = Symbol('matchDefault')
 
 function matchStringCase(value: string, cases: any) {
@@ -54,6 +55,18 @@ function tryReturn<T, D>(
 ): T | D {
   try {
     const unwrapped = is.function(value) ? (value as any)() : value
+    if (
+      unwrapped instanceof Promise ||
+      (unwrapped !== null &&
+        typeof unwrapped === 'object' &&
+        typeof (unwrapped as any).catch === 'function')
+    ) {
+      return (unwrapped as any).catch((error: any) =>
+        is.function(defaultValue)
+          ? (defaultValue as any)(error)
+          : defaultValue,
+      ) as T
+    }
     return unwrapped as T
   } catch (error: any) {
     const unwrappedDefault = is.function(defaultValue)
@@ -117,7 +130,7 @@ const any = <T = any>(v: any): T => v
 const repeat = (n: number, fn?: (i: number) => any): any[] =>
   Array.from({ length: n }, (_, k) => (fn ? fn(k) : k))
 
-const is: ISFunction = new Proxy<any>(
+const is: ISFunction = Object.assign(
   function is(value: any, type?: string) {
     switch (type) {
       case 'array':
@@ -131,11 +144,19 @@ const is: ISFunction = new Proxy<any>(
     }
   },
   {
-    get(target, prop: string) {
-      return (value: any) => target(value, prop)
-    },
+    array: Array.isArray,
+    null: (v: any) => v === null,
+    undefined: (v: any) => v === undefined,
+    string: (v: any) => typeof v === 'string',
+    number: (v: any) => typeof v === 'number',
+    boolean: (v: any) => typeof v === 'boolean',
+    bigint: (v: any) => typeof v === 'bigint',
+    symbol: (v: any) => typeof v === 'symbol',
+    object: (v: any) =>
+      typeof v === 'object' && v !== null && !Array.isArray(v),
+    function: (v: any) => typeof v === 'function',
   },
-)
+) as ISFunction
 
 function kebab(s: string) {
   return s
@@ -210,25 +231,22 @@ const throws = (message: string | Error): never => {
 function processGetBody(
   body: FormData | MapOf<any> | URLSearchParams | string,
 ) {
-  switch (true) {
-    case body instanceof URLSearchParams:
-      return body.toString()
-
-    case body instanceof FormData:
-    case is.object(body) && body !== null: {
-      const urlSearchParams = new URLSearchParams()
-      const entries =
-        body instanceof FormData ? body.entries() : Object.entries(body)
-
-      for (const [key, value] of entries) {
-        urlSearchParams.append(key, (value as any).toString())
-      }
-      return urlSearchParams.toString()
-    }
-
-    default:
-      return String(body)
+  if (body instanceof URLSearchParams) {
+    return body.toString()
   }
+
+  if (body instanceof FormData || (is.object(body) && body !== null)) {
+    const urlSearchParams = new URLSearchParams()
+    const entries =
+      body instanceof FormData ? body.entries() : Object.entries(body)
+
+    for (const [key, value] of entries) {
+      urlSearchParams.append(key, (value as any).toString())
+    }
+    return urlSearchParams.toString()
+  }
+
+  return String(body)
 }
 
 function randomId(length = 8) {
@@ -286,6 +304,51 @@ async function request(
   return data
 }
 
+export function formatHTML(html: string, indentWidth: number = 2): string {
+  if (!html) return ''
+
+  const cleanHtml = html
+    .replace(/\n/g, '')
+    .replace(/[\s]{2,}/g, ' ')
+    .replace(/>\s*</g, '><')
+    .trim()
+
+  const tokens = cleanHtml.match(/<[^>]+>|[^<]+/g) || []
+  let indentLevel = 0
+
+  return tokens.reduce((formattedString, token) => {
+    const isClosing = /^<\//.test(token)
+    const isSelfClosing =
+      /^<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)[^>]*>/i.test(
+        token,
+      ) || /<[^>]+\/>/.test(token)
+    const isOpening = /^<[^/!?]/.test(token) && !isSelfClosing
+
+    indentLevel = isClosing ? Math.max(0, indentLevel - 1) : indentLevel
+
+    const indent = ' '.repeat(indentLevel * indentWidth)
+    const appendedToken =
+      formattedString === '' ? token : `\n${indent}${token.trim()}`
+
+    indentLevel = isOpening ? indentLevel + 1 : indentLevel
+
+    return formattedString + appendedToken
+  }, '')
+}
+
+const escapeMap: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+}
+
+export function escapeHTML(str: any): string {
+  if (str === null || str === undefined) return ''
+  return String(str).replace(/[&<>"']/g, match => escapeMap[match] || match)
+}
+
 Object.assign(globalThis, {
   match,
   matchDefault,
@@ -297,6 +360,7 @@ Object.assign(globalThis, {
   throws,
   assert,
   any,
+  escapeHTML,
   repeat,
   request,
   randomId,
@@ -329,9 +393,70 @@ Object.assign(globalThis, {
       return any(window).__PAGE_PARAMS__ as T
     },
   },
+  $fmt(data: any): string {
+    if (data == null) return ''
+    if (is.string(data)) return data
+    if (is.bigint(data)) return `${data}n`
+    if (is.symbol(data)) return data.toString()
+
+    if (data instanceof Element) return `\n${formatHTML(data.outerHTML)}`
+    if (data instanceof Error) return data.stack || data.message || String(data)
+    if (data instanceof Date) return data.toISOString()
+    if (data instanceof RegExp) return data.toString()
+
+    if (is.function(data)) {
+      return data.name ? `[Function: ${data.name}]` : '[Function]'
+    }
+
+    if (data instanceof Set) {
+      const fmt = (globalThis as any).$fmt
+      return `Set(${data.size}) { ${Array.from(data)
+        .map(v => fmt(v))
+        .join(', ')} }`
+    }
+    if (data instanceof Map) {
+      const fmt = (globalThis as any).$fmt
+      return `Map(${data.size}) { ${Array.from(data.entries())
+        .map(([k, v]) => `${fmt(k)} => ${fmt(v)}`)
+        .join(', ')} }`
+    }
+
+    if (
+      Array.isArray(data) ||
+      typeof data?.toJSON === 'function' ||
+      (typeof data === 'object' &&
+        Object.prototype.toString.call(data) === '[object Object]')
+    ) {
+      try {
+        const cache = new Set()
+        return JSON.stringify(
+          data,
+          (value: any) => {
+            if (is.object(value) && value !== null) {
+              if (cache.has(value)) return '[Circular]'
+              cache.add(value)
+            }
+            if (is.bigint(value)) return `${value}n`
+            if (is.function(value))
+              return value.name ? `[Function: ${value.name}]` : '[Function]'
+            if (value instanceof RegExp) return String(value)
+            return value
+          },
+          2,
+        )
+      } catch {
+        return String(data)
+      }
+    }
+
+    return String(data)
+  },
 })
+
 if (typeof document !== 'undefined') {
-  setTimeout(() => {
+  let debounceTimer: any
+
+  const updateSpeculationRules = () => {
     const urls = new Set<string>()
     const elements = document.querySelectorAll(
       '[href]:not(link, base, use, image)',
@@ -339,13 +464,17 @@ if (typeof document !== 'undefined') {
 
     const ignorePattern = /([?&](utm_|fbclid)|\.(pdf|zip)$)/i
     for (const el of elements) {
+      const prefetchAttr = el.getAttribute('prefetch')
+      if (prefetchAttr === 'false') continue
+
       const url = el.getAttribute('href')?.trim()
 
       if (
         !url ||
         url.startsWith('#') ||
         url.includes(':') ||
-        ignorePattern.test(url)
+        ignorePattern.test(url) ||
+        url.toLowerCase().includes('logout')
       )
         continue
 
@@ -371,5 +500,23 @@ if (typeof document !== 'undefined') {
     })
 
     document.head.appendChild(specScript)
-  }, 5000)
+  }
+
+  const observer = new MutationObserver(() => {
+    clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(updateSpeculationRules, 1000)
+  })
+
+  const initObserver = () => {
+    updateSpeculationRules()
+    if (document.body) {
+      observer.observe(document.body, { childList: true, subtree: true })
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initObserver)
+  } else {
+    initObserver()
+  }
 }

@@ -1,12 +1,7 @@
-import { colorizeHtml } from './utils'
+import { colorizeHtml, getWebSocketUrl } from './utils'
 
 export let logsWs: WebSocket | null = null
 export let logsPaused = false
-
-function getWebSocketUrl(path: string) {
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${protocol}//${location.host}${path}`
-}
 
 function scrollConsoleToBottom(cEl: HTMLElement) {
   const scrollCheck = document.getElementById(

@@ -1,12 +1,12 @@
 import type { Statement } from 'bun:sqlite'
+import { LRUCache } from '@server/cache/lru'
 import { Bakery } from '@server/core/bakery'
 import { cacheDb as db } from '@server/database/shared-cache'
 import { Logger } from '@server/logger'
-import { match } from '@server/utils/common'
 
 export { db }
 
-type Milliseconds = number & {}
+export type Milliseconds = number & {}
 
 export interface TieredCacheOptions<V> {
   memoryThreshold: number
@@ -41,10 +41,24 @@ export class TieredCache<K extends string | number, V> {
   private opts: TieredCacheOptions<V>
   private tableName: string
   private stmt: Record<string, Statement>
+  private stmtCache = new LRUCache<string, Statement>(
+    import.meta.env.THREAD_WORKER ? 15 : 50,
+  )
 
   constructor(tableId: string, options: TieredCacheOptions<V>) {
     this.tableName = tableId.replace(/[^a-zA-Z0-9_]/g, '')
-    this.opts = { evictRatio: 0.1, flushInterval: 10000, ...options }
+    const scaledThreshold = Math.max(
+      50,
+      Math.floor(
+        options.memoryThreshold / (import.meta.env.THREAD_WORKER ? 4 : 1),
+      ),
+    )
+    this.opts = {
+      evictRatio: 0.1,
+      flushInterval: 10000,
+      ...options,
+      memoryThreshold: scaledThreshold,
+    }
 
     db.run(`
       CREATE TABLE IF NOT EXISTS ${this.tableName} (
@@ -109,6 +123,8 @@ export class TieredCache<K extends string | number, V> {
     if (this.memoryStore.has(key)) {
       const entry = this.memoryStore.get(key)!
       entry.accessedAt = Date.now()
+      this.memoryStore.delete(key)
+      this.memoryStore.set(key, entry)
       return entry.value
     }
 
@@ -121,6 +137,7 @@ export class TieredCache<K extends string | number, V> {
     const parsed = JSON.parse(row.value)
     const value: V = this.opts.reviver ? this.opts.reviver(parsed) : parsed
 
+    this.memoryStore.delete(key)
     this.memoryStore.set(key, { value, accessedAt: Date.now() })
     this.dirtyKeys.delete(key)
     this.enforceMemoryLimit()
@@ -230,6 +247,14 @@ export class TieredCache<K extends string | number, V> {
     return this.entries()
   }
 
+  private getOrPrepareStmt(sql: string): Statement {
+    let stmt = this.stmtCache.get(sql)
+    if (!stmt) {
+      stmt = db.prepare(sql)
+      this.stmtCache.set(sql, stmt)
+    }
+    return stmt
+  }
   search(options: {
     search?: string
     page: number
@@ -243,40 +268,48 @@ export class TieredCache<K extends string | number, V> {
     pageSize: number
     totalPages: number
   } {
-    this.flushAllToDisk()
+    this.flushToDiskForSearch()
 
     const pattern = options.search ? `%${options.search}%` : ''
     const where = pattern ? 'WHERE key LIKE ? OR LOWER(value) LIKE ?' : ''
     const params: any[] = pattern ? [pattern, pattern] : []
 
-    let orderBy = match(options.sortBy, {
-      id: 'ORDER BY key',
-      keys: `ORDER BY json_array_length(value, '$.persistKeys')`,
-      created: 'ORDER BY accessedAt',
-      accessed: 'ORDER BY accessedAt',
-      match: 'ORDER BY accessedAt',
-    })
+    let orderBy = ''
+    switch (options.sortBy) {
+      case 'id':
+        orderBy = 'ORDER BY key'
+        break
+      case 'keys':
+        orderBy = `ORDER BY json_array_length(value, '$.persistKeys')`
+        break
+      case 'created':
+      case 'accessed':
+      case 'match':
+        orderBy = 'ORDER BY accessedAt'
+        break
+      default:
+        orderBy = 'ORDER BY accessedAt' // Safe fallback prevents SQLite crash!
+    }
+
     const dir = options.sortOrder === 'ASC' ? 'ASC' : 'DESC'
     orderBy += ` ${dir}, key ${dir}`
 
-    const countStmt = db.prepare(
+    const countStmt = this.getOrPrepareStmt(
       `SELECT COUNT(*) as count FROM ${this.tableName} ${where}`,
     )
     const totalRows = (countStmt.get(...params) as DbCount | null)?.count ?? 0
-    countStmt.finalize()
 
     const totalPages = Math.max(1, Math.ceil(totalRows / options.pageSize))
     const page = Math.min(options.page, totalPages)
     const offset = Math.max(0, (page - 1) * options.pageSize)
 
-    const dataStmt = db.prepare(
+    const dataStmt = this.getOrPrepareStmt(
       `SELECT value FROM ${this.tableName} ${where} ${orderBy} LIMIT ? OFFSET ?`,
     )
     const rows = dataStmt.all(...params, options.pageSize, offset) as Pick<
       DbRow,
       'value'
     >[]
-    dataStmt.finalize()
 
     return {
       rows: rows.map(r => {
@@ -307,14 +340,39 @@ export class TieredCache<K extends string | number, V> {
   flushAllToDisk(): void {
     if (this.memoryStore.size === 0) return
     db.transaction(() => {
-      for (const key of this.memoryStore.keys()) this.commitKey(key)
+      for (const [key, entry] of this.memoryStore) {
+        this.stmt.insert.run(
+          String(key),
+          JSON.stringify(entry.value),
+          entry.accessedAt,
+        )
+      }
       this.dirtyKeys.clear()
+    })()
+  }
+
+  private flushToDiskForSearch(): void {
+    if (this.dirtyKeys.size === 0) return
+    const keys = new Set(this.dirtyKeys)
+    this.dirtyKeys.clear()
+    db.transaction(() => {
+      for (const key of keys) {
+        const entry = this.memoryStore.get(key)
+        if (!entry) continue
+        this.stmt.insert.run(
+          String(key),
+          JSON.stringify(entry.value),
+          entry.accessedAt,
+        )
+      }
     })()
   }
 
   close(): void {
     clearInterval(this.flushTimer)
     this.flushTimer = undefined
+    for (const stmt of this.stmtCache.values()) stmt.finalize()
+    this.stmtCache.clear()
   }
 
   [Symbol.dispose](): void {

@@ -14,7 +14,7 @@
   "editor.fontFamily": "'JetBrains Mono', Consolas, 'Courier New', monospace, 'Symbols NF 2048-em', 'Arial', 'Segoe UI Symbol', 'Apple Symbols', 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji'",
   "editor.fontLigatures": true,
   "chat.disableAIFeatures": false,
-  "js/ts.experimental.useTsgo": true,
+  "js/ts.experimental.useTsgo": false,
   "editor.formatOnSave": true,
   "files.autoSaveWorkspaceFilesOnly": true
 }

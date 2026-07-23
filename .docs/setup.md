@@ -39,7 +39,7 @@ Create a `.env` file from the template:
 #### Settings:
 *   `PORT` (default `3000`): The network port the server listens on.
 *   `DB_URL`: The database connection string (e.g. `postgres://...`, `mysql://...`). If left empty, Bakery defaults to a local SQLite database at `.server/.data/server.db`.
-*   `DASHPASS`: Set a password to protect the developer dashboard console (`/_dashboard`). If left blank, access is restricted by IP whitelist limits.
+*   `DASHPASS`: Set a password to protect the developer dashboard console (`/_dashboard`).
 
 ---
 

@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "types": ["bun-types"],
+    "jsx": "preserve",
+    "jsxImportSource": "vue",
+    "paths": {
+      "@server/*": ["../*"],
+      "@database/*": ["../database/*"],
+      "@api/*": ["../../api/*"],
+      "@plugins/*": ["../plugins/*"],
+      "~/*": ["../../*"]
+    }
+  },
+  "include": [
+    "../../**/*.vue",
+    "../../.server/**/*.ts",
+    "../../.server/global.d.ts",
+    "../plugins/vue/client/vue.d.ts"
+  ],
+  "exclude": ["../.cache/**/*", "../../node_modules"]
+}

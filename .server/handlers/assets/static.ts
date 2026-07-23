@@ -1,4 +1,4 @@
-import { Bakery } from '@server/core'
+import { Bakery, hostKey } from '@server/core/bakery'
 import { toHash } from '@server/utils'
 import { fs } from '@server/utils/fs'
 import { response } from '@server/utils/http'
@@ -15,13 +15,17 @@ export class StaticHandler extends Handler {
   }
 
   static async handle(path: string) {
-    if (Bakery.config.blocked.match(path)) {
+    if (Bakery.config.blocked?.match(path)) {
       return response.error('Forbidden', 403)
     }
 
     const target = fs.resolve(Bakery.serveRoot + path)
 
-    if (!fs.exists(target) || (await fs.isDir(target))) {
+    if (
+      fs.isForbidden(target, Bakery.serveRoot) ||
+      !fs.exists(target) ||
+      (await fs.isDir(target))
+    ) {
       return response.error('Not Found')
     }
 
@@ -29,8 +33,8 @@ export class StaticHandler extends Handler {
     const ext = fs.parse(path).ext
 
     if (fs.isCompressible(ext)) {
-      const cacheName = `${toHash(path)}${ext}`
-      const cached = fs.getOrCreateCachedFile(
+      const cacheName = `${toHash(hostKey(path))}${ext}`
+      const cached = await fs.getOrCreateCachedFile(
         this.cacheDir,
         cacheName,
         file.lastModified,
@@ -60,10 +64,10 @@ export class DefaultErrorHandler extends ErrorHandler {
           <title>Error ${error.errorCode} | Bakery 🚀</title>
         </head>
         <body style="margin: 2rem; font-family: sans-serif;">
-          <h1>${error.errorCode} - ${error.errorText}</h1>
-          <pre>${error.errorBody}</pre>
+          <h1>${Bun.escapeHTML(`${error.errorCode} - ${error.errorText}`)}</h1>
+          <pre>${Bun.escapeHTML(error.errorBody)}</pre>
           <hr />
-          <small>${date} - ${ip}</small>
+          <small>${Bun.escapeHTML(date)} - ${Bun.escapeHTML(ip)}</small>
         </body>
       </html>
     `

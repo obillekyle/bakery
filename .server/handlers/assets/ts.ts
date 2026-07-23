@@ -1,9 +1,12 @@
 import { compile } from '@server/compiler'
-import { Bakery } from '@server/core/bakery'
+import { Bakery, hostKey } from '@server/core/bakery'
 import { toHash } from '@server/utils/common'
 import { fs } from '@server/utils/fs'
 import { response } from '@server/utils/http'
-import { DynamicHandler } from '../core/$base'
+import { DynamicHandler } from '../core/$dynamic'
+
+const normalizePath = (path: string) =>
+  path.endsWith('.js') ? path.slice(0, -3) : path
 
 export class TSHandler extends DynamicHandler {
   static get config() {
@@ -19,20 +22,17 @@ export class TSHandler extends DynamicHandler {
 
   static async canHandle(path: string, req: Request) {
     if (path.endsWith('.ts')) return true
-    if (path.endsWith('.js')) path = path.slice(0, -3)
-
-    return await super.canHandle(path, req)
+    return await super.canHandle(normalizePath(path), req)
   }
 
   static async handle(path: string) {
-    if (path.endsWith('.js')) path = path.slice(0, -3)
-    const routeInfo = await this.resolveRoute(path)
-    if (!routeInfo) return response.error('Not Found')
+    const info = await this.resolveRoute(normalizePath(path))
+    if (!info) return response.error('Not Found')
 
-    const file = routeInfo.info.file
-    const id = toHash(routeInfo.info.path)
+    const file = info.file
+    const id = toHash(hostKey(info.path))
     const cacheName = `${id}.js`
-    const fileOrig = fs.resolve(this.config.dir, routeInfo.info.path)
+    const fileOrig = fs.resolve(this.config.dir, info.path)
 
     const cached = await fs.getOrCreateCachedFile(
       this.cacheDir,

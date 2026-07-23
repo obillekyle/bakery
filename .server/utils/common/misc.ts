@@ -1,54 +1,19 @@
-export const is: ISFunction = new Proxy<any>(
-  function is(value: any, type?: string) {
-    switch (type) {
-      case 'array':
-        return Array.isArray(value)
-      case 'null':
-        return value === null
-      case 'undefined':
-        return value === undefined
-      default:
-        return typeof value === type
-    }
-  },
-  {
-    get(target, prop: string) {
-      return (value: any) => target(value, prop)
-    },
-  },
-)
-
-export function repeat(n: number): number[]
-export function repeat<T>(n: number, fn: (i: number) => T): T[]
-export function repeat<T>(n: number, fn?: (i: number) => T): unknown[] {
-  return Array.from({ length: n }, (_, k) => (fn ? fn(k) : k))
+export const is = {
+  string: (x: any): x is string => typeof x === 'string',
+  function: (x: any): x is Function => typeof x === 'function',
+  object: (x: any): x is object => x !== null && typeof x === 'object',
+  number: (x: any): x is number => typeof x === 'number',
+  boolean: (x: any): x is boolean => typeof x === 'boolean',
+  array: Array.isArray,
+  null: (x: any): x is null => x === null,
+  undefined: (x: any): x is undefined => x === undefined,
 }
 
-export function range(n: number): IterableIterator<number>
-export function range(start: number, end: number): IterableIterator<number>
-export function* range(start: number, end?: number): IterableIterator<number> {
-  if (end === undefined) {
-    end = start
-    start = 0
-  }
-  for (let i = start; i < end; i++) {
-    yield i
-  }
-}
-
-const _range = range
-const _repeat = repeat
-
-export namespace Array2 {
-  export const range = _range
-  export const repeat = _repeat
-
-  export function chunk<T>(array: T[], size: number): T[][] {
-    const result: T[][] = []
-    for (let i = 0; i < array.length; i += size) {
-      result.push(array.slice(i, i + size))
-    }
-    return result
+namespace Array2 {
+  export function repeat(n: number): number[]
+  export function repeat<T>(n: number, fn: (i: number) => T): T[]
+  export function repeat<T>(n: number, fn?: (i: number) => T): unknown[] {
+    return Array.from({ length: n }, (_, k) => (fn ? fn(k) : k))
   }
 
   export function from<T>(data: T | T[]): T[] {
@@ -67,6 +32,8 @@ export const Math2 = {
     return Math.round(value / step) * step
   },
 }
+
+const repeat = Array2.repeat
 
 const DEFERRED = Symbol('deferred')
 export function deferredValue<O extends object, T>(
@@ -108,12 +75,6 @@ export function hasDeferredValue<
   return key in map
 }
 
-export function assert(condition: any, message?: string): asserts condition {
-  if (!condition) throw new Error(message || 'Assertion failed')
-}
-
 export function throws(message: string | Error): never {
   throw is.string(message) ? new Error(message) : message
 }
-
-export const any = <T = any>(x: any): T => x

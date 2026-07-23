@@ -1,6 +1,7 @@
 import type Database from 'bun:sqlite'
 import { cacheDb } from '@server/database/shared-cache'
 import {
+  BOOT_MAX_ITEMS,
   history1d,
   history1h,
   history1m,
@@ -8,7 +9,9 @@ import {
   history30d,
   pageHitsLog,
   pageHitsMap,
+  RETENTION_MS,
 } from './core'
+import { timescaleToMs } from './timescale'
 import type { AnalyticsSnapshot } from './types'
 
 let db: Database | null = null
@@ -63,8 +66,6 @@ export default {
   getDb,
 }
 
-const PAGE_HITS_RETENTION_MS = 30 * 24 * 3600 * 1000
-
 export async function saveAnalyticsData(_cacheBase: string) {
   try {
     await initSqliteStorage()
@@ -85,7 +86,7 @@ export async function saveAnalyticsData(_cacheBase: string) {
       )
 
     const now = Date.now()
-    const pruneBefore = now - PAGE_HITS_RETENTION_MS
+    const pruneBefore = now - RETENTION_MS
     try {
       stmtDeletePageHits.run(pruneBefore)
     } catch {}
@@ -124,21 +125,6 @@ export async function saveAnalyticsData(_cacheBase: string) {
   }
 }
 
-function getTimescaleWindowMs(timescale: string): number {
-  switch (timescale) {
-    case '1m':
-      return 60 * 1000
-    case '1h':
-      return 3600 * 1000
-    case '7d':
-      return 7 * 24 * 3600 * 1000
-    case '30d':
-      return 30 * 24 * 3600 * 1000
-    default:
-      return 24 * 3600 * 1000
-  }
-}
-
 export async function loadAnalyticsData(
   _cacheBase: string,
   timescale: string = '1d',
@@ -152,7 +138,7 @@ export async function loadAnalyticsData(
       stmtSelectCore = d.prepare('SELECT value FROM core WHERE key = ?')
     if (!stmtSelectPageHits)
       stmtSelectPageHits = d.prepare(
-        'SELECT timestamp, path FROM page_hits WHERE timestamp >= ? ORDER BY timestamp ASC LIMIT ?',
+        'SELECT timestamp, path FROM page_hits WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT ?',
       )
 
     let coreData: any = null
@@ -166,19 +152,31 @@ export async function loadAnalyticsData(
       coreData = null
     }
 
-    const windowMs = getTimescaleWindowMs(timescale)
-
-    const MAX_BOOT_ITEMS = 5000
+    const windowMs = timescaleToMs(timescale) || 24 * 3600 * 1000
     const now = Date.now()
     const minTs = now - windowMs
     let pageHitsRaw: any[] = []
     try {
-      const rows: any[] = stmtSelectPageHits.all(minTs, MAX_BOOT_ITEMS) || []
-      for (const r of rows)
+      const rows: any[] = stmtSelectPageHits.all(minTs, BOOT_MAX_ITEMS) || []
+      // Reverse so they are in ascending chronological order
+      for (let i = rows.length - 1; i >= 0; i--) {
+        const r = rows[i]
         pageHitsRaw.push({ timestamp: r.timestamp, path: r.path })
+      }
 
-      if (pageHitsRaw.length > 0) {
-        lastSavedPageHitTs = pageHitsRaw[pageHitsRaw.length - 1].timestamp
+      try {
+        const maxRow: any = d
+          .prepare('SELECT MAX(timestamp) as maxTs FROM page_hits')
+          .get()
+        if (maxRow && typeof maxRow.maxTs === 'number') {
+          lastSavedPageHitTs = maxRow.maxTs
+        } else if (pageHitsRaw.length > 0) {
+          lastSavedPageHitTs = pageHitsRaw[pageHitsRaw.length - 1].timestamp
+        }
+      } catch {
+        if (pageHitsRaw.length > 0) {
+          lastSavedPageHitTs = pageHitsRaw[pageHitsRaw.length - 1].timestamp
+        }
       }
     } catch {
       pageHitsRaw = null as any

@@ -1,4 +1,4 @@
-import { Bakery } from '@server/core/bakery'
+import { Bakery, hostStore } from '@server/core/bakery'
 import { Handler } from './$base'
 
 export class WebSocketHandler extends Handler {
@@ -16,6 +16,8 @@ export class WebSocketHandler extends Handler {
       type: 'websocket',
       orig: this.name,
       path,
+      hostname: req.__hostname || '',
+      config: hostStore.getStore()?.config ?? Bakery.config,
       data,
     }
 
@@ -26,20 +28,20 @@ export class WebSocketHandler extends Handler {
   static upgrade(req: Request, path: string): MixedPromise<UpgradeData>
   static upgrade() {}
 
-  static open(ws: ServerWebSocket, data: any): MixedPromise<void>
+  static open(ws: ServerWebSocket<any>, data: any): MixedPromise<void>
   static open() {}
 
-  static message(ws: ServerWebSocket, msg: any, data: any): MixedPromise<void>
+  static message(ws: ServerWebSocket<any>, msg: any, data: any): MixedPromise<void>
   static message() {}
 
   static close(
-    ws: ServerWebSocket,
+    ws: ServerWebSocket<any>,
     code: number,
     reason: string,
     data: any,
   ): MixedPromise<void>
   static close() {}
 
-  static drain(ws: ServerWebSocket, data: any): MixedPromise<void>
+  static drain(ws: ServerWebSocket<any>, data: any): MixedPromise<void>
   static drain() {}
 }

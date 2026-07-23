@@ -1,12 +1,14 @@
-import analyticsPlugin from '@plugins/analytics'
-import dashboardPlugin from '@plugins/dashboard'
 import { defineConfig } from '@server/core'
 
 export default defineConfig({
   root: 'src',
   port: 3000,
-  plugins: [dashboardPlugin(), analyticsPlugin()],
-
-  head: '<link rel="stylesheet" href="/styles/global.css">',
+  plugins: [],
+  head: `<link rel="stylesheet" href="/styles/global.css">`,
+  hosts: {
+    'example.localhost': {
+      root: 'src/example',
+    },
+  },
   body: '',
 })

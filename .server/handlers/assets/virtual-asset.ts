@@ -7,6 +7,7 @@ import { Handler } from '../core/$base'
 
 export class VirtualAssetHandler extends Handler {
   static canHandle(path: string) {
+    if (!import.meta.env.DEV && path === '/_client/livereload.js') return false
     return path.startsWith('/_client/') || path.startsWith('/_virtual/')
   }
 
@@ -14,34 +15,17 @@ export class VirtualAssetHandler extends Handler {
     return fs.resolve(Bakery.cacheDir, 'virtual')
   }
 
-  static routes() {
-    return {
-      '/_client/utils.js': {
-        type: 'static',
-        isRoot: false,
-        fileName: 'utils.js',
-      },
-      '/_client/livereload.js': {
-        type: 'static',
-        isRoot: false,
-        fileName: 'livereload.js',
-      },
-      '/_virtual/*': {
-        type: 'static',
-        isRoot: false,
-        fileName: '(virtual)',
-      },
-    } as MapOf<Handler.Route.Meta>
-  }
-
   static get clientAssets(): MapOf<string> {
-    return {
+    const assets: MapOf<string> = {
       '/_client/utils.js': fs.resolve(Bakery.root, '.server/client/utils.ts'),
-      '/_client/livereload.js': fs.resolve(
+    }
+    if (import.meta.env.DEV) {
+      assets['/_client/livereload.js'] = fs.resolve(
         Bakery.root,
         '.server/client/livereload.ts',
-      ),
+      )
     }
+    return assets
   }
 
   static async handleClientAsset(path: string) {
@@ -65,11 +49,7 @@ export class VirtualAssetHandler extends Handler {
 
     if (!cachedFile) return null
 
-    const routeInfo = new Handler.Route.Info(
-      cachedFile.name!,
-      path.slice(1),
-      [],
-    )
+    const routeInfo = new Handler.Route.Info(cachedFile.name!, path.slice(1))
 
     this.cache.set(path, routeInfo)
     return routeInfo
@@ -91,29 +71,23 @@ export class VirtualAssetHandler extends Handler {
       cacheName,
       assetFile.lastModified,
       async function getVirtualAsset() {
-        await assetFile.arrayBuffer()
+        return assetFile.arrayBuffer()
       },
     )
 
     if (!cachedFile) return null
 
-    const routeInfo = new Handler.Route.Info(
-      cachedFile.name!,
-      path.slice(1),
-      [],
-    )
+    const routeInfo = new Handler.Route.Info(cachedFile.name!, path.slice(1))
 
     this.cache.set(path, routeInfo)
     return routeInfo
   }
 
   static async getRouteInfo(path: string) {
-    switch (true) {
-      case path.startsWith('/_client/'):
-        return await this.handleClientAsset(path)
-      case path.startsWith('/_virtual/'):
-        return await this.handleVirtualAsset(path)
-    }
+    if (path.startsWith('/_client/'))
+      return await this.handleClientAsset(path)
+    if (path.startsWith('/_virtual/'))
+      return await this.handleVirtualAsset(path)
   }
 
   static async handle(path: string) {

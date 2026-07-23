@@ -13,7 +13,6 @@ import {
   filterTablesList,
   handleCsvFileSelect,
   inspectTable,
-  inspectTableData,
   loadSchema,
   nextPage,
   openEditModal,
@@ -33,19 +32,6 @@ import {
 } from './parts/database'
 import { refreshShimmerCache } from './parts/effects'
 import { clearLogs, initLogsWebSocket, toggleLogsPlay } from './parts/logs'
-import {
-  addSandboxParameter,
-  loadRoutes,
-  onParameterTypeChange,
-  onSandboxMethodChange,
-  removeSandboxParameter,
-  selectExplorerFile,
-  sendSandboxRequest,
-  switchSandboxView,
-  toggleExplorerFolder,
-  updateAdvancedSectionVisibility,
-  updateSandboxUrlPreview,
-} from './parts/routes'
 import {
   changeSessionPageSize,
   loadSessions,
@@ -97,7 +83,6 @@ function switchTab(tabId: string) {
     sessions: loadSessions,
     database: loadSchema,
     logs: initLogsWebSocket,
-    routes: loadRoutes,
     'top-pages': () => loadStats(true),
   })
 
@@ -164,20 +149,7 @@ w.exportToJSON = exportToJSON
 w.truncateCurrentTable = truncateCurrentTable
 w.deleteTableRow = deleteTableRow
 w.inspectTable = inspectTable
-w.inspectTableData = inspectTableData
 w.runQuery = runQuery
-
-w.loadRoutes = loadRoutes
-w.toggleExplorerFolder = toggleExplorerFolder
-w.selectExplorerFile = selectExplorerFile
-w.onSandboxMethodChange = onSandboxMethodChange
-w.updateAdvancedSectionVisibility = updateAdvancedSectionVisibility
-w.onParameterTypeChange = onParameterTypeChange
-w.addSandboxParameter = addSandboxParameter
-w.removeSandboxParameter = removeSandboxParameter
-w.updateSandboxUrlPreview = updateSandboxUrlPreview
-w.switchSandboxView = switchSandboxView
-w.sendSandboxRequest = sendSandboxRequest
 
 w.initLogsWebSocket = initLogsWebSocket
 w.toggleLogsPlay = toggleLogsPlay

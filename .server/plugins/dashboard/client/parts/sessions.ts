@@ -1,4 +1,3 @@
-import { escapeHtml } from './utils'
 
 declare const is: any
 
@@ -285,7 +284,6 @@ export async function sessionKeyAction(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify({ id: sessionId, key, value, remove }),
     })
@@ -331,7 +329,7 @@ export function openSessionKeyEditor(
       }
       <div class="form-group">
         <label class="label">Value <span style="font-size:0.7rem;color:var(--text-secondary);">(string)</span></label>
-        <input class="input-field" id="skey-val-input" type="text" placeholder="value" value="${escapeHtml(currentValue)}" />
+        <input class="input-field" id="skey-val-input" type="text" placeholder="value" value="${escapeHTML(currentValue)}" />
       </div>
     </div>
     <div class="modal-actions">
@@ -384,7 +382,6 @@ export async function revokeSession(sessionId: string) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify({ id: sessionId }),
     })

@@ -1,16 +1,15 @@
 import type * as _schema from '~/schema'
-import type { Session } from './core/session'
 import type { Handler } from './handlers/core/$base'
 import type * as HandlerError from './handlers/core/$error'
 import type * as HandlerRegistry from './handlers/core/$registry'
 import type * as HandlerWs from './handlers/core/$websocket'
 import type * as _logger from './logger/logger'
 import type * as _plugins from './plugins/types'
+import type { Session } from './session'
 
 declare global {
   var createElement: typeof import('./core/jsx').createElement
   var Fragment: typeof import('./core/jsx').Fragment
-  var Comment: typeof import('./core/jsx').Comment
   var html: typeof import('./core/jsx').html
 
   type JsonResponse<T = any> = {
@@ -27,7 +26,28 @@ declare global {
     defer?: boolean
     inBody?: boolean
   }
-  type ServerPlugins = 'analytics' | 'dashboard' | (string & {})
+
+  type HostEntry = {
+    root?: string
+    importMap?: Record<string, string>
+    middleware?: ((
+      req: Request,
+      server: Bun.Server<any>,
+    ) => MixedPromise<Response | void>)[]
+    onRequest?(req: Request): MixedPromise<any>
+    onError?(error: Handler.Error.Data): MixedPromise<any>
+    head?: string
+    body?: string
+    proxy?: Record<string, string>
+    blocked?: string[]
+    rateLimit?:
+      | {
+          max: number
+          refill: number
+          keyBy?: (req: Request) => string
+        }
+      | false
+  }
 
   type AppConfig = {
     root?: string
@@ -68,6 +88,18 @@ declare global {
     maxCacheSize?: number
 
     blocked?: string[]
+
+    rateLimit?:
+      | {
+          max: number
+          refill: number
+          keyBy?: (req: Request) => string
+        }
+      | false
+
+    trustProxy?: boolean
+
+    hosts?: Record<string, HostEntry>
   }
 
   type ServerPlugin = _plugins.ServerPlugin
@@ -76,14 +108,15 @@ declare global {
   type MixedPromise<T> = Promise<T> | T
 
   interface Bakery {
-    getRequest<T = MapOf<any>>(): Request & { body: T }
     server?: Bun.Server<any>
     connectedLoggers?: Set<any>
+    readonly sharedPool: import('./utils/shared-pool').SharedMemoryPool
     readonly cacheDir: string
     readonly dataDir: string
     readonly version: string
     readonly root: string
     readonly serveRoot: string
+    readonly apiRoot: string
     readonly config: ProcessedAppConfig
     readonly handlers: {
       readonly fetch: HandlerRegistry.HandlerMap
@@ -281,8 +314,11 @@ declare global {
     readonly DEV: boolean
     readonly PROD: boolean
     readonly WORKER: boolean
+    readonly DEV_WORKER: boolean
+    readonly THREAD_WORKER: boolean
+    readonly THREAD_ID: string
     readonly TEST: boolean
-    readonly MODE: 'production' | 'development' | 'dev-worker'
+    readonly MODE: 'production' | 'development' | 'dev-worker' | 'thread-worker'
     readonly SERVE_ROOT: string
   }
 
@@ -291,6 +327,7 @@ declare global {
   interface Request {
     startNs: number
     session: Session<SessionData>
+    __hostname?: string
   }
 
   type HandlerName = string & {}
@@ -316,8 +353,6 @@ declare global {
     Bun.ServerWebSocket,
     { data: WebSocketData<T> }
   >
-
-  interface WebSocketPayloads {}
 
   interface Blob {
     slice(start: number, end?: number, contentType?: string): Blob

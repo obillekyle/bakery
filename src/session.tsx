@@ -1,24 +1,24 @@
-import { Bakery, html, HTMLBody, createElement, Fragment } from '@server/core'
-import { Layout, HeroHeader, CardHeader } from './Layout.tsx'
+import { createElement, HTMLBody } from '@server/core'
+import { CardHeader, HeroHeader, Layout } from './Layout.tsx'
+
 export default HTMLBody((req: any) => {
-  // Access and increment session values
-  let session: any;
-  let views = 1;
+  let session: any
+  let views = 1
   try {
-    session = req.session;
-    views = Number(session.views || '0') + 1;
-    session.views = String(views);
-    session.persist('views', true);
-  } catch (e) {}
+    session = req.session
+    views = Number(session.views || '0') + 1
+    session.views = String(views)
+    session.persist('views', true)
+  } catch {}
 
   // Gather request details
-  const headers: [string, string][] = [];
+  const headers: [string, string][] = []
   req.headers.forEach((val: string, key: string) => {
-    headers.push([key, val]);
-  });
+    headers.push([key, val])
+  })
 
-  const ip = req.headers.get('x-forwarded-for') || '127.0.0.1';
-  const method = req.method;
+  const ip = req.headers.get('x-forwarded-for') || '127.0.0.1'
+  const method = req.method
 
   return (
     <Layout title="Request & Session Inspector | Bakery">
@@ -33,8 +33,8 @@ export default HTMLBody((req: any) => {
           <section class="card glass-effect">
             <CardHeader icon="🍪" title="Cookie Session" />
             <p class="card-desc">
-              The server maps session proxies to cookie identifiers,
-              persisting data across page visits.
+              The server maps session proxies to cookie identifiers, persisting
+              data across page visits.
             </p>
 
             <div style="display: flex; flex-direction: column; gap: 1.25rem;">
@@ -85,9 +85,7 @@ export default HTMLBody((req: any) => {
                 </span>
                 <span>
                   IP:{' '}
-                  <strong style="color: var(--secondary-accent);">
-                    {ip}
-                  </strong>
+                  <strong style="color: var(--secondary-accent);">{ip}</strong>
                 </span>
               </div>
               <div style="max-height: 250px; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; font-family: var(--font-mono); font-size: 0.85rem;">
@@ -111,5 +109,5 @@ export default HTMLBody((req: any) => {
         </div>
       </main>
     </Layout>
-  );
-});
+  )
+})

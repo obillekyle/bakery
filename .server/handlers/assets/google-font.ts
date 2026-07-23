@@ -13,26 +13,6 @@ export class GoogleFontHandler extends Handler {
     return path === '/_gf' || path.startsWith('/_gf/')
   }
 
-  static routes() {
-    return {
-      '/_gf/*': {
-        type: 'static',
-        isRoot: false,
-        fileName: '(google-font)',
-      },
-      '/_gf/css2': {
-        type: 'static',
-        isRoot: false,
-        fileName: '(google-font-css2)',
-      },
-      '/_gf/gstatic/*': {
-        type: 'static',
-        isRoot: false,
-        fileName: '(google-font-binary)',
-      },
-    } as MapOf<Route.Meta>
-  }
-
   static async handle(path: string, req: Request) {
     if (path.startsWith('/_gf/gstatic/')) {
       const cacheDir = fs.resolve(this.cacheDir, 'gstatic')
@@ -58,9 +38,9 @@ export class GoogleFontHandler extends Handler {
     }
 
     // Handle CSS stylesheet requests
-    let gfPath = path.slice('/_gf'.length)
-    if (gfPath.startsWith('/')) gfPath = gfPath.slice(1)
-    if (!gfPath) gfPath = 'css2'
+    const rawPath = path.slice('/_gf'.length)
+    const strippedPath = rawPath.startsWith('/') ? rawPath.slice(1) : rawPath
+    const gfPath = strippedPath || 'css2'
 
     const url = new URL(req.url)
     const searchQuery = url.search

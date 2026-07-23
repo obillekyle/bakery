@@ -1,0 +1,25 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "types": ["bun-types"],
+    "jsx": "react",
+    "jsxFactory": "createElement",
+    "jsxFragmentFactory": "Fragment",
+    "paths": {
+      "@server/*": ["../*"],
+      "@database/*": ["../database/*"],
+      "@plugins/*": ["../plugins/*"],
+      "@api/*": ["../../api/*"],
+      "~/*": ["../../*"]
+    }
+  },
+  "include": [
+    "../**/*.ts",
+    "../../**/api/**/*",
+    "../../server.config.ts",
+    "../../schema.ts",
+    "../../package.json"
+  ],
+  "exclude": ["../.cache/**/*", "../../node_modules", "../**/client/**/*"],
+}

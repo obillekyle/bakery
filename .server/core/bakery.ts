@@ -1,45 +1,59 @@
-import { HandlerMap } from '@server/handlers/core/$registry'
 import { fs } from '@server/utils/fs'
-import pkg from '../../package.json' with { type: 'json' }
+import { HandlerMap } from '../handlers/core/$registry'
+import { SharedMemoryPool } from '../utils/shared-pool'
 import { getConfig } from './config'
-import { requestStorage } from './context'
+import { getBakeryVersion, hostStore } from './context'
+
+export type { HostContext } from './context'
+export { hostStore } from './context'
+
+export function hostKey(path: string): string {
+  const host = hostStore.getStore()?.hostname || ''
+  return host ? `${host}:${path}` : path
+}
+
+export function getHostname(req: Request): string {
+  if (req.__hostname) return req.__hostname
+
+  let hostname = ''
+  const config = getConfig()
+
+  if (config.trustProxy) {
+    const forwardedHost = req.headers.get('x-forwarded-host')
+    if (forwardedHost) {
+      hostname = forwardedHost.split(',')[0].trim().split(':')[0]
+    }
+  }
+
+  if (!hostname) {
+    const hostHeader = req.headers.get('host')
+    if (hostHeader) hostname = hostHeader.split(':')[0]
+    else hostname = new URL(req.url).hostname
+  }
+
+  const hosts = config.hosts || {}
+  if (hostname && !hosts[hostname] && hostname !== config.host) {
+    return new URL(req.url).hostname
+  }
+
+  return hostname
+}
 
 export const Bakery: globalThis.Bakery = {
-  getRequest<T = any>(): Request & { body: T } {
-    const store = requestStorage.getStore()
-    if (!store) {
-      throw new Error(
-        `Cannot access request context outside of a request execution lifecycle.`,
-      )
-    }
-    return new Proxy(store.req, {
-      get(target, prop, receiver) {
-        if (prop === 'body') {
-          return store.body
-        }
-        const val = Reflect.get(target, prop, receiver)
-        if (typeof val === 'function') {
-          return val.bind(target)
-        }
-        return val
-      },
-      set(target, prop, value, receiver) {
-        if (prop === 'body') {
-          store.body = value
-          return true
-        }
-        return Reflect.set(target, prop, value, receiver)
-      },
-    }) as any
-  },
   get config(): Readonly<ProcessedAppConfig> {
-    return getConfig()
+    return hostStore.getStore()?.config ?? getConfig()
   },
   get serveRoot() {
     return this.config.root
   },
+  get apiRoot() {
+    return fs.resolve(this.serveRoot, 'api')
+  },
   root: fs.cwd,
-  version: pkg.version,
+  get version() {
+    return getBakeryVersion()
+  },
+  sharedPool: new SharedMemoryPool(1024 * 1024),
   cacheDir: `${fs.cwd}/.server/.cache`,
   dataDir: `${fs.cwd}/.server/.data`,
   startNs: Bun.nanoseconds(),

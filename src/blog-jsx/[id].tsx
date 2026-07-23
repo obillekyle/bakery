@@ -1,9 +1,9 @@
-import { Bakery, log, html, HTMLBody, createElement, Fragment } from '@server/core'
-import { Layout, HeroHeader, CardHeader } from '../Layout.tsx'
+import { createElement, Fragment, HTMLBody, log } from '@server/core'
+import { CardHeader, HeroHeader, Layout } from '../Layout.tsx'
 
 export default HTMLBody((req, body) => {
-  const url = new URL(req.url);
-  const searchQuery = url.searchParams.toString();
+  const url = new URL(req.url)
+  const searchQuery = url.searchParams.toString()
 
   log({
     msg:
@@ -11,7 +11,7 @@ export default HTMLBody((req, body) => {
       JSON.stringify(body) +
       ' with search query: ' +
       searchQuery,
-  });
+  })
 
   return (
     <Layout title={`Blog Post ${body.id} | Bakery 🚀`}>
@@ -19,7 +19,11 @@ export default HTMLBody((req, body) => {
         <HeroHeader
           emoji="⚛️"
           title={`Dynamic TSX Post #${body.id}`}
-          subtitle={<Fragment>This page was resolved from file: <code>blog-jsx/[id].tsx</code></Fragment>}
+          subtitle={
+            <Fragment>
+              This page was resolved from file: <code>blog-jsx/[id].tsx</code>
+            </Fragment>
+          }
         />
 
         <div class="card-grid">
@@ -27,14 +31,13 @@ export default HTMLBody((req, body) => {
             <CardHeader icon="⚡" title="Dynamic Route Resolution" />
             <p class="card-desc">
               The path segment <code>{body.id}</code> was automatically parsed
-              and passed down to this TSX component inside the{' '}
-              <code>body</code> parameter.
+              and passed down to this TSX component inside the <code>body</code>{' '}
+              parameter.
             </p>
 
             <ul
               class="feature-list"
-              style="list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 1rem;"
-            >
+              style="list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 1rem;">
               <li style="background: rgba(255, 255, 255, 0.02); padding: 1rem; border-radius: 0.5rem; border: 1px solid rgba(255, 255, 255, 0.05);">
                 <strong>Resolved ID:</strong> <code>{body.id}</code>
               </li>
@@ -60,5 +63,5 @@ export default HTMLBody((req, body) => {
         </div>
       </main>
     </Layout>
-  );
-});
+  )
+})

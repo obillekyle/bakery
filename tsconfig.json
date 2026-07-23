@@ -25,12 +25,15 @@
       "@database/*": ["./.server/database/*"],
       "@api/*": ["./api/*"],
       "@plugins/*": ["./.server/plugins/*"],
-      "~/*": ["./*"]
+      "~/*": ["./*"],
+      "@client/utils": ["./.server/client/utils"]
     }
   },
   "files": [],
   "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.server.json" }
+    { "path": "./.server/tsconfigs/tsconfig.app.json" },
+    { "path": "./.server/tsconfigs/tsconfig.server.json" },
+    { "path": "./.server/tsconfigs/tsconfig.jsx.json" },
+    { "path": "./.server/tsconfigs/tsconfig.vue.json" }
   ]
 }

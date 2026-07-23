@@ -176,9 +176,18 @@ function connect() {
   const ogLog = console.log,
     ogWarn = console.warn,
     ogErr = console.error
-  console.log = (...args) => { ogLog(...args); sendLog('info', args) }
-  console.warn = (...args) => { ogWarn(...args); sendLog('warn', args) }
-  console.error = (...args) => { ogErr(...args); sendLog('error', args) }
+  console.log = (...args) => {
+    ogLog(...args)
+    sendLog('info', args)
+  }
+  console.warn = (...args) => {
+    ogWarn(...args)
+    sendLog('warn', args)
+  }
+  console.error = (...args) => {
+    ogErr(...args)
+    sendLog('error', args)
+  }
 
   window.onerror = (m, s, l, c) => sendLog('error', [`${m} at ${s}:${l}:${c}`])
   window.addEventListener('unhandledrejection', e =>
@@ -304,14 +313,11 @@ function connect() {
       ws.send(logQueue.shift()!)
     }
 
-    switch (true) {
-      case isDead:
-        console.log('[LiveReload] Server is back! Refreshing...')
-        location.reload()
-        break
-      default:
-        console.log('[LiveReload] Connected')
-        break
+    if (isDead) {
+      console.log('[LiveReload] Server is back! Refreshing...')
+      location.reload()
+    } else {
+      console.log('[LiveReload] Connected')
     }
   }
 

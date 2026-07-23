@@ -1,17 +1,9 @@
 import { Case, Try } from '@server/utils'
 import { SQL } from 'bun'
 import type * as SyncTypes from '../sync/types'
-import {
-  type BackupResult,
-  DBAdapter,
-  type DBExecutor,
-  quoteIdentifier,
-  type RunResult,
-  type TableDataResult,
-  type TableDetails,
-} from './base'
+import { createExecutor, SQLAdapter } from './base'
 
-export class MySQLAdapter extends DBAdapter {
+export class MySQLAdapter extends SQLAdapter {
   protected readonly sql: SQL
 
   constructor(connectionTarget?: string | URL | SQL) {
@@ -28,13 +20,13 @@ export class MySQLAdapter extends DBAdapter {
           : new SQL()
   }
 
-  readonly execute: DBExecutor = {
-    all: async (sqlText: string, params: unknown[] = []) =>
-      (await this.sql.unsafe(sqlText, params)) as Record<string, unknown>[],
-    run: async (
+  readonly execute: SQLAdapter.Executor = createExecutor(
+    async (sqlText: string, params: unknown[] = []) =>
+      (await this.sql.unsafe(sqlText, params)) as SQLAdapter.RowRecord[],
+    async (
       sqlText: string,
       params: unknown[] = [],
-    ): Promise<RunResult> => {
+    ): Promise<SQLAdapter.RunResult> => {
       const rows = (await this.sql.unsafe(sqlText, params)) as any
       return {
         lastInsertRowid:
@@ -48,18 +40,14 @@ export class MySQLAdapter extends DBAdapter {
         ),
       }
     },
-    iterate: (sqlText: string, params: unknown[] = []) =>
+    (sqlText: string, params: unknown[] = []) =>
       this.sql.unsafe(sqlText, params) as any,
-    get: async (sqlText: string, params: unknown[] = []) =>
-      (await this.execute.all(sqlText, params))[0],
-    values: async (sqlText: string, params: unknown[] = []) =>
-      (await this.execute.all(sqlText, params)).map(Object.values),
-  }
+  )
 
   async hasCol(table: string, column: string): Promise<boolean> {
     const res = (await this.query(
       `SELECT column_name FROM information_schema.columns WHERE table_name = ? AND table_schema = DATABASE()`,
-    ).all(table)) as { column_name: string }[]
+    ).all(table)) as SQLAdapter.ColumnNameRow[]
     return res.some(r => r.column_name === column)
   }
 
@@ -80,20 +68,20 @@ export class MySQLAdapter extends DBAdapter {
     return sql + this.formatDefault(d.default, '1', '0')
   }
 
-  async addCol(table: string, column: string, def: unknown): Promise<void> {
-    await this.query(
-      `ALTER TABLE ${quoteIdentifier(table, this.quoteChar)} ADD COLUMN ${quoteIdentifier(column, this.quoteChar)} ${this.colDef(def)}`,
-    ).run()
-  }
-
-  override async renameColumn(
-    table: string,
-    oldColumn: string,
-    newColumn: string,
-  ): Promise<RunResult> {
+  override async rename(
+    type: 'TABLE' | 'COLUMN',
+    ...params: string[]
+  ): Promise<SQLAdapter.RunResult> {
+    if (type === 'TABLE') {
+      const [oldName, newName] = params
+      return await this.query(
+        `RENAME TABLE ${this.quote(oldName)} TO ${this.quote(newName)}`,
+      ).run()
+    }
+    const [table, oldColumn, newColumn] = params
     try {
       return await this.query(
-        `ALTER TABLE ${quoteIdentifier(table, this.quoteChar)} RENAME COLUMN ${quoteIdentifier(oldColumn, this.quoteChar)} TO ${quoteIdentifier(newColumn, this.quoteChar)}`,
+        `ALTER TABLE ${this.quote(table)} RENAME COLUMN ${this.quote(oldColumn)} TO ${this.quote(newColumn)}`,
       ).run()
     } catch {
       const col = (await this.query(
@@ -106,60 +94,51 @@ export class MySQLAdapter extends DBAdapter {
         : ''
       const extraSql = col?.extra?.trim() ? ` ${col.extra.trim()}` : ''
       return this.query(
-        `ALTER TABLE ${quoteIdentifier(table, this.quoteChar)} CHANGE ${quoteIdentifier(oldColumn, this.quoteChar)} ${quoteIdentifier(newColumn, this.quoteChar)} ${type}${notNull}${defSql}${extraSql}`,
+        `ALTER TABLE ${this.quote(table)} CHANGE ${this.quote(oldColumn)} ${this.quote(newColumn)} ${type}${notNull}${defSql}${extraSql}`,
       ).run()
     }
-  }
-
-  override async renameTable(
-    oldName: string,
-    newName: string,
-  ): Promise<RunResult> {
-    return await this.query(
-      `RENAME TABLE ${quoteIdentifier(oldName, this.quoteChar)} TO ${quoteIdentifier(newName, this.quoteChar)}`,
-    ).run()
-  }
-  override async dropTable(tableName: string): Promise<RunResult> {
-    return await this.query(
-      `DROP TABLE IF EXISTS ${quoteIdentifier(tableName, this.quoteChar)}`,
-    ).run()
   }
   override async createIndex(
     indexName: string,
     tableName: string,
     columns: string[],
     unique = false,
-  ): Promise<RunResult> {
+  ): Promise<SQLAdapter.RunResult> {
     return await this.query(
-      `ALTER TABLE ${quoteIdentifier(tableName, this.quoteChar)} ADD ${unique ? 'UNIQUE ' : ''}INDEX ${quoteIdentifier(indexName, this.quoteChar)} (${columns.map(c => quoteIdentifier(c, this.quoteChar)).join(', ')})`,
+      `ALTER TABLE ${this.quote(tableName)} ADD ${unique ? 'UNIQUE ' : ''}INDEX ${this.quote(indexName)} (${columns.map(c => this.quote(c)).join(', ')})`,
     ).run()
   }
 
-  protected override async preSync(tx: DBAdapter): Promise<void> {
+  protected override async preSync(tx: SQLAdapter): Promise<void> {
     await tx.query('SET FOREIGN_KEY_CHECKS = 0').run()
   }
-  protected override async postSync(tx: DBAdapter): Promise<void> {
+  protected override async postSync(tx: SQLAdapter): Promise<void> {
     await tx.query('SET FOREIGN_KEY_CHECKS = 1').run()
   }
 
-  override async dropIndex(indexName: string): Promise<RunResult> {
-    const row = (await this.query(
-      'SELECT DISTINCT table_name FROM information_schema.statistics WHERE index_name = ? AND table_schema = DATABASE()',
-    ).get(indexName)) as { table_name?: string } | undefined
-    if (row?.table_name)
-      return await this.query(
-        `DROP INDEX ${quoteIdentifier(indexName, this.quoteChar)} ON ${quoteIdentifier(row.table_name, this.quoteChar)}`,
-      ).run()
-    try {
-      return await this.query(
-        `DROP INDEX ${quoteIdentifier(indexName, this.quoteChar)}`,
-      ).run()
-    } catch {
-      return { lastInsertRowid: null, changes: 0 }
+  override async drop(
+    type: 'TABLE' | 'VIEW' | 'INDEX' | 'COLUMN',
+    ...params: string[]
+  ): Promise<SQLAdapter.RunResult> {
+    if (type === 'INDEX') {
+      const indexName = params[0]
+      const row = (await this.query(
+        'SELECT DISTINCT table_name FROM information_schema.statistics WHERE index_name = ? AND table_schema = DATABASE()',
+      ).get(indexName)) as SQLAdapter.TableNameRow | undefined
+      if (row?.table_name)
+        return await this.query(
+          `DROP INDEX ${this.quote(indexName)} ON ${this.quote(row.table_name)}`,
+        ).run()
+      try {
+        return await this.query(`DROP INDEX ${this.quote(indexName)}`).run()
+      } catch {
+        return { lastInsertRowid: null, changes: 0 }
+      }
     }
+    return await super.drop(type, ...params)
   }
 
-  async backup(keepCount = 10): Promise<BackupResult | null> {
+  async backup(keepCount = 10): Promise<SQLAdapter.BackupResult | null> {
     if (!this.url) return null
     const parsed = new URL(this.url)
     const base = Try.return(
@@ -190,28 +169,28 @@ export class MySQLAdapter extends DBAdapter {
   }
 
   async transaction<T>(
-    callback: (tx: DBAdapter) => T | Promise<T>,
+    callback: (tx: SQLAdapter) => T | Promise<T>,
   ): Promise<T> {
     return await this.sql.transaction(async txSql =>
       callback(new MySQLAdapter(txSql)),
     )
   }
 
-  async getSchema(): Promise<TableDetails[]> {
+  async getSchema(): Promise<SQLAdapter.TableDetails[]> {
     const res = (await this.query(
       'SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name',
-    ).all()) as { name: string }[]
-    const tablesWithDetails: TableDetails[] = []
+    ).all()) as SQLAdapter.NameRow[]
+    const tablesWithDetails: SQLAdapter.TableDetails[] = []
     for (const t of res) {
-      const countRes = (await this.query(
-        `SELECT COUNT(*) as count FROM ${quoteIdentifier(t.name, this.quoteChar)}`,
-      ).get()) as { count: number }
-      const cols = (await this.query(
-        `SELECT column_name AS name, data_type AS type, is_nullable AS is_nullable, column_key AS column_key FROM information_schema.columns WHERE table_name = ? AND table_schema = DATABASE() ORDER BY ordinal_position`,
-      ).all(t.name)) as any[]
-      const idxs = (await this.query(
-        `SELECT index_name AS name, non_unique AS non_unique FROM information_schema.statistics WHERE table_name = ? AND table_schema = DATABASE()`,
-      ).all(t.name)) as any[]
+      const [countRes, cols, idxs] = (await Promise.all([
+        this.query(`SELECT COUNT(*) as count FROM ${this.quote(t.name)}`).get(),
+        this.query(
+          `SELECT column_name AS name, data_type AS type, is_nullable AS is_nullable, column_key AS column_key FROM information_schema.columns WHERE table_name = ? AND table_schema = DATABASE() ORDER BY ordinal_position`,
+        ).all(t.name),
+        this.query(
+          `SELECT index_name AS name, non_unique AS non_unique FROM information_schema.statistics WHERE table_name = ? AND table_schema = DATABASE()`,
+        ).all(t.name),
+      ])) as [SQLAdapter.CountRow, any[], any[]]
       const uniqueIdxs = Array.from(
         new Map(idxs.map(i => [i.name, i.non_unique === 0])).entries(),
       ).map(([name, unique]) => ({ name, unique }))
@@ -232,27 +211,22 @@ export class MySQLAdapter extends DBAdapter {
 
   async getData(
     tableName: string,
-    options: {
-      page: number
-      pageSize: number
-      sortBy?: string | null
-      sortOrder?: string | null
-      filters?: Record<string, unknown>
-    },
-  ): Promise<TableDataResult> {
+    options: SQLAdapter.TableDataOptions,
+  ): Promise<SQLAdapter.TableDataResult> {
     const cols = (await this.query(
       `SELECT column_name AS name FROM information_schema.columns WHERE table_name = ? AND table_schema = DATABASE()`,
-    ).all(tableName)) as { name: string }[]
+    ).all(tableName)) as SQLAdapter.NameRow[]
     const { whereSql, orderSql, whereParams } = this.buildFilterSort(
       options,
       new Set(cols.map(c => c.name)),
     )
+    const tName = this.quote(tableName)
     const countRes = (await this.query(
-      `SELECT COUNT(*) as count FROM ${quoteIdentifier(tableName, this.quoteChar)}${whereSql}`,
-    ).get(...whereParams)) as { count: number }
+      `SELECT COUNT(*) as count FROM ${tName}${whereSql}`,
+    ).get(...whereParams)) as SQLAdapter.CountRow
     const totalRows = countRes?.count || 0
     const rows = await this.query(
-      `SELECT * FROM ${quoteIdentifier(tableName, this.quoteChar)}${whereSql}${orderSql} LIMIT ? OFFSET ?`,
+      `SELECT * FROM ${tName}${whereSql}${orderSql} LIMIT ? OFFSET ?`,
     ).all(
       ...whereParams,
       options.pageSize,
@@ -267,39 +241,30 @@ export class MySQLAdapter extends DBAdapter {
     }
   }
 
-  async remove(tableName: string, rowid: unknown): Promise<RunResult> {
+  async remove(
+    tableName: string,
+    rowid: unknown,
+  ): Promise<SQLAdapter.RunResult> {
     const tableInfo = (await this.getSchema()).find(t => t.name === tableName)
     const pk = tableInfo?.columns.find(c => c.pk)?.name || 'id'
     return await this.query(
-      `DELETE FROM ${quoteIdentifier(tableName, this.quoteChar)} WHERE ${quoteIdentifier(pk, this.quoteChar)} = ?`,
+      `DELETE FROM ${this.quote(tableName)} WHERE ${this.quote(pk)} = ?`,
     ).run(rowid)
   }
 
-  async truncate(tableName: string): Promise<RunResult> {
-    return await this.query(
-      `TRUNCATE TABLE ${quoteIdentifier(tableName, this.quoteChar)}`,
-    ).run()
-  }
-  async insert(
-    tableName: string,
-    row: Record<string, unknown>,
-  ): Promise<RunResult> {
-    const keys = Object.keys(row),
-      values = Object.values(row)
-    return await this.query(
-      `INSERT INTO ${quoteIdentifier(tableName, this.quoteChar)} (${keys.map(k => quoteIdentifier(k, this.quoteChar)).join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`,
-    ).run(...values)
+  async truncate(tableName: string): Promise<SQLAdapter.RunResult> {
+    return await this.query(`TRUNCATE TABLE ${this.quote(tableName)}`).run()
   }
   async update(
     tableName: string,
     rowid: unknown,
-    row: Record<string, unknown>,
-  ): Promise<RunResult> {
+    row: SQLAdapter.RowRecord,
+  ): Promise<SQLAdapter.RunResult> {
     const keys = Object.keys(row).filter(k => k !== 'rowid')
     const tableInfo = (await this.getSchema()).find(t => t.name === tableName)
     const pk = tableInfo?.columns.find(c => c.pk)?.name || 'id'
     return await this.query(
-      `UPDATE ${quoteIdentifier(tableName, this.quoteChar)} SET ${keys.map(k => `${quoteIdentifier(k, this.quoteChar)} = ?`).join(', ')} WHERE ${quoteIdentifier(pk, this.quoteChar)} = ?`,
+      `UPDATE ${this.quote(tableName)} SET ${keys.map(k => `${this.quote(k)} = ?`).join(', ')} WHERE ${this.quote(pk)} = ?`,
     ).run(...keys.map(k => row[k]), rowid)
   }
 
@@ -327,7 +292,7 @@ export class MySQLAdapter extends DBAdapter {
 
       for (const col of cols) {
         dbConstraints[tName][Case.camel(col.column_name)] =
-          parseMySQLColumnConstraint(col, this.dateNowDefaults)
+          this.parseConstraints(col)
       }
     }
     return dbConstraints
@@ -362,100 +327,80 @@ export class MySQLAdapter extends DBAdapter {
     )
   }
   override readonly dateNowDefaults: string[] = ['UNIX_TIMESTAMP']
-}
 
-const mysqlTypes = [
-  {
-    test: (t: string) =>
-      t.includes('tinyint(1)') ||
-      t === 'bit(1)' ||
-      t === 'boolean' ||
-      t === 'bool',
-    type: 'boolean' as const,
-  },
-  {
-    test: (t: string) =>
-      t.includes('int') ||
-      t.includes('serial') ||
-      t.includes('bigint') ||
-      t.includes('smallint') ||
-      t.includes('mediumint'),
-    type: 'integer' as const,
-  },
-  {
-    test: (t: string) =>
-      t.includes('char') ||
-      t.includes('text') ||
-      t.includes('enum') ||
-      t.includes('set') ||
-      t.includes('date') ||
-      t.includes('time') ||
-      t.includes('timestamp'),
-    type: 'string' as const,
-  },
-  {
-    test: (t: string) =>
-      t.includes('blob') || t.includes('binary') || t.includes('varbinary'),
-    type: 'buffer' as const,
-  },
-  {
-    test: (t: string) =>
-      t.includes('double') ||
-      t.includes('float') ||
-      t.includes('decimal') ||
-      t.includes('numeric'),
-    type: 'number' as const,
-  },
-]
+  protected override parseConstraints(col: any): SyncTypes.ColumnConstraint {
+    const primary = col.column_key === 'PRI'
+    const cons: SyncTypes.ColumnConstraint = {
+      type: MySQLAdapter.mapMySqlTypeToTsType(
+        String(col.data_type || col.column_type || ''),
+      ),
+    }
+    if (primary) cons.primary = true
+    if (
+      String(col.extra || '')
+        .toLowerCase()
+        .includes('auto_increment')
+    )
+      cons.autoIncrement = true
+    if (col.is_nullable === 'YES' && !primary) cons.nullable = true
 
-function mapMySqlTypeToTsType(
-  sqlType: string,
-): SyncTypes.ColumnConstraint['type'] {
-  const t = (sqlType || '').toLowerCase()
-  for (const m of mysqlTypes) {
-    if (m.test(t)) return m.type
+    let def = this.parseDefault(col.column_default)
+    if (typeof def === 'string' && def === '%dateNow%') def = `'${def}'`
+    if (def !== undefined) cons.default = def
+    return cons
   }
-  return 'string'
-}
 
-function parseMySQLColumnConstraint(col: any, dateNowDefaults: string[]): SyncTypes.ColumnConstraint {
-  const primary = col.column_key === 'PRI'
-  const cons: SyncTypes.ColumnConstraint = {
-    type: mapMySqlTypeToTsType(String(col.data_type || col.column_type || '')),
-  }
-  if (primary) cons.primary = true
-  if (
-    String(col.extra || '')
-      .toLowerCase()
-      .includes('auto_increment')
-  )
-    cons.autoIncrement = true
-  if (col.is_nullable === 'YES' && !primary) cons.nullable = true
+  private static readonly mysqlTypes = [
+    {
+      test: (t: string) =>
+        t.includes('tinyint(1)') ||
+        t === 'bit(1)' ||
+        t === 'boolean' ||
+        t === 'bool',
+      type: 'boolean' as const,
+    },
+    {
+      test: (t: string) =>
+        t.includes('int') ||
+        t.includes('serial') ||
+        t.includes('bigint') ||
+        t.includes('smallint') ||
+        t.includes('mediumint'),
+      type: 'integer' as const,
+    },
+    {
+      test: (t: string) =>
+        t.includes('char') ||
+        t.includes('text') ||
+        t.includes('enum') ||
+        t.includes('set') ||
+        t.includes('date') ||
+        t.includes('time') ||
+        t.includes('timestamp'),
+      type: 'string' as const,
+    },
+    {
+      test: (t: string) =>
+        t.includes('blob') || t.includes('binary') || t.includes('varbinary'),
+      type: 'buffer' as const,
+    },
+    {
+      test: (t: string) =>
+        t.includes('double') ||
+        t.includes('float') ||
+        t.includes('decimal') ||
+        t.includes('numeric'),
+      type: 'number' as const,
+    },
+  ]
 
-  let def = col.column_default
-  switch (true) {
-    case def === null || def === undefined:
-      break
-    case typeof def === 'string' && def.toUpperCase() === 'NULL':
-      def = null
-      break
-    case typeof def === 'string' && !Number.isNaN(Number(def)):
-      def = Number(def)
-      break
-    case typeof def === 'string' && dateNowDefaults.some(dVal => {
-      const norm = def.replace(/[()]/g, '').trim().toUpperCase()
-      const normD = dVal.replace(/[()]/g, '').trim().toUpperCase()
-      return norm === normD || norm.includes(normD)
-    }):
-      def = '%dateNow%'
-      break
-    // MySQL returns string defaults without quotes; a stale '%dateNow%' literal
-    // would silently match the TS sentinel after norm(). Wrap in quotes so the
-    // diff detects it as needing migration.
-    case typeof def === 'string' && def === '%dateNow%':
-      def = `'${def}'`
-      break
+  private static mapMySqlTypeToTsType(
+    sqlType: string,
+  ): SyncTypes.ColumnConstraint['type'] {
+    const t = (sqlType || '').toLowerCase()
+    for (const m of MySQLAdapter.mysqlTypes) {
+      if (m.test(t)) return m.type
+    }
+    return 'string'
   }
-  if (def !== undefined) cons.default = def
-  return cons
 }

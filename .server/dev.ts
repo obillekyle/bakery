@@ -1,5 +1,4 @@
 import './core/init'
-import { Bakery } from './core/bakery'
 import { errorMsg, log, serveLog } from './logger'
 
 log({
@@ -8,14 +7,17 @@ log({
 })
 serveLog.STARTING({ mode: 'development' })
 
-const { initConfig } = await import('./core/config')
-const { initImportMap } = await import('./utils/http')
-const { syncTSConfigPaths } = await import('./core/tsconfig-sync')
-
 try {
+  const { initConfig } = await import('./core/config')
+  const { initImportMap, initHostImportMaps } = await import('./utils/http')
+  const { PluginHooks } = await import('./core/plugins')
+  const { syncTSConfigPaths } = await import('./compiler/tsconfig-sync')
+
   await initConfig()
+  await PluginHooks.setup()
   await initImportMap()
-  await syncTSConfigPaths(Bakery.config.importMap)
+  initHostImportMaps()
+  await syncTSConfigPaths()
 } catch (error: any) {
   console.error('Config init error stack:', error)
   serveLog.UNHANDLED_ERR({ error: `Config init failed: ${errorMsg(error)}` })

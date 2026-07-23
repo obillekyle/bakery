@@ -10,30 +10,7 @@ export interface ServerPlugin {
   onRoute?(req: Request): MixedPromise<void>
   onError?(error: Handler.Error.Data, req?: Request): ValidResponses
   onShutdown?(): MixedPromise<void>
-}
-
-export abstract class PluginBase implements ServerPlugin {
-  abstract name: string
-
-  setup(_config: ProcessedAppConfig): MixedPromise<void> {
-    return
-  }
-
-  onStart(_server: Bun.Server<any>): MixedPromise<void> {
-    return
-  }
-
-  onRequest(_req: Request): ValidResponses {
-    return
-  }
-
-  onRoute(_req: Request): MixedPromise<void> {
-    return
-  }
-
-  onError(_error: Handler.Error.Data, _req?: Request): ValidResponses {
-    return
-  }
+  onCompile?(content: string, path: string): MixedPromise<string>
 }
 
 export function definePlugin<T extends ServerPlugin>(plugin: T): T {

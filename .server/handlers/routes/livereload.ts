@@ -5,32 +5,22 @@ import { WebSocketHandler } from '../core/$websocket'
 export class LiveReloadHandler extends WebSocketHandler {
   static connectedLoggers = connectedLoggers
 
-  static async init() {}
+  static init() {}
 
   static canHandle(path: string) {
-    if (!import.meta.env.WORKER) return false
+    if (!import.meta.env.DEV || !import.meta.env.DEV_WORKER) return false
     return path === '/_livereload'
-  }
-
-  static routes(): any {
-    if (!import.meta.env.WORKER) return {}
-
-    return {
-      '/_livereload': {
-        type: 'websocket',
-        isRoot: false,
-        fileName: '_virtual',
-      },
-    }
   }
 
   static upgrade() {}
 
   static open(ws: ServerWebSocket) {
+    if (!import.meta.env.DEV) return
     ws.subscribe('livereload')
   }
 
   static message(ws: ServerWebSocket, message: any) {
+    if (!import.meta.env.DEV) return
     try {
       const parsed = JSON.parse(String(message))
       const { type: msgType, level, payload } = parsed

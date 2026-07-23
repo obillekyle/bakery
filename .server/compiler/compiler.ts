@@ -1,24 +1,26 @@
 import { Strings } from '@server/cache/string'
 import { Bakery } from '@server/core/bakery'
+import { PluginHooks } from '@server/core/plugins'
 import { is } from '@server/utils/common'
 import { FileSystem as fs } from '@server/utils/fs'
 
-import pkg from '../../package.json' with { type: 'json' }
-
-const isDevWorker = !!import.meta.env.WORKER
-const isDev = !!import.meta.env.DEV
-const mode = import.meta.env.MODE || 'production'
-
-const defines = {
-  'import.meta.env.DEV': JSON.stringify(isDev),
-  'import.meta.env.PROD': JSON.stringify(!isDev),
-  'import.meta.env.WORKER': JSON.stringify(isDevWorker),
-  'import.meta.env.MODE': JSON.stringify(mode),
-  'import.meta.env.BAKERY_VERSION': JSON.stringify(pkg.version),
-}
-
 const RX_IMPORT =
   /import\s+(?:(?:\*\s+as\s+)?([a-zA-Z_$\d\s{},/*]+?)\s+from\s+)?['"]([^'"]+?\.([a-zA-Z0-9]+))['"](?:\s+(?:with|assert)\s*\{[^}]+\})?\s*;?/gm
+
+let bakeryVersion = '1.0.0'
+try {
+  const pkgPath = Bun.resolveSync('package.json', Bakery.root || process.cwd())
+  const content = fs.readFileSync(pkgPath)
+  if (content) bakeryVersion = JSON.parse(content).version || '1.0.0'
+} catch {}
+
+const defines = {
+  'import.meta.env.DEV': JSON.stringify(!!import.meta.env.DEV),
+  'import.meta.env.PROD': JSON.stringify(!import.meta.env.DEV),
+  'import.meta.env.WORKER': JSON.stringify(!!import.meta.env.WORKER),
+  'import.meta.env.MODE': JSON.stringify(import.meta.env.MODE || 'production'),
+  'import.meta.env.BAKERY_VERSION': JSON.stringify(bakeryVersion),
+}
 
 let transpilerInstance: Bun.Transpiler | null = null
 function getTranspiler() {
@@ -26,14 +28,19 @@ function getTranspiler() {
     transpilerInstance = new Bun.Transpiler({
       loader: 'ts',
       inline: true,
-      trimUnusedImports: true,
+      trimUnusedImports: false,
       minifyWhitespace: true,
       target: 'browser',
-      deadCodeElimination: true,
+      deadCodeElimination: false,
       define: defines,
     })
   }
   return transpilerInstance
+}
+
+let virtualIdCounter = 0
+function nextVirtualId(): string {
+  return (++virtualIdCounter).toString(36)
 }
 
 function preprocessImports(source: string, filePath: fs.AbsolutePath): string {
@@ -43,8 +50,7 @@ function preprocessImports(source: string, filePath: fs.AbsolutePath): string {
 
   for (const [string, varName, importPath, ext] of matches) {
     const assetPath = fs.resolve(fileDir, importPath)
-    const randomId = Math.random().toString(36).slice(2, 8)
-    const id = Strings.getKey(assetPath) || `${Date.now()}_${randomId}.${ext}`
+    const id = Strings.getKey(assetPath) || `${Date.now()}_${nextVirtualId()}.${ext}`
 
     const url = `/_virtual/${id}`
     const quotedUrl = JSON.stringify(url)
@@ -62,11 +68,19 @@ function preprocessImports(source: string, filePath: fs.AbsolutePath): string {
   return source
 }
 
-export async function compile(path: fs.AbsolutePath): Promise<string> {
-  let source = await Bun.file(path).text()
+export async function compileText(source: string, path?: fs.AbsolutePath) {
+  if (!path) {
+    try {
+      const content = await getTranspiler().transform(source)
+      return content
+    } catch (err) {
+      console.error(`[Compiler] Error compiling source:`, err)
+      return source
+    }
+  }
+
   source = preprocessImports(source, path)
   const content = await getTranspiler().transform(source)
-
   const importRegex = /\b(from|import)(\s*\(?\s*)(["'])([^"']+)\3(\)?)/g
   const matches = [...content.matchAll(importRegex)]
 
@@ -101,8 +115,16 @@ export async function compile(path: fs.AbsolutePath): Promise<string> {
       },
     ),
   )
+  let result = content.replace(importRegex, () => replacements.shift()!)
+  return await PluginHooks.onCompile(result, path)
+}
 
-  return content.replace(importRegex, () => replacements.shift()!)
+export async function compile(path: fs.AbsolutePath | Bun.BunFile) {
+  if (!fs.exists(path))
+    throw new Error(`File not found: ${is.string(path) ? path : path.name}`)
+
+  path = typeof path === 'string' ? Bun.file(path) : path
+  return compileText(await path.text(), path.name!)
 }
 
 type CompileResult = {
@@ -118,7 +140,7 @@ export async function bundleModule(
     entrypoints: [path],
     target: 'browser',
     format: 'esm',
-    minify: !isDevWorker,
+    minify: import.meta.env.PROD,
     define: defines,
   })
 

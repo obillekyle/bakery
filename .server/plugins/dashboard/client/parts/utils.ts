@@ -62,6 +62,11 @@ export class SegmentedProgress {
   }
 }
 
+export function getWebSocketUrl(path: string) {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${location.host}${path}`
+}
+
 export function formatUptime(totalSeconds: number): string {
   if (totalSeconds < 0) return '0s'
   const hrs = Math.floor(totalSeconds / 3600)
@@ -71,15 +76,6 @@ export function formatUptime(totalSeconds: number): string {
   if (hrs > 0) return `${hrs}h ${mins}m ${secsStr}`
   if (mins > 0) return `${mins}m ${secsStr}`
   return secsStr
-}
-
-export function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
 }
 
 const COLOR_MAP: Record<string, string> = {
@@ -121,7 +117,7 @@ export function colorizeHtml(msg: string): string {
     if (part.startsWith('%') && part.length === 2) {
       applyColorToken(state, part[1])
     } else {
-      state.html += escapeHtml(part)
+      state.html += escapeHTML(part)
     }
   }
 

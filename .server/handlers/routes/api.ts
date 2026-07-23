@@ -1,7 +1,8 @@
 import { Bakery } from '@server/core/bakery'
 import { FileSystem } from '@server/utils/fs'
 import { response } from '@server/utils/http'
-import { DynamicHandler, type Handler, type Route } from '../core/$base'
+import type { Handler, Route } from '../core/$base'
+import { DynamicHandler } from '../core/$dynamic'
 import { ErrorHandler } from '../core/$error'
 
 export class ApiHandler extends DynamicHandler {
@@ -12,21 +13,8 @@ export class ApiHandler extends DynamicHandler {
   static get config() {
     return {
       ext: ['ts', 'js'],
-      dir: FileSystem.resolve(Bakery.root, 'api'),
+      dir: Bakery.apiRoot,
     }
-  }
-
-  static routes() {
-    const routes: MapOf<Route.Meta> = {}
-    for (const [path, info] of this.cache.entries()) {
-      routes[path] = {
-        type: 'endpoint',
-        isRoot: path === '/',
-        fileName: info.file.name || '(unknown)',
-      }
-    }
-
-    return routes
   }
 
   static resolveRoute(path: string) {
@@ -35,13 +23,14 @@ export class ApiHandler extends DynamicHandler {
   }
 
   static async handle(path: string, req: Request) {
-    const routeInfo = await this.resolveRoute(path)
-    if (!routeInfo) return response.error('No API handler found')
+    const info = await this.resolveRoute(path)
+    if (!info) return response.error('No API handler found')
 
-    const params = routeInfo.params
+    const cleanPath = path.slice(4)
+    const params = info.getParams(cleanPath) || {}
     const body = await this.params(req, params)
 
-    const filePath = FileSystem.resolve(this.config.dir, routeInfo.info.path)
+    const filePath = FileSystem.resolve(this.config.dir, info.path)
     const result = await this.executeModule(filePath, req, body)
 
     return result ?? response.error('No response from handler')

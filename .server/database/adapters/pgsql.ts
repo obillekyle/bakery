@@ -1,17 +1,17 @@
 import { Case, Try } from '@server/utils'
 import { SQL } from 'bun'
 import type * as SyncTypes from '../sync/types'
-import {
-  type BackupResult,
-  DBAdapter,
-  type DBExecutor,
-  quoteIdentifier,
-  type RunResult,
-  type TableDataResult,
-  type TableDetails,
-} from './base'
+import { createExecutor, SQLAdapter } from './base'
 
-export class PGAdapter extends DBAdapter {
+interface PGSQLParserState {
+  inSingleQuote: boolean
+  inDoubleQuote: boolean
+  paramIndex: number
+  skipNext: boolean
+  paramsLength: number
+}
+
+export class PGAdapter extends SQLAdapter {
   protected readonly sql: SQL
   override readonly quoteChar: string = '"'
 
@@ -32,7 +32,7 @@ export class PGAdapter extends DBAdapter {
   private static handleQuote(
     char: string,
     nextChar: string | undefined,
-    state: any,
+    state: PGSQLParserState,
   ): string | null {
     if (char === "'") {
       if (state.inSingleQuote && nextChar === "'") {
@@ -52,7 +52,7 @@ export class PGAdapter extends DBAdapter {
   private static handleSpecial(
     char: string,
     nextChar: string | undefined,
-    state: any,
+    state: PGSQLParserState,
   ): string | null {
     if (char === '\\') {
       if ((state.inSingleQuote || state.inDoubleQuote) && nextChar) {
@@ -76,7 +76,7 @@ export class PGAdapter extends DBAdapter {
 
   private static normalizePostgresSQL(sql: string, params: unknown[]) {
     let result = ''
-    const state = {
+    const state: PGSQLParserState = {
       inSingleQuote: false,
       inDoubleQuote: false,
       paramIndex: 0,
@@ -107,16 +107,16 @@ export class PGAdapter extends DBAdapter {
     return result
   }
 
-  readonly execute: DBExecutor = {
-    all: async (sqlText: string, params: unknown[] = []) =>
+  readonly execute: SQLAdapter.Executor = createExecutor(
+    async (sqlText: string, params: unknown[] = []) =>
       (await this.sql.unsafe(
         PGAdapter.normalizePostgresSQL(sqlText, params),
         params,
       )) as any,
-    run: async (
+    async (
       sqlText: string,
       params: unknown[] = [],
-    ): Promise<RunResult> => {
+    ): Promise<SQLAdapter.RunResult> => {
       let sql = sqlText
       const isInsert = /^\s*insert\s+into\s+/i.test(sql)
       if (isInsert && !/\breturning\b/i.test(sql)) sql += ' RETURNING *'
@@ -143,16 +143,12 @@ export class PGAdapter extends DBAdapter {
       }
       return { lastInsertRowid, changes }
     },
-    iterate: (sqlText: string, params: unknown[] = []) =>
+    (sqlText: string, params: unknown[] = []) =>
       this.sql.unsafe(
         PGAdapter.normalizePostgresSQL(sqlText, params),
         params,
       ) as any,
-    get: async (sqlText: string, params: unknown[] = []) =>
-      (await this.execute.all(sqlText, params))[0],
-    values: async (sqlText: string, params: unknown[] = []) =>
-      (await this.execute.all(sqlText, params)).map(Object.values),
-  }
+  )
 
   async hasCol(table: string, column: string): Promise<boolean> {
     const res = await this.query(
@@ -180,13 +176,7 @@ export class PGAdapter extends DBAdapter {
     return sql + this.formatDefault(d.default, 'TRUE', 'FALSE')
   }
 
-  async addCol(table: string, column: string, def: unknown): Promise<void> {
-    await this.query(
-      `ALTER TABLE ${quoteIdentifier(table, this.quoteChar)} ADD COLUMN ${quoteIdentifier(column, this.quoteChar)} ${this.colDef(def)}`,
-    ).run()
-  }
-
-  async backup(keepCount = 10): Promise<BackupResult | null> {
+  async backup(keepCount = 10): Promise<SQLAdapter.BackupResult | null> {
     if (!this.url) return null
     const base = Try.return(
       () => new URL(this.url!).pathname.replace(/^\//, ''),
@@ -219,32 +209,33 @@ export class PGAdapter extends DBAdapter {
   }
 
   async transaction<T>(
-    callback: (tx: DBAdapter) => T | Promise<T>,
+    callback: (tx: SQLAdapter) => T | Promise<T>,
   ): Promise<T> {
     return await this.sql.transaction(async txSql =>
       callback(new PGAdapter(txSql)),
     )
   }
 
-  async getSchema(): Promise<TableDetails[]> {
+  async getSchema(): Promise<SQLAdapter.TableDetails[]> {
     const res = (await this.query(
       "SELECT table_name AS name, table_type AS type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_name",
     ).all()) as any[]
-    const tablesWithDetails: TableDetails[] = []
+    const tablesWithDetails: SQLAdapter.TableDetails[] = []
 
     for (const t of res) {
-      const countRes = (await this.query(
-        `SELECT COUNT(*)::int as count FROM ${quoteIdentifier(t.name, this.quoteChar)}`,
-      ).get()) as { count: number }
-      const cols = (await this.query(
-        `SELECT column_name AS name, data_type AS type, is_nullable AS is_nullable FROM information_schema.columns WHERE table_name = ? AND table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY ordinal_position`,
-      ).all(t.name)) as any[]
-      const pkCols = (await this.query(
-        `SELECT a.attname AS name FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) WHERE i.indisprimary AND i.indrelid = ${quoteIdentifier(t.name, this.quoteChar)}::regclass`,
-      ).all()) as any[]
-      const idxs = (await this.query(
-        `SELECT indexname AS name, indexdef AS def FROM pg_indexes WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND tablename = ?`,
-      ).all(t.name)) as any[]
+      const qName = this.quote(t.name)
+      const [countRes, cols, pkCols, idxs] = (await Promise.all([
+        this.query(`SELECT COUNT(*)::int as count FROM ${qName}`).get(),
+        this.query(
+          `SELECT column_name AS name, data_type AS type, is_nullable AS is_nullable FROM information_schema.columns WHERE table_name = ? AND table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY ordinal_position`,
+        ).all(t.name),
+        this.query(
+          `SELECT a.attname AS name FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) WHERE i.indisprimary AND i.indrelid = ${qName}::regclass`,
+        ).all(),
+        this.query(
+          `SELECT indexname AS name, indexdef AS def FROM pg_indexes WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND tablename = ?`,
+        ).all(t.name),
+      ])) as [SQLAdapter.CountRow, any[], any[], any[]]
       tablesWithDetails.push({
         name: t.name,
         rowCount: countRes?.count || 0,
@@ -265,27 +256,22 @@ export class PGAdapter extends DBAdapter {
 
   async getData(
     tableName: string,
-    options: {
-      page: number
-      pageSize: number
-      sortBy?: string | null
-      sortOrder?: string | null
-      filters?: Record<string, unknown>
-    },
-  ): Promise<TableDataResult> {
+    options: SQLAdapter.TableDataOptions,
+  ): Promise<SQLAdapter.TableDataResult> {
     const cols = (await this.query(
       `SELECT column_name AS name FROM information_schema.columns WHERE table_name = ? AND table_schema NOT IN ('pg_catalog', 'information_schema')`,
-    ).all(tableName)) as { name: string }[]
+    ).all(tableName)) as SQLAdapter.NameRow[]
     const { whereSql, orderSql, whereParams } = this.buildFilterSort(
       options,
       new Set(cols.map(c => c.name)),
     )
+    const tName = this.quote(tableName)
     const countRes = (await this.query(
-      `SELECT COUNT(*) as count FROM ${quoteIdentifier(tableName, this.quoteChar)}${whereSql}`,
-    ).get(...whereParams)) as { count: number }
+      `SELECT COUNT(*) as count FROM ${tName}${whereSql}`,
+    ).get(...whereParams)) as SQLAdapter.CountRow
     const totalRows = countRes?.count || 0
     const rows = (await this.query(
-      `SELECT ctid::text AS rowid, * FROM ${quoteIdentifier(tableName, this.quoteChar)}${whereSql}${orderSql} LIMIT ? OFFSET ?`,
+      `SELECT ctid::text AS rowid, * FROM ${tName}${whereSql}${orderSql} LIMIT ? OFFSET ?`,
     ).all(
       ...whereParams,
       options.pageSize,
@@ -300,34 +286,24 @@ export class PGAdapter extends DBAdapter {
     }
   }
 
-  async remove(tableName: string, rowid: unknown): Promise<RunResult> {
+  async remove(tableName: string, rowid: unknown): Promise<SQLAdapter.RunResult> {
     return await this.query(
-      `DELETE FROM ${quoteIdentifier(tableName, this.quoteChar)} WHERE ctid::text = ?`,
+      `DELETE FROM ${this.quote(tableName)} WHERE ctid::text = ?`,
     ).run(rowid)
   }
-  async truncate(tableName: string): Promise<RunResult> {
+  async truncate(tableName: string): Promise<SQLAdapter.RunResult> {
     return await this.query(
-      `TRUNCATE TABLE ${quoteIdentifier(tableName, this.quoteChar)} RESTART IDENTITY CASCADE`,
+      `TRUNCATE TABLE ${this.quote(tableName)} RESTART IDENTITY CASCADE`,
     ).run()
-  }
-  async insert(
-    tableName: string,
-    row: Record<string, unknown>,
-  ): Promise<RunResult> {
-    const keys = Object.keys(row),
-      values = Object.values(row)
-    return await this.query(
-      `INSERT INTO ${quoteIdentifier(tableName, this.quoteChar)} (${keys.map(k => quoteIdentifier(k, this.quoteChar)).join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`,
-    ).run(...values)
   }
   async update(
     tableName: string,
     rowid: unknown,
-    row: Record<string, unknown>,
-  ): Promise<RunResult> {
+    row: SQLAdapter.RowRecord,
+  ): Promise<SQLAdapter.RunResult> {
     const keys = Object.keys(row).filter(k => k !== 'rowid')
     return await this.query(
-      `UPDATE ${quoteIdentifier(tableName, this.quoteChar)} SET ${keys.map(k => `${quoteIdentifier(k, this.quoteChar)} = ?`).join(', ')} WHERE ctid::text = ?`,
+      `UPDATE ${this.quote(tableName)} SET ${keys.map(k => `${this.quote(k)} = ?`).join(', ')} WHERE ctid::text = ?`,
     ).run(...keys.map(k => row[k]), rowid)
   }
 
@@ -369,7 +345,7 @@ export class PGAdapter extends DBAdapter {
       for (const col of cols) {
         const primary = pkMap[t.table_name]?.has(col.column_name) || false
         dbConstraints[tName][Case.camel(col.column_name)] =
-          parsePGColumnConstraint(col, primary, this.dateNowDefaults)
+          this.parseConstraints(col, primary)
       }
     }
     return dbConstraints
@@ -401,80 +377,63 @@ export class PGAdapter extends DBAdapter {
     return dbIndexes
   }
   override readonly dateNowDefaults: string[] = ['EXTRACT(EPOCH FROM']
-}
 
-const pgTypes = [
-  {
-    test: (t: string) =>
-      t.includes('int') ||
-      t.includes('serial') ||
-      t.includes('bigint') ||
-      t.includes('smallint'),
-    type: 'integer' as const,
-  },
-  { test: (t: string) => t.includes('bool'), type: 'boolean' as const },
-  { test: (t: string) => t.includes('bytea'), type: 'buffer' as const },
-  {
-    test: (t: string) =>
-      t.includes('double') ||
-      t.includes('real') ||
-      t.includes('numeric') ||
-      t.includes('decimal'),
-    type: 'number' as const,
-  },
-]
+  protected override parseConstraints(
+    col: any,
+    primary = false,
+  ): SyncTypes.ColumnConstraint {
+    const cons: SyncTypes.ColumnConstraint = {
+      type: PGAdapter.mapPgTypeToTsType(String(col.data_type || col.udt_name || '')),
+    }
+    if (primary) cons.primary = true
+    if (
+      typeof col.column_default === 'string' &&
+      col.column_default.includes('nextval')
+    )
+      cons.autoIncrement = true
+    if (col.is_nullable === 'YES' && !primary) cons.nullable = true
 
-function mapPgTypeToTsType(
-  sqlType: string,
-): SyncTypes.ColumnConstraint['type'] {
-  const t = (sqlType || '').toLowerCase()
-  for (const m of pgTypes) {
-    if (m.test(t)) return m.type
-  }
-  return 'string'
-}
-
-function parsePGColumnConstraint(
-  col: any,
-  primary: boolean,
-  dateNowDefaults: string[],
-): SyncTypes.ColumnConstraint {
-  const cons: SyncTypes.ColumnConstraint = {
-    type: mapPgTypeToTsType(String(col.data_type || col.udt_name || '')),
-  }
-  if (primary) cons.primary = true
-  if (
-    typeof col.column_default === 'string' &&
-    col.column_default.includes('nextval')
-  )
-    cons.autoIncrement = true
-  if (col.is_nullable === 'YES' && !primary) cons.nullable = true
-
-  let def = col.column_default
-  switch (true) {
-    case def === null || def === undefined:
-      break
-    case typeof def === 'string' && def.toUpperCase() === 'NULL':
-      def = null
-      break
-    case typeof def === 'string' && !Number.isNaN(Number(def)):
-      def = Number(def)
-      break
-    case typeof def === 'string' && dateNowDefaults.some(dVal => {
-      const norm = def.replace(/[()]/g, '').trim().toUpperCase()
-      const normD = dVal.replace(/[()]/g, '').trim().toUpperCase()
-      return norm === normD || norm.includes(normD)
-    }):
-      def = '%dateNow%'
-      break
-    // Guard: PgSQL returns string defaults as `'value'::text`; a stale '%dateNow%'
-    // literal in any form must not silently match the TS sentinel after norm().
-    // Keep the raw string so the diff detects it as needing migration.
-    case typeof def === 'string' && def.replace(/[()'::\w]+$/, '').trim() === '%dateNow%':
-    case typeof def === 'string' && def === '%dateNow%':
+    let def = col.column_default
+    if (
+      typeof def === 'string' &&
+      (def.replace(/[()'::\w]+$/, '').trim() === '%dateNow%' || def === '%dateNow%')
+    ) {
       def = `'${def}'`
-      break
+    } else {
+      def = this.parseDefault(def)
+    }
+    if (def !== undefined) cons.default = def
+    return cons
   }
-  if (def !== undefined) cons.default = def
-  return cons
+
+  private static readonly pgTypes = [
+    {
+      test: (t: string) =>
+        t.includes('int') ||
+        t.includes('serial') ||
+        t.includes('bigint') ||
+        t.includes('smallint'),
+      type: 'integer' as const,
+    },
+    { test: (t: string) => t.includes('bool'), type: 'boolean' as const },
+    { test: (t: string) => t.includes('bytea'), type: 'buffer' as const },
+    {
+      test: (t: string) =>
+        t.includes('double') ||
+        t.includes('real') ||
+        t.includes('numeric') ||
+        t.includes('decimal'),
+      type: 'number' as const,
+    },
+  ]
+
+  private static mapPgTypeToTsType(
+    sqlType: string,
+  ): SyncTypes.ColumnConstraint['type'] {
+    const t = (sqlType || '').toLowerCase()
+    for (const m of PGAdapter.pgTypes) {
+      if (m.test(t)) return m.type
+    }
+    return 'string'
+  }
 }

@@ -9,7 +9,7 @@ const MESSAGES = messageLogger(new Logger('db-backup'), {
 } as const)
 
 export async function backupDatabase(adapter?: any) {
-  const conn = adapter || (await import('./' + 'connection')).connection
+  const conn = adapter || (await import('./connection')).connection
   const [err, result] = await Try.catch(conn.backup(Bakery.config.backups))
 
   if (err) {

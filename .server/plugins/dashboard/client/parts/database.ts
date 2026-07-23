@@ -1,5 +1,4 @@
 import { refreshShimmerCache } from './effects'
-import { escapeHtml } from './utils'
 
 declare const is: any
 
@@ -219,7 +218,7 @@ function formatTableCell(val: any, col: string, rowidVal: any): string {
       : '<span class="badge badge-secondary">false</span>'
     cellClass = 'cell-boolean'
   } else {
-    displayVal = escapeHtml(String(val))
+    displayVal = escapeHTML(val)
   }
 
   return `
@@ -471,7 +470,6 @@ export function startInlineEdit(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({
           action: 'update-row',
@@ -679,7 +677,6 @@ export async function submitInsertRow(e: Event) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify({
         action: 'insert-row',
@@ -710,7 +707,7 @@ function buildEditFormInputHtml(c: any, cellVal: any): string {
   )
 
   if (isReadOnly)
-    return `<input class="input-field" type="text" id="edit-field-${c.name}" name="${c.name}" value="${escapeHtml(String(cellVal))}" disabled />`
+    return `<input class="input-field" type="text" id="edit-field-${c.name}" name="${c.name}" value="${escapeHTML(cellVal)}" disabled />`
   if (isBool)
     return `<select class="input-field" id="edit-field-${c.name}" name="${c.name}">
       <option value="1" ${cellVal === 1 ? 'selected' : ''}>true</option>
@@ -721,7 +718,7 @@ function buildEditFormInputHtml(c: any, cellVal: any): string {
     type="${isNum ? 'number' : 'text'}" 
     id="edit-field-${c.name}" 
     name="${c.name}" 
-    value="${cellVal === null ? '' : escapeHtml(String(cellVal))}"
+    value="${cellVal === null ? '' : escapeHTML(cellVal)}"
     ${c.notnull ? 'required' : ''}
   />`
 }
@@ -1065,7 +1062,6 @@ export async function truncateTable(tableName: string) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify({ action: 'truncate', tableName }),
     })
@@ -1096,7 +1092,6 @@ export async function deleteTableRow(tableName: string, rowid: number) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify({ action: 'delete-row', tableName, rowid }),
     })
@@ -1113,10 +1108,6 @@ export async function deleteTableRow(tableName: string, rowid: number) {
 }
 
 export function inspectTable(tableName: string) {
-  selectDatabaseTable(tableName)
-}
-
-export function inspectTableData(tableName: string) {
   selectDatabaseTable(tableName)
 }
 
@@ -1141,7 +1132,7 @@ function buildResultTableHtml(rows: any[], keys: string[]): string {
           ? '<em>null</em>'
           : is.object(val)
             ? JSON.stringify(val)
-            : escapeHtml(String(val))
+            : escapeHTML(val)
       tableHtml += `<td>${displayVal}</td>`
     })
     tableHtml += '</tr>'
@@ -1199,7 +1190,6 @@ export async function runQuery() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify({ sql }),
     })

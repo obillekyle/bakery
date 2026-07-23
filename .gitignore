@@ -20,3 +20,6 @@ scratch
 .server/.data
 
 *.tsbuildinfo
+
+# Windows device-name artifact
+nul

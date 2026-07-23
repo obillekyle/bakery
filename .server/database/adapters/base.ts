@@ -1,138 +1,126 @@
-import { mkdir, readdir } from 'node:fs/promises'
-import { recordDbHit } from '@plugins/analytics/core'
 import { Logger } from '@server/logger'
 import { Case, Try } from '@server/utils'
 import type * as SyncTypes from '../sync/types'
 
-export type DBDriver = 'sqlite' | 'postgres' | 'mysql'
-export type RunResult = {
-  lastInsertRowid: number | bigint | null
-  changes: number
-}
-export type BackupResult = { file: string; cleanupCount?: number }
-export interface TableColumnInfo {
-  name: string
-  type: string
-  notnull: boolean
-  pk: boolean
-}
-export interface TableIndexInfo {
-  name: string
-  unique: boolean
-}
-export interface TableDetails {
-  name: string
-  rowCount: number
-  columns: TableColumnInfo[]
-  indexes: TableIndexInfo[]
-}
-export interface TableDataResult {
-  rows: any[]
-  totalRows: number
-  page: number
-  pageSize: number
-  totalPages: number
-}
-export type ColumnConstraint = {
-  type: 'integer' | 'string' | 'number' | 'boolean' | 'buffer'
-  primary?: boolean
-  autoIncrement?: boolean
-  nullable?: boolean
-  default?: unknown
-}
-export type IndexConstraint = {
-  type: 'unique' | 'index'
-  table: string
-  cols: string[]
-}
+export namespace SQLAdapter {
+  export type Driver = 'sqlite' | 'postgres' | 'mysql'
+  export interface RunResult {
+    lastInsertRowid: number | bigint | null
+    changes: number
+  }
+  export interface BackupResult {
+    file: string
+    cleanupCount?: number
+  }
+  export interface TableColumnInfo {
+    name: string
+    type: string
+    notnull: boolean
+    pk: boolean
+  }
+  export interface TableIndexInfo {
+    name: string
+    unique: boolean
+  }
+  export interface TableDetails {
+    name: string
+    rowCount: number
+    columns: TableColumnInfo[]
+    indexes: TableIndexInfo[]
+  }
+  export interface TableDataResult {
+    rows: any[]
+    totalRows: number
+    page: number
+    pageSize: number
+    totalPages: number
+  }
+  export interface ColumnConstraint {
+    type: 'integer' | 'string' | 'number' | 'boolean' | 'buffer'
+    primary?: boolean
+    autoIncrement?: boolean
+    nullable?: boolean
+    default?: unknown
+  }
+  export interface IndexConstraint {
+    type: 'unique' | 'index'
+    table: string
+    cols: string[]
+  }
 
-export interface DBExecutor {
-  all(
-    sqlText: string,
-    params?: unknown[],
-  ): Promise<Record<string, unknown>[]> | Record<string, unknown>[]
-  run(sqlText: string, params?: unknown[]): Promise<RunResult> | RunResult
-  iterate(
-    sqlText: string,
-    params?: unknown[],
-  ): AsyncIterable<Record<string, unknown>> | Iterable<Record<string, unknown>>
-  get(
-    sqlText: string,
-    params?: unknown[],
-  ): Promise<Record<string, unknown> | undefined>
-  values(sqlText: string, params?: unknown[]): Promise<unknown[][]>
+  export type RowRecord = MapOf<any>
+  export interface FilterSortOptions {
+    sortBy?: string | null
+    sortOrder?: string | null
+    filters?: MapOf<unknown>
+  }
+  export interface TableDataOptions extends FilterSortOptions {
+    page: number
+    pageSize: number
+  }
+  export interface NameRow {
+    name: string
+  }
+  export interface ColumnNameRow {
+    column_name: string
+  }
+  export interface TableNameRow {
+    table_name?: string
+  }
+  export interface CountRow {
+    count: number
+  }
+  export interface SQLiteColumnRow {
+    name: string
+    type?: string
+    notnull?: number
+    pk?: number
+  }
+  export interface StatementResult {
+    sql: string
+    params: unknown[]
+  }
+  export interface WhereEvalResult {
+    whereSql: string
+    params: unknown[]
+  }
+
+  export interface Executor {
+    all(sqlText: string, params?: unknown[]): Promise<RowRecord[]> | RowRecord[]
+    run(sqlText: string, params?: unknown[]): Promise<RunResult> | RunResult
+    iterate(
+      sqlText: string,
+      params?: unknown[],
+    ): AsyncIterable<RowRecord> | Iterable<RowRecord>
+    get(sqlText: string, params?: unknown[]): Promise<RowRecord | undefined>
+    values(sqlText: string, params?: unknown[]): Promise<unknown[][]>
+  }
 }
 
 export function quoteIdentifier(name: string, quoteChar: string): string {
-  return `${quoteChar}${name.replace(new RegExp(quoteChar, 'g'), '')}${quoteChar}`
+  return `${quoteChar}${name.replaceAll(quoteChar, '')}${quoteChar}`
 }
-// prettier-ignore
-export const sqlKeywords = new Set([
-  'SELECT',
-  'FROM',
-  'WHERE',
-  'JOIN',
-  'LEFT',
-  'RIGHT',
-  'INNER',
-  'OUTER',
-  'ON',
-  'AS',
-  'AND',
-  'OR',
-  'NOT',
-  'NULL',
-  'IS',
-  'IN',
-  'GROUP',
-  'BY',
-  'ORDER',
-  'HAVING',
-  'LIMIT',
-  'OFFSET',
-  'ASC',
-  'DESC',
-  'CREATE',
-  'TABLE',
-  'VIEW',
-  'DROP',
-  'ALTER',
-  'UPDATE',
-  'SET',
-  'INSERT',
-  'INTO',
-  'VALUES',
-  'DELETE',
-  'PRIMARY',
-  'KEY',
-  'FOREIGN',
-  'REFERENCES',
-  'AUTOINCREMENT',
-  'DEFAULT',
-  'UNIQUE',
-  'CHECK',
-  'CONSTRAINT',
-  'CAST',
-  'INTEGER',
-  'TEXT',
-  'REAL',
-  'BLOB',
-  'NUMERIC',
-  'BOOLEAN',
-])
+export function createExecutor(
+  all: SQLAdapter.Executor['all'],
+  run: SQLAdapter.Executor['run'],
+  iterate: SQLAdapter.Executor['iterate'],
+): SQLAdapter.Executor {
+  const exec: SQLAdapter.Executor = {
+    all,
+    run,
+    iterate,
+    get: async (sqlText: string, params: unknown[] = []) =>
+      (await exec.all(sqlText, params))[0],
+    values: async (sqlText: string, params: unknown[] = []) =>
+      (await exec.all(sqlText, params)).map(Object.values),
+  }
+  return exec
+}
 
-export const cleanSQLQuotes = (sql: string) =>
-  sql.replace(/`([^`]+)`/g, (match, word) =>
-    !sqlKeywords.has(word.toUpperCase()) &&
-    /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(word)
-      ? word
-      : match,
-  )
-
-export abstract class DBAdapter {
+export abstract class SQLAdapter {
   protected abstract sql: unknown
   static readonly DATE_NOW = ''
-  readonly DATE_NOW = DBAdapter.DATE_NOW
+  readonly DATE_NOW = SQLAdapter.DATE_NOW
   readonly quoteChar: string = '`'
 
   quote(name: string): string {
@@ -140,76 +128,98 @@ export abstract class DBAdapter {
   }
 
   constructor(
-    public readonly driver: DBDriver,
+    public readonly driver: SQLAdapter.Driver,
     public readonly filename?: string,
     public readonly url?: string,
   ) {}
 
-  abstract readonly execute: DBExecutor
+  abstract readonly execute: SQLAdapter.Executor
   abstract hasCol(table: string, column: string): Promise<boolean>
-  abstract addCol(table: string, column: string, def: unknown): Promise<void>
+  async addCol(table: string, column: string, def: unknown): Promise<void> {
+    await this.query(
+      `ALTER TABLE ${this.quote(table)} ADD COLUMN ${this.quote(column)} ${this.colDef(def)}`,
+    ).run()
+  }
   abstract colDef(def: unknown): string
-  abstract backup(keepCount?: number): Promise<BackupResult | null>
+  abstract backup(keepCount?: number): Promise<SQLAdapter.BackupResult | null>
   abstract transaction<T>(
-    callback: (tx: DBAdapter) => T | Promise<T>,
+    callback: (tx: SQLAdapter) => T | Promise<T>,
   ): Promise<T>
+  protected abstract parseConstraints(
+    col: unknown,
+    ...params: unknown[]
+  ): SyncTypes.ColumnConstraint
   abstract getConstraints(): Promise<SyncTypes.DBConstraints>
   abstract getIndexes(): Promise<SyncTypes.DBIndexes>
-  abstract getSchema(): Promise<TableDetails[]>
+  abstract getSchema(): Promise<SQLAdapter.TableDetails[]>
   abstract getData(
     table: string,
-    opts: {
-      page: number
-      pageSize: number
-      sortBy?: string | null
-      sortOrder?: string | null
-      filters?: Record<string, unknown>
-    },
-  ): Promise<TableDataResult>
-  abstract remove(table: string, rowid: unknown): Promise<RunResult>
-  abstract truncate(table: string): Promise<RunResult>
-  abstract insert(
+    opts: SQLAdapter.TableDataOptions,
+  ): Promise<SQLAdapter.TableDataResult>
+  abstract remove(table: string, rowid: unknown): Promise<SQLAdapter.RunResult>
+  abstract truncate(table: string): Promise<SQLAdapter.RunResult>
+  async insert(
     table: string,
-    row: Record<string, unknown>,
-  ): Promise<RunResult>
+    rowOrRows: SQLAdapter.RowRecord | SQLAdapter.RowRecord[],
+    mapSnake = true,
+  ): Promise<SQLAdapter.RunResult> {
+    const records = Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows]
+    if (!records.length) return { lastInsertRowid: null, changes: 0 }
+    const formattedRecords = mapSnake
+      ? records.map(r => {
+          const keys = Object.keys(r)
+          const obj: SQLAdapter.RowRecord = {}
+          for (let i = 0; i < keys.length; i++) {
+            const k = keys[i]
+            obj[Case.snake(k)] = r[k]
+          }
+          return obj
+        })
+      : records
+    const columnsList = [...new Set(formattedRecords.flatMap(Object.keys))]
+    const columns = columnsList.map(k => this.quote(k)).join(', ')
+    const placeholderGroup = `(${Array(columnsList.length).fill('?').join(', ')})`
+    const placeholders = Array(formattedRecords.length)
+      .fill(placeholderGroup)
+      .join(', ')
+    const params = formattedRecords.flatMap(r =>
+      columnsList.map(k => r[k] ?? null),
+    )
+    return await this.execute.run(
+      `INSERT INTO ${this.quote(table)} (${columns}) VALUES ${placeholders}`,
+      params,
+    )
+  }
   abstract update(
     table: string,
     rowid: unknown,
-    row: Record<string, unknown>,
-  ): Promise<RunResult>
+    row: SQLAdapter.RowRecord,
+  ): Promise<SQLAdapter.RunResult>
 
-  async dropIndex(name: string): Promise<RunResult> {
+  async drop(
+    type: 'TABLE' | 'VIEW' | 'INDEX' | 'COLUMN',
+    ...params: string[]
+  ): Promise<SQLAdapter.RunResult> {
+    if (type === 'COLUMN') {
+      return await this.query(
+        `ALTER TABLE ${this.quote(params[0])} DROP COLUMN ${this.quote(params[1])}`,
+      ).run()
+    }
     return await this.query(
-      `DROP INDEX IF EXISTS ${quoteIdentifier(name, this.quoteChar)}`,
+      `DROP ${type} IF EXISTS ${this.quote(params[0])}`,
     ).run()
   }
-  async renameTable(oldN: string, newN: string): Promise<RunResult> {
+  async rename(
+    type: 'TABLE' | 'COLUMN',
+    ...params: string[]
+  ): Promise<SQLAdapter.RunResult> {
+    if (type === 'TABLE') {
+      return await this.query(
+        `ALTER TABLE ${this.quote(params[0])} RENAME TO ${this.quote(params[1])}`,
+      ).run()
+    }
     return await this.query(
-      `ALTER TABLE ${quoteIdentifier(oldN, this.quoteChar)} RENAME TO ${quoteIdentifier(newN, this.quoteChar)}`,
-    ).run()
-  }
-  async renameColumn(
-    table: string,
-    oldC: string,
-    newC: string,
-  ): Promise<RunResult> {
-    return await this.query(
-      `ALTER TABLE ${quoteIdentifier(table, this.quoteChar)} RENAME COLUMN ${quoteIdentifier(oldC, this.quoteChar)} TO ${quoteIdentifier(newC, this.quoteChar)}`,
-    ).run()
-  }
-  async dropColumn(table: string, col: string): Promise<RunResult> {
-    return await this.query(
-      `ALTER TABLE ${quoteIdentifier(table, this.quoteChar)} DROP COLUMN ${quoteIdentifier(col, this.quoteChar)}`,
-    ).run()
-  }
-  async dropTable(table: string): Promise<RunResult> {
-    return await this.query(
-      `DROP TABLE ${quoteIdentifier(table, this.quoteChar)}`,
-    ).run()
-  }
-  async dropView(view: string): Promise<RunResult> {
-    return await this.query(
-      `DROP VIEW IF EXISTS ${quoteIdentifier(view, this.quoteChar)}`,
+      `ALTER TABLE ${this.quote(params[0])} RENAME COLUMN ${this.quote(params[1])} TO ${this.quote(params[2])}`,
     ).run()
   }
   async createIndex(
@@ -217,40 +227,56 @@ export abstract class DBAdapter {
     table: string,
     cols: string[],
     unique = false,
-  ): Promise<RunResult> {
+  ): Promise<SQLAdapter.RunResult> {
     return await this.query(
-      `CREATE ${unique ? 'UNIQUE ' : ''}INDEX ${quoteIdentifier(name, this.quoteChar)} ON ${quoteIdentifier(table, this.quoteChar)} (${cols.map(c => quoteIdentifier(c, this.quoteChar)).join(', ')})`,
+      `CREATE ${unique ? 'UNIQUE ' : ''}INDEX ${this.quote(name)} ON ${this.quote(table)} (${cols.map(c => this.quote(c)).join(', ')})`,
     ).run()
   }
-  async createView(name: string, sql: string): Promise<RunResult> {
-    await this.dropView(name)
-    return this.query(
-      `CREATE VIEW ${quoteIdentifier(name, this.quoteChar)} AS ${sql}`,
-    ).run()
+  async createView(name: string, sql: string): Promise<SQLAdapter.RunResult> {
+    await this.drop('VIEW', name)
+    return this.query(`CREATE VIEW ${this.quote(name)} AS ${sql}`).run()
   }
   async createTable(
     table: string,
     defs: string[],
     ifNotExists = false,
-  ): Promise<RunResult> {
+  ): Promise<SQLAdapter.RunResult> {
     return await this.query(
-      `CREATE TABLE ${ifNotExists ? 'IF NOT EXISTS ' : ''}${quoteIdentifier(table, this.quoteChar)} (\n${defs.join(',\n')}\n)`,
+      `CREATE TABLE ${ifNotExists ? 'IF NOT EXISTS ' : ''}${this.quote(table)} (\n${defs.join(',\n')}\n)`,
     ).run()
   }
   async copyTableData(
     from: string,
     to: string,
     cols: string[],
-  ): Promise<RunResult> {
-    const cSql = cols.map(c => quoteIdentifier(c, this.quoteChar)).join(', ')
+  ): Promise<SQLAdapter.RunResult> {
+    const cSql = cols.map(c => this.quote(c)).join(', ')
     return await this.query(
-      `INSERT INTO ${quoteIdentifier(to, this.quoteChar)} (${cSql}) SELECT ${cSql} FROM ${quoteIdentifier(from, this.quoteChar)}`,
+      `INSERT INTO ${this.quote(to)} (${cSql}) SELECT ${cSql} FROM ${this.quote(from)}`,
     ).run()
   }
 
-  protected async preSync(_tx: DBAdapter): Promise<void> {}
-  protected async postSync(_tx: DBAdapter): Promise<void> {}
+  protected async preSync(_tx: SQLAdapter): Promise<void> {}
+  protected async postSync(_tx: SQLAdapter): Promise<void> {}
   readonly dateNowDefaults: string[] = []
+
+  isDateNowDefault(def: string): boolean {
+    if (def === '%dateNow%') return true
+    const norm = def.replace(/[()]/g, '').trim().toUpperCase()
+    return this.dateNowDefaults.some(dVal => {
+      const normD = dVal.replace(/[()]/g, '').trim().toUpperCase()
+      return norm === normD || norm.includes(normD)
+    })
+  }
+
+  protected parseDefault(def: any): any {
+    if (def === null || def === undefined) return def
+    const isStr = typeof def === 'string'
+    if (isStr && def.toUpperCase() === 'NULL') return null
+    if (isStr && !Number.isNaN(Number(def))) return Number(def)
+    if (isStr && this.isDateNowDefault(def)) return '%dateNow%'
+    return def
+  }
 
   async syncSchema(
     constraints: SyncTypes.DBConstraints,
@@ -259,29 +285,6 @@ export abstract class DBAdapter {
   ): Promise<void> {
     const { SyncEngine } = await import('../sync/engine')
     await SyncEngine.run(this, constraints, tsIndexes, schemaPath)
-  }
-
-  async executeInsert(
-    table: string,
-    records: Record<string, unknown>[],
-  ): Promise<RunResult> {
-    recordDbHit()
-    if (!records.length) return { lastInsertRowid: null, changes: 0 }
-    const snakeRecords = records.map(r =>
-      Object.fromEntries(Object.entries(r).map(([k, v]) => [Case.snake(k), v])),
-    )
-    const columnsList = [...new Set(snakeRecords.flatMap(Object.keys))]
-    const columns = columnsList
-      .map(k => quoteIdentifier(k, this.quoteChar))
-      .join(', ')
-    const placeholders = snakeRecords
-      .map(() => `(${columnsList.map(() => '?').join(', ')})`)
-      .join(', ')
-    const params = snakeRecords.flatMap(r => columnsList.map(k => r[k] ?? null))
-    return await this.execute.run(
-      `INSERT INTO ${quoteIdentifier(table, this.quoteChar)} (${columns}) VALUES ${placeholders}`,
-      params,
-    )
   }
 
   async close() {
@@ -295,11 +298,7 @@ export abstract class DBAdapter {
   }
 
   protected buildFilterSort(
-    options: {
-      sortBy?: string | null
-      sortOrder?: string | null
-      filters?: Record<string, unknown>
-    },
+    options: SQLAdapter.FilterSortOptions,
     validCols: Set<string>,
   ) {
     const whereParams: unknown[] = []
@@ -310,7 +309,7 @@ export abstract class DBAdapter {
       )
       .map(([col, val]) => {
         whereParams.push(`%${val}%`)
-        return `${quoteIdentifier(col, this.quoteChar)} LIKE ?`
+        return `${this.quote(col)} LIKE ?`
       })
 
     const whereSql = whereClauses.length
@@ -318,7 +317,7 @@ export abstract class DBAdapter {
       : ''
     const orderSql =
       options.sortBy && validCols.has(options.sortBy)
-        ? ` ORDER BY ${quoteIdentifier(options.sortBy, this.quoteChar)} ${options.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'}`
+        ? ` ORDER BY ${this.quote(options.sortBy)} ${options.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'}`
         : ''
 
     return { whereSql, orderSql, whereParams }
@@ -329,20 +328,15 @@ export abstract class DBAdapter {
     boolTrue: string,
     boolFalse: string,
   ): string {
-    switch (true) {
-      case def === undefined:
-        return ''
-      case def === null || def === 'NULL':
-        return ' DEFAULT NULL'
-      case typeof def === 'boolean':
-        return ` DEFAULT ${def ? boolTrue : boolFalse}`
-      case typeof def === 'number' || typeof def === 'bigint':
-        return ` DEFAULT ${def}`
-      case typeof def === 'string' && def === '%dateNow%':
-        return ` DEFAULT (${this.dateNowDefaults[0]})`
-      default:
-        return ` DEFAULT '${String(def).replace(/'/g, "''")}'`
-    }
+    if (def === undefined) return ''
+    if (def === null || def === 'NULL') return ' DEFAULT NULL'
+    if (typeof def === 'boolean')
+      return ` DEFAULT ${def ? boolTrue : boolFalse}`
+    if (typeof def === 'number' || typeof def === 'bigint')
+      return ` DEFAULT ${def}`
+    if (typeof def === 'string' && def === '%dateNow%')
+      return ` DEFAULT (${this.dateNowDefaults[0]})`
+    return ` DEFAULT '${String(def).replaceAll("'", "''")}'`
   }
 
   protected async cleanupBackups(
@@ -352,7 +346,7 @@ export abstract class DBAdapter {
     keepCount: number,
   ): Promise<number> {
     if (keepCount <= 0) return 0
-    const files = await readdir(backupDir)
+    const files = Array.from(new Bun.Glob('*').scanSync({ cwd: backupDir }))
     const old = files
       .filter(f => f.startsWith(`${baseName}.`) && f.endsWith(ext))
       .map(f => ({ name: f, time: Number(f.split('.')[1]) || 0 }))
@@ -369,11 +363,11 @@ export abstract class DBAdapter {
     keepCount: number,
     baseName: string,
     envOverride?: Record<string, string>,
-  ): Promise<BackupResult | null> {
+  ): Promise<SQLAdapter.BackupResult | null> {
     const backupDir = `${process.cwd()}/.server/.data/backups`
     const backupName = `${baseName}.${Date.now()}${ext}`
     const fullPath = `${backupDir}/${backupName}`
-    await mkdir(backupDir, { recursive: true })
+    await Bun.write(`${backupDir}/.keep`, '')
 
     if (
       !Try.return(
@@ -413,14 +407,16 @@ export abstract class DBAdapter {
     return { file: backupName, cleanupCount: cleaned }
   }
 
-  async importCSV(table: string, csvContent: string): Promise<RunResult> {
+  async importCSV(
+    table: string,
+    csvContent: string,
+  ): Promise<SQLAdapter.RunResult> {
     const lines = parseCSVRows(csvContent)
     if (lines.length < 2) throw new Error('No rows found')
 
     const rawHeaders = lines[0]
     const headers = rawHeaders.map(h => h.trim())
 
-    // Fetch column types to parse them correctly
     const schema = await this.getSchema()
     const tableInfo = schema.find(
       t => t.name === table || Case.camel(t.name) === Case.camel(table),
@@ -445,7 +441,7 @@ export abstract class DBAdapter {
       )
     })
 
-    return await this.executeInsert(table, records)
+    return await this.insert(table, records)
   }
 }
 
@@ -498,116 +494,61 @@ function parseCSVValue(val: any, type?: string): any {
   return parseCSVValueFallback(trimmed)
 }
 
-interface CSVParserState {
-  result: string[][]
-  row: string[]
-  field: string
-  inQuotes: boolean
-}
-
-function handleInQuotes(
-  char: string,
-  nextChar: string,
-  state: CSVParserState,
-): { skipNext: boolean } {
-  if (char === '"' && nextChar === '"') {
-    state.field += '"'
-    return { skipNext: true }
-  }
-  if (char === '"') {
-    state.inQuotes = false
-  } else {
-    state.field += char
-  }
-  return { skipNext: false }
-}
-
-function handleOutsideQuotes(
-  char: string,
-  nextChar: string,
-  state: CSVParserState,
-): { skipNext: boolean } {
-  if (char === '"') {
-    state.inQuotes = true
-  } else if (char === ',') {
-    state.row.push(state.field)
-    state.field = ''
-  } else if (char === '\n' || char === '\r') {
-    state.row.push(state.field)
-    state.field = ''
-    if (
-      state.row.length > 0 &&
-      !(state.row.length === 1 && state.row[0] === '')
-    ) {
-      state.result.push(state.row)
-    }
-    state.row = []
-    if (char === '\r' && nextChar === '\n') {
-      return { skipNext: true }
-    }
-  } else {
-    state.field += char
-  }
-  return { skipNext: false }
-}
-
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: csv
 function parseCSVRows(csv: string): string[][] {
-  const state: CSVParserState = {
-    result: [],
-    row: [],
-    field: '',
-    inQuotes: false,
-  }
-
+  const result: string[][] = []
+  let row: string[] = []
+  let field = ''
+  let inQuotes = false
   for (let i = 0; i < csv.length; i++) {
-    const char = csv[i]
-    const nextChar = csv[i + 1]
-
-    const { skipNext } = state.inQuotes
-      ? handleInQuotes(char, nextChar, state)
-      : handleOutsideQuotes(char, nextChar, state)
-
-    if (skipNext) {
-      i++
+    const c = csv[i],
+      next = csv[i + 1]
+    if (inQuotes) {
+      if (c === '"' && next === '"') {
+        field += '"'
+        i++
+      } else if (c === '"') inQuotes = false
+      else field += c
+    } else {
+      if (c === '"') inQuotes = true
+      else if (c === ',') {
+        row.push(field)
+        field = ''
+      } else if (c === '\n' || c === '\r') {
+        row.push(field)
+        field = ''
+        if (row.length > 0 && !(row.length === 1 && row[0] === ''))
+          result.push(row)
+        row = []
+        if (c === '\r' && next === '\n') i++
+      } else field += c
     }
   }
-
-  if (state.field !== '' || state.row.length > 0) {
-    state.row.push(state.field)
-    if (
-      state.row.length > 0 &&
-      !(state.row.length === 1 && state.row[0] === '')
-    ) {
-      state.result.push(state.row)
-    }
+  if (field !== '' || row.length > 0) {
+    row.push(field)
+    if (row.length > 0 && !(row.length === 1 && row[0] === '')) result.push(row)
   }
-
-  return state.result
+  return result
 }
 
 export class DatabaseStatement {
   constructor(
-    private readonly connection: DBAdapter,
+    private readonly connection: SQLAdapter,
     private readonly sql: string,
   ) {}
   all(...params: unknown[]) {
-    recordDbHit()
     return this.connection.execute.all(this.sql, params)
   }
   get(...params: any[]) {
-    recordDbHit()
     return this.connection.execute.get(this.sql, params)
   }
-  run(...params: any[]): Promise<RunResult> | RunResult {
-    recordDbHit()
+  run(...params: any[]): Promise<SQLAdapter.RunResult> | SQLAdapter.RunResult {
     return this.connection.execute.run(this.sql, params)
   }
   values(...params: any[]) {
-    recordDbHit()
     return this.connection.execute.values(this.sql, params)
   }
   iterate(...params: any[]) {
-    recordDbHit()
     return this.connection.execute.iterate(this.sql, params)
   }
 }

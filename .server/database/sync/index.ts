@@ -2,7 +2,7 @@ import '@server/core/init'
 
 import { Logger, messageLogger } from '@server/logger'
 import { Try } from '@server/utils'
-import { connection, initDB } from '../connection'
+import { closeDB, connection, initDB } from '../connection'
 import type * as SyncTypes from './types'
 
 const logger = new Logger('db-sync')
@@ -52,10 +52,12 @@ Flags:
   --force-sync    In production, allow destructive changes
   --help, -h      Show this help message
 `)
+      await closeDB()
       return
     }
 
     await connection.syncSchema(constraints, tsIndexes, schemaPath)
+    await closeDB()
   }
 }
 

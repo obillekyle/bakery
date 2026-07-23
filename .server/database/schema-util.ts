@@ -1,5 +1,6 @@
 import { Case } from '@server/utils'
 import { is, throws } from '@server/utils/common'
+import { getActiveDb } from './connection'
 import type * as SyncTypes from './sync/types'
 
 export type OmitNever<T> = Pick<
@@ -107,36 +108,32 @@ export type ExtractViews<C> = {
 }[keyof C]
 
 export function evalOperands(where: unknown, params: unknown[]): string {
-  switch (true) {
-    case Array.isArray(where):
-      return `(${where.map(v => evalOperands(v, params)).join(', ')})`
-    case where === null:
-      return 'NULL'
-    case typeof where === 'object': {
-      const entries = Object.entries(where)
-      if (entries.length === 0) throws('Empty operands object')
-      const [key, val] = entries[0]!
-      const sqlFunctions = [
-        'UPPER',
-        'LOWER',
-        'LENGTH',
-        'TRIM',
-        'CONCAT',
-        'SUBSTR',
-        'REPLACE',
-      ]
-      if (sqlFunctions.includes(key)) {
-        const args = Array.isArray(val) ? val : [val]
-        return `${key}(${args.map(arg => evalOperands(arg, params)).join(', ')})`
-      }
-      return `\`${Case.snake(key)}\`.\`${Case.snake(val as string)}\``
+  if (Array.isArray(where))
+    return `(${where.map(v => evalOperands(v, params)).join(', ')})`
+  if (where === null) return 'NULL'
+  if (typeof where === 'object') {
+    const entries = Object.entries(where)
+    if (entries.length === 0) throws('Empty operands object')
+    const [key, val] = entries[0]!
+    const sqlFunctions = [
+      'UPPER',
+      'LOWER',
+      'LENGTH',
+      'TRIM',
+      'CONCAT',
+      'SUBSTR',
+      'REPLACE',
+    ]
+    if (sqlFunctions.includes(key)) {
+      const args = Array.isArray(val) ? val : [val]
+      return `${key}(${args.map(arg => evalOperands(arg, params)).join(', ')})`
     }
-    case typeof where === 'boolean':
-      return where ? 'TRUE' : 'FALSE'
-    default:
-      params.push(where)
-      return '?'
+    const q = getActiveDb().quoteChar
+    return `${q}${Case.snake(key)}${q}.${q}${Case.snake(val as string)}${q}`
   }
+  if (typeof where === 'boolean') return where ? 'TRUE' : 'FALSE'
+  params.push(where)
+  return '?'
 }
 
 export function old<TSchema extends SyncTypes.DBConstraints>(

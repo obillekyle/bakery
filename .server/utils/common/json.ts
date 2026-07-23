@@ -24,4 +24,3 @@ export function jsonResponse<T>(
 ): JsonResponseData<T> {
   return new JsonResponseData(status, message, data)
 }
-

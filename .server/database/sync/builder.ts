@@ -1,4 +1,4 @@
-import type { ColumnConstraint, DBAdapter } from '../adapters/base'
+import type { SQLAdapter } from '../adapters/base'
 import type * as SyncTypes from './types'
 
 export class SchemaBuilder {
@@ -22,7 +22,7 @@ export class SchemaBuilder {
   private static getDefaultValue(
     cons: any,
     isView: boolean,
-    adapter: DBAdapter,
+    adapter: SQLAdapter,
   ): string | undefined {
     if (cons.primary) return undefined
     const def = cons.default
@@ -31,36 +31,25 @@ export class SchemaBuilder {
     const hasDefault = def !== undefined && def !== null && def !== 'NULL'
     const isExplicitNull = def === null || def === 'NULL' || (!isView && nul)
 
-    switch (true) {
-      case hasDefault: {
-        const isStr = typeof def === 'string'
-        const norm = isStr ? (def as string).replace(/[()]/g, '').trim() : ''
-        const isDateNow =
-          def === '%dateNow%' ||
-          adapter.dateNowDefaults.some(dVal => {
-            const normD = dVal.replace(/[()]/g, '').trim().toUpperCase()
-            return norm === normD || norm.includes(normD)
-          })
+    if (hasDefault) {
+      const isStr = typeof def === 'string'
+      const isDateNow = isStr && adapter.isDateNowDefault(def as string)
 
-        return isStr && isDateNow
-          ? 'dateNow'
-          : isStr
-            ? JSON.stringify(def)
-            : String(def)
-      }
-
-      case isExplicitNull:
-        return 'null'
-
-      default:
-        return undefined
+      return isStr && isDateNow
+        ? 'dateNow'
+        : isStr
+          ? JSON.stringify(def)
+          : String(def)
     }
+
+    if (isExplicitNull) return 'null'
+    return undefined
   }
 
   private static formatColumnConstraint(
     colName: string,
     cons: any,
-    adapter: DBAdapter,
+    adapter: SQLAdapter,
     isView: boolean,
   ): string {
     if (colName === '_view') return ''
@@ -94,7 +83,7 @@ export class SchemaBuilder {
 
   private static buildConstraintsString(
     constraints: Record<string, any>,
-    adapter: DBAdapter,
+    adapter: SQLAdapter,
   ): string {
     let result = '{\n'
     for (const [tableName, cols] of Object.entries(constraints)) {
@@ -105,7 +94,7 @@ export class SchemaBuilder {
       }
 
       for (const [colName, cons] of Object.entries(
-        cols as Record<string, ColumnConstraint>,
+        cols as Record<string, SQLAdapter.ColumnConstraint>,
       )) {
         result += SchemaBuilder.formatColumnConstraint(
           colName,
@@ -169,7 +158,7 @@ export type DBOptionals = {
   }
 
   static async generate(
-    adapter: DBAdapter,
+    adapter: SQLAdapter,
     schemaPath: string,
     messages: any,
     existingConstraints: SyncTypes.DBConstraints = {},

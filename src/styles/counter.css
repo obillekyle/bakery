@@ -9,7 +9,7 @@
   --primary-hover: #e5e5e5;
   --secondary-accent: #cccccc;
   --secondary-hover: #aaaaaa;
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -38,7 +38,7 @@ body {
 
 body::before,
 body::after {
-  content: '';
+  content: "";
   position: fixed;
   width: 600px;
   height: 600px;
@@ -51,13 +51,21 @@ body::after {
 }
 
 body::before {
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(139, 92, 246, 0.3) 0%,
+    transparent 70%
+  );
   top: -100px;
   left: -100px;
 }
 
 body::after {
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.3) 0%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(236, 72, 153, 0.3) 0%,
+    transparent 70%
+  );
   bottom: -100px;
   right: -100px;
   animation-delay: -7.5s;
@@ -140,33 +148,45 @@ body::after {
 
 /* Glassmorphism Cards */
 .glass-effect {
-  background: linear-gradient(145deg, rgba(30, 30, 35, 0.6), rgba(18, 18, 22, 0.3));
+  background: linear-gradient(
+    145deg,
+    rgba(30, 30, 35, 0.6),
+    rgba(18, 18, 22, 0.3)
+  );
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-top: 1px solid rgba(255, 255, 255, 0.15);
   border-left: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 1.5rem;
   padding: 2rem;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
   position: relative;
   will-change: transform, box-shadow;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .glass-effect::before {
-    content: '';
+    content: "";
     position: absolute;
     inset: -1px;
     border-radius: calc(1.5rem + 1px);
     padding: 1px;
-    background-image: radial-gradient(circle 150px at center,
-        rgba(255, 255, 255, 0.6),
-        rgba(200, 160, 255, 0.25) 50%,
-        transparent 70%);
+    background-image: radial-gradient(
+      circle 150px at center,
+      rgba(255, 255, 255, 0.6),
+      rgba(200, 160, 255, 0.25) 50%,
+      transparent 70%
+    );
     background-size: 300px 300px;
     background-repeat: no-repeat;
-    background-position: calc(var(--mouse-x, -9999px) - 150px) calc(var(--mouse-y, -9999px) - 150px);
+    background-position: calc(var(--mouse-x, -9999px) - 150px)
+      calc(var(--mouse-y, -9999px) - 150px);
     -webkit-mask:
       linear-gradient(#fff 0 0) content-box,
       linear-gradient(#fff 0 0);
@@ -178,7 +198,9 @@ body::after {
   }
 
   .glass-effect:hover {
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    box-shadow:
+      0 30px 60px rgba(0, 0, 0, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
     border-color: rgba(255, 255, 255, 0.15);
     border-top-color: rgba(255, 255, 255, 0.25);
     border-left-color: rgba(255, 255, 255, 0.25);
@@ -259,7 +281,10 @@ button,
   padding: 0.75rem 1.5rem;
   border-radius: 0.75rem;
   border: none;
-  transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
   will-change: transform;
   width: 100%;
   display: inline-block;
@@ -420,7 +445,6 @@ button,
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   *,
   ::before,
   ::after {

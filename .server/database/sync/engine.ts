@@ -1,7 +1,13 @@
 import { Logger, messageLogger } from '@server/logger'
-import type { DBAdapter } from '../adapters/base'
+import type { SQLAdapter } from '../adapters/base'
 import { SchemaBuilder } from './builder'
-import { SyncHelper } from './helpers'
+import {
+  buildSyncPlan,
+  calculateIndexDiff,
+  executeSyncPlan,
+  hasOldWrappers,
+  logPlannedChanges,
+} from './helpers'
 import type * as SyncTypes from './types'
 
 // prettier-ignore
@@ -14,10 +20,14 @@ export const syncMsgs = {
   DB_NEWER: 'I Database is newer than TS. Generating types...',
   TS_NEWER: 'I %yschema.ts is newer! Syncing to the database...%*',
   BACKUP_CREATED: 'I Created database backup: %y{file}%*',
-  NO_CONSTRAINTS: 'E Could not find %rDBInfo.constraints%* in schema.ts to run the reverse sync!',
-  COL_MISMATCH: "W Table '%y{table}%*' needs rebuild because of column '%y{column}%*' mismatch:",
-  COL_MISMATCH_TS: 'W   - TS: type=%c{tsType}%*, nullable=%c{tsNullable}%*, default=%c{tsDefault}%*',
-  COL_MISMATCH_DB: 'W   - DB: type=%c{dbType}%*, nullable=%c{dbNullable}%*, default=%c{dbDefault}%*',
+  NO_CONSTRAINTS:
+    'E Could not find %rDBInfo.constraints%* in schema.ts to run the reverse sync!',
+  COL_MISMATCH:
+    "W Table '%y{table}%*' needs rebuild because of column '%y{column}%*' mismatch:",
+  COL_MISMATCH_TS:
+    'W   - TS: type=%c{tsType}%*, nullable=%c{tsNullable}%*, default=%c{tsDefault}%*',
+  COL_MISMATCH_DB:
+    'W   - DB: type=%c{dbType}%*, nullable=%c{dbNullable}%*, default=%c{dbDefault}%*',
   DANGER_ZONE: 'W %rDANGER ZONE: Destructive or major changes detected!%*',
   DROP_TABLES: 'W Tables to drop: %r{tables}%*',
   RENAME_TABLES: 'I Tables to rename: %y{tables}%*',
@@ -31,26 +41,30 @@ export const syncMsgs = {
   REVIEW_WARNING: 'W %yThese changes may affect data. Review carefully.%*',
   SYNC_ABORTED: 'I %ySync aborted. Your data is safe!%*',
   EXEC_RENAME_TABLE: 'I Renaming table: %y{oldName}%* -> %y{newName}%*...',
-  EXEC_RENAME_COL: 'I Renaming column: %y{table}.{oldColumn}%* -> %y{newColumn}%*...',
+  EXEC_RENAME_COL:
+    'I Renaming column: %y{table}.{oldColumn}%* -> %y{newColumn}%*...',
   EXEC_DROP_TABLE: 'I Dropping %y{type}%*: %r{table}%*...',
   EXEC_DROP_COL: 'I Dropping column: %r{table}.{column}%*...',
   EXEC_ADD_COL: 'I Adding column: %g{table}.{column}%*...',
   EXEC_DROP_INDEX: 'I Dropping index: %r{idx}%*...',
-  EXEC_REBUILD: 'I Rebuilding table to apply schema modifications: %y{table}%*...',
+  EXEC_REBUILD:
+    'I Rebuilding table to apply schema modifications: %y{table}%*...',
   EXEC_SYNC_VIEW: 'D Syncing view: %y{view}%*...',
   EXEC_SYNC_CONS: 'D Syncing constraints for: %y{table}%*...',
   EXEC_ADD_INDEX: 'I Creating %y{type}%* index: %g{name}%*...',
   CATCH_UP_SUCCESS: 'I %gDatabase successfully caught up%*!',
   PROD_FORCE_REQUIRED: 'E %rProduction requires %y--force-sync%* to proceed.%*',
-  OVERRIDE_SCHEMA: 'I %yschema.ts contains _oldTable/_transform wrappers. Overriding file to match DB.%*',
-  FATAL_ERROR: 'E %rFATAL ERROR: Sync failed! All changes have been safely rolled back. Detail: {error}%*',
+  OVERRIDE_SCHEMA:
+    'I %yschema.ts contains _oldTable/_transform wrappers. Overriding file to match DB.%*',
+  FATAL_ERROR:
+    'E %rFATAL ERROR: Sync failed! All changes have been safely rolled back. Detail: {error}%*',
 } as const
 
 const logger = new Logger('db-sync')
 export const MESSAGES = messageLogger(logger, syncMsgs)
 
 class SyncSession implements AsyncDisposable {
-  constructor(private adapter: DBAdapter) {}
+  constructor(private adapter: SQLAdapter) {}
   async [Symbol.asyncDispose]() {
     await (this.adapter as any).postSync?.(this.adapter)
   }
@@ -60,7 +74,7 @@ export class SyncEngine {
   protected constructor() {}
 
   private static async checkEmptyConstraints(
-    adapter: DBAdapter,
+    adapter: SQLAdapter,
     constraints: SyncTypes.DBConstraints,
     genLocal: (c?: any) => Promise<void>,
     schemaPath: string,
@@ -94,7 +108,7 @@ export class SyncEngine {
     return true
   }
 
-  private static adjustSqlitePlan(adapter: DBAdapter, plan: any): void {
+  private static adjustSqlitePlan(adapter: SQLAdapter, plan: any): void {
     if (adapter.driver !== 'sqlite' || !plan.columnsToRename.length) return
     for (const table of plan.tablesToRename) {
       plan.tablesToRebuild.add(table.oldName)
@@ -109,19 +123,19 @@ export class SyncEngine {
   ) {
     const isDangerous = Boolean(
       plan.tablesToDrop.length ||
-      plan.tablesToRename.length ||
-      plan.columnsToDrop.length ||
-      plan.columnsToRename.length ||
-      plan.tablesToRebuild.size,
+        plan.tablesToRename.length ||
+        plan.columnsToDrop.length ||
+        plan.columnsToRename.length ||
+        plan.tablesToRebuild.size,
     )
 
     const hasChanges = Boolean(
       isDangerous ||
-      plan.unmappedTsTables.size ||
-      plan.columnsToAdd.length ||
-      plan.viewsToUpdate.length ||
-      indexesToDrop.size ||
-      indexesToAdd.size,
+        plan.unmappedTsTables.size ||
+        plan.columnsToAdd.length ||
+        plan.viewsToUpdate.length ||
+        indexesToDrop.size ||
+        indexesToAdd.size,
     )
 
     return { isDangerous, hasChanges }
@@ -152,7 +166,7 @@ export class SyncEngine {
   }
 
   private static async executeSyncPipeline(
-    adapter: DBAdapter,
+    adapter: SQLAdapter,
     plan: any,
     constraints: SyncTypes.DBConstraints,
     indexesToDrop: any,
@@ -165,7 +179,7 @@ export class SyncEngine {
     {
       await using _session = new SyncSession(adapter)
       await adapter.transaction(tx =>
-        SyncHelper.executeSyncPlan(
+        executeSyncPlan(
           tx,
           plan,
           constraints,
@@ -178,14 +192,14 @@ export class SyncEngine {
 
     MESSAGES.CATCH_UP_SUCCESS()
 
-    if (SyncHelper.hasOldWrappers(constraints)) {
+    if (hasOldWrappers(constraints)) {
       MESSAGES.OVERRIDE_SCHEMA()
       await genLocal(constraints)
     }
   }
 
   static async run(
-    adapter: DBAdapter,
+    adapter: SQLAdapter,
     constraints: SyncTypes.DBConstraints,
     tsIndexes: SyncTypes.DBIndexes,
     schemaPath: string,
@@ -199,7 +213,7 @@ export class SyncEngine {
       schemaPath,
     )
     if (isEmpty) return
-    const plan = await SyncHelper.buildSyncPlan(
+    const plan = await buildSyncPlan(
       adapter,
       constraints,
       logger,
@@ -208,7 +222,7 @@ export class SyncEngine {
     SyncEngine.adjustSqlitePlan(adapter, plan)
 
     const dbIndexes = await adapter.getIndexes()
-    const { indexesToDrop, indexesToAdd } = SyncHelper.calculateIndexDiff(
+    const { indexesToDrop, indexesToAdd } = calculateIndexDiff(
       dbIndexes,
       tsIndexes,
       plan.tablesToRebuild,
@@ -230,7 +244,7 @@ export class SyncEngine {
       MESSAGES.GEN_TYPES()
       return await genLocal(plan.dbConstraintsForDiff)
     }
-    SyncHelper.logPlannedChanges(
+    logPlannedChanges(
       plan,
       indexesToDrop,
       indexesToAdd,

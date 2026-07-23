@@ -1,6 +1,7 @@
 import { is } from '@server/utils/common'
 import { fs } from '@server/utils/fs'
-import { DynamicHandler, Handler } from './$base'
+import { Handler } from './$base'
+import { DynamicHandler } from './$dynamic'
 
 const DEFAULT_ERROR: Handler.Error.Data = {
   errorCode: 500,
@@ -66,42 +67,40 @@ export class ErrorHandler extends Handler {
   static handle() {}
 
   static extractErrorData(error: any): Handler.Error.Data {
-    switch (true) {
-      case error instanceof HandlerError:
-        return error.data
-      case error instanceof Error:
-        return {
-          ...this.DEFAULT_ERROR,
-          errorText: error.message,
-          errorBody: error.stack || String(error),
-        }
-      case error instanceof Response:
-        return {
-          ...this.DEFAULT_ERROR,
+    if (error instanceof HandlerError) return error.data
 
-          errorCode: error.status,
-          errorText: error.statusText,
-          errorBody: `Response with status ${error.status} and text "${error.statusText}"`,
-        }
-
-      case is.object(error): {
-        const errorData = this.DEFAULT_ERROR
-
-        if (is.number(error.errorCode)) errorData.errorCode = error.errorCode
-        if (is.string(error.errorText)) errorData.errorText = error.errorText
-        if (is.string(error.errorBody)) errorData.errorBody = error.errorBody
-        return errorData
+    if (error instanceof Error) {
+      return {
+        ...this.DEFAULT_ERROR,
+        errorText: error.message,
+        errorBody: error.stack || String(error),
       }
-
-      case is.string(error):
-        return {
-          ...this.DEFAULT_ERROR,
-          errorText: error,
-        }
-
-      default:
-        return this.DEFAULT_ERROR
     }
+
+    if (error instanceof Response) {
+      return {
+        ...this.DEFAULT_ERROR,
+        errorCode: error.status,
+        errorText: error.statusText,
+        errorBody: `${error.status}: "${error.statusText}"`,
+      }
+    }
+
+    if (is.object(error)) {
+      const errorData = this.DEFAULT_ERROR
+      const errorObj = error as Partial<Handler.Error.Data>
+
+      errorData.errorCode = errorObj.errorCode ?? errorData.errorCode
+      errorData.errorText = errorObj.errorText ?? errorData.errorText
+      errorData.errorBody = errorObj.errorBody ?? errorData.errorBody
+      return errorData
+    }
+
+    if (is.string(error)) {
+      return { ...this.DEFAULT_ERROR, errorText: error }
+    }
+
+    return this.DEFAULT_ERROR
   }
 }
 

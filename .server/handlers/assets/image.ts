@@ -1,4 +1,5 @@
 import { Bakery } from '@server/core'
+import { hostKey } from '@server/core/bakery'
 import { errorMsg } from '@server/logger'
 import { Math2 } from '@server/utils/common'
 import { FileSystem as fs } from '@server/utils/fs'
@@ -16,9 +17,10 @@ export class ImageHandler extends Handler {
   }
 
   private static lookUpImage(path: string) {
-    if (!this.cache.has(path)) return
+    const key = hostKey(path)
+    if (!this.cache.has(key)) return
 
-    const cached = this.cache.get(path) as Route.Info
+    const cached = this.cache.get(key) as Route.Info
     const parsed = this.path(path)
 
     if (parsed) {
@@ -27,14 +29,14 @@ export class ImageHandler extends Handler {
       const cachedMtime = cached.file.lastModified
 
       if (sourceMtime && cachedMtime && sourceMtime > cachedMtime) {
-        this.cache.delete(path)
+        this.cache.delete(key)
         return
       }
     }
 
     if (fs.exists(cached.file)) return cached
 
-    this.cache.delete(path)
+    this.cache.delete(key)
   }
 
   private static clampSize(size: number) {
@@ -72,7 +74,8 @@ export class ImageHandler extends Handler {
       if (!sourceTime) return response.error('Not Found')
 
       const cacheDir = fs.resolve(Bakery.cacheDir, 'images')
-      const imageCacheId = Bun.hash(path).toString(36)
+      const imageCacheId = Bun.hash(hostKey(path)).toString(36)
+
       await fs.mkdir(cacheDir)
 
       const masterPath = fs.resolve(cacheDir, `${imageCacheId}-main.webp`)

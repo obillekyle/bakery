@@ -19,8 +19,8 @@
     },
     {
       "label": "bun-tsc-watch",
-      "type": "shell",      
-      "command": "bun --bun tsc --noEmit -w --project tsconfig.server.json",
+      "type": "shell",
+      "command": "bun --bun tsc --noEmit -w --project .server/tsconfigs/tsconfig.server.json",
       "isBackground": true,
       "problemMatcher": {
         "base": "$tsc-watch",

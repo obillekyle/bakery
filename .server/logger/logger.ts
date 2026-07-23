@@ -13,7 +13,7 @@ export type LoggerEntry = {
   msg: string
 }
 
-export function getStackTrace(depth = 10, startAt = 0): string[] {
+function getStackTrace(depth = 10, startAt = 0): string[] {
   const stack = new Error().stack
   const cwd = process.cwd()
   if (!stack) return []
@@ -39,7 +39,7 @@ export function setLogCallback(cb: (entry: LoggerEntry) => void) {
   onLogCallback = cb
 }
 
-export function colorizeTerminal(msg: string): string {
+function colorizeTerminal(msg: string): string {
   const colors: MapOf<string> = {
     r: '\x1b[31m', // Red
     g: '\x1b[32m', // Green
@@ -125,7 +125,7 @@ export function log(
       newLine,
     )
     if (formatted !== null) {
-      console.write(colorizeTerminal(formatted))
+      process.stdout.write(colorizeTerminal(formatted))
     }
   }
 

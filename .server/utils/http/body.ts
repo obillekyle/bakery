@@ -16,8 +16,9 @@ export async function processBody(req: Request): Promise<MapOf<any>> {
 }
 
 function getBodyFromURI(req: Request): MapOf<any> {
-  const url = new URL(req.url).searchParams
-  return Object.fromEntries(url.entries())
+  const url = (req as any).__parsedUrl || new URL(req.url)
+  const searchParams = url.searchParams
+  return Object.fromEntries(searchParams.entries())
 }
 
 function isFormData(contentType: string): boolean {

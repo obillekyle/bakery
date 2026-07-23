@@ -1,6 +1,5 @@
-import { Bakery } from '@server/core/bakery'
-import { is } from '../common/misc'
-import { DOMTools } from './dom'
+import { Bakery, hostStore } from '@server/core/bakery'
+import { DOMTools, headBodyCache } from './dom'
 import { ETag } from './etag'
 
 function injectBrand(res: Response) {
@@ -38,39 +37,31 @@ export async function injectIfHtml(
 }
 
 const RX_CURLY_PARAMS = /{{\s*([^,\s}]+)(?:\s*,\s*([^}]+))?\s*}}/g
+const RX_GFONTS = /https?:\/\/fonts\.(?:googleapis|google)\.com\/css2/g
 const RX_HEAD_TAG = /<head[^>]*>/i
 const RX_BODY_END = /<\/body>/i
 
-export function escapeHtml(str: string): string {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
-
-let cachedHeadInjects: string | null = null
-let cachedBodyInjects: string | null = null
-
 function getConfigInjects() {
-  if (cachedHeadInjects !== null && cachedBodyInjects !== null) {
-    return { head: cachedHeadInjects, body: cachedBodyInjects }
-  }
+  const host = hostStore.getStore()?.hostname || '__default__'
+  const cached = headBodyCache.get(host)
+  if (cached) return cached
 
   const scripts: string[] = [
     DOMTools.importMap(),
     '<script src="/_client/utils.js" type="module"></script>',
+    '<!--prio-->',
   ]
 
   if (import.meta.env.DEV) {
     scripts.push('<script src="/_client/livereload.js" type="module"></script>')
   }
 
-  cachedHeadInjects = scripts.join('') + (Bakery.config.head || '')
-  cachedBodyInjects = Bakery.config.body || ''
+  const head = scripts.join('') + (Bakery.config.head || '')
+  const body = Bakery.config.body || ''
 
-  return { head: cachedHeadInjects, body: cachedBodyInjects }
+  const result = { head, body }
+  headBodyCache.set(host, result)
+  return result
 }
 
 export function assembleHtml(content: string, params: MapOf<string> = {}) {
@@ -80,25 +71,27 @@ export function assembleHtml(content: string, params: MapOf<string> = {}) {
   const headInjects = configInjects.head + paramsStr + (params.$$head || '')
   const bodyInjects = configInjects.body + (params.$$body || '')
 
+  const headInj2 = headInjects.replace('<!--prio-->', params.$$prio || '')
+
   let html = content
 
   html = RX_HEAD_TAG.test(html)
-    ? html.replace(RX_HEAD_TAG, `$&${headInjects}`)
-    : headInjects + html
+    ? html.replace(RX_HEAD_TAG, `$&${headInj2}`)
+    : headInj2 + html
 
   html = RX_BODY_END.test(html)
     ? html.replace(RX_BODY_END, `${bodyInjects}$&`)
     : html + bodyInjects
 
-  html = html.replace(
-    /https?:\/\/fonts\.(?:googleapis|google)\.com\/css2/g,
-    '/_gf/',
-  )
+  html = html.replace(RX_GFONTS, '/_gf/')
 
-  html = html.replace(RX_CURLY_PARAMS, (_, key, fallback) => {
-    const val = params?.[key] ?? fallback?.trim()
-    return val !== undefined ? escapeHtml(val) : `{{${key}}}`
-  })
+  const hasParams = Object.keys(params).length > 0
+  if (hasParams) {
+    html = html.replace(RX_CURLY_PARAMS, (_, key, fallback) => {
+      const val = params?.[key] ?? fallback?.trim()
+      return val !== undefined ? Bun.escapeHTML(String(val)) : `{{${key}}}`
+    })
+  }
 
   return html
 }

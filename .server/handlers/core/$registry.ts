@@ -5,7 +5,9 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
   any,
   number
 > {
-  public static routeCache = new LRUCache<string, typeof Handler>(5000)
+  public static routeCache = new LRUCache<string, typeof Handler>(
+    import.meta.env.THREAD_WORKER ? 500 : 5000,
+  )
 
   private cachedList: T[] | null = null
   private id = Bun.randomUUIDv7()
@@ -41,7 +43,9 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
   }
 
   async resolve(path: string, ...params: any[]) {
-    const pathId = `${this.id}:${path}`
+    const req = params.find((p: any) => p instanceof Request)
+    const host = req?.__hostname || ''
+    const pathId = `${this.id}:${host}:${path}`
     const cached: any = HandlerMap.routeCache.get(pathId)
 
     if (cached) {

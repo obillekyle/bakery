@@ -7,20 +7,22 @@ log({
 })
 serveLog.STARTING({ mode: 'production' })
 
-const { initConfig } = await import('./core/config')
-const { initImportMap } = await import('./utils/http')
-
 try {
+  const { initConfig } = await import('./core/config')
+  const { PluginHooks } = await import('./core/plugins')
+  const { initImportMap, initHostImportMaps } = await import('./utils/http')
+
   await initConfig()
+  await PluginHooks.setup()
   await initImportMap()
+  initHostImportMaps()
 } catch (error: any) {
-  console.error('Config init error stack:', error)
   serveLog.UNHANDLED_ERR({ error: `Config init failed: ${errorMsg(error)}` })
   process.exit(1)
 }
 
 try {
-  const { initDB } = await import('@database/connection')
+  const { initDB } = await import('./database/connection')
   await initDB()
 } catch (error: any) {
   serveLog.UNHANDLED_ERR({
@@ -29,4 +31,9 @@ try {
   process.exit(1)
 }
 
-await import('./worker')
+try {
+  await import('./worker')
+} catch (err: any) {
+  serveLog.UNHANDLED_ERR({ error: `Worker initialization failed: ${errorMsg(err)}` })
+  process.exit(1)
+}

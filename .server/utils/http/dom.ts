@@ -1,7 +1,15 @@
-import { relative } from 'node:path/posix'
-import { Bakery } from '@server/core/bakery'
+import { Bakery, hostStore } from '@server/core/bakery'
 import { is } from '../common/misc'
 import { Try } from '../common/try'
+import { fs } from '../fs'
+
+const headBodyCache = new Map<string, { head: string; body: string }>()
+
+export function clearHeadBodyCache() {
+  headBodyCache.clear()
+}
+
+export { headBodyCache }
 
 type PackageJson = {
   name: string
@@ -15,35 +23,72 @@ type PackageJson = {
 
 let depMap = ''
 
-function resolveDepModule(pkgData: PackageJson, baseMod: string): string {
-  switch (true) {
-    case is.string(pkgData.browser):
-      return pkgData.browser as string
+const hostDepMaps = new Map<string, string>()
 
-    case is.object(pkgData.browser): {
-      const cleanBase = baseMod.replace(/^\.\//, '')
-      const browserField = pkgData.browser as MapOf<string>
-      const lookupKeys = [baseMod, `./${cleanBase}`, cleanBase]
-      const matchedOverride = lookupKeys.find(key => browserField[key])
+export function clearHostDepMaps() {
+  hostDepMaps.clear()
+}
 
-      return matchedOverride ? browserField[matchedOverride] : baseMod
+export function initHostImportMaps() {
+  hostDepMaps.clear()
+  clearHeadBodyCache()
+  const hosts = Bakery.config.hosts
+  if (!hosts || !Object.keys(hosts).length) return
+
+  const base = JSON.parse(depMap)
+  const npmImports = base.imports || {}
+
+  for (const [hostname, entry] of Object.entries(hosts)) {
+    if (!entry.importMap) continue
+
+    const imports: Record<string, string> = { ...npmImports }
+    for (const [k, v] of Object.entries(entry.importMap)) {
+      const cleanKey = k.replace(/\*$/, '')
+      const cleanVal = String(v).replace(/\*$/, '')
+
+      switch (cleanKey) {
+        case '.server/client/utils':
+        case './.server/client/utils':
+        case '@client/utils':
+          imports[cleanKey] = '/_client/utils.js'
+          continue
+      }
+
+      imports[cleanKey] = cleanVal
+        .replace(/^\.(?=\/)/, '')
+        .replace(/^(?!(?:\/|https?:\/\/))/, '/')
     }
 
-    default:
-      return baseMod
+    hostDepMaps.set(hostname, JSON.stringify({ imports }))
   }
 }
 
+function resolveDepModule(pkgData: PackageJson, baseMod: string): string {
+  if (is.string(pkgData.browser)) return pkgData.browser as string
+
+  if (is.object(pkgData.browser)) {
+    const cleanBase = baseMod.replace(/^\.\//, '')
+    const browserField = pkgData.browser as MapOf<string>
+    const lookupKeys = [baseMod, `./${cleanBase}`, cleanBase]
+    const matchedOverride = lookupKeys.find(key => browserField[key])
+
+    return matchedOverride ? browserField[matchedOverride] : baseMod
+  }
+
+  return baseMod
+}
+
 export async function initImportMap() {
-  const pkg = require('~/package.json')
-  const map = Bakery.config.importMap
+  const pkgContent = await Try(() => Bun.file(fs.resolve(fs.cwd, 'package.json')).json())
+  const pkg: any = pkgContent || {}
+  const map = Bakery.config.importMap || {}
   const deps = pkg.dependencies || {}
 
   const resolvedMap: MapOf<string> = {}
 
   const imports = await Promise.all(
     Object.keys(deps).map(async dep => {
-      const pkgData = await Try.silent(
+      const pkgData = await Try(
         Bun.file(`./node_modules/${dep}/package.json`).json(),
       )
 
@@ -88,7 +133,9 @@ export async function initImportMap() {
 
 export namespace DOMTools {
   export function importMap() {
-    return `<script type="importmap">${depMap}</script>`
+    const hostname = hostStore.getStore()?.hostname
+    const map = (hostname && hostDepMaps.get(hostname)) || depMap
+    return `<script type="importmap">${map}</script>`
   }
 
   export function params(params: MapOf<string>) {
@@ -145,25 +192,22 @@ export namespace DOMTools {
   export async function isHTML(
     data: string | Response | Blob,
   ): Promise<HTMLContent> {
-    switch (true) {
-      case is.string(data): {
-        const sample = (data as string).slice(0, 512)
-        const isHtml = RX_IS_HTML.test(sample) && !RX_IS_SVG_XML.test(sample)
-        return { content: isHtml ? (data as string) : '', responseInit: {} }
-      }
-
-      case data instanceof Blob: {
-        const html = await checkBlobHtml(data as Blob)
-        return { content: html, responseInit: {} }
-      }
-
-      case data instanceof Response: {
-        const res = await checkResponseHtml(data as Response)
-        return { content: res.html, responseInit: res.init }
-      }
-
-      default:
-        return { content: '', responseInit: {} }
+    if (is.string(data)) {
+      const sample = (data as string).slice(0, 512)
+      const isHtml = RX_IS_HTML.test(sample) && !RX_IS_SVG_XML.test(sample)
+      return { content: isHtml ? (data as string) : '', responseInit: {} }
     }
+
+    if (data instanceof Blob) {
+      const html = await checkBlobHtml(data as Blob)
+      return { content: html, responseInit: {} }
+    }
+
+    if (data instanceof Response) {
+      const res = await checkResponseHtml(data as Response)
+      return { content: res.html, responseInit: res.init }
+    }
+
+    return { content: '', responseInit: {} }
   }
 }

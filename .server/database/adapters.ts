@@ -14,25 +14,17 @@ function isSQLite(val: string) {
 
 function getDriver(val?: string | null): 'sqlite' | 'postgres' | 'mysql' {
   const target = val?.trim() || ''
+  if (!target) return 'sqlite'
 
-  switch (true) {
-    case !target:
-    case isSQLite(target):
-      return 'sqlite'
-    case target.startsWith('mysql://'):
-    case target.startsWith('mysqls://'):
-    case target.startsWith('mysqli://'):
-      return 'mysql'
-    case target.startsWith('postgres://'):
-    case target.startsWith('postgresql://'):
-      return 'postgres'
-    default:
-      return 'postgres'
-  }
+  if (/^mysql[is]?:\/\//i.test(target)) return 'mysql'
+  if (/^postgres(?:ql)?:\/\//i.test(target)) return 'postgres'
+  if (isSQLite(target)) return 'sqlite'
+
+  return 'postgres'
 }
 
 export async function createDbAdapter() {
-  const url = process.env.DB_URL ?? ''
+  const url = process.env.DB_URL || process.env.DATABASE_URL || ''
   const driver = getDriver(url)
 
   switch (driver) {

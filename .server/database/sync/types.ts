@@ -28,4 +28,3 @@ export type DBConstraints = Record<string, TableConstraints>
 
 export type DBIndexes = Record<string, IndexConstraint>
 
-export default {} as const

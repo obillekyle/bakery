@@ -1,5 +1,5 @@
-import { Bakery, html, HTMLBody, repeat, createElement, Fragment } from '@server/core'
-import { Layout, HeroHeader, CardHeader } from './Layout.tsx'
+import { createElement, Fragment, HTMLBody } from '@server/core'
+import { CardHeader, HeroHeader, Layout } from './Layout.tsx'
 export default HTMLBody(() => {
   const features = [
     {
@@ -22,7 +22,7 @@ export default HTMLBody(() => {
       title: 'Full LiveReload',
       desc: 'Browser automatically reloads when you modify this TSX file, or any associated CSS, JS, or error templates.',
     },
-  ];
+  ]
 
   return (
     <Layout title="Server-Side TSX ⚛️ | Bakery">
@@ -44,9 +44,8 @@ export default HTMLBody(() => {
 
             <ul
               class="feature-list"
-              style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; list-style: none; padding-left: 0;"
-            >
-              {features.map((f) => (
+              style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; list-style: none; padding-left: 0;">
+              {features.map(f => (
                 <li style="background: rgba(255, 255, 255, 0.02); padding: 1.25rem; border-radius: 0.75rem; border: 1px solid rgba(255, 255, 255, 0.05);">
                   <strong style="display: block; font-size: 1.1rem; margin-bottom: 0.5rem; color: #ffffff;">
                     {f.icon} {f.title}
@@ -67,5 +66,5 @@ export default HTMLBody(() => {
         </div>
       </main>
     </Layout>
-  );
-});
+  )
+})

@@ -1,4 +1,4 @@
-import { escapeHtml, formatUptime, SegmentedProgress } from './utils'
+import { formatUptime, getWebSocketUrl, SegmentedProgress } from './utils'
 
 declare const is: any
 
@@ -56,7 +56,6 @@ export async function resetAnalytics() {
   try {
     const res = await fetch('/api/_analytics/reset', {
       method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
     if (res.status === 200) {
       alert('Analytics data reset successfully.')
@@ -640,13 +639,7 @@ export function drawAllSparklines() {
 export let analyticsWs: WebSocket | null = null
 let reconnectTimer: any = null
 
-function getWebSocketUrl(path: string) {
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${protocol}//${location.host}${path}`
-}
-
 export function initAnalyticsWebSocket() {
-  console.log('initAnalyticsWebSocket called!')
   if (analyticsWs) return
   analyticsWs = new WebSocket(getWebSocketUrl('/_analytics_ws'))
 
@@ -888,7 +881,7 @@ function updateTopPagesList(topPages: any[]) {
     html += `
       <div style="display: grid; grid-template-columns: 1fr auto; align-items: center; font-size: 0.85rem; padding: 0.25rem 0;">
         <div style="display: flex; flex-direction: column; gap: 0.4rem; overflow: hidden; padding-right: 1rem;">
-          <span style="font-family: var(--font-mono); color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${escapeHtml(p.page)}</span>
+          <span style="font-family: var(--font-mono); color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${escapeHTML(p.page)}</span>
           <div class="segmented-progress-bar-pages" data-percent="${percent}"></div>
         </div>
         <span style="text-align: right; font-weight: 600; font-family: var(--font-mono); color: var(--text-main); min-width: 80px;">${p.hits.toLocaleString()}</span>
