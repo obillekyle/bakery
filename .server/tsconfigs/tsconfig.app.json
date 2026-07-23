@@ -24,7 +24,10 @@
     "../../schema.ts",
     "../../api/**/*",
     "../../scratch/**/*.ts",
-    "../../node_modules"
+    "../../node_modules",
+    "../../**/api/**/*.ts",
+    "../../**/api/**/*.js",
+    "../../**/api/**/*.tsx"
   ],
   "files": [
     "../client/globals.d.ts",
