@@ -193,3 +193,45 @@ describe('normalizeBlockedPath', () => {
     expect(normalizeBlockedPath('/a/.../b')).toBe('/a/.../b')
   })
 })
+
+describe('matchBlocked — NTFS alternate data streams', () => {
+  /**
+   * Win32 opens `x.ts::$DATA` as the bytes of `x.ts`, and `new URL()` keeps
+   * the suffix in `pathname`. `normalizeBlockedPath` folded case and trailing
+   * dots but left `:` alone, so every basename-anchored pattern was one
+   * suffix away from being bypassed — verified against a live server:
+   * `/schema.ts` 403, `/schema.ts::$DATA` 200 with the file's contents.
+   * `::$INDEX_ALLOCATION` does the same for a *directory* segment, which
+   * reaches the directory-scoped patterns the file form cannot.
+   */
+  const blocked = new Bun.Glob('{**/.env,**/*.db,**/schema.ts,**/private/**/*}')
+
+  test('a stream suffix on the file does not launder it', () => {
+    for (const p of [
+      '/.env::$DATA',
+      '/.env::$data',
+      '/app.db::$DATA',
+      '/schema.ts::$DATA',
+    ]) {
+      expect(matchBlocked(blocked, p)).toBe(true)
+    }
+  })
+
+  test('a stream suffix on a directory segment does not either', () => {
+    expect(matchBlocked(blocked, '/private::$INDEX_ALLOCATION/notes.txt')).toBe(
+      true,
+    )
+  })
+
+  test('an unblocked path with a colon is still served', () => {
+    // Colons are legal in POSIX filenames; the suffix forms above are what
+    // must be caught, not every colon.
+    expect(matchBlocked(blocked, '/notes:draft.txt')).toBe(false)
+  })
+
+  test('a colon-bearing name whose real form is blocked stays blocked', () => {
+    // Fail closed: matching the stripped form must never *unblock* something
+    // the verbatim form already caught.
+    expect(matchBlocked(blocked, '/a:b.db')).toBe(true)
+  })
+})

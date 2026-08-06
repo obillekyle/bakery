@@ -1,5 +1,6 @@
 import Bakery from '../../core'
 import { hostKey } from '../../core/bakery'
+import { matchBlockedCached } from '../../core/context'
 import { errorMsg, handlerLog } from '../../logger/serve-log'
 import type { MixedPromise } from '../../types'
 import { fs, Try } from '../../utils'
@@ -107,7 +108,7 @@ export class DynamicHandler extends Handler {
       if (!info.valid) continue
       // `filePath` is already `fs.resolve`d by the Info constructor; resolving
       // it again here re-normalised an identical string.
-      if (!info.filePath!.startsWith(root)) continue
+      if (!info.filePath!.startsWith(`${root}/`)) continue
       if (fs.isForbidden(info.filePath!, root)) continue
       return info
     }
@@ -135,7 +136,7 @@ export class DynamicHandler extends Handler {
       }
       for (const info of deferred) {
         if (!info.valid) continue
-        if (!info.filePath!.startsWith(root)) continue
+        if (!info.filePath!.startsWith(`${root}/`)) continue
         if (fs.isForbidden(info.filePath!, root)) continue
         return info
       }
@@ -166,8 +167,40 @@ export class DynamicHandler extends Handler {
     return null
   }
 
+  /**
+   * Resolve `path` to a file this handler may serve.
+   *
+   * The deny-list is matched against the *request path* in `router.ts`, but
+   * `routeGlobs` deliberately answers a request with a file of a different
+   * extension — `/schema.css` and `/schema` both resolve to `schema.ts` via
+   * stem+ext substitution. So the router's check was being asked about a
+   * string that named no file: it said "not blocked", and `TSHandler`
+   * compiled and served the very file the default list exists to protect.
+   * Verified against a live server before the fix: `/schema.ts` 403,
+   * `/schema.js` 200 with the file's contents.
+   *
+   * Re-running the check against what actually resolved is the fix. It is
+   * gated on `servesFiles` so route-only handlers keep their exemption, and
+   * it wraps every branch — cached, static, dynamic, catch-all — rather than
+   * each return point, so a future branch cannot forget it.
+   */
   static resolveRoute(path: string): Promise<Route.Info | null>
   static async resolveRoute(path: string) {
+    const info = await this.resolveRouteFile(path)
+    if (!info) return null
+
+    if (
+      this.servesFiles &&
+      matchBlockedCached(Bakery.config.blocked, `/${info.path}`)
+    ) {
+      return null
+    }
+
+    return info
+  }
+
+  protected static resolveRouteFile(path: string): Promise<Route.Info | null>
+  protected static async resolveRouteFile(path: string) {
     const cached = this.getCachedRoute(path)
     if (cached) return cached
 

@@ -184,6 +184,23 @@ export class Handler {
    */
   static alwaysResolve = false
 
+  /**
+   * Whether this handler answers with the *bytes of a file*, and so must be
+   * judged by `config.blocked`.
+   *
+   * `false` for handlers that read the request path as a route *name*:
+   * `ApiHandler` resolves a module and executes it, `ProxyHandler` answers
+   * from an upstream, `MiddlewareHandler` from app code. None can leak a
+   * source file by being handed a path that looks like one, and applying the
+   * deny-list to them made `/api/manifest.json` a 403 no config could undo.
+   *
+   * Deny by default: anything that does not opt out — including a plugin's
+   * handler — keeps the check. This is the single source of truth for that
+   * question; `router.ts` gates its request-path check on it, and
+   * `DynamicHandler.resolveRoute` gates the resolved-file check on it.
+   */
+  static servesFiles = true
+
   protected constructor() {}
 
   static get cache(): HandlerCache<string, Route.Info> {

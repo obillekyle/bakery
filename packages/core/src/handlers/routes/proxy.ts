@@ -4,6 +4,9 @@ import { response } from '../../utils/http'
 import { Handler } from '../core/$base'
 
 export class ProxyHandler extends Handler {
+  /** Answers from an upstream, not from disk. See `Handler.servesFiles`. */
+  static servesFiles = false
+
   static get proxies() {
     return Bakery.config.proxy || {}
   }

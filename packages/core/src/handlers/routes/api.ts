@@ -6,6 +6,9 @@ import { DynamicHandler } from '../core/$dynamic'
 import { ErrorHandler } from '../core/$error'
 
 export class ApiHandler extends DynamicHandler {
+  /** Executes a module and returns its value; never file bytes. See `Handler.servesFiles`. */
+  static servesFiles = false
+
   static canHandle(path: string) {
     return path.startsWith('/api/')
   }
