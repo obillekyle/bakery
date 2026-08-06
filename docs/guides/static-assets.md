@@ -19,10 +19,14 @@ src/styles/global.css   →  /styles/global.css
 src/images/vector.svg   →  /images/vector.svg
 ```
 
-Compressible types are pre-compressed into `.bakery/cache/static/` keyed by the
-file's mtime and hostname (`static.ts`); everything else is streamed
-directly from `Bun.file`. ETags are attached by `processResponse` on the way out,
-so conditional requests get a 304 without touching disk.
+Compressible types (text and JSON MIME types) are pre-compressed into
+`.bakery/cache/static/` keyed by the file's mtime and hostname (`static.ts`) —
+a `.zst` and `.gz` sibling are written next to the raw file, and the response
+serves whichever precompressed variant the request's `Accept-Encoding` allows,
+zstd first (`utils/http/etag.ts`, `utils/fs.ts`). Everything else is streamed
+directly from `Bun.file`. ETags are attached on the way out, and the 304 check
+runs before any compression, so a revalidation never pays for a compress whose
+output would be thrown away.
 
 ## File resolution and containment
 
@@ -48,20 +52,26 @@ so a mounted directory cannot be traversed out of.
 
 `config.blocked` is compiled into a single `Bun.Glob` at startup, on top of a
 fixed default list (`packages/core/src/utils/constants.ts`). The check runs in
-`handleRequest` before any handler is consulted and returns a plain-text
+`handleRequest` once the winning handler is known, and only when that handler
+serves files off disk — route-only handlers (middleware, proxy, API) are
+exempt, since a route name is not a file. A match returns a plain-text
 `403 Forbidden`.
 
 The defaults block, anywhere in the tree:
 
 ```
-.env  *.env  *.sql  *.db  *.json  *.yaml  *.yml  *.lock  *.exe  .gitignore
-.bakery/**  .data/**  _internal/**  .git/**  .vscode/**  node_modules/**
+.env  *.env  *.sql  *.db  *.yaml  *.yml  *.lock  bun.lockb  *.exe  .gitignore
+package.json  package-lock.json  tsconfig.json  tsconfig.*.json
+.bakery/  .data/  _internal/  .git/  .vscode/  node_modules/
 server.config.ts  schema.ts
 ```
 
-**`*.json` is on that list.** A `manifest.json` or a data file under `src/` is a
-403, not a 404, and no amount of correct pathing will fix it. Serve JSON from an
-API route instead.
+**There is deliberately no blanket `*.json` ban.** It caught every JSON
+document an app might legitimately publish — a `manifest.json`, a
+`.well-known` file — with no way to opt out, since `blocked` only appends. The
+project-describing JSON files are named instead. Matching folds case and Win32
+trailing dots/spaces, so `/PACKAGE.JSON` is refused along with
+`/package.json`.
 
 Your own entries are prefixed with `**/` if they do not already start with it
 (`core/config.ts`), so `blocked: ['secret.txt']` blocks that filename at

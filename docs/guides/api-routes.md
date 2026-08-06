@@ -13,7 +13,13 @@ and `serveRoot` is `config.root`, default `src`. So with a default config:
 src/api/hello.ts          →  /api/hello
 src/api/users/index.ts    →  /api/users
 src/api/users/[id].ts     →  /api/users/42
+src/api/[...path].ts      →  /api/<anything deeper nothing else claims>
 ```
+
+A terminal `[...name]` segment is a catch-all: it matches one or more remaining
+segments and binds the joined rest (`path = "users/42/posts"`). Every more
+specific route — exact files, `[param]` siblings, child indexes, deeper
+catch-alls — wins first; see the routing guide for the precedence ladder.
 
 There is no root-level `api/` directory. If you put one there it will never be
 found — it is outside the serve root, and the containment check in
@@ -221,16 +227,21 @@ export default function handler(req: Request) {
 }
 ```
 
-A **syntax or import error** in the route file is treated differently: it is
-caught, logged as `API_IMPORT_ERR`, and the request becomes a 404
-(`$dynamic.ts`). Check the server log before assuming a route is missing.
+A **syntax or import error** in the route file is a server fault, not a missing
+route: it is logged as `API_IMPORT_ERR` with the file path and rethrown, so the
+request becomes a **500** — with the failure detail shown in development and
+redacted in production (`$dynamic.ts`). It used to be a 404, which sent the
+developer hunting for a missing file instead of reading the error.
 
 ## Module reloading
 
-`ApiHandler.executeModule` appends `?v=<mtime>` to the import specifier
-(`handlers/routes/api.ts`) so that saving a file invalidates the ES module
-cache. In development, editing anything under `api/**` additionally restarts the
-dev worker (`compiler/dev-service.ts`).
+In development, `ApiHandler.executeModule` appends `?v=<mtime>` to the import
+specifier (`handlers/routes/api.ts`) so that saving a file invalidates the ES
+module cache; editing anything under the configured api directory additionally
+restarts the dev worker (`compiler/dev-service.ts`), which is what picks up
+changes to a route's *imports*. In production the bare specifier is imported
+once and served from the module registry — route files cannot change under a
+process that runs no watcher, and the per-request stat would be pure waste.
 
 Because each distinct mtime is a distinct module identity, module-level state in
 an API route does not survive an edit. Do not keep a connection pool or a cache

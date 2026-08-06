@@ -73,17 +73,21 @@ explicit priority and get the default of 10 (`$registry.ts`).
 
 `handleRequest` (`packages/core/src/router.ts`) runs in this order:
 
-1. **Blocked glob check.** If `config.blocked` matches the path, `403 Forbidden`
-   as plain text. Never reaches a handler.
-2. **Containment check.** If the path resolves outside the serve root,
+1. **Containment check.** If the path resolves outside the serve root,
    `403 Forbidden`.
-3. **WebSocket upgrade.** If `Upgrade: websocket`, the request is routed to the
+2. **WebSocket upgrade.** If `Upgrade: websocket`, the request is routed to the
    `websocket` registry and leaves the pipeline entirely. See
    [WebSockets](websockets.md).
-4. **Plugin hooks** — `onRoute`, then `onRequest`. A plugin returning a response
+3. **Plugin hooks** — `onRoute`, then `onRequest`. A plugin returning a response
    short-circuits.
-5. **The `fetch` registry.** `resolve()` walks handlers highest-priority-first,
-   calling `canHandle(path, req)`; the first that says yes gets `handle()`.
+4. **The `fetch` registry.** `resolve()` walks handlers highest-priority-first,
+   calling `canHandle(path, req)`; the first that says yes wins.
+5. **Blocked glob check.** If `config.blocked` matches the path *and* the
+   winning handler serves files off disk, `403 Forbidden` as plain text.
+   Route-only handlers — middleware, proxy, API — are exempt: the globs exist
+   to stop files being served, and testing them before routing made
+   `/api/manifest.json` a 403 no config could opt out of.
+6. The winning handler's `handle()`.
 
 Whatever a handler returns is normalised by `processResponse`
 (`router.ts`): `null`/`undefined` becomes 204, a `Blob`/`BunFile` is streamed
@@ -131,8 +135,29 @@ should ignore".
 match and bind `id = "123"`.
 
 **5. A path containing literal brackets is refused.** `DynamicHandler.canHandle`
-returns false for any path matching `[\w$]` in brackets (`$dynamic.ts`), so
-a client cannot request `/blog/[id]` directly.
+returns false for any path spelled like a route template — `[\w$]` in brackets,
+or the `[...name]` catch-all form (`$dynamic.ts`) — so a client cannot request
+`/blog/[id]` or `/docs/[...slug]` directly.
+
+**6. `[...name]` catches every deeper path.** A terminal `[...name]` segment
+matches one *or more* remaining segments: `docs/[...slug].tsx` answers
+`/docs/a` and `/docs/a/b/c`, binding `slug = "a"` and `slug = "a/b/c"` — the
+joined rest of the path, split it yourself if you want segments. Three rules
+keep it predictable (`$base.ts`, `$routing.ts`, `$dynamic.ts`):
+
+- **It is always the weakest route.** An exact file, a single-param sibling
+  (`docs/[id].tsx`), a child index (`docs/a/index.tsx`) and a deeper catch-all
+  (`docs/guides/[...rest].tsx`) all win first. Only what nothing else claims
+  falls through to it.
+- **It never claims its own directory.** `/docs` is not matched by
+  `docs/[...slug].tsx` — the pattern requires at least one rest segment, so a
+  bare `/docs` still means `docs/index.*` or a 404.
+- **Only terminal.** `[...slug]` anywhere but the last segment makes the file
+  inert (nothing may follow a catch-all).
+
+The catch-all works in every dynamic handler — `api/[...path].ts` gives you a
+single endpoint for an entire API subtree, and pairs with the middleware guide's
+interception patterns for gateway-style routing.
 
 ### Priority beats specificity across handlers
 
@@ -171,6 +196,20 @@ export default HTMLBody<{ id: string }>((req, body) => (
       <p>Query: {new URL(req.url).searchParams.toString() || 'none'}</p>
     </body>
   </html>
+))
+```
+
+A catch-all page declares its param the same way — the value is the joined
+rest of the path:
+
+```tsx
+import { createElement, HTMLBody } from '@bakery/core'
+
+// src/wiki/[...page].tsx — one file for /wiki/<anything>, however deep
+export default HTMLBody<{ page: string }>((req, body) => (
+  <main>
+    <h1>{body.page.split('/').join(' › ')}</h1>
+  </main>
 ))
 ```
 
@@ -301,9 +340,11 @@ cleared anywhere. On a cache hit, `resolve()` calls only the cached handler's
 (`$registry.ts`). See [Middleware](middleware.md#the-route-cache-skips-middleware)
 for the consequence, which is the sharpest edge in the framework.
 
-In development, edits to `server.config.ts`, `api/**/*` or any `.tsx` restart the
-dev worker outright (`compiler/dev-service.ts`), which is what makes the
-problem invisible while you are working on those files.
+In development, edits to `server.config.ts` or anything under the api directory
+restart the dev worker outright (`compiler/dev-service.ts`), which is what
+makes the problem invisible while you are working on those files. `.tsx` edits
+no longer restart the process — they clear the per-handler caches only, and
+`HandlerMap.routeCache` survives them.
 
 ## Reserved paths
 
@@ -313,6 +354,8 @@ problem invisible while you are working on those files.
 under those prefixes.
 
 The default blocked globs (`packages/core/src/utils/constants.ts`) also make a
-number of file types unreachable regardless of where they sit — including every
-`.json`, `.yaml`, `.yml`, `.sql`, `.db` and `.lock` file. See
+number of files unreachable from file-serving handlers regardless of where they
+sit — every `.yaml`, `.yml`, `.sql`, `.db` and `.lock` file, plus the named
+project JSON files (`package.json`, `tsconfig.json` and friends; there is
+deliberately no blanket `.json` ban). See
 [Static assets](static-assets.md#what-is-never-served).

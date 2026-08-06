@@ -35,10 +35,11 @@ Flags:
 
 - `--sync` / `-s` runs schema sync before dispatch. It is skipped in the dev
   and thread workers, which are spawned by a master that already ran it — and
-  the dev worker runs sync unconditionally anyway.
-- `--threads N` / `-t N` forks a cluster. It is ignored under `--dev`. On
-  Windows it is forced to 1, because `SO_REUSEPORT` port sharing is
-  unavailable; `THREAD_ID` 0 owns the startup banner.
+  it doubles as the force flag for the dev worker's own hash-gated sync.
+- `--threads N` / `-t N` forks a cluster. It is ignored under `--dev`. On any
+  platform other than Linux it is clamped to 1 with a warning, because
+  `SO_REUSEPORT` load balancing is Linux-only; `THREAD_ID` 0 owns the startup
+  banner, and a cluster of one behaves identically to plain production.
 
 ### The mode flags themselves
 
@@ -58,7 +59,8 @@ initConfig()          load and freeze server.config.ts
 PluginHooks.setup()   plugins register handlers, mounts, hooks
 initImportMap()       + per-host import maps
 syncTSConfigPaths()   dev only
-SyncService.run()     dev: always; production: only with --sync
+SyncService.run()     dev: when the schema hash changed (--sync forces);
+                      production: only with --sync
 initDB()              production only here; the worker calls it again
 → worker.ts
 ```
@@ -70,11 +72,14 @@ the application directory, not the repo root — `Bakery.root` is the process cw
 `worker.ts` then calls `setupServer()` ([`startup.ts`](../../packages/core/src/startup.ts)),
 which populates the three handler registries, runs plugin `setup()`, and warms
 the route caches — after which `Bun.serve` starts and `runStartupBanner()`
-prints the URLs and fires `onStart`.
+prints the URLs (plus a rate-limit line when the default limiter is in effect,
+and a restatement of any DEV config-load error) and fires `onStart`.
 
-Note that `PluginHooks.setup()` therefore runs **twice** in the same process:
-once in `dev.ts`/`prod.ts` and once inside `setupServer()`. Plugin `setup`
-implementations must be idempotent.
+`PluginHooks.setup()` has two call sites — `dev.ts`/`prod.ts` before the import
+map is built, and `setupServer()` for cluster workers that pass through neither
+entry — but both route through one memoised `setupPlugins()`, so plugin
+`setup()` runs **exactly once per process**
+([`startup.ts`](../../packages/core/src/startup.ts)).
 
 **`worker.ts` is the only file in the framework that owns a `Bun.serve`.** That
 is checked by [`tests/conventions.test.ts`](../../tests/conventions.test.ts).
@@ -89,9 +94,10 @@ Per request, `worker.ts` does the following
 2. `resolveHostConfig(hostname)` and `hostStore.run(...)` — an
    `AsyncLocalStorage` scope carrying that host's config for the whole request.
 3. `req.startNs`, and a lazily-created `req.session`.
-4. Rate limiting, if configured: a token bucket in a `SharedArrayBuffer`, keyed
-   by `keyBy(req)` or the client IP, hashed into 1024 slots and therefore
-   shared across cluster workers. Over budget → 429.
+4. Rate limiting (on by default; `rateLimit: false` disables): a token bucket
+   in a `SharedArrayBuffer`, keyed by `keyBy(req)` or the client IP, hashed
+   into 1024 slots and therefore shared across cluster workers. Over budget →
+   429 with a `Retry-After` header; rejection logging is sampled per key.
 5. `handleRequest(req)`.
 6. If the result is a `Response` with status ≥ 400, or an object carrying
    `errorCode`, `handleRequestError(...)` takes over.
@@ -101,14 +107,17 @@ Per request, `worker.ts` does the following
 
 [`router.ts`](../../packages/core/src/router.ts), in order:
 
-1. `blocked` glob match → 403.
-2. Path containment against the serve root (`fs.isForbidden`) → 403.
-3. `Upgrade: websocket` → the websocket registry decides; success returns the
+1. Path containment against the serve root (`fs.isForbidden`) → 403.
+2. `Upgrade: websocket` → the websocket registry decides; success returns the
    `WS_UPGRADE` symbol, failure a 400.
-4. `PluginHooks.onRoute(req)` — observation only, return value ignored.
-5. `PluginHooks.onRequest(req)` — a non-nullish return short-circuits.
-6. `Bakery.handlers.fetch.handle(path, req)` — the registry below.
-7. 404.
+3. `PluginHooks.onRoute(req)` — observation only, return value ignored.
+4. `PluginHooks.onRequest(req)` — a non-nullish return short-circuits.
+5. `Bakery.handlers.fetch.resolve(path, req)` — the registry below; no
+   handler → 404.
+6. `blocked` glob match → 403, but only when the resolved handler serves
+   files off disk. Route-only handlers — middleware, proxy, API — are exempt,
+   which is what keeps `/api/manifest.json` routable.
+7. `handler.handle(path, req)`.
 
 ### Ambient config
 

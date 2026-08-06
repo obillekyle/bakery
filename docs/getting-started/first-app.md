@@ -320,27 +320,25 @@ The dev master supervises a worker process and decides per changed file
 
 | Changed file | What happens |
 | --- | --- |
-| `server.config.ts` | worker exits 42, master restarts it |
+| `server.config.ts`, anything under `src/api/` | worker exits 42, master restarts it |
 | `.ts`, `.js`, `.tsx`, `.jsx`, `.html`, `.vue` | route caches cleared, browser reloaded |
 | `.css` | stylesheet hot-swapped in the browser |
 
-API routes are re-imported per request with a cache-busting `?v=<mtime>`, so
-editing `src/api/notes.ts` takes effect immediately without a restart
-([packages/core/src/handlers/routes/api.ts](../../packages/core/src/handlers/routes/api.ts)).
-`.tsx` pages work the same way: `TSXHandler` busts the module cache with the
-page file's mtime
+API routes are also re-imported per request in dev with a cache-busting
+`?v=<mtime>`
+([packages/core/src/handlers/routes/api.ts](../../packages/core/src/handlers/routes/api.ts)),
+and edits under the api directory restart the worker as well — which is what
+picks up changes to a route's *imports*. `.tsx` pages take the cheap path
+instead: `TSXHandler` busts the module cache with the page file's mtime
 ([packages/core/src/handlers/assets/tsx.ts](../../packages/core/src/handlers/assets/tsx.ts)),
 so editing the page you are looking at shows up on the next browser reload —
 which the watcher triggers for you — without restarting the process.
 
-**But only that file's mtime is checked.** If `src/api/notes.ts` imports a
-helper and you edit the helper, the change is not picked up — Bun's module
-cache still holds it, and nothing restarts. Touch the route file or restart.
-The same limitation applies to pages: a component or helper your `.tsx` page
-imports — a shared `Layout.tsx`, say — stays cached until a restart. That is
-the deliberate trade: editing the page itself, the overwhelmingly common loop,
-is instant; after editing a shared component, restart the dev server (Ctrl+C
-and rerun, or touch `server.config.ts`).
+**But for pages, only the page file's mtime is checked.** A component or helper
+your `.tsx` page imports — a shared `Layout.tsx`, say — stays cached until a
+restart. That is the deliberate trade: editing the page itself, the
+overwhelmingly common loop, is instant; after editing a shared component,
+restart the dev server (Ctrl+C and rerun, or touch `server.config.ts`).
 
 If the dev server dies, open pages show a "dev server disconnected" overlay
 after a few seconds instead of failing silently, and reload themselves when it
