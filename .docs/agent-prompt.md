@@ -28,12 +28,11 @@ Here are the guidelines, APIs, and patterns you MUST follow when writing or modi
 ### 3. Database ORM & Sync
 
 - **Schema Defining:** Define constraints in `schema.ts` using `primary()`, `value('string', default)`, `value('integer')`, `index()`, and `unique()`.
-- **Query Builder (`DB.QB`):**
-  - Always select table: `DB.QB.table('tableName', 'alias')`
-  - Join: `.join('joinTable', { joinTableCol: 'aliasCol' }, 'joinAlias')`
-  - Where clauses: `.where('alias.col', '=', val)` / `.and('alias.col', 'IN', [...])`
-  - Select fields: `.select({ outputField: 'alias.col' })` or `.selectAll('alias')`
-  - Mathematical fields: `.selectMath({ avgPrice: { AVG: 'alias.price' } })`
+- **Query Builder (`DB`):**
+  - Always select table: `DB.from('tableName', 'alias')`
+  - Join: `.leftJoin('tableName.col1', 'other.col2', 'alias')`
+  - Where clauses: `.where('alias.col', val)` / `.where('alias.col', '=', val)` / `.and('alias.col', DB.inList([...]))`
+  - Select fields: `.select({ outputField: 'alias.col', avgPrice: DB.avg('alias.price') })` or `.selectAll('alias')`
   - Execution: Await the query builder itself (returns arrays), or call `.fetch()` (single row), `.column()` (single column array), or `.iterable()` (async iterator).
 - **Mutations (`Mutation`):**
   - Insert: `await Mutation.Insert.into('tableName').values({ col1: val1 })`

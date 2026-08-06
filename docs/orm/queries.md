@@ -1,0 +1,366 @@
+# Queries
+
+`DB` is the query builder. It is the default export of `@bakery/orm` and also a
+named one:
+
+```ts
+import DB from '@bakery/orm'
+
+const users = await DB.from('users').array()
+```
+
+Every method returns the builder, and nothing runs until you call an execution
+method. `DB.table` and `DB.from` are the same function.
+
+## Columns are dotted strings
+
+A column is written `'table.column'`, or bare when it is unambiguous:
+
+```ts
+import DB from '@bakery/orm'
+
+const q = DB.from('posts').select({ title: 'posts.title', id: 'posts.id' })
+```
+
+Not an object, not a builder call — a string. Both halves are validated against
+an identifier pattern and quoted for the active dialect, and they are
+snake-cased on the way out, so `'posts.createdAt'` emits `"posts"."created_at"`.
+
+Rows come back with both spellings: the driver's key plus a camelCase alias. A
+`subject_code` column is readable as `row.subject_code` and `row.subjectCode`.
+
+## `.where()` takes two arguments
+
+**This is the single most important thing on this page.**
+
+```ts
+import DB from '@bakery/orm'
+
+// column, value — the operator defaults to `=`
+const q = DB.from('users').where('users.id', 42)
+```
+
+There is no three-argument form. The signature is
+`where(column, valueOrRef?)`, and `parseWhereArgs` defaults the operator to `=`
+([`orm/query.ts`](../../packages/orm/src/orm/query.ts)).
+
+If you write the SQL-looking version out of habit:
+
+```ts no-check — deliberately wrong; kept out of the compile because it is the bug being described
+DB.from('users').where('users.id', '=', 42)
+```
+
+…then `'='` becomes **the value** and the `42` is dropped. The emitted predicate
+is `WHERE "users"."id" = ?` bound to the string `'='`. Valid SQL, wrong
+question, zero rows, no error at any layer.
+
+`tsc` does catch it — *Expected 1-2 arguments, but got 3* — but Bun strips types
+without checking them, so `bun run dev` runs it happily. If you never run
+`bun run typecheck`, nothing tells you. That is how this survived ~25 times in
+the documentation these pages replace. Anything comparing against a literal
+`'='` in your data is a symptom.
+
+Use an operator helper when you need something other than equality.
+
+## Operators
+
+Helpers live on `DB` and go in the second position:
+
+```ts
+import DB from '@bakery/orm'
+
+const q = DB.from('students')
+  .where('students.year', DB.gte(2))
+  .and('students.course', DB.inList(['BSCS', 'BSIT']))
+  .and('students.id', DB.between(10, 50))
+  .and('students.nickname', DB.isNotNull())
+```
+
+emits
+
+```sql
+SELECT * FROM "students"
+WHERE "students"."year" >= ?
+  AND "students"."course" IN (?, ?)
+  AND "students"."id" BETWEEN ? AND ?
+  AND "students"."nickname" IS NOT NULL
+```
+
+| Helper | SQL | Notes |
+| --- | --- | --- |
+| `DB.equals(v)` / `DB.eq(v)` | `=` | the implicit default |
+| `DB.notEquals(v)` / `DB.neq(v)` | `<>` | |
+| `DB.gt(v)` `DB.gte(v)` `DB.lt(v)` `DB.lte(v)` | `>` `>=` `<` `<=` | |
+| `DB.like(v)` | `LIKE` | you supply the `%` |
+| `DB.ilike(v)` | `ILIKE` | Postgres only |
+| `DB.inList(v)` / `DB.in(v)` | `IN` | array or subquery |
+| `DB.notInList(v)` / `DB.notIn(v)` | `NOT IN` | |
+| `DB.isNull()` / `DB.isNotNull()` | `IS [NOT] NULL` | no argument |
+| `DB.between(a, b)` | `BETWEEN … AND …` | |
+
+Values always bind as parameters; identifiers are validated, quoted and
+interpolated. Nothing crosses from one category to the other.
+
+## Comparing two columns
+
+A bare string in the value position is a *value*, not a column — that is what
+keeps user input from becoming SQL. Wrap a column reference in `DB.col()` when
+you mean the other thing:
+
+```ts
+import DB from '@bakery/orm'
+
+const q = DB.from('users')
+  .where('users.shippingAddress', DB.col('users.billingAddress'))
+```
+
+`DB.cols` is an alias of `DB.col`. Both compose with the operator helpers:
+`DB.gt(DB.col('users.updatedAt'))`.
+
+## Combining conditions
+
+`.and()` and `.or()` take the same two arguments as `.where()`. They append in
+call order and are not grouped — there is no parenthesised builder API. Use
+`DB.raw` if you need explicit grouping.
+
+```ts
+import DB from '@bakery/orm'
+
+const q = DB.from('users')
+  .where('users.status', 'active')
+  .and('users.role', DB.inList(['admin', 'editor']))
+  .or('users.id', 1)
+```
+
+## Projection
+
+`.select({ alias: column })` names every output column. `.selectAll(alias?)`
+emits `alias.*`.
+
+```ts
+import DB from '@bakery/orm'
+
+const q = DB.from('teachers').select({
+  teacherId: 'teachers.id',
+  fullName: 'teachers.surname',
+})
+// SELECT "teachers"."id" AS "teacherId", "teachers"."surname" AS "fullName" …
+```
+
+Clauses are assembled and only emitted by `parse()`, so call order does not
+matter: `.select(…).where(…)` and `.where(…).select(…)` produce identical SQL.
+
+## Aggregates and functions
+
+```ts
+import DB from '@bakery/orm'
+
+const q = DB.from('campuses')
+  .leftJoin('campuses.id', 'teachers.campusId', 't')
+  .groupBy('campuses.id')
+  .select({
+    id: 'campuses.id',
+    facultyCount: DB.count('t.id'),
+    newest: DB.max('t.createdAt'),
+  })
+```
+
+Available: `count`, `sum`, `avg`, `min`, `max`, `lower`, `upper`, `length`,
+`coalesce`, `abs`, `concat`. The function *name* is interpolated rather than
+bound, so it is checked against a fixed allow-list; anything else throws
+`Unsupported SQL function`
+([`schema-util.ts`](../../packages/orm/src/schema-util.ts)). `DB.count('*')`
+is supported; the rest expect a column.
+
+## Joins
+
+`join(leftColumn, rightColumn, alias?, type?)`, plus `leftJoin`, `rightJoin` and
+`innerJoin`. The `ON` clause is always an equality between the two columns.
+
+```ts
+import DB from '@bakery/orm'
+
+const q = DB.from('campuses')
+  .leftJoin('campuses.id', 'teachers.campusId', 't')
+  .select({ campusId: 'campuses.id', teacher: 't.surname' })
+// … LEFT JOIN "teachers" AS "t" ON "campuses"."id" = "t"."campus_id"
+```
+
+Pass a **dotted** right-hand column. The type requires it — `rightCol` is
+typed `\`${string}.${string}\`` — so an undotted argument is a compile error, and
+it now resolves to that table's `id` rather than emitting a malformed `ON`
+clause if you reach the runtime path from JavaScript.
+
+The alias becomes the name every later column qualifies against, and the
+unaliased table name drops out of scope — after `as 't'`, write `'t.surname'`,
+not `'teachers.surname'`.
+
+To join a table to itself, alias it. To do the same in a *schema* declaration,
+see `alias()` in [Schema](schema.md).
+
+## Grouping
+
+```ts
+import DB from '@bakery/orm'
+
+const q = DB.from('students')
+  .groupBy('students.course')
+  .select({ total: DB.sum('students.year') })
+  .having(DB.sum('students.year'), DB.gt(1000))
+```
+
+`having` takes the same two arguments as `where`, and chains with `andHaving` /
+`orHaving`.
+
+## Ordering and paging
+
+```ts
+import DB from '@bakery/orm'
+
+const page = DB.from('products')
+  .selectAll()
+  .orderBy('category', 'ASC')
+  .orderBy('price', 'DESC')
+  .paginate(2, 20) // LIMIT 20 OFFSET 20
+```
+
+`limit(count, offset?)` is the explicit form. All three are legal straight off a
+table — no `where` or `select` needed first.
+
+`LIMIT`, `OFFSET` and the sort direction are interpolated, not bound, so both
+are validated at the call site: a direction other than `ASC`/`DESC` throws
+`Invalid sort direction`, and a non-numeric or negative limit throws
+`Invalid limit`. Numeric strings are coerced. **Never pass a raw request value
+as a column name or a direction** — the `'ASC' | 'DESC'` union is erased at
+runtime, and the column allow-list is the only thing standing between a query
+string and your SQL.
+
+## Subqueries
+
+Any builder can be a subquery. Pass one to `DB.inList()`:
+
+```ts
+import DB from '@bakery/orm'
+
+const activeCampuses = DB.from('campuses')
+  .where('code', 'active')
+  .select({ id: 'campuses.id' })
+
+const q = DB.from('teachers').where('teachers.campusId', DB.inList(activeCampuses))
+```
+
+The inner query's parameters are spliced into the outer parameter list in order.
+
+## CTEs
+
+`DB.include(builder, name)` starts a `WITH` clause; chain `.table(name)` to
+query it.
+
+```ts
+import DB from '@bakery/orm'
+
+const activeUsers = DB.table('users').where('status', 'active')
+
+const q = DB.include(activeUsers, 'active_users').table('active_users').selectAll()
+// WITH "active_users" AS (SELECT * FROM "users" WHERE "status" = ?)
+// SELECT "active_users".* FROM "active_users"
+```
+
+## Raw SQL
+
+`DB.raw` is a tagged template. Interpolated values bind as parameters;
+interpolated `DB.col()` references and nested builders inline as SQL.
+
+```ts
+import DB from '@bakery/orm'
+
+const email = 'admin@example.com'
+const q = DB.from('teachers').where(DB.raw`LOWER(email) = ${email} AND status = 'active'`)
+```
+
+A single-argument `.where()` takes the fragment as the whole condition. `DB.raw`
+also accepts `DB.raw('sql text', [params])` when the SQL is not a literal.
+
+Nothing inside a `DB.raw` template is validated. Interpolate values, never
+identifiers.
+
+## Running the query
+
+| Method | Returns |
+| --- | --- |
+| `.array()` | every row |
+| `.fetch()` / `.first()` | the first row or `undefined` (adds `LIMIT 1`) |
+| `.value<T>()` / `.scalar<T>()` | the first column of the first row |
+| `.column<T>()` | the first column of every row |
+| `.exists()` | `boolean`, via `SELECT 1 FROM (…) LIMIT 1` |
+| `.iterable()` | an async iterable, streaming rows |
+| `.parse()` | `{ sql, params }` — builds nothing, runs nothing |
+
+```ts
+import DB from '@bakery/orm'
+
+const posts = await DB.from('posts').where('posts.published', 1).array()
+const one = await DB.from('posts').where('posts.slug', 'hello').fetch()
+const total = await DB.from('posts').select({ n: DB.count('*') }).value<number>()
+const slugs = await DB.from('posts').select({ slug: 'posts.slug' }).column<string>()
+const any = await DB.from('posts').where('posts.authorId', 7).exists()
+```
+
+The builder is also a thenable: `await DB.from('posts')` runs `.array()`. Prefer
+the explicit call — it is clearer, and it is the only way to get anything other
+than an array.
+
+`.fetch()` appends `LIMIT 1` when the query does not already have one. Without
+that, "give me one row" scanned the whole table and materialised every row
+before discarding all but the first.
+
+Use `.iterable()` for result sets you do not want in memory at once:
+
+```ts
+import DB from '@bakery/orm'
+
+export async function eachPost(fn: (row: unknown) => void) {
+  for await (const row of DB.from('posts').iterable()) fn(row)
+}
+```
+
+## Reusing a builder
+
+Builder methods mutate. `.clone()` gives an independent copy, which is how you
+share a base query:
+
+```ts
+import DB from '@bakery/orm'
+
+const base = DB.table('users').where('status', 'active')
+const newest = base.clone().orderBy('createdAt', 'DESC').limit(10)
+const oldest = base.clone().orderBy('createdAt', 'ASC').limit(10)
+```
+
+Without the clone, the second chain would append to the first.
+
+## Transactions
+
+`DB.transaction()` runs a callback inside one transaction and commits on return,
+rolling back if it throws. The active connection is held in `AsyncLocalStorage`,
+so builders inside the callback use the transaction without being handed
+anything:
+
+```ts
+import DB from '@bakery/orm'
+
+await DB.transaction(async () => {
+  await DB.Update.table('accounts').set({ balance: 90 }).where('id', 1).run()
+  await DB.Update.table('accounts').set({ balance: 110 }).where('id', 2).run()
+})
+```
+
+The callback also receives the transaction adapter directly, for raw statements.
+Work started but not awaited inside the callback escapes the transaction — await
+everything.
+
+## Next
+
+- [Mutations](mutations.md) — insert, update, delete
+- [Schema](schema.md) — what makes these queries typed
+- [Adapters](adapters.md) — how the SQL differs per dialect

@@ -83,11 +83,17 @@ Set `DASHPASS` in your environment to require a password:
 DASHPASS=your_password
 ```
 
-Without `DASHPASS`, the dashboard is publicly accessible. **Always set a password in production.**
+Without `DASHPASS`, the dashboard is disabled entirely — every `/_dashboard` and `/api/_dashboard` path returns `404`. **Set a password to enable it, and only where you intend it to be reachable.**
 
 ### Path Protection
 
-The `/_dashboard` path is handled by the dashboard plugin's `onRequest` hook. Requests that fail authentication receive a `401 Unauthorized` response with a `WWW-Authenticate: Basic realm="Bakery Dashboard"` header, triggering the browser's built-in auth dialog.
+The `/_dashboard` and `/api/_dashboard` paths are handled by the dashboard plugin's fetch handler, which runs a single auth check before dispatching to any route.
+
+- With no `DASHPASS` set: every path returns `404`.
+- With `DASHPASS` set and no valid session: API paths return `401 Unauthorized` (JSON) and page paths return the HTML login form.
+- Failed logins are rate-limited with an exponential backoff per client.
+
+Write statements in the SQL console (anything other than `SELECT`/`WITH`/`SHOW`/`DESCRIBE`/`PRAGMA`/`EXPLAIN`) are rejected unless `DASHBOARD_ALLOW_WRITES=1` is set. `ATTACH`, `DETACH`, and `VACUUM INTO` are always rejected, because on SQLite they amount to arbitrary file access on the host.
 
 ### Blocking the Dashboard in Production
 

@@ -67,10 +67,10 @@ export default async function(req: Request, body: { days?: number }) {
 
   // Top 10 most visited paths
   const topPaths = await DB.table('analytics')
-    .where({ analytics: 'timestamp' }, '>=', since)
-    .groupBy({ analytics: 'path' })
+    .where('analytics.timestamp', '>=', since)
+    .groupBy('analytics.path')
     .selectAll('analytics')
-    .selectMath({ hits: { COUNT: '*' } })
+    .select({ hits: DB.count('*') })
     .orderBy('hits', 'DESC')
     .limit(10)
     .array()
