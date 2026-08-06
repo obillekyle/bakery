@@ -1,0 +1,25 @@
+.DAV
+*/.DAV
+
+.env
+
+# Ignore database files
+schema.ts
+
+*.db
+*.sqlite
+*.sqlite3
+*.db-*
+
+cookies.txt
+
+node_modules
+dist
+scratch
+.cache
+.server/.data
+
+*.tsbuildinfo
+
+# Windows device-name artifact
+nul
