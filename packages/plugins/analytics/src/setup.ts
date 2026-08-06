@@ -1,0 +1,174 @@
+import { Bakery } from '@bakery/core/core/bakery'
+import { Handler } from '@bakery/core/handlers/core/$base'
+import { FileSystem as fs } from '@bakery/core/utils/fs'
+import { response } from '@bakery/core/utils/http'
+import { type PluginRouteTable, routeTable } from '@bakery/core/plugins/routes'
+import type { JsonResponseData } from '@bakery/core/utils/common/json'
+import * as core from './core'
+import { BOOT_MAX_ITEMS } from './core'
+import * as storageSqlite from './storage-sqlite'
+import type { AnalyticsStats } from './endpoints/stats'
+import { handleResetRequest, handleStatsRequest } from './endpoints/stats'
+import { AnalyticsWSHandler } from './endpoints/websocket'
+
+const PAGE_HITS_BOOT_WINDOW_MS = 24 * 3600 * 1000
+
+export const pageHitsLog = core.pageHitsLog
+export const pageHitsMap = core.pageHitsMap
+export const history1m = core.history1m
+export const history1h = core.history1h
+export const history1d = core.history1d
+export const history7d = core.history7d
+export const history30d = core.history30d
+
+export const recordRouteHit = core.recordRouteHit
+export const recordDbHit = core.recordDbHit
+export const recordErrorPageHit = core.recordErrorPageHit
+export const pushAnalyticsSnapshot = core.pushAnalyticsSnapshot
+export const getLatestAnalyticsSnapshot = core.getLatestAnalyticsSnapshot
+export const getHistoryLimitForTimescale = core.getHistoryLimitForTimescale
+export const getFilledHistoryForTimescale = core.getFilledHistoryForTimescale
+export const getHistoryForTimescale = core.getHistoryForTimescale
+export const getLatestHistoryPoint = core.getLatestHistoryPoint
+
+async function saveAnalyticsData() {
+  const cacheBase = Bakery.cacheDir
+  await storageSqlite.saveAnalyticsData(cacheBase)
+}
+
+function syncHistoryArrays(data: any) {
+  const syncArr = (source: any[], target: any[]) => {
+    if (source) {
+      target.length = 0
+      target.push(...source)
+    }
+  }
+  syncArr(data.history1m, core.history1m)
+  syncArr(data.history1h, core.history1h)
+  syncArr(data.history1d, core.history1d)
+  syncArr(data.history7d, core.history7d)
+  syncArr(data.history30d, core.history30d)
+}
+
+function processRawPageHits(pageHitsRaw: any) {
+  if (!Array.isArray(pageHitsRaw) || pageHitsRaw.length === 0) return
+
+  const minTs = Date.now() - PAGE_HITS_BOOT_WINDOW_MS
+  const list = pageHitsRaw
+    .map((e: any) => ({
+      timestamp: Number(e?.timestamp) || 0,
+      path: e?.path,
+    }))
+    .filter(
+      (e: any) =>
+        Number.isFinite(e.timestamp) &&
+        typeof e.path === 'string' &&
+        e.path.length > 0 &&
+        !core.isAssetPath(e.path) &&
+        e.timestamp >= minTs,
+    )
+    .slice(-BOOT_MAX_ITEMS)
+
+  pageHitsLog.length = 0
+  pageHitsLog.push(...list)
+}
+
+async function loadAnalyticsData() {
+  const cacheBase = Bakery.cacheDir
+  const { coreData, pageHitsRaw } =
+    await storageSqlite.loadAnalyticsData(cacheBase)
+
+  const data = coreData || {}
+  if (!coreData && !pageHitsRaw) return
+
+  syncHistoryArrays(data)
+
+  if (data.temp1h || data.temp1d || data.temp7d || data.temp30d) {
+    core.loadTemps(data)
+  }
+
+  if (data.pageHits && Array.isArray(data.pageHits)) {
+    pageHitsMap.clear()
+    for (const [k, v] of data.pageHits) {
+      if (!core.isAssetPath(k)) {
+        const count = typeof v === 'number' && Number.isFinite(v) ? v : 0
+
+        pageHitsMap.set(k, count > 1_000_000 ? 1 : count)
+      }
+    }
+  }
+
+  processRawPageHits(pageHitsRaw)
+}
+
+import { startAnalyticsLoop, stopAnalyticsLoop } from './loop'
+
+export { startAnalyticsLoop }
+
+class AnalyticsHandler extends Handler {
+  static canHandle(path: string) {
+    return (
+      path === '/_analytics/ping' ||
+      path === '/api/_analytics/stats' ||
+      path === '/api/_analytics/reset'
+    )
+  }
+  static resolveRoute(path: string): Handler.Route.Info | null {
+    if (
+      path === '/_analytics/ping' ||
+      path === '/api/_analytics/stats' ||
+      path === '/api/_analytics/reset'
+    ) {
+      return new Handler.Route.Info(fs.resolve(''), path)
+    }
+    return null
+  }
+  static async handle(
+    _path: string,
+    req: Request,
+  ): Promise<AnalyticsResponse | undefined> {
+    const res = await handleAnalyticsRequest(req)
+    return res || undefined
+  }
+}
+
+/**
+ * Auth stays inside each endpoint (`handleStatsRequest` / `handleResetRequest`
+ * fail closed on their own) — this table only replaces the path/method chain.
+ *
+ * `satisfies` rather than an annotation: it checks the table against
+ * `PluginRouteTable` while keeping the literal type, so `routeTable` can carry
+ * each endpoint's real return type through to `handleAnalyticsRequest`.
+ */
+const analyticsRoutes = routeTable({
+  '/_analytics/ping': () => response.text('pong'),
+  'POST /api/_analytics/reset': req => handleResetRequest(req),
+  '/api/_analytics/stats': (req, url) => handleStatsRequest(req, url),
+} satisfies PluginRouteTable)
+
+/**
+ * `/_analytics/ping` is a plain `Response`; the two `/api/` endpoints return
+ * the JSON envelope, which the router serialises in `processResponse`. Spelling
+ * the union out here means adding a route that returns something else is a
+ * compile error rather than a silent widening.
+ */
+export type AnalyticsResponse =
+  | Response
+  | JsonResponseData<AnalyticsStats | undefined>
+
+export function handleAnalyticsRequest(
+  req: Request,
+): Promise<AnalyticsResponse | null> {
+  return analyticsRoutes(req)
+}
+
+export function setupAnalytics() {
+  Bakery.handlers.fetch.set(AnalyticsHandler, 110)
+  Bakery.handlers.websocket.set(AnalyticsWSHandler)
+  void loadAnalyticsData()
+  Bakery.onShutdown(async () => {
+    stopAnalyticsLoop()
+    core.stopPageHitsLogPruner()
+    await saveAnalyticsData()
+  })
+}
