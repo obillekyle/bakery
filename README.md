@@ -1,144 +1,180 @@
-# 🍞 Bakery Server
+# Bakery
 
-> A ridiculously fast, zero-config full-stack development server built on [Bun](https://bun.sh).
+A batteries-included server framework for [Bun](https://bun.sh): filesystem
+routing, server-rendered JSX, cookie sessions, a typed ORM with schema sync, a
+plugin system, and a live-reload dev loop — with no build step in development.
 
-Bakery is an opinionated, batteries-included server runtime that collapses the gap between writing code and running it. It handles TypeScript/TSX transpilation on-the-fly, serves static assets with ETag caching, proxies external APIs, manages sessions, ships a built-in SQLite ORM, and live-reloads the browser — all with a single `bun run .server --dev`.
+Bakery serves files the way Apache served directories: drop a `.tsx`, `.html`,
+`.ts`, or `/api` file under your app's `src/` and it is a route on the next
+request. Routes are resolved against the filesystem per request — a dropped-in
+file serves, a deleted one stops — and in development route modules are
+re-imported when their mtime changes, so there is no route table to register
+and, for most edits, no restart.
 
----
+## Quick start
 
-## ✨ Features
-
-| Category       | Feature                                                         | Status |
-| -------------- | --------------------------------------------------------------- | ------ |
-| **Core**       | Zero-config TypeScript & TSX execution                          | ✅     |
-| **Core**       | File-system based routing (static + dynamic `[param]` segments) | ✅     |
-| **Core**       | Priority-ordered handler pipeline                               | ✅     |
-| **Core**       | Graceful shutdown with registered hooks                         | ✅     |
-| **Dev**        | Hot Module Live Reload via WebSocket                            | ✅     |
-| **Dev**        | Smart DOM diffing (partial HTML swap, <15% change)              | ✅     |
-| **Dev**        | CSS hot-swap without full page reload                           | ✅     |
-| **Dev**        | Client-side console log forwarding to server terminal           | ✅     |
-| **Dev**        | Spawn logger terminal (press `d`)                               | ✅     |
-| **Routing**    | Static asset serving with ETag & cache headers                  | ✅     |
-| **Routing**    | API route handler (`/api/**`)                                   | ✅     |
-| **Routing**    | HTML page handler with script/style injection                   | ✅     |
-| **Routing**    | TSX server-side rendering                                       | ✅     |
-| **Routing**    | TypeScript module serving (`*.ts`)                              | ✅     |
-| **Routing**    | Image optimization handler                                      | ✅     |
-| **Routing**    | Node Modules proxy handler (`/_nm/`)                            | ✅     |
-| **Routing**    | Virtual asset compilation (`/_virtual/`, `/_client/`)           | ✅     |
-| **Routing**    | Configurable reverse proxy                                      | ✅     |
-| **Routing**    | Path blocking via Glob patterns                                 | ✅     |
-| **Middleware** | Ordered middleware array                                        | ✅     |
-| **Middleware** | `onRequest` global intercept hook                               | ✅     |
-| **Sessions**   | Cookie-based sessions with tiered memory/SQLite cache           | ✅     |
-| **Sessions**   | Per-key persistence with configurable TTL                       | ✅     |
-| **Database**   | Multi-adapter: SQLite (default), PostgreSQL, MySQL              | ✅     |
-| **Database**   | Type-safe Query Builder (`DB.QB`)                               | ✅     |
-| **Database**   | Schema-driven DDL sync on startup                               | ✅     |
-| **Database**   | Automatic rolling backups                                       | ✅     |
-| **Cache**      | LRU in-memory cache                                             | ✅     |
-| **Cache**      | Tiered memory → SQLite cache with configurable flush            | ✅     |
-| **Plugins**    | First-class plugin API with lifecycle hooks                     | ✅     |
-| **Plugins**    | Built-in Analytics plugin                                       | ✅     |
-| **Plugins**    | Built-in Dashboard plugin (UI + DB browser)                     | ✅     |
-| **Config**     | `server.config.ts` with full TypeScript types                   | ✅     |
-| **Config**     | Import Map support with auto TSConfig path sync                 | ✅     |
-| **Config**     | `.env` / environment variable support                           | ✅     |
-| **WebSocket**  | First-class WebSocket handler API                               | ✅     |
-| **Security**   | Default path blocking for sensitive files                       | ✅     |
-| **Compiler**   | Bun-native transpiler for browser targets                       | ✅     |
-| **Compiler**   | CSS/JSON virtual module import rewriting                        | ✅     |
-
----
-
-## 📁 Documentation
-
-> All documentation lives inside [`.docs/`](.docs/).
-
-### 🚀 Getting Started
-
-- [Introduction & Philosophy](.docs/getting-started/introduction.md)
-- [Prerequisites & Installation](.docs/getting-started/installation.md)
-- [Project Structure](.docs/getting-started/project-structure.md)
-
-### ⚙️ Configuration
-
-- [server.config.ts Reference](.docs/configuration/server-config.md)
-- [Environment Variables](.docs/configuration/environment-variables.md)
-- [Import Maps & TSConfig Sync](.docs/configuration/import-maps.md)
-
-### 🏗️ Core Features
-
-- [Routing System](.docs/features/routing.md)
-- [Static Asset Serving](.docs/features/static-assets.md)
-- [API Routes](.docs/features/api-routes.md)
-- [TSX Server-Side Rendering](.docs/features/tsx-rendering.md)
-- [Middleware](.docs/features/middleware.md)
-- [Reverse Proxy](.docs/features/proxy.md)
-- [WebSockets](.docs/features/websockets.md)
-
-### 🔁 Development
-
-- [Live Reload & Hot Module Sync](.docs/development/live-reload.md)
-- [Dev Mode Architecture](.docs/development/dev-mode.md)
-
-### 🔐 Sessions
-
-- [Session System](.docs/sessions/sessions.md)
-
-### 🗄️ Database
-
-- [Database Overview](.docs/database/overview.md)
-- [Schema Definition](.docs/database/schema.md)
-- [Query Builder](.docs/database/query-builder.md)
-- [Mutations](.docs/database/mutations.md)
-- [Migrations & Schema Sync](.docs/database/migrations.md)
-
-### 🧩 Plugin API
-
-- [Plugin System](.docs/plugins/plugin-api.md)
-- [Built-in: Analytics Plugin](.docs/plugins/analytics.md)
-- [Built-in: Dashboard Plugin](.docs/plugins/dashboard.md)
-
-### 🚢 Production & Deployment
-
-- [Building for Production](.docs/deployment/production.md)
-- [Security Hardening](.docs/deployment/security.md)
-
-### 🛠️ Advanced
-
-- [Handler Architecture](.docs/advanced/handler-architecture.md)
-- [Cache System](.docs/advanced/cache.md)
-- [Compiler & Virtual Assets](.docs/advanced/compiler.md)
-
-### 📖 Reference
-
-- [CLI Reference](.docs/reference/cli.md)
-- [Troubleshooting & FAQ](.docs/reference/troubleshooting.md)
-
----
-
-## ⚡ Quick Start
+Bakery is **not on npm yet**. Package names and export maps are still free to
+change, so today you use it by cloning the repo and working inside the Bun
+workspace:
 
 ```bash
-# Install Bun (if not already installed)
-curl -fsSL https://bun.sh/install | bash
+git clone https://github.com/obillekyle/bun-server bakery
+cd bakery && bun install
 
-# Start development server
+# the example app's schema is gitignored; create it from the template
+cp packages/orm/templates/schema.example.ts apps/example/schema.ts
+
 bun run dev
-
-# Start production server
-bun run serve
-
-# Sync database schema
-bun run db:sync
 ```
 
----
+That starts the bundled example app on port 3000. `bun run dev`,
+`bun run serve` and `bun run db:sync` are thin wrappers that `cd` into
+`apps/example` first — for your own app, create a directory under `apps/` (the
+workspace links it as a consumer automatically) and run the CLI from there.
+[`apps/starter`](apps/starter) is a minimal second consumer to copy from, and
+[Your first app](docs/getting-started/first-app.md) walks through every file.
 
-## 📄 License
+Requires a current Bun (1.3 or newer). TypeScript is only needed for
+typechecking — Bun transpiles everything at runtime.
 
-CC0-1.0 & MIT — see [LICENSE](LICENSE) for details.
+## What's in the box
 
-_(docs are ai generated and may contain inaccuracies; please verify with the source code)_
+- **Filesystem routing** — a URL resolves to a file under `root` (default
+  `src/`): `.tsx` pages rendered to HTML on the server through Bakery's own
+  JSX runtime, with a sibling `page.ts`/`page.css` auto-injected as script and
+  stylesheet; `.html` pages with `{{param}}` substitution; `.ts` files
+  compiled for the browser on request; `/api/*` JSON handlers; `[param]`
+  dynamic segments; and static files with ETag/conditional-GET handling.
+- **Typed routes** — `defineRoute<P>` types the body an `/api` handler
+  receives, `HTMLBody<P>` (also exported as `html`) does the same for a `.tsx`
+  page's render function. Both are identity functions — inference only — and
+  the `RouteBody`/`RouteResponse` types behind them are exported from
+  `@bakery/core`.
+- **Sessions** — a lazily-created cookie session on every request, backed by a
+  tiered memory-then-SQLite cache.
+- **ORM** (`@bakery/orm`) — schema declared in TypeScript, a query builder and
+  mutations typed from it, SQLite by default with MySQL/Postgres via `DB_URL`,
+  and a sync engine that diffs schema against database, prompts before
+  destructive changes, and takes a backup first.
+- **Plugins** — register handlers, route mounts, and lifecycle hooks. Bundled:
+  Vue single-file-component routes, request analytics, and an admin dashboard.
+- **Security defaults** — blocked-file globs (`.env`, lockfiles, configs, the
+  schema), a same-origin CSRF guard on unsafe `/api` methods, and an
+  on-by-default per-IP rate limit.
+- **Also in core** — WebSockets, reverse proxy, per-hostname (multi-host)
+  config, image resizing via `;<size>` URL suffixes, a Google Fonts
+  proxy/cache, and middleware/`onRequest`/`onError` hooks.
+
+An `/api` route, complete — save it as `src/api/posts.ts` and `POST /api/posts`
+exists:
+
+```ts
+import { defineRoute, response } from '@bakery/core'
+
+export default defineRoute<{ title?: string }>(async (req, body) => {
+  if (req.method !== 'POST') {
+    return response.json.error(405, 'Method Not Allowed')
+  }
+
+  const title = String(body.title ?? '').trim()
+  if (!title) return response.json.error(400, 'title is required')
+
+  return response.json.success('created', { title })
+})
+```
+
+`body.title` is `string | undefined` inside the handler. Declaring the shape
+states your contract — it does not validate the request, so validate anyway.
+
+## Workspace layout
+
+| Package | Contents |
+| --- | --- |
+| `@bakery/core` | handlers, router, config, sessions, caches, logger, compiler, JSX |
+| `@bakery/orm` | query builder, mutations, adapters, schema sync, backup |
+| `@bakery/cli` | the `bakery` binary: dev supervisor, production, cluster dispatch |
+| `@bakery/plugin-vue` | `.vue` single-file components with server blocks |
+| `@bakery/plugin-analytics` | request telemetry |
+| `@bakery/plugin-dashboard` | the admin console |
+| `apps/example` | the bundled demo app |
+| `apps/starter` | a minimal app written against public entry points only |
+
+`@bakery/core` has no runtime dependencies; the ORM depends only on core, and
+the CLI on core and the ORM.
+
+## How a request is served
+
+Three priority-ordered handler registries (fetch, error, websocket) are
+populated in [`packages/core/src/startup.ts`](packages/core/src/startup.ts);
+a request walks the fetch registry from middleware (priority 100) through
+proxy, virtual assets, images, `/api`, `.tsx`/`.html`/`.ts` routes, down to the
+static-file fallback (0), and the first handler whose `canHandle` claims the
+path wins — with resolutions cached in a shared LRU and re-validated on every
+hit. Because resolution is against the filesystem, dropping in or deleting a
+file is honored on the next request in any mode; in development, route modules
+are additionally imported with mtime cache-busting, so editing one is live too
+(in production a route module is imported once). The full walk-through is in
+[docs/reference/architecture.md](docs/reference/architecture.md).
+
+## The dev loop
+
+`bakery --dev` runs a supervisor that spawns the serving worker and watches
+files. Editing the `.tsx` page or `/api` route you are working on takes effect
+immediately (mtime-busted re-import); `.css` changes hot-swap the stylesheet in
+the browser; other source changes clear route caches and reload the page; a
+`server.config.ts` or `.tsx` change restarts the worker. Server-pushed errors
+appear in the browser as a dismissable overlay, and a dead dev server shows a
+"disconnected" overlay that reloads when it returns. Schema sync runs before
+each boot, but only actually executes when a content hash of the schema sources
+(recorded under `.bakery/cache/`) has changed — so restarts stay fast.
+
+One honest limitation: only the route file's own mtime is checked. Editing a
+shared helper or component that a page imports needs a dev-server restart.
+
+## Configuration
+
+`server.config.ts` is optional — the defaults (`root: 'src'`, port 3000, host
+`0.0.0.0`, SQLite at `.data/server.db`) are a working config. `defineConfig`
+is an identity function that typechecks the object against `AppConfig`:
+
+```ts
+import { defineConfig } from '@bakery/core'
+
+export default defineConfig({
+  root: 'src',
+  port: 3000,
+  rateLimit: false,
+})
+```
+
+The rate limit is worth knowing about: an unconfigured app gets
+`{ max: 100, refill: 10 }` — a 100-request burst refilling at 10 requests per
+second, per client IP. The startup banner announces it, and `rateLimit: false`
+disables it. The full option surface is documented in
+[docs/configuration/server-config.md](docs/configuration/server-config.md).
+
+## Deployment
+
+`bunx bakery` with no flags is production mode: no watcher, no live reload, no
+implicit schema sync (pass `--sync`/`-s` to run one at startup). The port comes
+from `PORT` in the environment, then `port` in the config — there is no port
+flag. `--threads N` (`-t N`) forks a cluster of workers sharing one port via
+`SO_REUSEPORT`, which only Linux provides — on any other platform the count is
+clamped to 1 with a warning. Set `NODE_ENV=production` on production hosts; it
+is what arms the sync engine's destructive-change guard.
+
+The flag list is exactly `--dev`, `--sync`/`-s`, `--threads`/`-t`, and the
+internal worker markers. There is no `--help`, and unknown flags are silently
+ignored — `bakery --port 8080` starts a production server. See
+[docs/reference/cli.md](docs/reference/cli.md).
+
+## Documentation
+
+Everything lives in [`docs/`](docs/README.md), from installation to the
+architecture reference. Every TypeScript example in it is compiled against the
+real packages by `tests/docs-examples.test.ts`, so an example that stops
+working fails CI rather than the reader.
+
+## License
+
+MIT with the Commons Clause v1.0 condition — see [LICENSE](LICENSE).

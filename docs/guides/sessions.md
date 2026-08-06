@@ -23,18 +23,27 @@ nothing.
 On first read (`packages/core/src/session.ts`):
 
 1. The `sId` cookie is parsed out of the `Cookie` header.
-2. If it names a live, unexpired session, that one is returned and touched.
+2. If it names a live, unexpired session, that one is returned and marked
+   accessed — which slides expiry without counting as a write.
 3. Otherwise a new empty `Session` is created.
 
 On the way out, `processResponse` asks the session for a cookie
-(`packages/core/src/router.ts`). It returns one **only if the session
-was modified** (`session.ts`). Two consequences worth knowing:
+(`packages/core/src/router.ts`). It returns one **only if the session was
+modified, or the cookie has crossed half its `Max-Age`** since it was last
+issued (`session.ts`). Three consequences worth knowing:
 
 - An anonymous visitor who never writes to the session gets no cookie and no
   stored state. No consent banner is needed for a cookie that is never set.
-- Loading an existing session counts as a modification, because it is touched
-  (`session.ts`). That is what slides the expiry window forward and
-  refreshes `Max-Age` on every visit.
+- Merely *reading* a session does not re-issue the cookie or write the store.
+  It used to: every session-carrying response got a fresh `Set-Cookie`, which
+  made each response unique and defeated `If-None-Match` caching, and every
+  read dirtied the session into the next disk flush.
+- Sliding expiry still works. A read re-stamps the in-memory access time, and
+  once more than half the cookie's `Max-Age` has elapsed since it was last
+  issued, the next response re-issues it *and* re-persists the session — so the
+  stored row's access time renews at a cadence of at most half the timeout, and
+  an active session never ages out on either side. `session.touch()` forces the
+  refresh immediately.
 
 The header is **appended**, not set, so a login route that issues its own cookie
 keeps it (`router.ts`).
@@ -74,7 +83,8 @@ Two idle timeouts, both measured from last access
 | Ordinary session | **1 hour** |
 | Session with at least one persisted key | **30 days** |
 
-"Idle", not absolute: each request that touches the session restarts the clock.
+"Idle", not absolute: each request that touches the session restarts the clock —
+reads included, without costing a write (see above).
 
 Expiry is enforced twice. On read, an expired session is deleted and a fresh one
 returned (`session.ts`) — so a stolen id stops working at the timeout,

@@ -12,7 +12,10 @@ tune. Believing it validates your input leads to something worse.
 ### Rate limiting
 
 Every request passes a token bucket before any handler runs
-(`packages/cli/src/worker.ts`). Over budget returns `429`.
+(`packages/cli/src/worker.ts`). Over budget returns `429` with a `Retry-After`
+header; rejection logging is sampled per key so a flood cannot become a logging
+flood. The startup banner announces the limiter whenever the default value is
+in effect.
 
 Default: `{ max: 100, refill: 10 }` — burst 100, then 10 per second, keyed by
 client IP. Buckets live in a shared 1024-slot buffer
@@ -25,13 +28,18 @@ Configure it in `server.config.ts`; see
 
 ### Blocked paths
 
-A glob list is checked before routing and again in the static fallback
+A glob list is checked against every file-serving handler's path — route-only
+handlers (middleware, proxy, API) are exempt, since for them a path is a route
+name, not a file — and again in the static fallback
 (`packages/core/src/router.ts`,
 `packages/core/src/handlers/assets/static.ts`), returning `403`. The built-in
 list (`packages/core/src/utils/constants.ts`) covers `.env`, `*.db`,
-`*.sql`, `*.json`, `*.yaml`, `*.lock`, `.git/`, `node_modules/`, `.bakery/`,
-`.data/`, `server.config.ts` and `schema.ts`. Your `blocked` entries are added
-to it, never replace it.
+`*.sql`, `*.yaml`, `*.lock`, the project-describing JSON files
+(`package.json`, `tsconfig.json` and variants — deliberately not every
+`.json`), `.git/`, `node_modules/`, `.bakery/`, `.data/`, `server.config.ts`
+and `schema.ts`. Matching folds case and Win32 trailing dots, so shift-key
+variants are refused too. Your `blocked` entries are added to it, never
+replace it.
 
 Separately, static resolution refuses any path that escapes its root after
 resolution, and honours a `.forbidden` marker file in any parent directory
@@ -133,10 +141,13 @@ Bakery does not do these. If you need them, they are yours to add.
   schema check.
 - **Encryption at rest.** The SQLite database and the session store are plain
   files under `.data/`.
-- **Origin checks on WebSocket upgrades.** The CSRF guard covers `/api/` fetch
-  routes only; a WebSocket upgrade is not checked. `SameSite` does not apply to
-  WebSocket handshakes either, so authenticate inside your `WebSocketHandler`
-  and verify `Origin` there if the socket is privileged.
+- **Authentication on WebSocket upgrades.** Cross-origin handshakes *are*
+  refused — `upgradeWebsocket` compares the handshake's `Origin` hostname
+  against the request's own before consulting the registry
+  (`packages/core/src/utils/http/csrf.ts`, `router.ts`) — but that only stops
+  another *site*; a non-browser client sends no `Origin` and passes. Sockets
+  carrying anything sensitive still authenticate inside their own `canHandle`.
+  See [WebSockets](../guides/websockets.md#cross-origin-handshakes-are-refused-before-dispatch).
 - **Per-route or per-user rate limits.** One global bucket, keyed by IP unless
   you supply `keyBy`.
 - **Bot detection, CAPTCHA, account lockout, audit logging.**

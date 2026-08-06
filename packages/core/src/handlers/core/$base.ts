@@ -6,24 +6,51 @@ import { processBody } from '../../utils/http'
 
 const RX_PARAM = /[[\]{}()*+?.\\^$|]/g
 export const RX_DYNAMIC = /\[([\w$]+)\]/
+export const RX_CATCHALL = /\[\.\.\.([\w$]+)\]/
 
 export function getDynamicRoute(path: string): Handler.Dynamic.Route | null {
   const cleanPath = path.replace(/\\/g, '/').replace(/^\/+/, '')
-  if (!cleanPath || !RX_DYNAMIC.test(cleanPath)) return null
+  if (!cleanPath) return null
+  if (!RX_DYNAMIC.test(cleanPath) && !RX_CATCHALL.test(cleanPath)) return null
 
   const params: string[] = []
+  const segments = cleanPath.split('/')
+  const last = segments.length - 1
+  let catchAll = false
 
-  const mappedPaths = cleanPath.split('/').map(segment => {
+  const mappedPaths: string[] = []
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+
+    const catchAllMatch = segment.match(RX_CATCHALL)
+    if (catchAllMatch) {
+      // Only terminal: a segment after `[...x]` has no unambiguous meaning
+      // (which segments belong to the rest?), so the file stays inert — the
+      // same behavior it had before catch-alls existed.
+      if (i !== last) return null
+      params.push(catchAllMatch[1])
+      // `.+` rather than `.*`: the catch-all requires at least one segment,
+      // so `docs/[...slug]` does not shadow a `docs/index` sibling for
+      // `/docs` itself.
+      mappedPaths.push('(.+)')
+      catchAll = true
+      continue
+    }
+
     const dynamicMatch = segment.match(RX_DYNAMIC)
+    if (dynamicMatch) {
+      params.push(dynamicMatch[1])
+      mappedPaths.push('([^/]+?)')
+      continue
+    }
 
-    return dynamicMatch
-      ? (params.push(dynamicMatch[1]), '([^/]+?)')
-      : segment.replace(RX_PARAM, '\\$&')
-  })
+    mappedPaths.push(segment.replace(RX_PARAM, '\\$&'))
+  }
 
   return {
     pattern: new RegExp(`^/${mappedPaths.join('/')}(?:\\.([a-z]*))?$`),
     params,
+    catchAll,
   }
 }
 
@@ -35,6 +62,7 @@ export namespace RouteData {
     readonly params: string[]
     readonly valid: boolean
     readonly isDynamic: boolean
+    readonly catchAll: boolean
     readonly regex: RegExp | null
     getParams(path: string): MapOf<string> | null
   }
@@ -57,6 +85,7 @@ export class RouteData {
     readonly filePath: fs.AbsolutePath
     readonly path: fs.RelativePath
     readonly regex: RegExp | null
+    readonly catchAll: boolean
 
     constructor(filePath: fs.AbsolutePath, path: fs.RelativePath) {
       this.filePath = fs.resolve(filePath) as fs.AbsolutePath
@@ -65,6 +94,7 @@ export class RouteData {
       const route = getDynamicRoute(path)
       this.regex = route?.pattern || null
       this.params = route?.params || []
+      this.catchAll = route?.catchAll || false
     }
 
     get file() {
@@ -109,6 +139,8 @@ export namespace Handler {
     export type Route = {
       pattern: RegExp
       params: string[]
+      /** True when the final segment is a `[...name]` multi-segment matcher. */
+      catchAll?: boolean
     }
   }
 

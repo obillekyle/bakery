@@ -118,10 +118,12 @@ The example is configured for port 3000, the starter for 3100. **There is no
 PORT=8080 bunx bakery --dev
 ```
 
-Development mode runs schema sync on every boot before the server starts
-([packages/cli/src/dev.ts](../../packages/cli/src/dev.ts)), so you rarely need
-to run `db:sync` by hand while developing. Production does not; see
-[the CLI reference](../reference/cli.md).
+Development mode checks the schema on every boot and runs the full sync
+whenever the schema sources changed since the last successful one — a content
+hash under `.bakery/cache/` gates it, and `--sync` forces it
+([packages/cli/src/dev.ts](../../packages/cli/src/dev.ts)) — so you rarely need
+to run `db:sync` by hand while developing. Production does not sync at boot;
+see [the CLI reference](../reference/cli.md).
 
 ## What it writes to disk
 

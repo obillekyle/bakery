@@ -14,6 +14,12 @@ export type RouteScanOptions = {
   dynamicOnly?: boolean
 }
 
+// `[!.]` keeps catch-alls (`[...name]`) out of the single-param globs: they
+// are matched separately, and last — a catch-all is the weakest route form,
+// consulted only after specific files, single-param siblings and child-index
+// descent have all missed.
+const catchAllGlob = (ext: string) => new Bun.Glob(`[[]...*${ext || '.*'}`)
+
 const routeGlobs = (
   first: string,
   ext: string,
@@ -22,7 +28,7 @@ const routeGlobs = (
 ) => {
   if (options.dynamicOnly) {
     return [
-      new Bun.Glob(`[[]*${ext || '.*'}`),
+      new Bun.Glob(`[[][!.]*${ext || '.*'}`),
       new Bun.Glob(`\\*${ext || '.*'}`),
     ]
   }
@@ -45,9 +51,56 @@ const routeGlobs = (
 
   return [
     ...staticGlobs,
-    new Bun.Glob(`[[]*${ext || '.*'}`),
+    new Bun.Glob(`[[][!.]*${ext || '.*'}`),
     new Bun.Glob(`\\*${ext || '.*'}`),
   ]
+}
+
+/**
+ * The catch-all fallback for one directory level: `dir/[...name].ext`,
+ * containment-checked like every other candidate. Skipped for `staticOnly`
+ * (the caller wants a literal file), and it *yields to any real file*: when
+ * the request's remaining segments name an existing file under `dir` —
+ * whatever its extension — the catch-all declines, so a lower-priority
+ * handler (TSHandler, StaticHandler) can serve the file itself. A directory
+ * is not a file and does not trigger the yield. `findDynamicRoute` applies
+ * the same rule on the cached path; the two must agree.
+ */
+async function getCatchAllRoute(
+  ext: string,
+  dir: fs.AbsolutePath,
+  root: fs.AbsolutePath,
+  restSegments: string[],
+): Promise<Handler.Route.Info | null> {
+  const found = await catchAllGlob(ext)
+    .scan(GETFILE(dir))
+    .next()
+    .catch(() => null)
+  if (!found || found.done || !found.value) return null
+
+  if (restSegments.length) {
+    const target = fs.resolve(dir, restSegments.join('/'))
+    // Stat only inside `dir`. A rest containing `..` resolves outside it, and
+    // statting there would make this yield a boolean existence probe for any
+    // path on the filesystem — the 404-vs-render difference is observable.
+    // URL parsing normalises `..` and `%2e%2e` away, so no HTTP request
+    // reaches here with one; this closes the door for any caller that skips
+    // that normalisation. An escape skips the yield rather than refusing, so
+    // the catch-all answers exactly as it did before the yield rule existed.
+    // `dir` comes from `fs.resolve`, so the separator-suffixed prefix test is
+    // exact — plain `startsWith(dir)` would also accept a sibling directory
+    // whose name merely begins with it.
+    if (
+      (target === dir || target.startsWith(`${dir}/`)) &&
+      fs.isFileSync(target)
+    ) {
+      return null
+    }
+  }
+
+  const file = fs.resolve(found.value)
+  if (fs.isForbidden(file, root)) return null
+  return new RouteData.Info(file, fs.relative(root, file))
 }
 
 export async function getRoute(
@@ -116,11 +169,30 @@ export async function getRoute(
       const route = await getRoute('', exts, targetDir, root, options)
       if (route) return route
     }
+
+    // `first === 'index'` covers the bare-directory request (`/docs` arrives
+    // here as an injected 'index' segment): the catch-all pattern requires at
+    // least one rest segment, so it cannot match that request — returning the
+    // Info anyway would claim the route with null params.
+    if (!options.staticOnly && first !== 'index') {
+      return await getCatchAllRoute(ext, dir, root, [first])
+    }
   }
 
   if (count > 1) {
     const targetDir = fs.resolve(dir, first)
-    return await getRoute(pathArr, exts, targetDir, root, options)
+    const route = await getRoute(pathArr, exts, targetDir, root, options)
+    if (route) return route
+
+    // The walk above descends one real segment at a time and dead-ends when
+    // the next directory does not exist — which for a catch-all request
+    // (`/docs/a/b/c` against `docs/[...slug].tsx`) is the common case. Each
+    // level unwinds through here, so the deepest existing directory gets the
+    // first chance to claim the rest.
+    if (!options.staticOnly) {
+      return await getCatchAllRoute(ext, dir, root, [first, ...pathArr])
+    }
+    return null
   }
   return null
 }

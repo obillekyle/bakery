@@ -30,23 +30,30 @@ import { clearHostConfigCache, getConfigLoadError, initConfig } from './config'
 
 const ORIGINAL_CWD = process.cwd()
 
-// PROD may be a plain (absent) env var or the accessor init.ts installs —
-// which of the two depends on whether an earlier test file loaded init via
-// the CLI package. Deleting unconditionally removed the accessor and left
-// later files seeing a different PROD than they would in isolation; restoring
-// the captured value through whichever shape exists is order-independent.
-const HAD_PROD = 'PROD' in process.env
-const ORIGINAL_PROD = (process.env as any).PROD
-
-function restoreProd() {
-  if (HAD_PROD) {
-    ;(process.env as any).PROD = ORIGINAL_PROD
-    return
+// A mode flag may be a plain (absent) env var or the accessor init.ts
+// installs — which of the two depends on whether an earlier test file
+// evaluated init. Deleting unconditionally removed the accessor and left
+// later files seeing a different flag than they would in isolation:
+// init.test.ts's accessor-pair check failed on exactly this, and only on
+// Linux CI, whose test-file ordering evaluates init before this file runs.
+// Restoring the captured value through whichever shape exists is
+// order-independent.
+function flagRestorer(flag: string) {
+  const had = flag in process.env
+  const original = (process.env as any)[flag]
+  return () => {
+    if (had) {
+      ;(process.env as any)[flag] = original
+      return
+    }
+    const desc = Object.getOwnPropertyDescriptor(process.env, flag)
+    if (desc?.set) (process.env as any)[flag] = undefined
+    else delete (process.env as any)[flag]
   }
-  const desc = Object.getOwnPropertyDescriptor(process.env, 'PROD')
-  if (desc?.set) (process.env as any).PROD = undefined
-  else delete (process.env as any).PROD
 }
+
+const restoreProd = flagRestorer('PROD')
+const restoreWorker = flagRestorer('WORKER')
 
 let brokenDir: string
 let emptyDir: string
@@ -67,7 +74,7 @@ beforeAll(() => {
 
 afterAll(() => {
   process.chdir(ORIGINAL_CWD)
-  delete process.env.WORKER
+  restoreWorker()
   clearHostConfigCache()
   rmSync(brokenDir, { recursive: true, force: true })
   rmSync(emptyDir, { recursive: true, force: true })

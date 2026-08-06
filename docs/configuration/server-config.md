@@ -23,10 +23,17 @@ directory**, not against the framework
 (`packages/core/src/core/config.ts`). Run the server from the app
 directory, not from a monorepo root.
 
-The file is optional. If it is missing, or if importing it throws, the server
-logs and starts on the defaults below
+The file is optional. If it is missing, the server starts on the defaults below
 (`packages/core/src/core/config.ts`). Defaults are a usable
 configuration; the config file exists to change them, not to enable the server.
+
+A file that is **present but fails to import** is treated differently from an
+absent one (`config.ts`). In production the process refuses to start — the
+throw lands in the entry's catch and the process exits 1 — because booting on
+port 3000 with no plugins and no hosts is not what a broken config asked for.
+In development the server still boots on the defaults, but loudly: the import
+error is logged immediately and restated in the startup banner, where you are
+actually looking.
 
 The merge is a shallow spread of your object over the defaults
 (`config.ts`). There is no deep merge: if you set `websocket`, you replace
@@ -96,7 +103,15 @@ expect. See [Environment](environment.md).
 
 Rate limiting is **on by default**. Every request passes through a token bucket
 before any handler runs (`packages/cli/src/worker.ts`); over budget
-returns `429 Too Many Requests` with no body.
+returns `429 Too Many Requests` — the reason as a plain-text body, plus a
+`Retry-After` header saying when the bucket holds a token again. Rejections are
+logged at most once per key per 30 seconds, with a suppressed count, so a flood
+cannot turn the limiter into a logging flood.
+
+Because the default can surprise — it 429s load tests and busy shared-NAT
+offices — the startup banner announces it whenever the default value is in
+effect (`packages/core/src/startup.ts`). Configure any value of your own and
+the line disappears.
 
 ```ts
 import { defineConfig } from '@bakery/core'
@@ -156,8 +171,10 @@ hostname and scheme.
 
 ## Blocked paths
 
-`blocked` is a list of glob patterns that are refused with `403` before routing
-(`packages/core/src/router.ts`) and again in the static fallback
+`blocked` is a list of glob patterns that are refused with `403` whenever the
+handler about to answer serves files off disk — route-only handlers
+(middleware, proxy, API) are exempt (`packages/core/src/router.ts`) — and
+checked again in the static fallback
 (`handlers/assets/static.ts`). Patterns without a `**/` prefix get one, so
 `'secrets/**'` becomes `'**/secrets/**'` (`config.ts`).
 
@@ -165,15 +182,22 @@ Your patterns are **added to**, never replace, the built-in list
 (`packages/core/src/utils/constants.ts`):
 
 ```
-**/.env      **/*.env    **/*.sql     **/*.db      **/*.json
-**/*.yaml    **/*.yml    **/*.lock    **/.bakery/**
-**/.data/**  **/_internal/**          **/.git/**   **/.vscode/**
-**/node_modules/**       **/server.config.ts       **/schema.ts
-**/.gitignore            **/*.exe
+**/.env             **/*.env            **/*.sql          **/*.db
+**/package.json     **/package-lock.json
+**/tsconfig.json    **/tsconfig.*.json
+**/*.yaml           **/*.yml            **/*.lock         **/bun.lockb
+**/.bakery/**/*     **/.data/**/*       **/_internal/**/*
+**/.git/**/*        **/.vscode/**/*     **/node_modules/**/*
+**/server.config.ts **/schema.ts        **/.gitignore     **/*.exe
 ```
 
-Note `**/*.json` — a `.json` file under your serve root is not reachable over
-HTTP by default.
+There is deliberately no extension-wide ban on `.json`: it caught every JSON
+document an app might legitimately publish — a web app manifest, a
+`.well-known` file — and since `blocked` can only append, there was no way to
+opt back out. The named project files above are what the list actually
+protects. Matching also folds case and Win32 trailing dots/spaces, so
+`/PACKAGE.JSON` and `/package.json.` are refused too
+(`utils/constants.ts`).
 
 ## Proxy
 
@@ -269,16 +293,21 @@ through.
   errorBody }`. Return a `Response` to replace the error page; return nothing to
   fall through to the error-handler registry (`router.ts`). The default
   logs a warning tagged with the hostname (`config.ts`).
-- `onShutdown()` — declared and defaulted, but **nothing calls it**. The
-  shutdown path runs `Bakery.shutdownHooks` and plugin `onShutdown` hooks only
-  (`packages/cli/src/worker.ts`). Register cleanup with
-  `Bakery.onShutdown()` instead:
+- `onShutdown()` — runs **first** in the shutdown sequence, before the
+  framework's own hooks flush the caches and close the databases
+  (`packages/cli/src/shutdown.ts`). It goes first on purpose: it is the only
+  participant that may still need the framework intact, so a last session write
+  from here still lands. The whole sequence is bounded by a deadline, and each
+  step is isolated — a throwing hook is logged and the rest still run.
+
+`Bakery.onShutdown(fn)` also works, for a hook registered at runtime rather
+than in config; those run second, as part of the framework step:
 
 ```ts
 import { Bakery } from '@bakery/core'
 
 Bakery.onShutdown(async () => {
-  // flush, close, drain — this one actually runs
+  // flush, close, drain
 })
 ```
 

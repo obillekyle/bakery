@@ -59,16 +59,22 @@ bunx bakery --threads 4
   the budget across the cluster.
 - Worker `0` prints the startup banner; the rest are silent
   (`packages/core/src/startup.ts`).
-- A worker that exits unexpectedly is respawned after 100 ms
-  (`threads.ts`).
+- A worker that exits unexpectedly is respawned with exponential backoff:
+  100 ms, doubling per consecutive failure up to 30 s, so a worker that
+  crashes during boot (bad DB URL, port conflict) does not re-run its whole
+  startup ten times a second. A worker that survives a minute resets its
+  streak. There is deliberately no give-up ceiling (`threads.ts`).
 - Caches shrink in workers: session memory tier ÷4, prepared-statement cache
   15 instead of 50, SQLite page cache smaller
   (`packages/core/src/cache/tiered.ts`, `cache/shared-db.ts`).
 
-**On Windows, `--threads N` silently becomes 1** — there is no `SO_REUSEPORT`,
-so the master logs a warning and runs the server in-process
-(`threads.ts`, `:26-32`). `--threads` is ignored entirely under `--dev`
-(`index.ts`).
+**On any platform other than Linux, `--threads N` becomes 1** — kernel-level
+`SO_REUSEPORT` load balancing is Linux-only, so on Windows and macOS the master
+logs a warning naming the platform and runs the server in-process
+(`threads.ts`). A cluster of one is deliberately identical to plain `bakery`:
+the single-worker path does not set `THREAD_WORKER`, so none of the
+cache-shrinking a real worker does applies. `--threads` is ignored entirely
+under `--dev` (`index.ts`).
 
 Sessions are the one thing clustering complicates: each worker keeps its own
 in-memory tier and flushes to the shared SQLite store every 30 seconds. See
@@ -186,7 +192,8 @@ location / {
 
 The `Upgrade` lines are needed for WebSocket routes.
 
-**Rate limiting is already on** (100 burst, 10/s refill, per client IP). Do not
+**Rate limiting is already on** (100 burst, 10/s refill, per client IP) — the
+startup banner says so whenever the default is in effect. Do not
 add a second layer at the proxy without checking what the first one is doing —
 the knob you want is in `server.config.ts`. See
 [Server config](../configuration/server-config.md#rate-limiting).
@@ -238,9 +245,10 @@ work, or `Bakery.onShutdown(fn)` from anywhere for a hook registered at runtime.
 Give containers a real stop timeout rather than the default 10 seconds if your
 shutdown hooks do work.
 
-In cluster mode the master terminates its workers directly
-(`packages/cli/src/threads.ts`), so worker-side flushes are not
-guaranteed on shutdown.
+In cluster mode the master asks every worker to run its shutdown sequence and
+waits — up to 5 seconds — for each to acknowledge before terminating it
+(`packages/cli/src/threads.ts`). A wedged worker delays shutdown, never
+prevents it; only a worker that misses that deadline can lose buffered writes.
 
 ## Checklist
 

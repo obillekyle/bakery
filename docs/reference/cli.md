@@ -34,7 +34,7 @@ one of four files. Reading it alone will not tell you where requests are served.
 
 | Flag | Effect |
 | --- | --- |
-| `--dev` | development mode: file watcher, live reload, schema sync on every boot |
+| `--dev` | development mode: file watcher, live reload, schema sync when the schema changed |
 | `--threads N`, `-t N` | fork a cluster of N workers. **Production only** |
 | `--threads=N`, `-t=N` | same, `=` form |
 | `--sync`, `-s` | run schema sync before starting |
@@ -71,9 +71,16 @@ Runs `SyncService.run()` before dispatching, and is skipped inside dev workers
 and cluster workers so N processes do not race the same migration
 ([packages/cli/src/index.ts](../../packages/cli/src/index.ts)).
 
-**Development already does this.** `dev.ts` runs schema sync unconditionally on
-every boot ([packages/cli/src/dev.ts](../../packages/cli/src/dev.ts)), so
-`--sync` is really a production affordance:
+**Development largely does this for you.** `dev.ts` checks the schema on every
+boot, but runs the full sync only when a hash of the schema sources (plus the
+DB target) differs from the one recorded after the last *successful* sync — a
+failed sync never records, so the next boot re-syncs
+([packages/cli/src/dev.ts](../../packages/cli/src/dev.ts),
+[compiler/dev-service.ts](../../packages/core/src/compiler/dev-service.ts)).
+Any indeterminate state — unreadable sources, no recorded hash, a missing local
+database file — syncs rather than skips. Pass `--sync` to force it; the dev
+master forwards the flag to its worker so a forced sync survives restarts. In
+production, `--sync` is the only way sync runs at boot:
 
 ```bash
 bunx bakery --sync
@@ -90,20 +97,27 @@ The watcher decides per changed file
 
 | Changed | Result |
 | --- | --- |
-| `server.config.ts`, any `**/*.tsx` | worker exits 42; supervisor clears the screen and restarts it |
-| `.ts`, `.js`, `.html`, `.vue` | route caches cleared, live-reload message pushed |
+| `server.config.ts`, anything under the configured api directory | worker exits 42; supervisor restarts it (clearing the screen only if the worker had come up) |
+| `.ts`, `.js`, `.tsx`, `.jsx`, `.html`, `.vue` | route caches cleared, live-reload message pushed |
 | `.css` | live-reload message pushed |
 
-Ignored entirely: `node_modules`, `.git`, `.vscode`, `.cache`, `.bakery`, and a
-top-level `schema.ts`. Anything without a `.css/.html/.ts/.js/.tsx/.jsx/.vue`
-extension is dropped by an extension filter before any of the above
+`.tsx` pages deliberately take the cheap path: `TSXHandler` re-imports the page
+module with a `?v=<mtime>` cache-buster, so a page edit needs a browser reload,
+not a process restart. The one thing a restart still buys — flushing shared
+components a page *imports* — is a documented limitation; see
+[Your first app](../getting-started/first-app.md#what-reloading-does-and-does-not-do).
+
+Ignored entirely: `node_modules`, `.git`, `.vscode`, `.backups`, `.cache`,
+`.bakery`, `.data`, and `schema.ts` at **any** depth (the ORM schema
+convention — `orm/schema.ts` is covered too). Anything without a
+`.css/.html/.ts/.js/.tsx/.jsx/.vue` extension is dropped by an extension filter
 ([packages/core/src/compiler/dev-service.ts](../../packages/core/src/compiler/dev-service.ts)).
 
-> **Editing `package.json` or `bun.lock` does nothing at all** — not even a log
-> line. There is a branch meant to report those, but the extension filter runs
-> first and neither file matches it, so the branch is unreachable
-> ([packages/core/src/compiler/dev-service.ts](../../packages/core/src/compiler/dev-service.ts)).
-> Restart the dev server yourself after installing a dependency.
+> **Editing `package.json` or `bun.lock` logs a "changed" line and nothing
+> else** — deliberately no restart, because `bun install` rewrites the lockfile
+> several times and restarting on each would loop the dev server for the whole
+> install ([packages/core/src/compiler/dev-service.ts](../../packages/core/src/compiler/dev-service.ts)).
+> The line tells you a restart is warranted; you decide when.
 
 While the server is up and no prompt is waiting, the terminal is in raw mode and
 accepts two keys ([packages/core/src/compiler/dev-service.ts](../../packages/core/src/compiler/dev-service.ts)):
@@ -128,15 +142,23 @@ bunx bakery --threads 4
 
 - **Ignored under `--dev`**, with no warning. The dispatcher checks `!isDev`
   before taking the cluster branch.
-- **Windows is capped at 1 worker**, with a warning. Windows has no
-  `SO_REUSEPORT`, so several processes cannot share a port
+- **Every platform except Linux is capped at 1 worker**, with a warning naming
+  the platform. The multi-worker model needs kernel-level `SO_REUSEPORT` load
+  balancing, which only Linux provides — on macOS N sockets either fail to bind
+  or never receive balanced traffic
   ([packages/cli/src/threads.ts](../../packages/cli/src/threads.ts)).
 - `THREAD_ID` 0 owns the startup banner; the others start silently.
-- A worker that exits unexpectedly is respawned after 100 ms.
+- A worker that exits unexpectedly is respawned with exponential backoff —
+  100 ms doubling per consecutive failure, capped at 30 s, streak reset after
+  a minute of survival. There is no give-up ceiling.
 - Workers share one `SharedArrayBuffer` for the rate limiter and request
   counters, passed at spawn.
-- With `--threads 1` (or on Windows) no cluster is created at all: the process
-  sets `THREAD_WORKER=1` and runs the production path in-process.
+- With `--threads 1` (or on any non-Linux platform) no cluster is created at
+  all: the process sets `THREAD_ID=0` and runs the production path in-process.
+  `THREAD_WORKER` is deliberately **not** set — it is the flag that scales
+  caches down for N-way memory sharing, and a single worker owning the whole
+  process would pay that for nothing. A cluster of one behaves identically to
+  plain `bakery`.
 
 ### Exit codes
 

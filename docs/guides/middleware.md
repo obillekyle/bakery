@@ -150,10 +150,11 @@ What this means for you:
   it is in the same registry and behind the same cache.
 - Middleware that only needs to run once per path — priming a cache, logging a
   first hit — is unaffected.
-- In development the problem hides: edits to `server.config.ts`, `api/**` or any
-  `.tsx` restart the dev worker (`compiler/dev-service.ts`), which empties
-  the cache. It reappears the moment you stop editing, and in production it is
-  permanent.
+- In development the problem hides: edits to `server.config.ts` or anything
+  under the api directory restart the dev worker
+  (`compiler/dev-service.ts`), which empties the cache. `.tsx` edits no longer
+  restart the process, so they no longer mask it. It reappears the moment you
+  stop editing, and in production it is permanent.
 
 ## WebSocket upgrades never reach middleware
 
@@ -173,7 +174,8 @@ above everything (`packages/cli/src/worker.ts`).
 
 `req.session` is a lazily-created `Session` bound by the worker
 (`worker.ts`). Touching it creates a session; the cookie is emitted by
-`processResponse` only if the session was modified. See [Sessions](sessions.md).
+`processResponse` only if the session was modified or its cookie is past half
+its `Max-Age`. See [Sessions](sessions.md).
 
 `req.__hostname` is the resolved hostname, and `Bakery.config` inside a
 middleware already reflects the per-host merge — the whole request runs inside

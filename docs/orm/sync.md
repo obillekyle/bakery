@@ -17,14 +17,19 @@ the app directory, not the repo root.
 
 | Mode | Runs sync? |
 | --- | --- |
-| `bun run dev` | **Yes**, on every dev-worker boot |
+| `bun run dev` | **Yes, when the schema changed** — skipped when a hash of the schema sources matches the one recorded after the last successful sync |
 | `bun run serve` (production) | **No** |
-| `bakery --sync` / `-s` | Yes, before the server boots |
+| `bakery --sync` / `-s` | Yes, before the server boots — and forces the dev sync past the hash check |
 | `bun run db:sync` | Yes, and then exits |
 
 Development syncs itself: `dev.ts` calls `SyncService.run()` after config and
-plugins are loaded and before the worker starts
-([`packages/cli/src/dev.ts`](../../packages/cli/src/dev.ts)).
+plugins are loaded and before the worker starts, unless a hash of the schema
+sources and the DB target matches the one recorded under `.bakery/cache/` after
+the previous *successful* sync
+([`packages/cli/src/dev.ts`](../../packages/cli/src/dev.ts)). The check fails
+closed: unreadable sources, no recorded hash, or a missing local database file
+all sync rather than skip, and a failed sync never records the hash — the next
+boot re-syncs.
 
 **Production does not.** `prod.ts` calls `initDB()` and nothing else
 ([`packages/cli/src/prod.ts`](../../packages/cli/src/prod.ts)). A production
@@ -125,8 +130,8 @@ When it is:
 1. The plan is printed under a `DANGER ZONE` heading.
 2. **Development** asks for confirmation. Declining exits without touching
    anything.
-3. **Production** (`NODE_ENV=production` or `PROD=true`) refuses outright unless
-   `--force-sync` is passed, and exits 1.
+3. **Production** (`NODE_ENV=production`, and only that) refuses outright
+   unless `--force-sync` is passed, and exits 1.
 4. A database backup is taken before execution. If the backup did **not**
    happen — an in-memory database, a missing `pg_dump`/`mysqldump`, a thrown
    error — the sync aborts rather than proceeding without a recoverable copy.

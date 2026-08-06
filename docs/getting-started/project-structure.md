@@ -123,9 +123,10 @@ src/error-404           → src/error
 Then the framework's built-in page. Errors under `/api/` never reach any of
 this — `ApiErrorHandler` returns the JSON envelope with the right status code.
 
-> Custom HTML and TSX error pages are currently served with **HTTP 200**. The
-> page renders and the body is right, but the status is not applied. Verified
-> against a running server.
+Custom HTML and TSX error pages are served with the real error status:
+`applyErrorStatus` stamps the error's code (400–599) onto the rendered response
+([packages/core/src/router.ts](../../packages/core/src/router.ts)), so an
+`error-404.html` answers with a 404, not a 200.
 
 ## Reserved URL prefixes
 
@@ -150,29 +151,28 @@ it.
 
 ## Files that are never served
 
-Even inside the serve root, a set of globs is refused before any handler runs
+Even inside the serve root, a set of globs is refused whenever a file-serving
+handler would answer
 ([packages/core/src/utils/constants.ts](../../packages/core/src/utils/constants.ts)):
 
 ```
-.env  *.env  *.sql  *.db  *.json  *.yaml  *.yml  *.lock  *.exe
-.bakery/**  .data/**  _internal/**  .git/**  .vscode/**  node_modules/**
+.env  *.env  *.sql  *.db  *.yaml  *.yml  *.lock  bun.lockb  *.exe
+package.json  package-lock.json  tsconfig.json  tsconfig.*.json
+.bakery/  .data/  _internal/  .git/  .vscode/  node_modules/
 server.config.ts  schema.ts  .gitignore
 ```
 
 `blocked` in `server.config.ts` appends to that list; it cannot shorten it.
 
-The check is on the **request path**, and it happens in `handleRequest` before
-any handler runs — including middleware and plugins
-([packages/core/src/router.ts](../../packages/core/src/router.ts)). So it is
-not "these files are hidden", it is "these URL shapes are 403". That has one
-consequence worth planning around:
-
-> **Any URL ending in `.json` returns 403, everywhere.** Not just static files —
-> `/manifest.json`, `/uploads/manifest.json`, `/.well-known/x.json` and even
-> `/api/manifest.json` are all refused before routing. Verified against a
-> running server. To serve JSON content at a fixed path, use an extensionless
-> route (`/api/manifest`) and set the content type yourself. The same applies to
-> `.yaml`, `.yml`, `.sql`, `.db` and `.lock`.
+The check is on the **request path**, applied after routing and only to the
+handlers that serve files off disk — middleware, the proxy and the API handler
+are exempt, because for them a path is a route name, not a file
+([packages/core/src/router.ts](../../packages/core/src/router.ts)). So
+`/api/manifest.json` routes normally, while `/package.json` is a 403 from every
+file-serving handler. Case and Win32 trailing-dot variants are folded before
+matching, so `/PACKAGE.JSON` is refused too. There is deliberately no blanket
+`*.json` ban — a `manifest.json` or `.well-known` document under `src/` is
+servable; only the named project files are protected.
 
 Traversal is checked separately: a resolved path must sit inside the root it was
 resolved against, and `fs.isForbidden` additionally refuses any directory
