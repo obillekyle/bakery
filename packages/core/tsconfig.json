@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@server/*": ["./src/*"],
+      "@plugins/*": ["./src/plugins/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
+  "$comment": "src/client/** was excluded until the duplicate ambient declarations were removed; it now typechecks with the rest.",
+  "exclude": ["src/.cache/**/*"]
+}
