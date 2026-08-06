@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+# A newer push to the same branch makes the older run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: test + typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # 651 tests across 56 files, including tests/conventions.test.ts, which
+      # is what keeps the repo conventions from rotting across six packages.
+      - name: Test
+        run: bun run test
+
+      # Nine projects, and the baseline is zero. Not "zero new" — zero. tsc
+      # exits non-zero on any error, so this needs no threshold logic.
+      - name: Typecheck
+        run: bun run typecheck
+
+  adapters:
+    name: live adapter round-trips
+    runs-on: ubuntu-latest
+
+    # MySQL and Postgres were trusted on faith while their quoting,
+    # placeholders and DDL were edited repeatedly; six real defects turned up
+    # the moment anything looked. Only SQLite can be exercised without a
+    # server, so these two get one here.
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: bakery
+          MYSQL_DATABASE: bakery_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pbakery"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: bakery
+          POSTGRES_DB: bakery_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      MYSQL_TEST_URL: mysql://root:bakery@127.0.0.1:3306/bakery_test
+      PGSQL_TEST_URL: postgres://postgres:bakery@127.0.0.1:5432/bakery_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: ORM suite against real MySQL and Postgres
+        run: bun test ./packages/orm 2>&1 | tee orm-test.log
+
+      # The gated tests report as *skipped* without a connection string, so a
+      # misconfigured service container yields a green job that tested nothing
+      # against a real server -- the exact outcome this job exists to prevent.
+      # Anything skipped here means the URLs did not reach the tests.
+      - name: Fail if the live tests were skipped rather than run
+        run: |
+          if grep -qE "^ *[1-9][0-9]* skip" orm-test.log; then
+            echo "::error::Adapter tests were SKIPPED in the live job."
+            echo "MYSQL_TEST_URL / PGSQL_TEST_URL did not reach the suite, so"
+            echo "nothing ran against a real server. Green here would be a lie."
+            grep -E "^ *[0-9]+ (pass|skip|fail)" orm-test.log
+            exit 1
+          fi
+          echo "No skips: the live half genuinely ran."
