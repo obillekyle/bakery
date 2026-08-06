@@ -112,6 +112,13 @@ export class DynamicHandler extends Handler {
       return info
     }
     if (deferred) {
+      // A real file always beats a catch-all, whatever handler would serve
+      // it: when the requested path names an existing file, every catch-all
+      // declines so the file's own handler (possibly lower-priority — CSS
+      // falls all the way to StaticHandler) gets asked. One stat, paid only
+      // when a catch-all is about to answer. `getCatchAllRoute` applies the
+      // same rule on the discovery path; the two must agree.
+      if (fs.isFileSync(root + path)) return null
       // Longest route path first: `docs/guides/[...rest]` beats
       // `docs/[...rest]` for the paths both match.
       if (deferred.length > 1) {

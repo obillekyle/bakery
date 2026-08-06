@@ -149,11 +149,28 @@ keep it predictable (`$base.ts`, `$routing.ts`, `$dynamic.ts`):
   (`docs/[id].tsx`), a child index (`docs/a/index.tsx`) and a deeper catch-all
   (`docs/guides/[...rest].tsx`) all win first. Only what nothing else claims
   falls through to it.
+- **A real file always wins — even across handlers.** When the requested path
+  names an existing file, the catch-all declines *before* answering, so the
+  file's own handler serves it even when that handler has lower priority:
+  `docs/style.css` next to `docs/[...slug].tsx` is served by `StaticHandler`
+  (priority 0), not rendered by the page (priority 60). This is the one
+  exception to "priority beats specificity", deliberately scoped to
+  catch-alls: a single-param `[id].tsx` keeps the documented behavior and
+  does claim `/docs/style.css`. Directories are not files — a path naming a
+  directory with no index still falls to the catch-all.
 - **It never claims its own directory.** `/docs` is not matched by
   `docs/[...slug].tsx` — the pattern requires at least one rest segment, so a
   bare `/docs` still means `docs/index.*` or a 404.
-- **Only terminal.** `[...slug]` anywhere but the last segment makes the file
-  inert (nothing may follow a catch-all).
+- **Only terminal, and only a filename.** `[...slug]` anywhere but the last
+  segment makes the file inert (nothing may follow a catch-all), and a
+  *directory* named `[...slug]/` routes nothing at all — discovery matches
+  files only, so `[...slug]/index.html` is dead weight.
+
+One inherited limitation: params mix freely within the final filename's
+pattern, but discovery never descends bracket-named *directories* — neither
+`[id]/[...slug].tsx` nor `[category]/[slug].tsx` is reachable, because the
+segment walk resolves literal directory names only (`$routing.ts`). Dynamic
+folders have never been discoverable; catch-alls do not change that.
 
 The catch-all works in every dynamic handler — `api/[...path].ts` gives you a
 single endpoint for an entire API subtree, and pairs with the middleware guide's

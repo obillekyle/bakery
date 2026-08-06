@@ -247,3 +247,34 @@ describe('findDynamicRoute — catch-all ordering', () => {
     expect(hit!.getParams('/docs/a/b/c')).toEqual({ slug: 'a/b/c' })
   })
 })
+
+describe('findDynamicRoute — catch-alls yield to real files', () => {
+  class YieldHandler extends DynamicHandler {}
+  const Y_ROOT = fs.resolve(ROUTE_DIR, 'yield')
+
+  beforeAll(async () => {
+    await Bun.write(`${Y_ROOT}/site/[...rest].tsx`, 'export default () => null\n')
+    await Bun.write(`${Y_ROOT}/site/app.css`, 'body{}\n')
+    __setTestConfig({ root: Y_ROOT } as any)
+    const info = new RouteData.Info(
+      `${Y_ROOT}/site/[...rest].tsx` as fs.AbsolutePath,
+      'site/[...rest].tsx',
+    )
+    YieldHandler.dynamicCache.set(info.regex!, info)
+  })
+
+  afterAll(() => {
+    __resetTestConfig()
+    YieldHandler.dynamicCache.clear()
+  })
+
+  test('a cached catch-all declines when the request names a real file', () => {
+    expect(YieldHandler.findDynamicRoute('/site/app.css')).toBeNull()
+  })
+
+  test('and still answers when it does not', () => {
+    const hit = YieldHandler.findDynamicRoute('/site/some/page')
+    expect(hit).not.toBeNull()
+    expect(hit!.getParams('/site/some/page')).toEqual({ rest: 'some/page' })
+  })
+})

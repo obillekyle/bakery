@@ -59,20 +59,31 @@ const routeGlobs = (
 /**
  * The catch-all fallback for one directory level: `dir/[...name].ext`,
  * containment-checked like every other candidate. Skipped for `staticOnly`
- * (the caller wants a literal file) — and note the *file* is what must pass
- * `isForbidden`; the request's deeper, possibly nonexistent path segments
- * never touch the filesystem.
+ * (the caller wants a literal file), and it *yields to any real file*: when
+ * the request's remaining segments name an existing file under `dir` —
+ * whatever its extension — the catch-all declines, so a lower-priority
+ * handler (TSHandler, StaticHandler) can serve the file itself. A directory
+ * is not a file and does not trigger the yield. `findDynamicRoute` applies
+ * the same rule on the cached path; the two must agree.
  */
 async function getCatchAllRoute(
   ext: string,
   dir: fs.AbsolutePath,
   root: fs.AbsolutePath,
+  restSegments: string[],
 ): Promise<Handler.Route.Info | null> {
   const found = await catchAllGlob(ext)
     .scan(GETFILE(dir))
     .next()
     .catch(() => null)
   if (!found || found.done || !found.value) return null
+
+  if (
+    restSegments.length &&
+    fs.isFileSync(fs.resolve(dir, restSegments.join('/')))
+  ) {
+    return null
+  }
 
   const file = fs.resolve(found.value)
   if (fs.isForbidden(file, root)) return null
@@ -151,7 +162,7 @@ export async function getRoute(
     // least one rest segment, so it cannot match that request — returning the
     // Info anyway would claim the route with null params.
     if (!options.staticOnly && first !== 'index') {
-      return await getCatchAllRoute(ext, dir, root)
+      return await getCatchAllRoute(ext, dir, root, [first])
     }
   }
 
@@ -166,7 +177,7 @@ export async function getRoute(
     // level unwinds through here, so the deepest existing directory gets the
     // first chance to claim the rest.
     if (!options.staticOnly) {
-      return await getCatchAllRoute(ext, dir, root)
+      return await getCatchAllRoute(ext, dir, root, [first, ...pathArr])
     }
     return null
   }

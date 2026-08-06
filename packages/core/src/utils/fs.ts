@@ -1,4 +1,4 @@
-import { existsSync as nodeExistsSync } from 'node:fs'
+import { existsSync as nodeExistsSync, statSync as nodeStatSync } from 'node:fs'
 import { mkdir as fsMkdir, rm as fsRm } from 'node:fs/promises'
 import { readFileSync as fsRfs } from 'node:fs'
 import { dirname as nodeDirname, relative as nodeRelative, resolve } from 'node:path'
@@ -282,6 +282,15 @@ export namespace FileSystem {
 
   export function existsSync(path: string): boolean {
     return nodeExistsSync(path)
+  }
+
+  /**
+   * True only for an existing regular *file* — a directory answers false.
+   * Sync because `findDynamicRoute` (a sync hot-path scan) is a caller; one
+   * stat, no BunFile allocation.
+   */
+  export function isFileSync(path: string): boolean {
+    return nodeStatSync(path, { throwIfNoEntry: false })?.isFile() ?? false
   }
 
   /**

@@ -71,3 +71,33 @@ describe('getRoute — catch-all discovery', () => {
     expect(await find('/w')).toBeNull()
   })
 })
+
+describe('getRoute — catch-alls yield to real files', () => {
+  beforeAll(async () => {
+    await Bun.write(`${ROOT}/q3/[...rest].tsx`, 'export default () => null\n')
+    await Bun.write(`${ROOT}/q3/style.css`, 'body{}\n')
+    await Bun.write(`${ROOT}/q3/img/logo.png`, 'png\n')
+    await Bun.write(`${ROOT}/q3/sub/thing.txt`, 'txt\n')
+  })
+
+  test('a same-level literal file is never claimed, whatever its extension', async () => {
+    expect(await find('/q3/style.css')).toBeNull()
+  })
+
+  test('a deeper literal file is never claimed either', async () => {
+    expect(await find('/q3/img/logo.png')).toBeNull()
+  })
+
+  test('a directory path (not a file) still falls to the catch-all', async () => {
+    const info = await find('/q3/sub')
+    expect(info!.path).toBe('q3/[...rest].tsx')
+    expect(info!.getParams('/q3/sub')).toEqual({ rest: 'sub' })
+  })
+
+  test('paths with no on-disk counterpart still serve', async () => {
+    const info = await find('/q3/anything/else')
+    expect(info!.getParams('/q3/anything/else')).toEqual({
+      rest: 'anything/else',
+    })
+  })
+})
