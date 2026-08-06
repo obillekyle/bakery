@@ -1,0 +1,14 @@
+{
+  "extends": "@bakery/core/tsconfig.app.json",
+  "compilerOptions": {
+    "jsx": "react",
+    "jsxFactory": "createElement",
+    "jsxFragmentFactory": "Fragment"
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "orm/**/*.ts",
+    "server.config.ts"
+  ]
+}

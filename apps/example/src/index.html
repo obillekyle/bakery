@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bakery 🥖</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/counter.css" />
+  <script src="/script/index.ts" defer></script>
+</head>
+
+<body>
+  <main class="container">
+    <header class="hero">
+      <div class="logo-wrapper">
+        <span class="logo-emoji">🥖</span>
+      </div>
+      <h1 class="gradient-text">Bakery</h1>
+      <p class="subtitle">The ridiculously fast, zero-config full-stack starter with smart caching.</p>
+    </header>
+
+    <div class="card-grid">
+      <!-- Feature: Caching & Performance -->
+      <section class="card glass-effect">
+        <div class="card-header">
+          <span class="card-icon">⚡</span>
+          <h2>Ultra Caching</h2>
+        </div>
+        <p class="card-desc">Features in-memory caching layers: Route Caching, Error Page Caching, and HTML Page
+          Caching. Serves pages in under <strong>2ms</strong> (a 40x speedup!).</p>
+        <div class="counter-widget">
+          <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+            Caches are automatically cleared when any file is modified in dev mode.
+          </div>
+          <button type="button" id="perf-test-btn" class="primary-btn">
+            Test Route Speed
+          </button>
+          <div id="perf-result"
+            style="font-family: var(--font-mono); font-size: 0.9rem; text-align: center; color: var(--secondary-accent);">
+            // Click button to run speed check
+          </div>
+        </div>
+      </section>
+
+      <!-- Feature: Route Prioritization -->
+      <section class="card glass-effect">
+        <div class="card-header">
+          <span class="card-icon">🛡️</span>
+          <h2>Route Prioritization</h2>
+        </div>
+        <p class="card-desc">Matches and resolves specific templates (like <code>existing.tsx</code>) before resolving
+          wildcard routes (like <code>[id].html</code>), avoiding dynamic routing conflicts.</p>
+        <div class="api-widget">
+          <a href="/blog/existing.html" class="primary-btn">
+            Demo Priority (existing.tsx)
+          </a>
+          <a href="/blog/123.html" class="secondary-btn">
+            Demo Wildcard ([id].html)
+          </a>
+        </div>
+      </section>
+
+      <!-- Feature: Smart LiveReload -->
+      <section class="card glass-effect">
+        <div class="card-header">
+          <span class="card-icon">🔄</span>
+          <h2>Smart LiveReload</h2>
+        </div>
+        <p class="card-desc">Automatically reloads active page. It also reloads when the error page file you are
+          currently viewing (like <code>error-404.html</code>) is updated!</p>
+        <div class="api-widget">
+          <a href="/non-existent-route" class="primary-btn">
+            View Custom 404
+          </a>
+          <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+            Try editing <code>/error-404.html</code> while viewing it. It will instantly hot-reload!
+          </div>
+        </div>
+      </section>
+
+      <!-- Feature: API Testing -->
+      <section class="card glass-effect">
+        <div class="card-header">
+          <span class="card-icon">📡</span>
+          <h2>File-Based Routing</h2>
+        </div>
+        <p class="card-desc">Endpoints correspond to files. Submitting to the button below calls
+          <code>api/hello.ts</code> instantly.
+        </p>
+        <div class="api-widget">
+          <button type="button" id="api-btn" class="primary-btn">
+            Fetch /api/hello
+          </button>
+          <div class="terminal-window">
+            <div class="terminal-header">
+              <span class="dot red"></span>
+              <span class="dot yellow"></span>
+              <span class="dot green"></span>
+            </div>
+            <pre id="api-response" class="terminal-body">// Awaiting request...</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Feature: Server-Side JSX -->
+      <section class="card glass-effect">
+        <div class="card-header">
+          <span class="card-icon">⚛️</span>
+          <h2>Server-Side JSX</h2>
+        </div>
+        <p class="card-desc">Renders React-like TSX components directly on the server into fast-loading static HTML
+          strings.</p>
+        <div class="api-widget">
+          <a href="/jsx" class="primary-btn">
+            View TSX Page
+          </a>
+        </div>
+      </section>
+
+      <!-- Feature: Interactive Counter -->
+      <section class="card glass-effect">
+        <div class="card-header">
+          <span class="card-icon">🔢</span>
+          <h2>Interactive Counter</h2>
+        </div>
+        <p class="card-desc">Click to increment. Feel free to tweak <code>styles/counter.css</code> to hot-swap styles
+          without resetting counter state!</p>
+        <div class="counter-widget">
+          <div class="counter-display">
+            <span id="counter-value">0</span>
+          </div>
+          <button type="button" id="increment-btn" class="primary-btn">
+            Increment Counter
+          </button>
+        </div>
+      </section>
+
+      <!-- Feature: Session Inspector -->
+      <section class="card glass-effect">
+        <div class="card-header">
+          <span class="card-icon">🕵️‍♂️</span>
+          <h2>Session & Headers</h2>
+        </div>
+        <p class="card-desc">Inspect HTTP request metadata, request headers, client IP, and cookie-based user sessions.
+        </p>
+        <div class="api-widget">
+          <a href="/session" class="primary-btn">
+            Inspect Session
+          </a>
+        </div>
+      </section>
+    </div>
+
+    <footer class="footer">
+      <p>Check out the <a href="https://github.com/obillekyle/bun-server" target="_blank">documentation</a> to learn
+        more.</p>
+    </footer>
+  </main>
+</body>
+
+</html>

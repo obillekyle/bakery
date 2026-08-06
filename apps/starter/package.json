@@ -1,0 +1,16 @@
+{
+  "name": "@bakery/starter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A second consumer, written against public entry points only.",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --smol run ../../packages/cli/src/index.ts --dev",
+    "db:sync": "bun --smol run ../../packages/orm/src/sync"
+  },
+  "dependencies": {
+    "@bakery/core": "workspace:*",
+    "@bakery/cli": "workspace:*",
+    "@bakery/orm": "workspace:*"
+  }
+}

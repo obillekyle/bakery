@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Error | Bakery 🚀</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/counter.css" />
+  <script src="/script/index.ts" defer></script>
+</head>
+
+<body>
+  <main class="container">
+    <header class="hero">
+      <div class="logo-wrapper">
+        <span class="logo-emoji">⚠️</span>
+      </div>
+      <h1 class="gradient-text">Something Went Wrong</h1>
+      <p class="subtitle">This is a catch-all error page.</p>
+    </header>
+
+    <div class="card-grid">
+      <section class="card glass-effect full-width">
+        <div class="card-header">
+          <span class="card-icon">🐛</span>
+          <h2>Unexpected Issue (Status: {{errorCode, 500}})</h2>
+        </div>
+        <p class="card-desc"
+          style="font-weight: 500; color: #ff5555; background: rgba(255, 85, 85, 0.08); padding: 10px 14px; border-radius: 6px; border-left: 3px solid #ff5555; margin-bottom: 16px;">
+          {{errorBody, Internal Server Error}}
+        </p>
+
+        <div style="margin-top: 16px; text-align: left;">
+          <p
+            style="margin-bottom: 6px; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: #90a4ae;">
+            Error Details / Response Body</p>
+          <pre
+            style="background: rgba(0, 0, 0, 0.25); padding: 12px; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.85rem; color: #eceff1; border: 1px solid rgba(255, 255, 255, 0.08); max-height: 250px;">{{errorBody, Internal Server Error}}</pre>
+        </div>
+
+        <div class="action-group center" style="margin-top: 24px;">
+          <a href="/" class="primary-btn">
+            Go Back Home
+          </a>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+
+</html>

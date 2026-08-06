@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>404 - Page Not Found | Bakery 🚀</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/counter.css" />
+  <script src="/script/index.ts" defer></script>
+</head>
+
+<body>
+  <main class="container">
+    <header class="hero">
+      <div class="logo-wrapper">
+        <span class="logo-emoji">⛓️‍💥</span>
+      </div>
+      <h1 class="gradient-text">Lost in Spaces? (Error {{errorCode, 404}})</h1>
+      <p class="subtitle">We couldn't find the page you were looking for.
+        <br>Edit <code>/error-404.html</code>
+      </p>
+    </header>
+
+    <div class="card-grid">
+      <section class="card glass-effect full-width">
+        <div class="card-header">
+          <span class="card-icon">🔍</span>
+          <h2>Page Not Found</h2>
+        </div>
+        <p class="card-desc">It might have been moved, deleted, or never existed in the first place.<br><strong
+            style="color: #ffb74d;">Details:</strong> {{errorBody, Not Found}}</p>
+        <div class="action-group center">
+          <a href="/" class="primary-btn">
+            Go Back Home
+          </a>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+
+</html>

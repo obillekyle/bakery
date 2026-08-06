@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Static Blog Page | Bakery 🚀</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/counter.css" />
+  <script src="/script/index.ts" defer></script>
+</head>
+
+<body>
+  <main class="container">
+    <header class="hero">
+      <div class="logo-wrapper">
+        <span class="logo-emoji">📝</span>
+      </div>
+      <h1 class="gradient-text">Static Dynamic Blog</h1>
+      <p class="subtitle">Resolved from: <code>blog/[id].html</code></p>
+    </header>
+
+    <div class="card-grid">
+      <section class="card glass-effect full-width">
+        <div class="card-header">
+          <span class="card-icon">📄</span>
+          <h2>Injected Route Parameters</h2>
+        </div>
+        <p class="card-desc">
+          This is a static HTML page. It cannot render server-side variables directly. However, the server automatically
+          injects <code>window.params</code> containing parsed path variables.
+        </p>
+
+        <div
+          style="background: rgba(0, 0, 0, 0.25); padding: 1.5rem; border-radius: 1rem; margin-bottom: 1.5rem; border: 1px solid rgba(255, 255, 255, 0.05);">
+          <div style="font-size: 1.1rem; margin-bottom: 0.5rem;">
+            <strong>Extracted Post ID:</strong> <span id="post-id-display"
+              style="color: #27c93f; font-weight: bold; font-family: var(--font-mono);">Loading...</span>
+          </div>
+          <div style="font-size: 0.9rem; color: var(--text-muted);">
+            Passed to javascript via
+            <code>Bakery.params()</code>
+          </div>
+        </div>
+
+        <div class="action-group center">
+          <a href="/" class="primary-btn" style="max-width: 250px;">
+            Go Back
+          </a>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    // Wait for DOM to load, then read injected window.params
+    document.addEventListener('DOMContentLoaded', () => {
+      const postIdDisplay = document.getElementById('post-id-display');
+      const params = Bakery.params();
+      console.log('Injected params:', params);
+      if (postIdDisplay && params.id) {
+        postIdDisplay.textContent = params.id;
+      } else if (postIdDisplay) {
+        postIdDisplay.textContent = 'None';
+      }
+    });
+  </script>
+</body>
+
+</html>
