@@ -33,11 +33,12 @@ const threadId =
  * These are `process.env` properties, and a getter with no setter is readonly:
  * in strict-mode ESM an assignment to one throws
  * `TypeError: Attempted to assign to readonly property`. `threads.ts` assigns
- * `THREAD_WORKER = '1'` and `THREAD_ID = '0'` on the single-worker and Windows
- * paths, wrapped in `Try(...)`, so the throw was swallowed and the flags never
- * moved — `reusePort`, the per-worker cache scaling and the startup banner all
- * silently read the master's values. The `Try(...)` was what made a dead code
- * path look deliberate.
+ * `THREAD_ID = '0'` on the single-worker/clamped path (deliberately not
+ * `THREAD_WORKER` — a cluster of one must keep full-size caches). When the
+ * assignment was getter-only it was wrapped in `Try(...)`, so the throw was
+ * swallowed and the flags never moved — `reusePort`, the per-worker cache
+ * scaling and the startup banner all silently read the master's values. The
+ * `Try(...)` was what made a dead code path look deliberate.
  */
 const accessor = (initial: any) => {
   let value = initial

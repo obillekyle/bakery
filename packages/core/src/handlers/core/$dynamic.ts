@@ -3,7 +3,13 @@ import { hostKey } from '../../core/bakery'
 import { errorMsg, handlerLog } from '../../logger/serve-log'
 import type { MixedPromise } from '../../types'
 import { fs, Try } from '../../utils'
-import { Handler, HandlerCache, type Route, RX_DYNAMIC } from './$base'
+import {
+  Handler,
+  HandlerCache,
+  type Route,
+  RX_CATCHALL,
+  RX_DYNAMIC,
+} from './$base'
 import { resolveMount } from './$mounts'
 import { getRoute } from './$routing'
 
@@ -35,7 +41,9 @@ export class DynamicHandler extends Handler {
 
   static canHandle(path: string, req?: Request): MixedPromise<boolean>
   static async canHandle(path: string) {
-    if (RX_DYNAMIC.test(path)) return false
+    // A request path spelled like a route template ('/blog/[id]' or
+    // '/docs/[...slug]') addresses the template file, not a route.
+    if (RX_DYNAMIC.test(path) || RX_CATCHALL.test(path)) return false
     if (this.cache.has(hostKey(path))) return true
     // The dynamic half of the line above. A dynamic route is never written to
     // `this.cache`, so without this every request to one ran `resolveRoute`
@@ -79,6 +87,7 @@ export class DynamicHandler extends Handler {
 
   static findDynamicRoute(path: string): Route.Info | null {
     const root = Bakery.serveRoot
+    let deferred: Route.Info[] | null = null
     for (const [_, info] of this.dynamicCache) {
       // Cheapest filter first. `valid` is a stat and `isForbidden` walks every
       // directory between the file and the root doing an existsSync at each
@@ -88,12 +97,32 @@ export class DynamicHandler extends Handler {
       // pure and all four filters still `continue`, so a matching-but-rejected
       // entry does not shadow a later one; `$dynamic.test.ts` pins that.
       if (!info.getParams(path)) continue
+      // Every single-segment route outranks every catch-all, whatever order
+      // the cache filled in — so catch-alls are set aside, and their stat and
+      // tree-walk filters run only after the loop finds no specific match.
+      if (info.catchAll) {
+        ;(deferred ??= []).push(info)
+        continue
+      }
       if (!info.valid) continue
       // `filePath` is already `fs.resolve`d by the Info constructor; resolving
       // it again here re-normalised an identical string.
       if (!info.filePath!.startsWith(root)) continue
       if (fs.isForbidden(info.filePath!, root)) continue
       return info
+    }
+    if (deferred) {
+      // Longest route path first: `docs/guides/[...rest]` beats
+      // `docs/[...rest]` for the paths both match.
+      if (deferred.length > 1) {
+        deferred.sort((a, b) => b.path.length - a.path.length)
+      }
+      for (const info of deferred) {
+        if (!info.valid) continue
+        if (!info.filePath!.startsWith(root)) continue
+        if (fs.isForbidden(info.filePath!, root)) continue
+        return info
+      }
     }
     return null
   }

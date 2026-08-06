@@ -177,3 +177,73 @@ describe('DynamicHandler.findDynamicRoute', () => {
     expect(await ScanHandler.canHandle('/item/[id]')).toBe(false)
   })
 })
+
+describe('findDynamicRoute — catch-all ordering', () => {
+  // Isolated per-class caches: the dynamicCache registry is keyed by class
+  // identity, so a subclass never pollutes TSXHandler/ApiHandler state.
+  class OrderingHandler extends DynamicHandler {}
+
+  const CA_ROOT = fs.resolve(ROUTE_DIR, 'ordering')
+  const files = {
+    id: `${CA_ROOT}/docs/[id].tsx`,
+    catchAll: `${CA_ROOT}/docs/[...slug].tsx`,
+    deepCatchAll: `${CA_ROOT}/docs/guides/[...rest].tsx`,
+    missing: `${CA_ROOT}/gone/[...nope].tsx`,
+  }
+
+  beforeAll(async () => {
+    for (const f of [files.id, files.catchAll, files.deepCatchAll]) {
+      await Bun.write(f, 'export default () => null\n')
+    }
+    __setTestConfig({ root: CA_ROOT } as any)
+  })
+
+  afterAll(() => {
+    __resetTestConfig()
+    OrderingHandler.dynamicCache.clear()
+  })
+
+  const infoFor = (abs: string) =>
+    new RouteData.Info(abs as fs.AbsolutePath, fs.relative(CA_ROOT, abs))
+
+  test('a single-param route beats a catch-all even when the catch-all was cached first', () => {
+    OrderingHandler.dynamicCache.clear()
+    const ca = infoFor(files.catchAll)
+    const id = infoFor(files.id)
+    // Insertion order deliberately favors the catch-all; specificity must win.
+    OrderingHandler.dynamicCache.set(ca.regex!, ca)
+    OrderingHandler.dynamicCache.set(id.regex!, id)
+
+    const hit = OrderingHandler.findDynamicRoute('/docs/42')
+    expect(hit).not.toBeNull()
+    expect(hit!.path).toBe(fs.relative(CA_ROOT, files.id))
+  })
+
+  test('among catch-alls, the longer prefix wins', () => {
+    OrderingHandler.dynamicCache.clear()
+    const shallow = infoFor(files.catchAll)
+    const deep = infoFor(files.deepCatchAll)
+    OrderingHandler.dynamicCache.set(shallow.regex!, shallow)
+    OrderingHandler.dynamicCache.set(deep.regex!, deep)
+
+    const hit = OrderingHandler.findDynamicRoute('/docs/guides/routing')
+    expect(hit!.path).toBe(fs.relative(CA_ROOT, files.deepCatchAll))
+
+    // Outside the deep prefix the shallow one still answers.
+    const shallowHit = OrderingHandler.findDynamicRoute('/docs/other')
+    expect(shallowHit!.path).toBe(fs.relative(CA_ROOT, files.catchAll))
+  })
+
+  test('a catch-all still answers when it is the only match, and a deleted one never does', () => {
+    OrderingHandler.dynamicCache.clear()
+    const ca = infoFor(files.catchAll)
+    const gone = infoFor(files.missing) // never written to disk
+    OrderingHandler.dynamicCache.set(gone.regex!, gone)
+    OrderingHandler.dynamicCache.set(ca.regex!, ca)
+
+    expect(OrderingHandler.findDynamicRoute('/gone/x/y')).toBeNull()
+    const hit = OrderingHandler.findDynamicRoute('/docs/a/b/c')
+    expect(hit!.path).toBe(fs.relative(CA_ROOT, files.catchAll))
+    expect(hit!.getParams('/docs/a/b/c')).toEqual({ slug: 'a/b/c' })
+  })
+})

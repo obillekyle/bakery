@@ -14,6 +14,12 @@ export type RouteScanOptions = {
   dynamicOnly?: boolean
 }
 
+// `[!.]` keeps catch-alls (`[...name]`) out of the single-param globs: they
+// are matched separately, and last — a catch-all is the weakest route form,
+// consulted only after specific files, single-param siblings and child-index
+// descent have all missed.
+const catchAllGlob = (ext: string) => new Bun.Glob(`[[]...*${ext || '.*'}`)
+
 const routeGlobs = (
   first: string,
   ext: string,
@@ -22,7 +28,7 @@ const routeGlobs = (
 ) => {
   if (options.dynamicOnly) {
     return [
-      new Bun.Glob(`[[]*${ext || '.*'}`),
+      new Bun.Glob(`[[][!.]*${ext || '.*'}`),
       new Bun.Glob(`\\*${ext || '.*'}`),
     ]
   }
@@ -45,9 +51,32 @@ const routeGlobs = (
 
   return [
     ...staticGlobs,
-    new Bun.Glob(`[[]*${ext || '.*'}`),
+    new Bun.Glob(`[[][!.]*${ext || '.*'}`),
     new Bun.Glob(`\\*${ext || '.*'}`),
   ]
+}
+
+/**
+ * The catch-all fallback for one directory level: `dir/[...name].ext`,
+ * containment-checked like every other candidate. Skipped for `staticOnly`
+ * (the caller wants a literal file) — and note the *file* is what must pass
+ * `isForbidden`; the request's deeper, possibly nonexistent path segments
+ * never touch the filesystem.
+ */
+async function getCatchAllRoute(
+  ext: string,
+  dir: fs.AbsolutePath,
+  root: fs.AbsolutePath,
+): Promise<Handler.Route.Info | null> {
+  const found = await catchAllGlob(ext)
+    .scan(GETFILE(dir))
+    .next()
+    .catch(() => null)
+  if (!found || found.done || !found.value) return null
+
+  const file = fs.resolve(found.value)
+  if (fs.isForbidden(file, root)) return null
+  return new RouteData.Info(file, fs.relative(root, file))
 }
 
 export async function getRoute(
@@ -116,11 +145,30 @@ export async function getRoute(
       const route = await getRoute('', exts, targetDir, root, options)
       if (route) return route
     }
+
+    // `first === 'index'` covers the bare-directory request (`/docs` arrives
+    // here as an injected 'index' segment): the catch-all pattern requires at
+    // least one rest segment, so it cannot match that request — returning the
+    // Info anyway would claim the route with null params.
+    if (!options.staticOnly && first !== 'index') {
+      return await getCatchAllRoute(ext, dir, root)
+    }
   }
 
   if (count > 1) {
     const targetDir = fs.resolve(dir, first)
-    return await getRoute(pathArr, exts, targetDir, root, options)
+    const route = await getRoute(pathArr, exts, targetDir, root, options)
+    if (route) return route
+
+    // The walk above descends one real segment at a time and dead-ends when
+    // the next directory does not exist — which for a catch-all request
+    // (`/docs/a/b/c` against `docs/[...slug].tsx`) is the common case. Each
+    // level unwinds through here, so the deepest existing directory gets the
+    // first chance to claim the rest.
+    if (!options.staticOnly) {
+      return await getCatchAllRoute(ext, dir, root)
+    }
+    return null
   }
   return null
 }

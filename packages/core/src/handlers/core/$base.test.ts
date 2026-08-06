@@ -67,3 +67,51 @@ describe('RouteData.Info', () => {
     expect(info.getParams('/page.html')).toBeNull()
   })
 })
+
+describe('getDynamicRoute — catch-all segments', () => {
+  test('a terminal [...name] compiles to a multi-segment matcher', () => {
+    const route = getDynamicRoute('docs/[...slug].tsx')
+    expect(route).not.toBeNull()
+    expect(route!.params).toEqual(['slug'])
+    expect(route!.catchAll).toBe(true)
+    expect(route!.pattern.test('/docs/a')).toBe(true)
+    expect(route!.pattern.test('/docs/a/b/c')).toBe(true)
+    expect(route!.pattern.test('/docs/')).toBe(false)
+    expect(route!.pattern.test('/docs')).toBe(false)
+    expect(route!.pattern.test('/other/a')).toBe(false)
+  })
+
+  test('the captured value is the joined rest of the path', () => {
+    const info = new RouteData.Info(
+      '/x/docs/[...slug].tsx' as any,
+      'docs/[...slug].tsx',
+    )
+    expect(info.isDynamic).toBe(true)
+    expect(info.catchAll).toBe(true)
+    expect(info.getParams('/docs/guides/routing')).toEqual({
+      slug: 'guides/routing',
+    })
+    expect(info.getParams('/docs/a')).toEqual({ slug: 'a' })
+  })
+
+  test('a catch-all may follow single-param segments', () => {
+    const route = getDynamicRoute('api/[version]/[...rest].ts')
+    expect(route).not.toBeNull()
+    expect(route!.params).toEqual(['version', 'rest'])
+    const m = '/api/v2/users/42/posts'.match(route!.pattern)
+    expect(m?.[1]).toBe('v2')
+    expect(m?.[2]).toBe('users/42/posts')
+  })
+
+  test('a non-terminal [...name] is not a dynamic route', () => {
+    // Ambiguous placement: nothing may follow a catch-all. The file stays
+    // inert (same as before the feature) rather than guessing.
+    expect(getDynamicRoute('docs/[...slug]/extra.tsx')).toBeNull()
+  })
+
+  test('single-param routes do not become catch-alls', () => {
+    const route = getDynamicRoute('blog/[id].html')
+    expect(route!.catchAll).toBeFalsy()
+    expect(route!.pattern.test('/blog/a/b')).toBe(false)
+  })
+})
