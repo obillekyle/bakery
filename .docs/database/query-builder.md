@@ -28,9 +28,10 @@ Every query chain ends with one of these execution methods:
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `.array()` | `Promise<T[]>` | All matching rows as an array |
-| `.fetch()` | `Promise<T \| undefined>` | First matching row |
-| `.column<C>()` | `Promise<C[]>` | First column of each row |
+| `.array()` | `Promise<T[]>` | All matching rows as an array of objects |
+| `.fetch()` | `Promise<T \| undefined>` | First matching row object |
+| `.column<C>()` | `Promise<C[]>` | Flat array of the 1st column values across ALL rows |
+| `.value<C>()` / `.scalar<C>()` | `Promise<C \| undefined>` | Single scalar 1st column value of the FIRST row |
 | `.iterable()` | `AsyncIterable<T>` | Stream rows one by one |
 | `await query` | `Promise<T[]>` | Alias for `.array()` (via `.then`) |
 
@@ -152,14 +153,13 @@ const data = await DB.table('posts', 'p')
 ## GROUP BY and HAVING
 
 ```typescript
-// Count posts per user
 const stats = await DB.table('posts')
-  .join('users', { posts: 'authorId', users: 'id' })
-  .where({ posts: 'published' }, '=', true)
-  .groupBy({ posts: 'authorId' })
+  .join('users', 'posts.authorId', '=', 'users.id')
+  .where('posts.published', '=', true)
+  .groupBy('posts.authorId')
   .selectAll('posts')
-  .selectMath({ postCount: { COUNT: '*' } })
-  .having({ postCount: 'postCount' }, '>=', 5)
+  .select({ postCount: DB.count('*') })
+  .having('postCount', '>=', 5)
   .orderBy('postCount', 'DESC')
   .array()
 ```
@@ -170,40 +170,37 @@ const stats = await DB.table('posts')
 
 ```typescript
 const recentPosts = await DB.table('posts')
-  .where({ posts: 'published' }, '=', true)
+  .where('posts.published', '=', true)
   .selectAll('posts')
-  .orderBy({ posts: 'createdAt' }, 'DESC')
+  .orderBy('posts.createdAt', 'DESC')
   .limit(10, 0)         // LIMIT 10 OFFSET 0
   .array()
 
-// Pagination
+// Built-in Pagination
 const page = 3
 const pageSize = 20
 const paginated = await DB.table('users')
   .selectAll('users')
-  .orderBy({ users: 'createdAt' }, 'DESC')
-  .limit(pageSize, (page - 1) * pageSize)
+  .orderBy('createdAt', 'DESC')
+  .paginate(page, pageSize)
   .array()
 ```
 
 ---
 
-## Math Aggregations (selectMath)
+## SQL Functions & Aggregations
 
 ```typescript
 const stats = await DB.table('posts')
   .selectAll('posts')
-  .selectMath({
-    total:   { COUNT: '*' },
-    newest:  { MAX: { posts: 'createdAt' } },
-    oldest:  { MIN: { posts: 'createdAt' } },
-    avgId:   { AVG: { posts: 'id' } },
-    idSum:   { SUM: { posts: 'id' } },
+  .select({
+    total:   DB.count('*'),
+    newest:  DB.max('posts.createdAt'),
+    oldest:  DB.min('posts.createdAt'),
+    avgId:   DB.avg('posts.id'),
+    idSum:   DB.sum('posts.id'),
   })
   .fetch()
-
-// stats.total, stats.newest, stats.oldest, stats.avgId, stats.idSum
-// All typed as `number`
 ```
 
 ---
@@ -213,13 +210,13 @@ const stats = await DB.table('posts')
 ```typescript
 // WITH clause (CTE)
 const activeUsers = DB.table('users')
-  .where({ users: 'active' }, '=', true)
+  .where('users.active', '=', true)
   .selectAll('users')
 
 const result = await DB.with(activeUsers, 'active')
   .table('active')
   .selectAll('active')
-  .orderBy({ active: 'createdAt' }, 'DESC')
+  .orderBy('active.createdAt', 'DESC')
   .limit(10)
   .array()
 ```
@@ -228,17 +225,15 @@ const result = await DB.with(activeUsers, 'active')
 
 ## Raw SQL
 
-When the query builder is not expressive enough:
+Using `DB.raw` tagged template literals or parameterized queries:
 
 ```typescript
 import { DB } from '@database'
 
-const result = await new DB.QBRaw<{ count: number }>(
-  'SELECT COUNT(*) as count FROM users WHERE created_at > ?',
-  [Date.now() - 86400000]
-).fetch()
-
-console.log(result?.count)
+const emailVal = 'user@example.com'
+const result = await DB.from('users')
+  .where(DB.raw`LOWER(email) = ${emailVal} AND created_at > ${Date.now() - 86400000}`)
+  .fetch()
 ```
 
 ---
@@ -256,9 +251,9 @@ QB
       .having(left, op, right)      // HAVING
         .orderBy(col, dir)          // ORDER BY
           .limit(n, offset?)        // LIMIT n OFFSET offset
-  .select(columns)                  // SELECT specific columns
+  .select(columns)                  // SELECT specific columns or DB function aggregations (DB.count, DB.avg, etc.)
   .selectAll(alias)                 // SELECT alias.*
-  .selectMath(aggregates)           // SELECT COUNT(*) AS total, etc.
+  .paginate(page, pageSize)         // LIMIT pageSize OFFSET (page-1)*pageSize
   .exists()                         // SELECT EXISTS(...)
   .array()                          // execute → T[]
   .fetch()                          // execute → T | undefined

@@ -236,7 +236,7 @@ export default async function(req: Request) {
 
   const stats = await DB.table('users')
     .selectAll('users')
-    .selectMath({ count: { COUNT: '*' } })
+    .select({ count: DB.count('*') })
     .fetch()
 
   return (
