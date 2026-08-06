@@ -78,11 +78,24 @@ async function getCatchAllRoute(
     .catch(() => null)
   if (!found || found.done || !found.value) return null
 
-  if (
-    restSegments.length &&
-    fs.isFileSync(fs.resolve(dir, restSegments.join('/')))
-  ) {
-    return null
+  if (restSegments.length) {
+    const target = fs.resolve(dir, restSegments.join('/'))
+    // Stat only inside `dir`. A rest containing `..` resolves outside it, and
+    // statting there would make this yield a boolean existence probe for any
+    // path on the filesystem — the 404-vs-render difference is observable.
+    // URL parsing normalises `..` and `%2e%2e` away, so no HTTP request
+    // reaches here with one; this closes the door for any caller that skips
+    // that normalisation. An escape skips the yield rather than refusing, so
+    // the catch-all answers exactly as it did before the yield rule existed.
+    // `dir` comes from `fs.resolve`, so the separator-suffixed prefix test is
+    // exact — plain `startsWith(dir)` would also accept a sibling directory
+    // whose name merely begins with it.
+    if (
+      (target === dir || target.startsWith(`${dir}/`)) &&
+      fs.isFileSync(target)
+    ) {
+      return null
+    }
   }
 
   const file = fs.resolve(found.value)

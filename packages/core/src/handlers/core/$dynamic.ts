@@ -117,8 +117,17 @@ export class DynamicHandler extends Handler {
       // declines so the file's own handler (possibly lower-priority — CSS
       // falls all the way to StaticHandler) gets asked. One stat, paid only
       // when a catch-all is about to answer. `getCatchAllRoute` applies the
-      // same rule on the discovery path; the two must agree.
-      if (fs.isFileSync(root + path)) return null
+      // same rule on the discovery path; the two must agree — including the
+      // containment clamp: `root + path` is unresolved, so a `..` in the
+      // path would have `statSync` resolve it outside the root and turn this
+      // into an existence probe. See the comment there.
+      const target = fs.resolve(root, `.${path}`)
+      if (
+        (target === root || target.startsWith(`${root}/`)) &&
+        fs.isFileSync(target)
+      ) {
+        return null
+      }
       // Longest route path first: `docs/guides/[...rest]` beats
       // `docs/[...rest]` for the paths both match.
       if (deferred.length > 1) {

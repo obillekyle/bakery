@@ -101,3 +101,27 @@ describe('getRoute — catch-alls yield to real files', () => {
     })
   })
 })
+
+describe('getRoute — the yield check never probes outside the root', () => {
+  const OUTSIDE = fs.resolve(ROOT, '../__outside-probe__.txt')
+
+  afterAll(async () => {
+    await rm(OUTSIDE, { force: true })
+  })
+
+  test('a rest that escapes the directory is not turned into an existence oracle', async () => {
+    // URL parsing normalises `..` away, so this is unreachable over HTTP —
+    // but any caller that skips that normalisation must not be able to use
+    // the catch-all's yield stat to probe arbitrary filesystem paths. The
+    // answer must be identical whether or not the outside file exists.
+    const probe = '/q3/../../__outside-probe__.txt'
+
+    await rm(OUTSIDE, { force: true })
+    const missing = await find(probe)
+
+    await Bun.write(OUTSIDE, 'secret\n')
+    const present = await find(probe)
+
+    expect(present?.path ?? null).toBe(missing?.path ?? null)
+  })
+})
