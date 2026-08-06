@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src/**/*.ts"],
+  "files": [
+    "../core/src/global.d.ts",
+    "../core/src/shared.d.ts",
+    "../core/src/types.d.ts",
+    "../orm/src/globals.d.ts"
+  ]
+}

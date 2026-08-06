@@ -1,0 +1,34 @@
+{
+  "$comment": [
+    "Base tsconfig for applications built on Bakery. Extend it:",
+    "  { \"extends\": \"@bakery/core/tsconfig.app.json\" }",
+    "",
+    "The JSX settings are not optional. Bakery renders JSX server-side to a",
+    "string through its own `createElement`, so without these Bun falls back to",
+    "the automatic runtime and every .tsx page fails with",
+    "'Cannot find module react/jsx-dev-runtime'."
+  ],
+  "_files_note": "Paths in an extended config resolve relative to THIS file, so extending packages inherit core ambient declarations (createElement, Fragment, the JSX namespace, Bakery, AppConfig) without naming a node_modules path. shared.d.ts carries the handful of types the browser runtime needs too (MapOf, Wrapped, JsonResponse, ISFunction) and is declared there exactly once.",
+  "files": ["./src/global.d.ts", "./src/shared.d.ts", "./src/types.d.ts"],
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "types": ["bun-types"],
+
+    "jsx": "react",
+    "jsxFactory": "createElement",
+    "jsxFragmentFactory": "Fragment",
+
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}

@@ -1,39 +1,30 @@
 {
-  "compilerOptions": {
-    "lib": ["ESNext", "DOM"],
-    "target": "ESNext",
-    "module": "Preserve",
-    "moduleDetection": "force",
-    "jsx": "react",
-    "jsxFactory": "createElement",
-    "jsxFragmentFactory": "Fragment",
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "noEmit": true,
-    "resolveJsonModule": true,
-    "strict": true,
-    "skipLibCheck": true,
-    "noFallthroughCasesInSwitch": true,
-    "esModuleInterop": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "forceConsistentCasingInFileNames": true,
-    "noPropertyAccessFromIndexSignature": false,
-    "paths": {
-      "@server/*": ["./.server/*"],
-      "@database/*": ["./.server/database/*"],
-      "@api/*": ["./api/*"],
-      "@plugins/*": ["./.server/plugins/*"],
-      "~/*": ["./*"],
-      "@client/utils": ["./.server/client/utils"]
-    }
-  },
+  "extends": "./tsconfig.base.json",
   "files": [],
   "references": [
-    { "path": "./.server/tsconfigs/tsconfig.app.json" },
-    { "path": "./.server/tsconfigs/tsconfig.server.json" },
-    { "path": "./.server/tsconfigs/tsconfig.jsx.json" },
-    { "path": "./.server/tsconfigs/tsconfig.vue.json" }
-  ]
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/orm"
+    },
+    {
+      "path": "./packages/cli"
+    },
+    {
+      "path": "./packages/plugins/vue"
+    },
+    {
+      "path": "./packages/plugins/analytics"
+    },
+    {
+      "path": "./packages/plugins/dashboard"
+    },
+    {
+      "path": "./apps/example"
+    }
+  ],
+  "compilerOptions": {
+    "paths": {}
+  }
 }

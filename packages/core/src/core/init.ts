@@ -1,0 +1,72 @@
+import { createElement, Fragment, html } from './jsx'
+
+const isDevWorker = process.argv.includes('--dev-worker')
+const isThreadWorker =
+  process.argv.includes('--thread-worker') ||
+  process.env.THREAD_WORKER === '1'
+const isDev = process.argv.includes('--dev') || isDevWorker
+const isTest = process.env.NODE_ENV === 'test' || Bun.env.NODE_ENV === 'test'
+const mode = isDevWorker
+  ? 'dev-worker'
+  : isThreadWorker
+    ? 'thread-worker'
+    : isDev
+      ? 'development'
+      : 'production'
+
+const getArgValue = (name: string) => {
+  const prefix = `${name}=`
+  const found = process.argv.find(a => a.startsWith(prefix))
+  if (found) return found.slice(prefix.length)
+  const idx = process.argv.indexOf(name)
+  return idx !== -1 && idx + 1 < process.argv.length
+    ? process.argv[idx + 1]
+    : null
+}
+
+const threadId =
+  process.env.THREAD_ID ?? getArgValue('--thread-id') ?? '0'
+
+/**
+ * An accessor pair, not a bare getter.
+ *
+ * These are `process.env` properties, and a getter with no setter is readonly:
+ * in strict-mode ESM an assignment to one throws
+ * `TypeError: Attempted to assign to readonly property`. `threads.ts` assigns
+ * `THREAD_WORKER = '1'` and `THREAD_ID = '0'` on the single-worker and Windows
+ * paths, wrapped in `Try(...)`, so the throw was swallowed and the flags never
+ * moved — `reusePort`, the per-worker cache scaling and the startup banner all
+ * silently read the master's values. The `Try(...)` was what made a dead code
+ * path look deliberate.
+ */
+const accessor = (initial: any) => {
+  let value = initial
+  return {
+    get: () => value,
+    set: (next: any) => {
+      value = next
+    },
+    enumerable: true,
+    configurable: true,
+  }
+}
+
+Object.defineProperties(process.env, {
+  DEV: accessor(isDev),
+  TEST: accessor(isTest),
+  PROD: accessor(!isDev && !isDevWorker),
+  WORKER: accessor(isDevWorker || isThreadWorker),
+  DEV_WORKER: accessor(isDevWorker),
+  THREAD_WORKER: accessor(isThreadWorker),
+  THREAD_ID: accessor(threadId),
+  MODE: accessor(mode),
+})
+
+Object.assign(globalThis, {
+  createElement,
+  Fragment,
+  html,
+})
+
+process.on('SIGHUP', () => {})
+process.on('SIGBREAK', () => {})

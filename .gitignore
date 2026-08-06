@@ -3,8 +3,13 @@
 
 .env
 
-# Ignore database files
+# An app's schema is app-owned and often generated, so it is not tracked.
+# The bare pattern matches at any depth, which silently swallowed the starter
+# app's schema too: `apps/starter/orm/index.ts` imports `./schema`, so a fresh
+# clone failed `bun run typecheck` with TS2307 and CI would have failed on its
+# very first run. The starter is a first-party fixture, not a user's app.
 schema.ts
+!apps/starter/orm/schema.ts
 
 *.db
 *.sqlite
@@ -17,9 +22,14 @@ node_modules
 dist
 scratch
 .cache
-.server/.data
+.data
+.bakery
 
 *.tsbuildinfo
 
 # Windows device-name artifact
 nul
+# Local-only maintainer/agent context - not published.
+/.claude/
+/CLAUDE.md
+/MONOREPO.md

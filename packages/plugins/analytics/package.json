@@ -1,0 +1,31 @@
+{
+  "name": "@bakery/plugin-analytics",
+  "version": "3.0.0",
+  "description": "Bakery analytics plugin.",
+  "author": "obillekyle",
+  "license": "CC0-1.0 & MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/obillekyle/bun-server.git",
+    "directory": "packages/plugins/analytics"
+  },
+  "homepage": "https://github.com/obillekyle/bun-server#readme",
+  "bugs": "https://github.com/obillekyle/bun-server/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./stats": "./src/endpoints/stats.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "!src/**/*.test.ts"
+  ],
+  "dependencies": {
+    "@bakery/core": "workspace:*"
+  }
+}
