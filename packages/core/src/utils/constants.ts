@@ -85,6 +85,31 @@ export function normalizeBlockedPath(path: string): string {
 }
 
 /**
+ * Each path component truncated at its first `:`.
+ *
+ * Win32 resolves `x.ts::$DATA` to the bytes of `x.ts` and
+ * `dir::$INDEX_ALLOCATION` to `dir` — NTFS alternate-data-stream syntax — and
+ * `new URL()` keeps the suffix in `pathname`, so a glob anchored on the real
+ * name missed while the filesystem opened the file anyway. The directory form
+ * matters independently: it defeats the `dir/**` patterns that the file form
+ * cannot reach.
+ *
+ * Only ever used as an *extra* match candidate (see `matchBlocked`), never as
+ * a replacement — colons are legal in POSIX filenames, and a real file named
+ * `a:b.db` must stay blocked by `*.db` rather than being tested as `a`.
+ */
+function stripStreamSuffix(path: string): string {
+  if (!path.includes(':')) return path
+  return path
+    .split('/')
+    .map(segment => {
+      const colon = segment.indexOf(':')
+      return colon === -1 ? segment : segment.slice(0, colon) || segment
+    })
+    .join('/')
+}
+
+/**
  * Whether `path` is refused by the blocked globs.
  *
  * Matched twice: once as written, once normalised. Both are needed, and for
@@ -109,6 +134,15 @@ export function matchBlocked(
   if (!blocked) return false
   if (blocked.match(path)) return true
 
+  // Candidates are only ever *added*, never substituted, so no form of this
+  // can unblock something a plainer form already caught.
   const normalized = normalizeBlockedPath(path)
-  return normalized !== path && blocked.match(normalized)
+  if (normalized !== path && blocked.match(normalized)) return true
+
+  const stripped = stripStreamSuffix(path)
+  if (stripped === path) return false
+  if (blocked.match(stripped)) return true
+
+  const strippedNormalized = normalizeBlockedPath(stripped)
+  return strippedNormalized !== stripped && blocked.match(strippedNormalized)
 }

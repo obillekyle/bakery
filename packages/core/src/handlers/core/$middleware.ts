@@ -13,6 +13,9 @@ import { Handler } from './$base'
 const pending = new WeakMap<Request, Response>()
 
 export class MiddlewareHandler extends Handler {
+  /** Answers from app code, not from disk. See `Handler.servesFiles`. */
+  static servesFiles = false
+
   /**
    * `canHandle` here means "was this request denied", which is a fact about
    * the request and not about the path. Without this the route cache would

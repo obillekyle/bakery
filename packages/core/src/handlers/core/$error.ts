@@ -126,7 +126,17 @@ export class ErrorHandler extends Handler {
 }
 
 export class DynamicErrorHandler extends DynamicHandler {
-  static DEFAULT_ERROR = DEFAULT_ERROR
+  /**
+   * A copy, matching `ErrorHandler.DEFAULT_ERROR` above. `extractErrorData`
+   * assigns this to a local and then mutates it, which is safe only while
+   * every `this` it runs under hands back a fresh object — a plain
+   * `= DEFAULT_ERROR` here handed out the module-level one, so any class
+   * inheriting that method through this branch would have written the
+   * process-wide default's fields.
+   */
+  static get DEFAULT_ERROR() {
+    return Object.assign({}, DEFAULT_ERROR)
+  }
 
   static canHandle(
     path: string,

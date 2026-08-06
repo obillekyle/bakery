@@ -3,10 +3,7 @@ import { Session } from './session'
 import { DefaultErrorHandler } from './handlers/assets/static'
 import type { Handler } from './handlers/core/$base'
 import { ErrorHandler } from './handlers/core/$error'
-import { MiddlewareHandler } from './handlers/core/$middleware'
 import { WebSocketHandler } from './handlers/core/$websocket'
-import { ApiHandler } from './handlers/routes/api'
-import { ProxyHandler } from './handlers/routes/proxy'
 import { log } from './logger'
 import { JsonResponseData } from './utils'
 import { is, Try } from './utils/common'
@@ -64,29 +61,24 @@ export async function upgradeWebsocket(
 }
 
 /**
- * Handlers that read the request path as a *route name* rather than as a path
- * into the app's files. `Bakery.config.blocked` exists to stop files on disk
- * being served, so it is not applied to these.
+ * Whether the deny-list applies to whatever this handler is about to answer
+ * with. `Bakery.config.blocked` exists to stop files on disk being served, so
+ * handlers that read the request path as a route *name* opt out by declaring
+ * `servesFiles = false` — `ApiHandler`, `ProxyHandler`, `MiddlewareHandler`.
  *
- * This is an exemption list rather than a list of the file servers, and the
- * direction matters. Naming only the obvious three — Static, Public, NM —
- * would have left `/schema.ts` and `/server.config.ts` reachable through
- * `TSHandler`, which compiles a source file and serves the result. Anything
- * not listed here, including a plugin's handler, keeps the check.
+ * Deny by default, and the direction matters. Naming only the obvious file
+ * servers — Static, Public, NM — would have left `/schema.ts` and
+ * `/server.config.ts` reachable through `TSHandler`, which compiles a source
+ * file and serves the result. Anything that does not opt out, including a
+ * plugin's handler, keeps the check.
  *
- * `ApiHandler` never returns file *contents*: it resolves a `.ts`/`.js` module
- * under `apiRoot` and executes it. `ProxyHandler` and `MiddlewareHandler`
- * answer from an upstream and from app code respectively. None of the three
- * can leak a source file by being handed a path that looks like one.
+ * The flag lives on `Handler` (see its doc comment) rather than in a list
+ * here so that `DynamicHandler.resolveRoute` can gate the *resolved-file*
+ * check on the same answer. Two lists would have drifted, and the resolved
+ * check is what closes the extension-substitution hole this one cannot see.
  */
-const ROUTE_ONLY_HANDLERS = [MiddlewareHandler, ProxyHandler, ApiHandler]
-
 function servesFiles(handler: any): boolean {
-  return !ROUTE_ONLY_HANDLERS.some(
-    exempt =>
-      handler === exempt ||
-      (typeof handler === 'function' && handler.prototype instanceof exempt),
-  )
+  return handler?.servesFiles !== false
 }
 
 export function handleRequest(
