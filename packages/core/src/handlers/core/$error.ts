@@ -177,3 +177,25 @@ export class DynamicErrorHandler extends DynamicHandler {
     return null
   }
 }
+
+/**
+ * Error data with `errorBody` reduced to what a client may see.
+ *
+ * `ErrorHandler.publicBody` is the rule; this is it applied to a whole record,
+ * for the handlers that hand error data to a *template* rather than rendering
+ * a string themselves. `HTMLErrorHandler` and `TSXErrorHandler` merge the
+ * record into their page params, and those params reach the document twice —
+ * through `{{...}}` substitution and through the `window.__PAGE_PARAMS__`
+ * script `DOMTools.params` injects into every page. The second path is why
+ * redacting in the template was never enough: an `error.html` that never
+ * mentions `errorBody` still published the stack, absolute source paths and
+ * all, to any anonymous request in production.
+ *
+ * `errorText` is deliberately untouched — `DefaultErrorHandler` shows it in
+ * its heading in every mode, and one rule in one place beats two that drift.
+ */
+export function publicErrorData(
+  error: Handler.Error.Data,
+): Handler.Error.Data {
+  return { ...error, errorBody: ErrorHandler.publicBody(error) }
+}

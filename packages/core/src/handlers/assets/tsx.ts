@@ -6,7 +6,7 @@ import { fs } from '../../utils/fs'
 import { injectIfHtml, response } from '../../utils/http'
 import type { Handler } from '../core/$base'
 import { DynamicHandler } from '../core/$dynamic'
-import { DynamicErrorHandler } from '../core/$error'
+import { DynamicErrorHandler, publicErrorData } from '../core/$error'
 
 type TSXModule = {
   default: (
@@ -88,7 +88,14 @@ async function sharedHandler(
   if (import.meta.env.DEV) {
     params.__file = filePath
   }
-  const finalParams = Object.assign({}, params, errorData)
+  // Redacted before it becomes page data — see `publicErrorData`. The params
+  // are both substituted into the render and injected as `__PAGE_PARAMS__`.
+  // `errorData` is undefined for an ordinary page; Object.assign ignores that.
+  const finalParams = Object.assign(
+    {},
+    params,
+    errorData && publicErrorData(errorData),
+  )
   const body = await this.params(req, finalParams)
 
   const returned = await this.executeModule(modulePath, req, body)
