@@ -1,5 +1,11 @@
 {
+  "$comment": "The three JSX options are already set by @bakery/core/tsconfig.app.json, and `tsc` reads them from there — but Bun's *runtime* does not follow `extends` into a package specifier, only a relative path. Without them repeated here the app is transpiled with Bun's default automatic JSX runtime instead of Bakery's classic `createElement`, and every .tsx route 500s with `Cannot find module 'react/jsx-dev-runtime'` while typecheck stays perfectly clean. apps/example does not need this because it extends a relative path. Do not 'dedupe' these away.",
   "extends": "@bakery/core/tsconfig.app.json",
+  "compilerOptions": {
+    "jsx": "react",
+    "jsxFactory": "createElement",
+    "jsxFragmentFactory": "Fragment"
+  },
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",

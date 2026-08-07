@@ -46,9 +46,18 @@ mkdir -p apps/notes/src/api apps/notes/orm
 ```json
 {
   "extends": "@bakery/core/tsconfig.app.json",
+  "compilerOptions": {
+    "jsx": "react",
+    "jsxFactory": "createElement",
+    "jsxFragmentFactory": "Fragment"
+  },
   "include": ["src/**/*.ts", "src/**/*.tsx", "orm/**/*.ts", "server.config.ts"]
 }
 ```
+
+The three `jsx*` options are repeated here even though `extends` already sets
+them, and dropping them breaks every page. See
+[installation](installation.md#editor-and-typechecking-setup) for why.
 
 Then re-run install from the repo root so the workspace links the new app:
 
