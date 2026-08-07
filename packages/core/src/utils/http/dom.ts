@@ -30,6 +30,39 @@ let depMap = ''
 
 const hostDepMaps = new Map<string, string>()
 
+/**
+ * Normalise one import-map entry, for both the process-level map and the
+ * per-host maps.
+ *
+ * There used to be two copies of this, and they had drifted into disagreeing
+ * about *what* they tested: `initHostImportMaps` switched on the entry key,
+ * `initImportMap` tested the entry value. `{ foo: './.server/client/utils' }`
+ * was rewritten by one path and silently left alone by the other. One helper,
+ * two callers, so they cannot disagree again.
+ *
+ * The `.server/client/utils` special cases both copies carried are gone rather
+ * than reconciled. `.server/` is the pre-split layout: those two string
+ * literals were the last references to it anywhere in `packages`, `apps`,
+ * `docs` or `tests`, and the directory they name no longer exists, so a value
+ * pointing at it is a broken path either way. It normalises as an ordinary
+ * relative specifier now.
+ *
+ * `@client/utils` stays, and stays keyed on the *key*: it is a live alias — it
+ * is the default `importMap` entry in `core/config.ts` — and the browser
+ * runtime is served from a fixed URL, so the target is not the app's to choose.
+ */
+function normalizeImportEntry(key: string, value: unknown): [string, string] {
+  const cleanKey = key.replace(/\*$/, '')
+  const cleanVal = String(value).replace(/\*$/, '')
+
+  if (cleanKey === '@client/utils') return [cleanKey, '/_client/utils.js']
+
+  return [
+    cleanKey,
+    cleanVal.replace(/^\.(?=\/)/, '').replace(/^(?!(?:\/|https?:\/\/))/, '/'),
+  ]
+}
+
 export function initHostImportMaps() {
   hostDepMaps.clear()
   clearHeadBodyCache()
@@ -44,20 +77,8 @@ export function initHostImportMaps() {
 
     const imports: Record<string, string> = { ...npmImports }
     for (const [k, v] of Object.entries(entry.importMap)) {
-      const cleanKey = k.replace(/\*$/, '')
-      const cleanVal = String(v).replace(/\*$/, '')
-
-      switch (cleanKey) {
-        case '.server/client/utils':
-        case './.server/client/utils':
-        case '@client/utils':
-          imports[cleanKey] = '/_client/utils.js'
-          continue
-      }
-
-      imports[cleanKey] = cleanVal
-        .replace(/^\.(?=\/)/, '')
-        .replace(/^(?!(?:\/|https?:\/\/))/, '/')
+      const [key, value] = normalizeImportEntry(k, v)
+      imports[key] = value
     }
 
     hostDepMaps.set(hostname, JSON.stringify({ imports }))
@@ -112,21 +133,8 @@ export async function initImportMap() {
   }
 
   for (const [k, v] of Object.entries(map)) {
-    const cleanKey = k.replace(/\*$/, '')
-    const cleanVal = String(v).replace(/\*$/, '')
-
-    if (
-      cleanVal === '.server/client/utils' ||
-      cleanVal === './.server/client/utils' ||
-      cleanKey === '@client/utils'
-    ) {
-      resolvedMap[cleanKey] = '/_client/utils.js'
-      continue
-    }
-
-    resolvedMap[cleanKey] = cleanVal
-      .replace(/^\.(?=\/)/, '')
-      .replace(/^(?!(?:\/|https?:\/\/))/, '/')
+    const [key, value] = normalizeImportEntry(k, v)
+    resolvedMap[key] = value
   }
 
   depMap = JSON.stringify({ imports: resolvedMap })
