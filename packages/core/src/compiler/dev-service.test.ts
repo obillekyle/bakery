@@ -114,19 +114,22 @@ describe('classifyWatchEvent', () => {
 
   test('honours the ignore list', () => {
     expect(classifyWatchEvent('schema.ts')).toBe('ignored')
-    expect(classifyWatchEvent('.bakery/cache/x.ts')).toBe('ignored')
+    expect(classifyWatchEvent('.cache/x.ts')).toBe('ignored')
   })
 
   /**
-   * `.data/backups/` receives `schema.<timestamp>.ts` DB backup files at
+   * `bakery/backups/` receives `schema.<timestamp>.ts` DB backup files at
    * runtime. Each write matched the `.ts` glob, so taking a backup while the
    * dev server ran flushed the route cache and reloaded the browser.
+   *
+   * The data directory is un-dotted, so it cannot ride on any "ignore hidden
+   * directories" rule — it has to be listed by name, and this pins that.
    */
-  test('ignores the .data directory', () => {
-    expect(classifyWatchEvent('.data/backups/schema.1722902400000.ts')).toBe(
+  test('ignores the data directory', () => {
+    expect(classifyWatchEvent('bakery/backups/schema.1722902400000.ts')).toBe(
       'ignored',
     )
-    expect(classifyWatchEvent('.data/server.db')).toBe('ignored')
+    expect(classifyWatchEvent('bakery/server.db')).toBe('ignored')
   })
 
   test('ignores schema.ts anywhere in the tree, not just at the root', () => {
@@ -179,7 +182,7 @@ describe('classifySchemaSync', () => {
   })
 
   test('syncs when the database file is missing', () => {
-    // Deleting .data/ to reset is a normal dev move; an unchanged schema hash
+    // Deleting bakery/ to reset is a normal dev move; an unchanged schema hash
     // must not leave the app running against no database.
     expect(classifySchemaSync({ ...base, dbMissing: true })).toBe('sync')
   })

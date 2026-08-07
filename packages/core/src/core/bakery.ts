@@ -67,10 +67,17 @@ export const Bakery: globalThis.Bakery = {
     return getBakeryVersion()
   },
   sharedPool: new SharedMemoryPool(1024 * 1024),
-  cacheDir: `${fs.cwd}/.bakery/cache`,
-  // Deliberately not under .bakery: this holds the database and its backups,
-  // and must survive deleting the cache directory.
-  dataDir: `${fs.cwd}/.data`,
+  // The disposable directory is the hidden one, and the precious one is not.
+  // This is the reverse of the old `.bakery/cache` + `.data` pairing, and the
+  // reversal is the whole point: `.cache` is wiped by the framework itself on
+  // every version bump and dev<->prod switch, so a `rm -rf .*` or a "clean out
+  // the dotfiles" sweep does exactly what the framework already does. The
+  // database is not disposable, so it does not live behind a leading dot where
+  // such a sweep can reach it.
+  cacheDir: `${fs.cwd}/.cache`,
+  // Holds the database and its backups. Visible, and deliberately not under
+  // `.cache`: clearing a cache must never be able to destroy data.
+  dataDir: `${fs.cwd}/bakery`,
   startNs: Bun.nanoseconds(),
   handlers: {
     fetch: new HandlerMap(),

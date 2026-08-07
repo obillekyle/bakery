@@ -87,7 +87,7 @@ describe('GoogleFontHandler - the gstatic proxy is allow-listed', () => {
 describe('GoogleFontHandler - the cache is bounded', () => {
   const dir = fs.resolve(
     process.cwd(),
-    '.bakery',
+    '.cache',
     `gf-bound-test-${Bun.randomUUIDv7()}`,
   )
 

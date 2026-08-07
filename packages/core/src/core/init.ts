@@ -1,12 +1,12 @@
 import { createElement, Fragment, html } from './jsx'
 
-const isDevWorker = process.argv.includes('--dev-worker')
+const hasDevWorkerArg = process.argv.includes('--dev-worker')
 const isThreadWorker =
   process.argv.includes('--thread-worker') ||
   process.env.THREAD_WORKER === '1'
-const isDev = process.argv.includes('--dev') || isDevWorker
+const isDev = process.argv.includes('--dev') || hasDevWorkerArg
 const isTest = process.env.NODE_ENV === 'test' || Bun.env.NODE_ENV === 'test'
-const mode = isDevWorker
+const mode = hasDevWorkerArg
   ? 'dev-worker'
   : isThreadWorker
     ? 'thread-worker'
@@ -55,13 +55,32 @@ const accessor = (initial: any) => {
 Object.defineProperties(process.env, {
   DEV: accessor(isDev),
   TEST: accessor(isTest),
-  PROD: accessor(!isDev && !isDevWorker),
-  WORKER: accessor(isDevWorker || isThreadWorker),
-  DEV_WORKER: accessor(isDevWorker),
+  PROD: accessor(!isDev && !hasDevWorkerArg),
+  WORKER: accessor(hasDevWorkerArg || isThreadWorker),
+  DEV_WORKER: accessor(hasDevWorkerArg),
   THREAD_WORKER: accessor(isThreadWorker),
   THREAD_ID: accessor(threadId),
   MODE: accessor(mode),
 })
+
+/**
+ * "This process is the worker of a *development* server."
+ *
+ * `DEV_WORKER` alone would answer the same — `isDev` above is
+ * `--dev || --dev-worker`, so a dev worker always carries `DEV` too — but the
+ * conjunction is the condition the call sites were written against, and it
+ * says what it means. Exported from here rather than recomputed per module
+ * because three of them branch on it (`cli/worker.ts`,
+ * `compiler/dev-service.ts`, the dashboard plugin's `setup.ts`) and a
+ * byte-identical expression in three files is three chances to drift.
+ *
+ * Read once, at the moment the accessors above are installed: the flags do not
+ * move afterwards, so this is the same value each copy computed at its own
+ * load time.
+ */
+export const isDevWorker = Boolean(
+  import.meta.env.DEV_WORKER && import.meta.env.DEV,
+)
 
 Object.assign(globalThis, {
   createElement,

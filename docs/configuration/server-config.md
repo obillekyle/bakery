@@ -186,7 +186,7 @@ Your patterns are **added to**, never replace, the built-in list
 **/package.json     **/package-lock.json
 **/tsconfig.json    **/tsconfig.*.json
 **/*.yaml           **/*.yml            **/*.lock         **/bun.lockb
-**/.bakery/**/*     **/.data/**/*       **/_internal/**/*
+**/.cache/**/*     **/bakery/**/*       **/_internal/**/*
 **/.git/**/*        **/.vscode/**/*     **/node_modules/**/*
 **/server.config.ts **/schema.ts        **/.gitignore     **/*.exe
 ```

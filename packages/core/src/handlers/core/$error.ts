@@ -1,7 +1,8 @@
 import { errorDetail } from '../../logger/serve-log'
-import type { MixedPromise } from '../../types'
+import type { MapOf, MixedPromise } from '../../types'
 import { is } from '../../utils/common'
 import { fs } from '../../utils/fs'
+import { response } from '../../utils/http'
 import { Handler } from './$base'
 import { DynamicHandler } from './$dynamic'
 
@@ -9,6 +10,65 @@ const DEFAULT_ERROR: Handler.Error.Data = {
   errorCode: 500,
   errorText: 'Internal Server Error',
   errorBody: 'An unexpected error occurred.',
+}
+
+/**
+ * A fresh copy of the process-wide default error data.
+ *
+ * The copy is the point, not the convenience. `extractErrorData` assigns the
+ * getter's result to a local and then *mutates* it, which is safe only while
+ * every `this` it runs under hands back a new object — a plain
+ * `= DEFAULT_ERROR` would let any caller write the process-wide default's
+ * fields. Both `ErrorHandler` and `DynamicErrorHandler` need the getter and
+ * they sit in different class hierarchies, so neither can inherit it from the
+ * other; they call this instead of each keeping a copy of the copy.
+ */
+function defaultErrorData(): Handler.Error.Data {
+  return Object.assign({}, DEFAULT_ERROR)
+}
+
+/**
+ * The three lines every page handler opens with: the error-data default, the
+ * route lookup, and the 404 for a path that resolves to nothing.
+ *
+ * `HTMLHandler`, `TSXHandler` and the Vue plugin's handler render three
+ * different file formats and their bodies genuinely differ — but all three
+ * reach them this way. `errors` is `undefined` for an ordinary page, and
+ * `DEFAULT_ERROR` exists only on the error subclasses, so the fallback stays
+ * `undefined` for the ordinary handlers. `DynamicErrorHandler.resolveRoute`
+ * uses the second argument to prefer `error-<code>` over `error`;
+ * `DynamicHandler.resolveRoute` ignores it.
+ *
+ * Hands back the 404 `Response` itself rather than a `null` the caller has to
+ * remember to turn into one.
+ */
+export async function beginPageRoute(
+  handler: typeof DynamicHandler | typeof DynamicErrorHandler,
+  path: string,
+  errors?: Handler.Error.Data,
+): Promise<
+  | { errorData: Handler.Error.Data | undefined; info: Handler.Route.Info }
+  | Response
+> {
+  const errorData = errors || (handler as any).DEFAULT_ERROR
+  const info = await handler.resolveRoute(path, errorData)
+  if (!info) return response.error('Not Found')
+  return { errorData, info }
+}
+
+/**
+ * Stamp the DEV-only `__file` marker onto a page's params.
+ *
+ * One spelling of one rule: the marker goes on the params object **before**
+ * whatever error data gets merged in, and it names the route-relative path.
+ * `HTMLHandler` used to set it after the merge and `TSXHandler` before, which
+ * comes out the same today only because `publicErrorData` never emits a
+ * `__file` key — two orderings for one rule is what makes it look like the
+ * order might matter. It does not; this is the order, and `params` is the
+ * object because TSX also feeds that same object to `injectIfHtml`.
+ */
+export function markDevFile(params: MapOf<any>, routePath: string): void {
+  if (import.meta.env.DEV) params.__file = routePath
 }
 
 export class HandlerError extends Error {
@@ -36,8 +96,9 @@ export class HandlerError extends Error {
 }
 
 export class ErrorHandler extends Handler {
+  /** A fresh copy every read — see `defaultErrorData`. */
   static get DEFAULT_ERROR() {
-    return Object.assign({}, DEFAULT_ERROR)
+    return defaultErrorData()
   }
 
   static isError(error: any): boolean {
@@ -171,15 +232,12 @@ export class ErrorHandler extends Handler {
 
 export class DynamicErrorHandler extends DynamicHandler {
   /**
-   * A copy, matching `ErrorHandler.DEFAULT_ERROR` above. `extractErrorData`
-   * assigns this to a local and then mutates it, which is safe only while
-   * every `this` it runs under hands back a fresh object — a plain
-   * `= DEFAULT_ERROR` here handed out the module-level one, so any class
-   * inheriting that method through this branch would have written the
-   * process-wide default's fields.
+   * The same fresh copy `ErrorHandler.DEFAULT_ERROR` hands back — see
+   * `defaultErrorData`. Declared again rather than inherited because this
+   * class descends from `DynamicHandler`, not from `ErrorHandler`.
    */
   static get DEFAULT_ERROR() {
-    return Object.assign({}, DEFAULT_ERROR)
+    return defaultErrorData()
   }
 
   static canHandle(

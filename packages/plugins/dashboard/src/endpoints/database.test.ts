@@ -1,34 +1,16 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { __resetTestDb, __setTestDb } from '@bakery/orm/connection'
 import { handleExecuteAction, handleQuery } from './database'
+import { createStubDb } from '../test-fixtures'
 
 const ACTION_URL = 'http://localhost/api/_dashboard/execute-action'
 const TABLE = 'nonexistent_table_write_gate'
 
-let dbCalls: string[] = []
+const { db: stubDb, calls: dbCalls, reset: resetDbCalls } = createStubDb()
 
-const stubDb = {
-  truncate: async (table: string) => {
-    dbCalls.push(`truncate:${table}`)
-  },
-  remove: async (table: string, rowid: unknown) => {
-    dbCalls.push(`remove:${table}:${rowid}`)
-  },
-  insert: async (table: string) => {
-    dbCalls.push(`insert:${table}`)
-  },
-  query: (sql: string) => ({
-    all: async () => {
-      dbCalls.push(`all:${sql}`)
-      return []
-    },
-    run: async () => {
-      dbCalls.push(`run:${sql}`)
-      return { lastInsertRowid: 1, changes: 1 }
-    },
-  }),
-}
-
+// Saved because `afterEach` below *deletes* the variable: without this the
+// suite would strip an operator's ambient DASHBOARD_ALLOW_WRITES from the
+// process for every test file loaded after it.
 const priorAllowWrites = process.env.DASHBOARD_ALLOW_WRITES
 
 beforeAll(() => {
@@ -42,7 +24,7 @@ afterAll(() => {
 })
 
 afterEach(() => {
-  dbCalls = []
+  resetDbCalls()
   delete process.env.DASHBOARD_ALLOW_WRITES
 })
 

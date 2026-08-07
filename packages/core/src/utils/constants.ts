@@ -47,8 +47,13 @@ export const DEFAULT_BLOCKED_GLOBS = [
   // `/node_modules/a` and then stops, so `/node_modules/pkg/index.js` was not
   // blocked by anything. Each pattern still matched on its own, which is why
   // it survived — the defect only exists in the form the config actually uses.
-  '**/.bakery/**/*',
-  '**/.data/**/*',
+  // `.cache` is the framework's disposable working dir and `bakery/` holds the
+  // database and its backups — the visible one is the precious one, so that a
+  // dotfile sweep cannot reach the data. `bakery/` being un-dotted is why it
+  // needs naming here explicitly: `*.db` covers the database file itself, but
+  // not the `.ts` schema snapshots under `bakery/backups/`.
+  '**/.cache/**/*',
+  '**/bakery/**/*',
   '**/_internal/**/*',
   '**/.git/**/*',
   '**/.vscode/**/*',

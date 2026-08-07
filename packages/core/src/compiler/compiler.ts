@@ -218,7 +218,18 @@ export async function bundleModule(
     entrypoints: [path],
     target: 'browser',
     format: 'esm',
-    minify: import.meta.env.PROD,
+    // Coerced, and not defensively: `Bun.build` *rejects* a non-boolean
+    // `minify` with "Expected minify to be a boolean or an object" rather than
+    // treating it as truthy, so anything that reaches this line as a string
+    // takes the whole bundle down.
+    //
+    // That is reachable from outside this repo. `PROD` is an accessor on
+    // `process.env`, and Bun's `process.env` proxy stringifies on write, so an
+    // embedder that assigns the flag at all — even `process.env.PROD = true` —
+    // leaves a string behind. The suite's own instance of this is fixed at the
+    // source (see `setModeFlag` in `src/tests/fixtures.ts`); this guards the
+    // writes we do not own.
+    minify: Boolean(import.meta.env.PROD),
     define: await getDefines(),
   })
 

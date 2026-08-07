@@ -248,7 +248,7 @@ Compilation is expensive and per-request data is not cacheable, so the two are
 separated ([`vue/src/handler.ts`](../../packages/plugins/vue/src/handler.ts)):
 
 - A component **without** a server block, and every **root** script, is
-  compiled once and written to `.bakery/cache/vue/`, keyed by source mtime.
+  compiled once and written to `.cache/vue/`, keyed by source mtime.
   The root script reads its data from `globalThis.__vue_server`, which the
   shell sets — so the cached file contains no user data.
 - A **subcomponent with** a server block is compiled once into a template
@@ -256,7 +256,7 @@ separated ([`vue/src/handler.ts`](../../packages/plugins/vue/src/handler.ts)):
   is spliced in on the way out. That response carries
   `Cache-Control: private, no-store`.
 
-Server-block modules are compiled to `.bakery/cache/vue/server/<id>_<mtime>.ts`
+Server-block modules are compiled to `.cache/vue/server/<id>_<mtime>.ts`
 via a write-then-rename, so a concurrent request can never import a half-written
 module, and older compilations of the same source are pruned.
 

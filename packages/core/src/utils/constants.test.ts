@@ -41,8 +41,8 @@ describe('constants', () => {
     expect(DEFAULT_BLOCKED_GLOBS).toContain('**/.env')
     expect(DEFAULT_BLOCKED_GLOBS).toContain('**/*.db')
     // The framework's working dir and the app's database must never be served.
-    expect(DEFAULT_BLOCKED_GLOBS).toContain('**/.bakery/**/*')
-    expect(DEFAULT_BLOCKED_GLOBS).toContain('**/.data/**/*')
+    expect(DEFAULT_BLOCKED_GLOBS).toContain('**/.cache/**/*')
+    expect(DEFAULT_BLOCKED_GLOBS).toContain('**/bakery/**/*')
     expect(DEFAULT_BLOCKED_GLOBS).toContain('**/node_modules/**/*')
     expect(DEFAULT_BLOCKED_GLOBS).toContain('**/schema.ts')
   })
@@ -68,10 +68,10 @@ describe('DEFAULT_BLOCKED_GLOBS as a matcher', () => {
       '/node_modules/left-pad/index.js',
       '/server.config.ts',
       '/schema.ts',
-      '/.data/server.db',
-      '/.data/backups/2024/dump.sqlite',
-      '/.bakery/cache/x',
-      '/.bakery/cache/nested/deep/x',
+      '/bakery/server.db',
+      '/bakery/backups/2024/dump.sqlite',
+      '/.cache/x',
+      '/.cache/nested/deep/x',
       '/node_modules/pkg/dist/index.js',
       '/_internal/notes/todo.md',
       '/.vscode/settings.json',
@@ -132,7 +132,7 @@ describe('matchBlocked', () => {
       '/SERVER.DB',
       '/NODE_MODULES/left-pad/index.js',
       '/.GIT/config',
-      '/.Data/server.db',
+      '/Bakery/server.db',
       '/BUN.LOCKB',
       '/DEPLOY.YAML',
     ]

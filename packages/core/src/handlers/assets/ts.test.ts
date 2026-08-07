@@ -8,7 +8,7 @@ import {
 import { fs } from '../../utils/fs'
 import { TSHandler } from './ts'
 
-const ROOT = fs.resolve(process.cwd(), '.bakery/cache/__ts-test__')
+const ROOT = fs.resolve(process.cwd(), '.cache/__ts-test__')
 const PAGE = fs.resolve(ROOT, 'page.ts')
 const BROKEN = fs.resolve(ROOT, 'broken.ts')
 

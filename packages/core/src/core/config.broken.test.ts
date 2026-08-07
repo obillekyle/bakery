@@ -9,9 +9,14 @@ import {
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+// Imported for its side effect, before the flags are captured below: init
+// installs the mode accessors on `process.env`, and capturing before it runs
+// means capturing `undefined` and restoring that into a flag other files read.
+import './init'
 import { setLogCallback } from '../logger/logger'
 import { runStartupBanner } from '../startup'
 import { DEFAULT_PORT } from '../utils/constants'
+import { setModeFlag } from '../tests/fixtures'
 import { clearHostConfigCache, getConfigLoadError, initConfig } from './config'
 
 /**
@@ -30,26 +35,29 @@ import { clearHostConfigCache, getConfigLoadError, initConfig } from './config'
 
 const ORIGINAL_CWD = process.cwd()
 
-// A mode flag may be a plain (absent) env var or the accessor init.ts
-// installs — which of the two depends on whether an earlier test file
-// evaluated init. Deleting unconditionally removed the accessor and left
-// later files seeing a different flag than they would in isolation:
-// init.test.ts's accessor-pair check failed on exactly this, and only on
-// Linux CI, whose test-file ordering evaluates init before this file runs.
-// Restoring the captured value through whichever shape exists is
-// order-independent.
+// Capture and restore a mode flag without changing its *type*.
+//
+// Two distinct leaks lived in this function, both of which broke a different
+// file (`bundleModule` passes `PROD` to `Bun.build` as `minify`, which rejects
+// anything non-boolean) and both of which only showed under full-suite
+// ordering:
+//
+//   1. It deleted the flag when the capture found none — removing the accessor
+//      `core/init` had installed in the meantime. The `import './init'` above
+//      fixes that at the source by making the capture real.
+//   2. It restored by assigning, on the stated reasoning that init's
+//      getter/setter close over one `value` and re-defining the descriptor
+//      would put the pair back but not the value. The reasoning is right; the
+//      conclusion was wrong, because Bun's `process.env` proxy **stringifies on
+//      write and not on read**. So this read a boolean `true` and wrote back
+//      the string `"true"` — restoring a flag that now failed a `typeof` check
+//      it had passed before.
+//
+// `setModeFlag` calls init's own setter directly, which reaches the closure
+// while bypassing the proxy — the value goes back exactly as it came out.
 function flagRestorer(flag: string) {
-  const had = flag in process.env
-  const original = (process.env as any)[flag]
-  return () => {
-    if (had) {
-      ;(process.env as any)[flag] = original
-      return
-    }
-    const desc = Object.getOwnPropertyDescriptor(process.env, flag)
-    if (desc?.set) (process.env as any)[flag] = undefined
-    else delete (process.env as any)[flag]
-  }
+  const original = Object.getOwnPropertyDescriptor(process.env, flag)?.get?.()
+  return () => setModeFlag(flag, original)
 }
 
 const restoreProd = flagRestorer('PROD')
@@ -68,8 +76,8 @@ beforeAll(() => {
   )
   emptyDir = mkdtempSync(join(tmpdir(), 'bakery-no-config-'))
 
-  // Skip checkCacheVersion's `.bakery/cache` bookkeeping inside the temp dirs.
-  process.env.WORKER = '1'
+  // Skip checkCacheVersion's `.cache` bookkeeping inside the temp dirs.
+  setModeFlag('WORKER', true)
 })
 
 afterAll(() => {
@@ -90,7 +98,7 @@ afterEach(() => {
 describe('initConfig with a broken server.config.ts', () => {
   test('PROD: refuses to boot on defaults', async () => {
     process.chdir(brokenDir)
-    process.env.PROD = '1'
+    setModeFlag('PROD', true)
     clearHostConfigCache()
 
     // The throw is the contract: every PROD entry (prod.ts, threads.ts,
@@ -100,7 +108,7 @@ describe('initConfig with a broken server.config.ts', () => {
 
   test('PROD: a missing config file still zero-config boots', async () => {
     process.chdir(emptyDir)
-    process.env.PROD = '1'
+    setModeFlag('PROD', true)
     clearHostConfigCache()
 
     const config = await initConfig()
@@ -111,7 +119,7 @@ describe('initConfig with a broken server.config.ts', () => {
     process.chdir(brokenDir)
     // Explicit, not assumed-absent: once any earlier file loads core/init
     // (the CLI tests do), PROD defaults to true under `bun test`.
-    ;(process.env as any).PROD = ''
+    setModeFlag('PROD', false)
     clearHostConfigCache()
 
     const config = await initConfig()
@@ -123,7 +131,7 @@ describe('initConfig with a broken server.config.ts', () => {
 
   test('PROD: a missing config file records no load error', async () => {
     process.chdir(emptyDir)
-    process.env.PROD = '1'
+    setModeFlag('PROD', true)
     clearHostConfigCache()
 
     await initConfig()
@@ -132,7 +140,7 @@ describe('initConfig with a broken server.config.ts', () => {
 
   test('DEV: the startup banner repeats the warning', async () => {
     process.chdir(brokenDir)
-    ;(process.env as any).PROD = ''
+    setModeFlag('PROD', false)
     clearHostConfigCache()
     await initConfig()
 
@@ -146,7 +154,7 @@ describe('initConfig with a broken server.config.ts', () => {
 
   test('DEV: a healthy config leaves the banner clean', async () => {
     process.chdir(emptyDir)
-    ;(process.env as any).PROD = ''
+    setModeFlag('PROD', false)
     clearHostConfigCache()
     await initConfig()
 

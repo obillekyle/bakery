@@ -7,17 +7,17 @@ import { TSXHandler } from './tsx'
 
 /**
  * A throwaway serve root, so the handler resolves and imports a real module the
- * way it does in production rather than through a stub. `.bakery/` is
+ * way it does in production rather than through a stub. `.cache/` is
  * gitignored and is where the mount tests keep their fixtures too.
  */
-const APP_DIR = fs.resolve(process.cwd(), '.bakery/cache/__tsx-test__')
+const APP_DIR = fs.resolve(process.cwd(), '.cache/__tsx-test__')
 
 /**
  * The fixture imports `createElement` explicitly. In a running app it is a
  * global bound by core/init.ts, which no test loads; the import produces the
  * same SafeHtml either way, which is the whole point of the fixture.
  */
-const JSX_IMPORT = "import { createElement } from '../../../packages/core/src/core/jsx'"
+const JSX_IMPORT = "import { createElement } from '../../packages/core/src/core/jsx'"
 
 beforeAll(async () => {
   await initConfig()

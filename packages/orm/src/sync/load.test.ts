@@ -42,14 +42,14 @@ describe('unsupported foreign keys are rejected, not silently indexed', () => {
  * point of the two-layout probe is which path it reaches for on disk, and a
  * stub of the filesystem would test the stub.
  *
- * They live under `.bakery/cache/` (gitignored, already the convention in
+ * They live under `.cache/` (gitignored, already the convention in
  * `$mounts.test.ts`) and each test gets its own directory, so a fixture that
  * exists only to be *ignored* — the decoys below — cannot leak into another
  * case. Tables are written as the plain object shape `table()` produces rather
  * than by importing it, which keeps the fixture free of a resolution path back
  * into the workspace.
  */
-const FIXTURES = fs.resolve(process.cwd(), '.bakery/cache/__schema-load-test__')
+const FIXTURES = fs.resolve(process.cwd(), '.cache/__schema-load-test__')
 
 /** `table('name', { … })`'s runtime shape, which is all `load.ts` reads. */
 function tableSource(name: string, column: string) {

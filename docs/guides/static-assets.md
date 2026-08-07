@@ -20,7 +20,7 @@ src/images/vector.svg   →  /images/vector.svg
 ```
 
 Compressible types (text and JSON MIME types) are pre-compressed into
-`.bakery/cache/static/` keyed by the file's mtime and hostname (`static.ts`) —
+`.cache/static/` keyed by the file's mtime and hostname (`static.ts`) —
 a `.zst` and `.gz` sibling are written next to the raw file, and the response
 serves whichever precompressed variant the request's `Accept-Encoding` allows,
 zstd first (`utils/http/etag.ts`, `utils/fs.ts`). Everything else is streamed
@@ -118,7 +118,7 @@ directory the router will happily execute `.ts` and `.tsx` from.
 Any path ending in `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif` or `.bmp` is claimed
 by `ImageHandler` (`packages/core/src/handlers/assets/image.ts`), which
 **re-encodes everything to WebP** and caches the result under
-`.bakery/cache/images/`.
+`.cache/images/`.
 
 Add `;<size>` before the extension to get a resized copy:
 
@@ -156,7 +156,7 @@ proxied and cached the same way. The net effect is that no browser request leave
 your origin for fonts.
 
 The cache has no expiry — it is keyed on the request path and query only, with a
-`null` mtime, so entries live until `.bakery/cache/gf_cache` is deleted. An
+`null` mtime, so entries live until `.cache/gf_cache` is deleted. An
 upstream failure returns 502.
 
 ## Node modules in the browser: `NMHandler` (80)
@@ -195,7 +195,7 @@ requirement (`handlers/assets/ts.ts`, `:23`):
 <script src="/script/index.js" type="module"></script>
 ```
 
-Output is cached under `.bakery/cache/ts_cache/` keyed by hostname and mtime.
+Output is cached under `.cache/ts_cache/` keyed by hostname and mtime.
 
 Note the priority: `TSHandler` is 50, below `TSXHandler` (60) and `HTMLHandler`
 (55). A `.ts` file whose stem collides with a `.tsx` page will lose — `page.ts`
@@ -204,20 +204,20 @@ automatically (see [Routing](routing.md#sibling-ts-and-css-files-are-auto-inject
 
 ## Cache locations
 
-Everything derived lives under `.bakery/cache/`, which is safe to delete:
+Everything derived lives under `.cache/`, which is safe to delete:
 
 ```
-.bakery/cache/static/     pre-compressed static files
-.bakery/cache/images/     WebP masters and resized variants
-.bakery/cache/ts_cache/   compiled TypeScript
-.bakery/cache/html/       assembled HTML pages
-.bakery/cache/nm_cache/   bundled node_modules
-.bakery/cache/gf_cache/   Google Fonts CSS and font files
-.bakery/cache/virtual/    framework client assets
+.cache/static/     pre-compressed static files
+.cache/images/     WebP masters and resized variants
+.cache/ts_cache/   compiled TypeScript
+.cache/html/       assembled HTML pages
+.cache/nm_cache/   bundled node_modules
+.cache/gf_cache/   Google Fonts CSS and font files
+.cache/virtual/    framework client assets
 ```
 
-The database and its backups live in `.data/`, deliberately outside `.bakery/`,
-so that clearing the cache cannot destroy data
+The database and its backups live in `bakery/`, deliberately *un*-hidden while
+the disposable `.cache/` is hidden, so that clearing caches cannot destroy data
 (`packages/core/src/core/bakery.ts`).
 
 The whole cache directory is wiped automatically when the framework version or

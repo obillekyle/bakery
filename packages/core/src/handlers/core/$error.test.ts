@@ -1,4 +1,7 @@
 import { describe, test, expect } from 'bun:test'
+// Side effect, before `asDev` captures the DEV descriptor below: init installs
+// the mode accessors, and capturing before it runs captures nothing.
+import '../../core/init'
 import { ErrorHandler, HandlerError } from './$error'
 
 describe('HandlerError', () => {
@@ -214,8 +217,12 @@ function asDev<T>(fn: () => T): T {
   try {
     return fn()
   } finally {
+    // Always a descriptor to restore, because of the `core/init` import at the
+    // top of this file. The `else delete` this used to fall back to removed
+    // init's accessor whenever the capture had run first, leaving
+    // `import.meta.env.DEV` undefined for every later file in the run — see
+    // the mode-flag rule in tests/conventions.test.ts.
     if (original) Object.defineProperty(process.env, 'DEV', original)
-    else delete (process.env as any).DEV
   }
 }
 

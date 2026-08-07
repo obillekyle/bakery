@@ -121,7 +121,7 @@ PORT=8080 bunx bakery --dev
 
 Development mode checks the schema on every boot and runs the full sync
 whenever the schema sources changed since the last successful one — a content
-hash under `.bakery/cache/` gates it, and `--sync` forces it
+hash under `.cache/` gates it, and `--sync` forces it
 ([packages/cli/src/dev.ts](../../packages/cli/src/dev.ts)) — so you rarely need
 to run `db:sync` by hand while developing. Production does not sync at boot;
 see [the CLI reference](../reference/cli.md).
@@ -130,12 +130,11 @@ see [the CLI reference](../reference/cli.md).
 
 Two directories appear next to the app you ran, both gitignored:
 
-- **`.data/`** — `server.db` (the SQLite database), `shared-cache.db` (the
-  tiered cache's backing store) and `backups/`. This is *not* under `.bakery`
-  on purpose: cache is disposable, the database is not, and one shared parent
-  would mean clearing a cache could destroy data
+- **`bakery/`** — `server.db` (the SQLite database) and `backups/`. It is deliberately *not*
+  hidden: the framework deletes `.cache/` on its own, so the directory holding
+  your data is the one a `rm -rf .*` cannot reach
   ([packages/core/src/core/bakery.ts](../../packages/core/src/core/bakery.ts)).
-- **`.bakery/cache/`** — compiled TypeScript, assembled HTML, bundled node
+- **`.cache/`** — compiled TypeScript, assembled HTML, bundled node
   modules, fetched Google Fonts. Safe to delete at any time. Bakery clears it
   itself whenever the framework version or the mode (dev/production) changes
   ([packages/core/src/core/config.ts](../../packages/core/src/core/config.ts)).
@@ -186,7 +185,7 @@ in core's ambient declarations, which is where the global `createElement`,
 ## Choosing a database
 
 SQLite is the default and needs no configuration — the file is created at
-`.data/server.db` on first run. To use something else, set `DB_URL` (or
+`bakery/server.db` on first run. To use something else, set `DB_URL` (or
 `DATABASE_URL`); the driver is inferred from the URL scheme
 ([packages/orm/src/adapters.ts](../../packages/orm/src/adapters.ts)):
 

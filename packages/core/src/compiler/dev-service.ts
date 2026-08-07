@@ -2,6 +2,7 @@ import { watch } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { initRoutes } from '../cache'
 import { Bakery } from '../core/bakery'
+import { isDevWorker } from '../core/init'
 import { Try } from '../utils'
 import { Glob, fs } from '../utils/fs'
 import { compLog, serveLog } from '../logger'
@@ -420,12 +421,15 @@ const watchIgnores = Glob.strings(
   '**/.git/**/*',
   '**/.vscode/**/*',
   '**/.backups/**/*',
+  // The framework's own cache directory (`Bakery.cacheDir`).
   '**/.cache/**/*',
-  '**/.bakery/**/*',
-  // `.data` holds the database plus `backups/schema.<timestamp>.ts` files the
-  // DB backup writes at runtime — without this, taking a backup while the dev
-  // server ran flushed the route cache and reloaded the browser.
-  '**/.data/**/*',
+  // `bakery/` (`Bakery.dataDir`) holds the database plus
+  // `backups/schema.<timestamp>.ts` files the DB backup writes at runtime —
+  // without this, taking a backup while the dev server ran flushed the route
+  // cache and reloaded the browser. It is un-dotted on purpose (see
+  // `core/bakery.ts`), which is exactly why it has to be named here: a
+  // "skip the dotfiles" heuristic would no longer cover it.
+  '**/bakery/**/*',
   // `**/` so nested layouts (e.g. `orm/schema.ts`) are covered too. schema.ts
   // anywhere in the tree is the ORM schema convention; route files are never
   // named schema.ts, so the breadth is safe.
@@ -478,7 +482,7 @@ export function isBackendPriorityFile(filePath: string): boolean {
  *
  * Every boot used to run the full sync unconditionally, and it dominated
  * restart time. cli/dev.ts now hashes the schema sources, records the hash
- * under `.bakery/cache/` after a *successful* sync only, and consults this
+ * under `.cache/` after a *successful* sync only, and consults this
  * before the next one. Pure so the fail-closed branches are testable: any
  * indeterminate state (`currentHash: null` — sources unreadable; `storedHash:
  * null` — no successful sync on record) must sync, never skip.
@@ -490,7 +494,7 @@ export function classifySchemaSync(opts: {
   currentHash: string | null
   /** Hash recorded after the last successful sync, or null if none. */
   storedHash: string | null
-  /** The local database file is gone (e.g. `.data/` deleted to reset). */
+  /** The local database file is gone (e.g. `bakery/` deleted to reset). */
   dbMissing: boolean
 }): 'sync' | 'skip' {
   if (opts.force) return 'sync'
@@ -600,7 +604,6 @@ async function processFileEvent(
 export async function startCompileService(server: any): Promise<void> {
   if (!import.meta.env.DEV) return
   const watcher = watch('./', { recursive: true })
-  const isDevWorker = Boolean(import.meta.env.DEV_WORKER && import.meta.env.DEV)
 
   // Only the dev worker serves `/_livereload` (LiveReloadHandler.canHandle
   // gates on DEV && DEV_WORKER), so only the dev worker has anywhere to publish

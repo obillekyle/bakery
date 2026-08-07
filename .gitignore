@@ -21,9 +21,14 @@ cookies.txt
 node_modules
 dist
 scratch
+
+# The framework's two runtime directories (packages/core/src/core/bakery.ts).
+# `.cache` is disposable — the framework deletes it wholesale on every version
+# bump and dev<->prod switch. `bakery/` holds server.db and backups/ and is
+# deliberately *not* hidden, so a `rm -rf .*` cannot reach it; the trailing
+# slash keeps this to directories, so a file named `bakery` stays tracked.
 .cache
-.data
-.bakery
+bakery/
 
 *.tsbuildinfo
 

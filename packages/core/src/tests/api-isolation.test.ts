@@ -1,11 +1,10 @@
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { rm } from 'node:fs/promises'
 import { fs } from '../utils/fs'
 import { Bakery, hostStore } from '../core/bakery'
 import { ApiHandler } from '../handlers/routes/api'
 import { initConfig } from '../core/config'
+import { executeAcrossEdit } from './fixtures'
 
 describe('Virtual Host API Isolation (`Bakery.serveRoot + /api`)', () => {
   beforeAll(async () => {
@@ -46,16 +45,13 @@ describe('API module reloads', () => {
   })
 
   test('reloads an API module when its modification time changes', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'bakery-api-'))
+    // The ambient (dev) flags, deliberately unwrapped. `handlers/routes/api.
+    // test.ts` runs the identical fixture under `asProd` and expects `second`
+    // to come back as `'first'`; the pair is what pins the cache-buster gate.
+    const { dir, first, second } = await executeAcrossEdit('bakery-api-')
     directories.push(dir)
-    const file = join(dir, 'handler.ts')
-    const req = new Request('http://localhost/api/test')
 
-    await writeFile(file, "export default () => 'first'")
-    expect(await ApiHandler.executeModule(file as any, req, null)).toBe('first')
-
-    await new Promise(resolve => setTimeout(resolve, 10))
-    await writeFile(file, "export default () => 'second'")
-    expect(await ApiHandler.executeModule(file as any, req, null)).toBe('second')
+    expect(first).toBe('first')
+    expect(second).toBe('second')
   })
 })

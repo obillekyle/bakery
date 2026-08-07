@@ -1,9 +1,15 @@
 import { Bakery, hostKey } from '../../core/bakery'
+import type { MapOf } from '../../types'
 import { assembleHtml, fs, toHash } from '../../utils'
 import { injectIfHtml, response } from '../../utils/http'
 import type { Handler } from '../core/$base'
 import { DynamicHandler } from '../core/$dynamic'
-import { DynamicErrorHandler, publicErrorData } from '../core/$error'
+import {
+  beginPageRoute,
+  DynamicErrorHandler,
+  markDevFile,
+  publicErrorData,
+} from '../core/$error'
 
 export class HTMLHandler extends DynamicHandler {
   static get config() {
@@ -42,10 +48,9 @@ async function sharedHandler(
   req: Request,
   errors?: Handler.Error.Data,
 ) {
-  const errorData = errors || (this as any).DEFAULT_ERROR
-  const info = await this.resolveRoute(path, errorData)
-
-  if (!info) return response.error('Not Found')
+  const begun = await beginPageRoute(this, path, errors)
+  if (begun instanceof Response) return begun
+  const { errorData, info } = begun
 
   const file = info.file
 
@@ -67,6 +72,7 @@ async function sharedHandler(
   }
 
   const params = await this.params(req, info.getParams(path) || {})
+  markDevFile(params, info.path)
   const content = await info.file.text()
   // `publicErrorData`, not `errorData`: these params reach the document
   // through `{{...}}` *and* through the `__PAGE_PARAMS__` script injected
@@ -75,10 +81,13 @@ async function sharedHandler(
   // `undefined` for an ordinary page — `DEFAULT_ERROR` only exists on the
   // error handler — and the spread below tolerates that where the helper,
   // deliberately strict about the shape it redacts, does not.
-  const data = { ...params, ...(errorData && publicErrorData(errorData)) }
-
-  if (import.meta.env.DEV) {
-    data.__file = info.path
+  // Annotated because `beginPageRoute` hands back real `Handler.Error.Data`
+  // where this used to read an untyped `(this as any).DEFAULT_ERROR`: the
+  // merged record now has a numeric `errorCode` in it, and `injectIfHtml`
+  // substitutes stringly. Same object as before, same values.
+  const data: MapOf<any> = {
+    ...params,
+    ...(errorData && publicErrorData(errorData)),
   }
 
   const html = await injectIfHtml(content, data)

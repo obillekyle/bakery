@@ -7,6 +7,7 @@ import {
   DashboardHandler,
   handleDashboardRequest,
 } from './setup'
+import { createStubDb } from './test-fixtures'
 
 const ACTION_URL = 'http://localhost/api/_dashboard/execute-action'
 // Nothing may be destroyed even when a case fails: this table does not exist,
@@ -18,16 +19,7 @@ const TABLE = 'nonexistent_table_csrf_probe'
  * matters in every case below is that this stays empty — a rejection that
  * arrives *after* the truncate is not a rejection.
  */
-let dbCalls: string[] = []
-
-const stubDb = {
-  truncate: async (table: string) => {
-    dbCalls.push(`truncate:${table}`)
-  },
-  remove: async (table: string, rowid: unknown) => {
-    dbCalls.push(`remove:${table}:${rowid}`)
-  },
-}
+const { db: stubDb, calls: dbCalls, reset: resetDbCalls } = createStubDb()
 
 const priorAllowWrites = process.env.DASHBOARD_ALLOW_WRITES
 
@@ -51,7 +43,7 @@ afterAll(() => {
 })
 
 beforeEach(() => {
-  dbCalls = []
+  resetDbCalls()
 })
 
 function truncateBody() {

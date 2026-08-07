@@ -14,11 +14,15 @@ export const COUNTER_SLOTS = {
 } as const
 
 export class SharedMemoryPool {
-  buffer: SharedArrayBuffer
-  header: Int32Array
-  counters: Int32Array
-  rateLimits: Int32Array
-  dataPool: Uint8Array
+  // Definite-assignment assertions because the adopt-an-existing-buffer path
+  // assigns all five through `bind()`, and TypeScript's initialization
+  // analysis does not follow a method call out of the constructor. Both
+  // constructor paths do assign every one of them before returning.
+  buffer!: SharedArrayBuffer
+  header!: Int32Array
+  counters!: Int32Array
+  rateLimits!: Int32Array
+  dataPool!: Uint8Array
 
   constructor(sizeOrBuffer: number | SharedArrayBuffer = 1024 * 1024) {
     if (typeof sizeOrBuffer === 'number') {
@@ -45,27 +49,14 @@ export class SharedMemoryPool {
       Atomics.store(this.header, 1, size)
       Atomics.store(this.header, 2, BUFFER_START_OFFSET)
     } else {
-      this.buffer = sizeOrBuffer
-      this.header = new Int32Array(this.buffer, 0, HEADER_INT_COUNT)
-      this.counters = new Int32Array(
-        this.buffer,
-        HEADER_BYTES,
-        COUNTERS_INT_COUNT,
-      )
-      this.rateLimits = new Int32Array(
-        this.buffer,
-        HEADER_BYTES + COUNTERS_BYTES,
-        RATE_LIMIT_SLOT_COUNT * 2,
-      )
-      const size = Atomics.load(this.header, 1) || this.buffer.byteLength
-      this.dataPool = new Uint8Array(
-        this.buffer,
-        BUFFER_START_OFFSET,
-        size - BUFFER_START_OFFSET,
-      )
+      // Adopting a buffer someone else laid out is exactly what `bind` does —
+      // it read the header for the size rather than trusting `byteLength`, and
+      // so did the copy that used to sit here, character for character.
+      this.bind(sizeOrBuffer)
     }
   }
 
+  /** Point every view at `buffer`, taking its size from the header it carries. */
   bind(buffer: SharedArrayBuffer): void {
     this.buffer = buffer
     this.header = new Int32Array(this.buffer, 0, HEADER_INT_COUNT)

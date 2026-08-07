@@ -1,6 +1,7 @@
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { describe, expect, test } from 'bun:test'
+import { Bakery } from '@bakery/core/core/bakery'
 import { fs } from '@bakery/core/utils/fs'
 import { SQLiteAdapter } from '../adapters/sqlite'
 import { collectConstraints } from '../define'
@@ -26,7 +27,7 @@ describe('generated schema registers itself', () => {
       )
       .run()
 
-    const path = `${process.cwd()}/.server/.cache/__gen-schema-test.ts`
+    const path = `${Bakery.cacheDir}/__gen-schema-test.ts`
     // Cast: SQLiteAdapter declares parseDefault private while the base does
     // not, so it is not structurally assignable to SQLAdapter. Pre-existing
     // (see the same error at adapters/sqlite.ts:228) and unrelated to this test.
@@ -82,7 +83,7 @@ describe('the generated shape follows the layout it is written into', () => {
       .run()
     await db.createIndex('idx_widgets_label', 'widgets', ['label'], true)
 
-    const path = `${process.cwd()}/.bakery/cache/__gen-layout-test.ts`
+    const path = `${Bakery.cacheDir}/__gen-layout-test.ts`
     await SchemaBuilder.generate(db as any, path, silentMessages, {}, layout)
     const source = await Bun.file(path).text()
     await Bun.file(path).delete()
@@ -186,7 +187,7 @@ describe('the generated shape follows the layout it is written into', () => {
 })
 
 describe('the previous schema is preserved before it is overwritten', () => {
-  const backupDir = `${process.cwd()}/.data/backups`
+  const backupDir = `${Bakery.dataDir}/backups`
 
   async function listSchemaBackups(): Promise<string[]> {
     const { readdir } = await import('node:fs/promises')
@@ -198,7 +199,7 @@ describe('the previous schema is preserved before it is overwritten', () => {
     const db = new SQLiteAdapter(':memory:')
     await db.query('CREATE TABLE widgets (id INTEGER PRIMARY KEY)').run()
 
-    const schemaPath = `${process.cwd()}/.data/__preserve-test__.ts`
+    const schemaPath = `${Bakery.dataDir}/__preserve-test__.ts`
     const original = '// hand written, and the only copy — schema.ts is gitignored\n'
     await Bun.write(schemaPath, original)
 
@@ -222,7 +223,7 @@ describe('the previous schema is preserved before it is overwritten', () => {
     const db = new SQLiteAdapter(':memory:')
     await db.query('CREATE TABLE widgets (id INTEGER PRIMARY KEY)').run()
 
-    const schemaPath = `${process.cwd()}/.data/__preserve-absent__.ts`
+    const schemaPath = `${Bakery.dataDir}/__preserve-absent__.ts`
     await Bun.file(schemaPath).delete().catch(() => {})
 
     const before = await listSchemaBackups()

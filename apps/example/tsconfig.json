@@ -12,7 +12,7 @@
     "server.config.ts",
     "schema.ts"
   ],
-  "exclude": ["node_modules", ".bakery/**/*", ".data/**/*"],
+  "exclude": ["node_modules", ".cache/**/*", "bakery/**/*"],
   "files": [
     "../../packages/core/src/global.d.ts",
     "../../packages/core/src/shared.d.ts",

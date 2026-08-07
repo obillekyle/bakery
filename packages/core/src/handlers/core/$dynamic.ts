@@ -16,6 +16,37 @@ import { getRoute } from './$routing'
 
 const dynamicCaches = new Map<any, HandlerCache<RegExp, Route.Info>>()
 
+/**
+ * `file`, carrying the `?v=<mtime>` suffix that gives DEV edit-and-refresh.
+ *
+ * The suffix makes Bun's module registry treat every edit as a new module,
+ * which is what lets an edited route (a `.ts` API handler, a `.tsx` page) take
+ * the cheap dev path — route-cache flush plus browser reload — instead of the
+ * full process restart it used to force. It also costs a stat and a string
+ * alloc per request and permanently retains each superseded module: acceptable
+ * in DEV, pure waste in PROD where route files cannot change. So PROD imports
+ * the bare specifier once and serves from the registry cache; the trade is that
+ * PROD needs a restart to pick up changed route files, which is already true
+ * operationally since PROD runs no watcher.
+ *
+ * `&& !TEST` is load-bearing: `init.ts` defaults `PROD` to true whenever
+ * `--dev` is absent, and `bun test` loads init via the CLI package's tests — so
+ * a bare `PROD` gate flipped mid-suite and broke the reload tests in files
+ * loaded after it, while passing in isolation.
+ *
+ * Only the route module itself is busted: components it imports (a shared
+ * `Layout.tsx`, helpers) stay in Bun's registry until a restart. Documented in
+ * `docs/getting-started/first-app.md`.
+ *
+ * One implementation on purpose. `ApiHandler` and `TSXHandler`/`TSXErrorHandler`
+ * both need it, and they carried a byte-identical copy each — including this
+ * reasoning — which is two places for the `!TEST` clause to be dropped from.
+ */
+export function bustInDev(file: fs.AbsolutePath): fs.AbsolutePath {
+  if (import.meta.env.PROD && !import.meta.env.TEST) return file
+  return `${file}?v=${Bun.file(file).lastModified}` as fs.AbsolutePath
+}
+
 export class DynamicHandler extends Handler {
   static get config(): Handler.Dynamic.Config {
     return {

@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { Bakery } from '@bakery/core/core/bakery'
 import { Case, Try } from '@bakery/core/utils'
 import { SQL } from 'bun'
 import type * as SyncTypes from '../sync/types'
@@ -139,7 +140,9 @@ export class SQLiteAdapter extends SQLAdapter {
 
   private static resolveFilename(rawValue?: string | null): string {
     const envVal = process.env.DATABASE_URL || process.env.SQLITE_PATH
-    const fallback = path.resolve(process.cwd(), '.data/server.db')
+    // `Bakery.dataDir`, not a literal: the default database file has to follow
+    // the data directory, and this is the only place that names it.
+    const fallback = path.resolve(Bakery.dataDir, 'server.db')
     const value =
       rawValue?.trim() ||
       (typeof envVal === 'string' ? envVal.trim() : undefined)

@@ -1,9 +1,13 @@
 import { unlinkSync } from 'node:fs'
+import { Bakery } from '../core/bakery'
 import { Try } from '../utils/common/try'
 
 export const PromptTracker = {
   getFilePath(pid: number): string {
-    return `.bakery/cache/.prompt-active-${pid}`
+    // Derived, not written out: this lands in the cache directory, which the
+    // framework wipes wholesale, and a stale literal here would leave marker
+    // files behind in a directory nothing sweeps.
+    return `${Bakery.cacheDir}/.prompt-active-${pid}`
   },
 
   async isActive(pid: number): Promise<boolean> {

@@ -33,7 +33,7 @@ export class SyncService {
    * opened. It used to be the last check in `run()`, after `initConfig`,
    * `initDB`, `loadSchema` and both fatal guards — so the one flag whose whole
    * job is to explain the others exited 1 on an unreachable database or a
-   * single `foreign()` declaration, and creating `.data/server.db` as a side
+   * single `foreign()` declaration, and creating `bakery/server.db` as a side
    * effect of asking for help.
    */
   static helpRequested(argv: string[] = process.argv.slice(2)): boolean {

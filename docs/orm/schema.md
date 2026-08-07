@@ -239,7 +239,7 @@ it regenerates the schema file from the database
 > with the single-file `DBInfo` form** — including its own registration block,
 > which then collides with the one in `orm/index.ts`. Commit before running a
 > sync that involves `old()`, and check `git diff` afterwards. The previous
-> contents are also copied to `.data/backups/schema.<timestamp>.ts`.
+> contents are also copied to `bakery/backups/schema.<timestamp>.ts`.
 
 ## Views
 

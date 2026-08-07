@@ -12,9 +12,6 @@ const VOID_ELEMENTS = new Set([
 export const Fragment = ({ children }: { children?: any }) =>
   raw(renderChildren([children]))
 
-export const Comment = ({ children }: { children?: any }) =>
-  raw(`<!-- ${renderChildren([children])} -->`)
-
 /**
  * Markup that is already HTML and must not be escaped again.
  *

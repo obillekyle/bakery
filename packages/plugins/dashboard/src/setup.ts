@@ -1,5 +1,6 @@
 import { bundleModule } from '@bakery/core/compiler'
 import { Bakery } from '@bakery/core/core/bakery'
+import { isDevWorker } from '@bakery/core/core/init'
 import { Handler } from '@bakery/core/handlers'
 import { setLogCallback } from '@bakery/core/logger'
 import { errorMsg, pluginLog } from '@bakery/core/logger/serve-log'
@@ -32,7 +33,6 @@ import renderDashboardShell from './shell'
 
 export { connectedLoggers }
 
-const isDevWorker = Boolean(import.meta.env.DEV_WORKER && import.meta.env.DEV)
 let cachedDashboardJsPath: string | null = null
 
 /**

@@ -9,7 +9,7 @@ import { SyncService } from './index'
  * `initConfig`, `initDB`, `loadSchema` and both fatal guards. So the one flag
  * whose job is to explain the others could not be reached on a database it
  * could not open or a schema it refused, and asking for help opened a
- * connection and created `.data/server.db` as a side effect.
+ * connection and created `bakery/server.db` as a side effect.
  *
  * Driven as a subprocess rather than by calling `run()` here: the ordering is
  * the whole point, and only a real process shows what was touched on the way.
@@ -38,7 +38,7 @@ describe('--help is answered before anything is opened', () => {
   const cwd = path.join(tmpdir(), `bakery-help-${process.pid}-${Date.now()}`)
   let help: { out: string; exitCode: number }
   let noFlag: { out: string; exitCode: number }
-  /** Whether `<cwd>/.data` existed after each run — sampled between them. */
+  /** Whether `<cwd>/bakery` existed after each run — sampled between them. */
   let dataAfterHelp = false
   let dataAfterNoFlag = false
 
@@ -48,7 +48,7 @@ describe('--help is answered before anything is opened', () => {
       cwd,
       stdout: 'pipe',
       stderr: 'pipe',
-      // No DB_URL, so the SQLite adapter resolves <cwd>/.data/server.db — and
+      // No DB_URL, so the SQLite adapter resolves <cwd>/bakery/server.db — and
       // its constructor creates that directory. Its absence afterwards is the
       // evidence that nothing connected.
       env: { ...process.env, DB_URL: '', DATABASE_URL: '' },
@@ -65,9 +65,9 @@ describe('--help is answered before anything is opened', () => {
     // into the workspace from a temp directory.
     await Bun.write(path.join(cwd, 'schema.ts'), SCHEMA_WITH_FOREIGN)
     help = runSync('--help')
-    dataAfterHelp = existsSync(path.join(cwd, '.data'))
+    dataAfterHelp = existsSync(path.join(cwd, 'bakery'))
     noFlag = runSync()
-    dataAfterNoFlag = existsSync(path.join(cwd, '.data'))
+    dataAfterNoFlag = existsSync(path.join(cwd, 'bakery'))
   })
 
   afterAll(() => rmSync(cwd, { recursive: true, force: true }))

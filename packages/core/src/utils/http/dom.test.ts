@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { DOMTools, clearHeadBodyCache } from './dom'
+import { DOMTools, clearHeadBodyCache, headBodyCache } from './dom'
 
 describe('DOMTools', () => {
   test('isHTML detects HTML strings', async () => {
@@ -108,7 +108,14 @@ describe('DOMTools content-type helpers', () => {
 })
 
 describe('clearHeadBodyCache', () => {
-  test('clears without error', () => {
+  // This test had no `expect` at all: it asserted that the call did not throw,
+  // which a function whose body had been deleted would also satisfy. The cache
+  // is exported, so assert the thing the name promises.
+  test('empties the per-host head/body cache', () => {
+    headBodyCache.set('probe.example', { head: '<meta>', body: '<div>' })
+    expect(headBodyCache.get('probe.example')).toBeDefined()
+
     clearHeadBodyCache()
+    expect(headBodyCache.get('probe.example')).toBeUndefined()
   })
 })

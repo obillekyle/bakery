@@ -130,8 +130,28 @@ describe('resolveHostConfig — hostname case', () => {
 })
 
 describe('clearHostConfigCache', () => {
-  test('clears without error', () => {
+  // `expect(true).toBe(true)` used to stand here, which asserted that the call
+  // did not throw and nothing else — a function that had quietly stopped
+  // clearing anything would still have passed. The cache is observable through
+  // object identity: a configured host is memoised, so the entry before the
+  // clear and the entry after must not be the same object.
+  test('drops memoised host entries', async () => {
+    const HEAD = '<meta name="clear-probe" content="1">'
     clearHostConfigCache()
-    expect(true).toBe(true)
+    await initConfig()
+    __setTestConfig({ hosts: { 'clear.example': { head: HEAD } } })
+
+    const first = resolveHostConfig('clear.example')
+    expect(first.head).toBe(HEAD)
+    expect(resolveHostConfig('clear.example')).toBe(first)
+
+    clearHostConfigCache()
+    await initConfig()
+    const afterClear = resolveHostConfig('clear.example')
+    expect(afterClear.head).toBe(HEAD)
+    expect(afterClear).not.toBe(first)
+
+    __resetTestConfig()
+    clearHostConfigCache()
   })
 })

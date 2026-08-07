@@ -51,14 +51,6 @@ export type Match<D extends symbol> = {
   ): K | undefined
 } & D
 
-export type ResponseFunction<T = any> = (
-  req: Request,
-  body: T,
-  server: Bun.Server<unknown>,
-) => Promise<
-  string | number | Response | Bun.FileBlob | JsonResponse<any> | void
->
-
 /**
  * The `body` a route module's default export receives: declared params merge
  * over a permissive base. `body.id` is `string` once you declare it, while

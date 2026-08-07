@@ -6,30 +6,10 @@ import {
   __resetTestConfig,
 } from '../../core/config'
 import { hostStore, type HostContext } from '../../core/context'
+import { withEnvFlag } from '../../tests/fixtures'
 import { fs } from '../../utils/fs'
 import { getStatic } from '../core/$static'
 import { DefaultErrorHandler, StaticHandler } from './static'
-
-/**
- * Same descriptor-swap as api.test.ts: `import.meta.env.DEV` is a getter on
- * `process.env` installed by `core/init`, so it is swapped by descriptor and
- * put back — not assigned to, which throws once init has defined the getter,
- * and not module-mocked, which never unwinds.
- */
-function withEnvFlag<T>(flag: string, value: unknown, fn: () => T): T {
-  const original = Object.getOwnPropertyDescriptor(process.env, flag)
-  Object.defineProperty(process.env, flag, {
-    get: () => value,
-    configurable: true,
-  })
-
-  try {
-    return fn()
-  } finally {
-    if (original) Object.defineProperty(process.env, flag, original)
-    else delete (process.env as any)[flag]
-  }
-}
 
 beforeAll(async () => {
   await initConfig()
@@ -50,7 +30,7 @@ describe('DefaultErrorHandler — errorBody is redacted like every other error s
   }
 
   const render = async (dev: boolean, error: typeof STACKY) => {
-    const res = withEnvFlag('DEV', dev, () =>
+    const res = await withEnvFlag('DEV', dev, () =>
       DefaultErrorHandler.handle(
         '/x',
         new Request('http://localhost/x'),
