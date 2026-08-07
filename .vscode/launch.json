@@ -9,8 +9,10 @@
       "internalConsoleOptions": "neverOpen",
       "request": "launch",
       "name": "Debug Server",
-      "program": "${workspaceFolder}/.server/index.ts",
-      "cwd": "${workspaceFolder}",
+      // The CLI is the entry and dispatches by mode; the app is run from
+      // apps/example, not the repo root.
+      "program": "${workspaceFolder}/packages/cli/src/index.ts",
+      "cwd": "${workspaceFolder}/apps/example",
 
       "stopOnEntry": false,
       "watchMode": false

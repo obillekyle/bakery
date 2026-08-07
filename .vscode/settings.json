@@ -5,10 +5,6 @@
     "**/.hg": true,
     "**/.DS_Store": true,
     "**/Thumbs.db": true,
-    "**/flutter/ephemeral": true,
-    "**/Flutter/ephemeral": true,
-    "**/.symlinks": true,
-    "**/.plugin_symlinks": true,
     "node_modules": true
   },
   "editor.fontFamily": "'JetBrains Mono', Consolas, 'Courier New', monospace, 'Symbols NF 2048-em', 'Arial', 'Segoe UI Symbol', 'Apple Symbols', 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji'",
