@@ -25,8 +25,8 @@ export type TemplateFile = {
  * The version range the generated `package.json` asks for.
  *
  * Derived from this package's own version rather than written out, because the
- * scaffolder is published in lockstep with the framework: `create-bakery@3.1.0`
- * scaffolding `^3.0.0` is the drift this avoids. Caret, so a generated app
+ * scaffolder is published in lockstep with the framework: `create-bakery@4.1.0`
+ * scaffolding `^4.0.0` is the drift this avoids. Caret, so a generated app
  * picks up patches without regenerating.
  */
 export function dependencyRange(ownVersion: string): string {

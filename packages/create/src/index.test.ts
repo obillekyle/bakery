@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readdir, writeFile } from 'node:fs/promises'
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { isScaffoldable, parseArgs, writeTemplate } from './index'
+import { isScaffoldable, ownVersion, parseArgs, writeTemplate } from './index'
 import { dependencyRange, isValidAppName, templateFiles } from './template'
 
 const dirs: string[] = []
@@ -193,6 +193,20 @@ describe('the generated app', () => {
       declared.find(f => f.path === 'package.json')!.contents,
     )
     expect(pkg.dependencies['@bakery/core']).toBe('^9.9.9')
+  })
+
+  test('the emitted range tracks this package, not a literal', async () => {
+    // The two halves of the no-drift claim. `dependencyRange` is pure and
+    // tested above; this is the half that touches disk, and it is the half that
+    // breaks silently — if the relative URL in `ownVersion` stops resolving,
+    // every other test here still passes while generated apps pin the wrong
+    // major.
+    const declared = await Bun.file(
+      resolve(import.meta.dir, '../package.json'),
+    ).json()
+
+    expect(await ownVersion()).toBe(declared.version)
+    expect(dependencyRange(await ownVersion())).toBe(`^${declared.version}`)
   })
 
   test('the name reaches the page and the readme, and nothing else', async () => {

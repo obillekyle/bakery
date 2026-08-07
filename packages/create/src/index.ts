@@ -146,8 +146,14 @@ export async function writeTemplate(
   }
 }
 
-/** This package's own version, which the generated dependency range follows. */
-async function ownVersion(): Promise<string> {
+/**
+ * This package's own version, which the generated dependency range follows.
+ *
+ * Exported only so a test can prove it still reads the right file: the relative
+ * URL breaks silently if this module moves, and the failure is a generated app
+ * pinned to the wrong major with every other test still green.
+ */
+export async function ownVersion(): Promise<string> {
   const pkg = await Bun.file(
     new URL('../package.json', import.meta.url),
   ).json()

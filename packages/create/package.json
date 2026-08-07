@@ -1,6 +1,6 @@
 {
   "name": "create-bakery",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "Scaffold a Bakery app: bun create bakery <directory>",
   "author": "obillekyle",
   "license": "CC0-1.0 & MIT",

@@ -1,6 +1,6 @@
 {
   "name": "@bakery/example",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "private": true,
   "description": "Example application, and the end-to-end target for the framework.",
   "type": "module",
