@@ -6,6 +6,10 @@ import { Try } from '../utils'
 import { Glob, fs } from '../utils/fs'
 import { compLog, serveLog } from '../logger'
 import { PromptTracker } from './prompt-tracker'
+// Type-only: the compiler must not pull the handler or plugin runtime into the
+// dev worker's module graph, and nothing here needs a value from either.
+import type { Handler } from '../handlers/core/$base'
+import type { ServerPlugin } from '../plugins/types'
 
 export function notifySockets(server: any, filename: string) {
   const serveRoot = Bakery.serveRoot || '.'
@@ -26,9 +30,174 @@ export function notifySockets(server: any, filename: string) {
  * never be. Paths that cannot reach a live socket at all (worker dead, boot
  * failure before `Bun.serve`) are covered client-side by the disconnect
  * overlay instead.
+ *
+ * Two producers reach here. The watcher's `catch` below sends internal watcher
+ * faults directly; every *request-time* failure arrives through `emitDevError`
+ * and the sink `startCompileService` installs. That second producer is the
+ * point of the whole apparatus — for a long time only the first existed, so the
+ * overlay was reachable solely on an IO fault inside the watcher loop and never
+ * appeared for the failures developers actually hit.
  */
 export function notifyError(server: any, title: string, body: string) {
   server?.publish('livereload', JSON.stringify({ type: 'error', title, body }))
+}
+
+/**
+ * Longest error body that may cross the livereload socket.
+ *
+ * `errorBody` is a stack for anything `extractErrorData` builds from a thrown
+ * `Error`, and a framework-deep throw produces tens of kilobytes of it. The
+ * overlay renders it into a single `<pre>`, so past a screenful the extra bytes
+ * are unreadable *and* re-broadcast to every connected tab on every failing
+ * request.
+ */
+export const MAX_DEV_ERROR_BODY = 8000
+
+/** Name the dev overlay plugin registers under; also its dedupe key. */
+export const DEV_ERROR_PLUGIN = 'bakery:dev-error-overlay'
+
+/**
+ * Whether a request-time failure earns the full-screen dev overlay.
+ *
+ * 4xx is deliberately excluded. A 404 for a mistyped URL or an absent
+ * `favicon.ico` is the router working as designed, and covering the page for it
+ * would train developers to dismiss the overlay reflexively — which is how the
+ * feature dies a second time. 5xx is the band that means "your code, or the
+ * framework, broke", and that is the band this overlay exists for.
+ *
+ * A record with no usable `errorCode` is treated as 500: `extractErrorData`
+ * fills that field on every path it owns, so the only way to arrive without one
+ * is a malformed record, and surfacing that beats swallowing it.
+ */
+export function classifyDevError(
+  error: Partial<Handler.Error.Data> | null | undefined,
+): 'overlay' | 'ignore' {
+  const code = typeof error?.errorCode === 'number' ? error.errorCode : 500
+  return code >= 500 ? 'overlay' : 'ignore'
+}
+
+/**
+ * The request path an error belongs to, or `''` when it cannot be determined.
+ *
+ * `handleRequestError` substitutes `http://localhost/__internal__` for a
+ * missing request, which names nothing the developer can act on, so it is
+ * reported as unknown rather than as a route.
+ */
+function devErrorRequestPath(req?: { url?: string } | null): string {
+  const url = req?.url
+  if (!url) return ''
+  const parsed = Try(() => new URL(url))
+  if (!parsed) return ''
+  return parsed.pathname === '/__internal__' ? '' : parsed.pathname
+}
+
+/**
+ * An error record rendered into the `{title, body}` the overlay draws.
+ *
+ * Pure, and separate from the publish so the shape is pinned by tests without
+ * a server. The path goes in the *title* on purpose: the body is a stack whose
+ * first frames are usually framework internals, and "which request did this"
+ * is the one thing the developer needs before reading any of it.
+ */
+export function formatDevErrorFrame(
+  error: Partial<Handler.Error.Data> | null | undefined,
+  req?: { url?: string } | null,
+): { title: string; body: string } {
+  const code = typeof error?.errorCode === 'number' ? error.errorCode : 500
+  const text = error?.errorText || 'Internal Server Error'
+  const path = devErrorRequestPath(req)
+  const body = String(error?.errorBody ?? '')
+
+  return {
+    title: path ? `${code} ${text} — ${path}` : `${code} ${text}`,
+    body:
+      body.length > MAX_DEV_ERROR_BODY
+        ? `${body.slice(0, MAX_DEV_ERROR_BODY)}\n… truncated`
+        : body,
+  }
+}
+
+/**
+ * Where a dev error goes, once something has said where that is.
+ *
+ * The producer of request-time errors (the plugin below, running inside a
+ * request) and the thing that owns the `Bun.Server` (`startCompileService`)
+ * are on opposite sides of the process, and neither may import the other's
+ * concerns: the router and the error handlers must not learn about the
+ * compiler. So the compiler pushes a publisher in here, and everything else
+ * emits through a hook that is a no-op until it does.
+ *
+ * Null in PROD, in a cluster worker, and in every test that does not install
+ * one — `emitDevError` is then a single optional call and nothing else runs.
+ */
+let devErrorSink: ((title: string, body: string) => void) | null = null
+
+/** Install (or, with `null`, remove) the dev error publisher. */
+export function setDevErrorSink(
+  sink: ((title: string, body: string) => void) | null,
+): void {
+  devErrorSink = sink
+}
+
+/** Publish a dev error, or do nothing at all if no sink is installed. */
+export function emitDevError(title: string, body: string): void {
+  devErrorSink?.(title, body)
+}
+
+/**
+ * The dev-only plugin that carries request-time failures to the overlay.
+ *
+ * `ServerPlugin.onError` is the framework's own observation point for request
+ * errors: `router.ts handleRequestError` calls it first, before the plugin
+ * response check, before `config.onError`, and before the error-handler
+ * registry — so it sees every failure the error path sees (thrown handler,
+ * 5xx `Response`, and Bun's `error()` callback), with `errorBody` still holding
+ * the full stack. Using it is what lets the overlay be wired without router.ts
+ * or the error handlers ever hearing about the compiler.
+ *
+ * It returns `undefined` unconditionally. `PluginHooks.onError` treats that as
+ * "no opinion" and carries on down the list, so registering this cannot change
+ * which page a failing request answers with — it only observes.
+ */
+export function createDevErrorPlugin(): ServerPlugin {
+  return {
+    name: DEV_ERROR_PLUGIN,
+    onError(error, req) {
+      if (classifyDevError(error) === 'overlay') {
+        const frame = formatDevErrorFrame(error, req)
+        emitDevError(frame.title, frame.body)
+      }
+      // Observer, never an answer. See the note above.
+      return undefined
+    },
+  }
+}
+
+/**
+ * Put the overlay plugin at the front of the plugin list.
+ *
+ * *Front*, not back: `PluginHooks.onError` stops at the first plugin that
+ * returns a response, so an app plugin that answers errors itself would
+ * otherwise hide every failure from the overlay. This one never answers, so
+ * running it first costs the others nothing.
+ *
+ * The array is mutated in place because `initConfig` hands back a frozen
+ * config — `config.plugins = [...]` would throw, and the array itself is the
+ * only writable seam. Host configs are built with `{...base}` and never
+ * override `plugins`, so every host shares this exact array and one
+ * registration covers all of them. Idempotent by name, because a re-registration
+ * would double every frame.
+ */
+export function registerDevErrorOverlay(
+  plugins: unknown = Bakery.config.plugins,
+): 'registered' | 'duplicate' | 'unavailable' {
+  if (!Array.isArray(plugins)) return 'unavailable'
+  if (plugins.some(p => p?.name === DEV_ERROR_PLUGIN)) return 'duplicate'
+
+  // A config may legitimately hand over a frozen array; that is a reason to
+  // skip the overlay, not to take the dev server down.
+  const added = Try(() => plugins.unshift(createDevErrorPlugin()))
+  return added === null ? 'unavailable' : 'registered'
 }
 
 function setupPingInterval(
@@ -346,13 +515,66 @@ export function classifyWatchEvent(filePath: string): WatchEventKind {
   return 'file'
 }
 
+/** Route modules reached through `import()`, whose resolution Bun caches. */
+const MODULE_ROUTE_EXT = /\.(tsx|jsx)$/
+
+/**
+ * Whether this event is the *creation* of a route module, which needs a
+ * restart where an edit does not.
+ *
+ * Editing a `.tsx` page is instant: the page module carries a `?v=<mtime>`
+ * specifier, so Bun re-imports it and the change is served on the next
+ * request. Creating one is not — Bun caches the *directory listing* it
+ * resolved against, so a file that did not exist at boot fails to import at
+ * any specifier, including a freshly-stamped one. The page 500s with
+ * `Cannot find module '<path>?v=<mtime>'` until the process restarts. That is
+ * a regression from taking `.tsx` off the restart path for fast edits: API
+ * routes never showed it because a new `.ts` under `apiRoot` is a backend
+ * change and restarts already.
+ *
+ * `rename` is the creation signal. Measured on Windows: an in-place write
+ * (`Bun.write`, `fs.writeFile`) emits only `change` and keeps the fast path —
+ * 14-15ms edit-to-served — while creating a file emits `rename` then
+ * `change`. Writers that replace rather than overwrite report `rename` for an
+ * *edit* too and pay one restart (~440ms): shell redirection (`> file`) does
+ * this, and an editor that saves atomically will as well. That is the safe
+ * direction to be wrong in — a slower save beats a page that does not serve
+ * at all — but it is why this is scoped as narrowly as possible.
+ * Deletes are `rename` with no file, and need no restart.
+ *
+ * Scoped to imported modules: a new `.html`, `.css` or client `.ts` is read or
+ * transpiled from disk rather than imported, and already works untouched.
+ */
+export function isCreatedRouteModule(
+  filePath: string,
+  eventType: string,
+  exists: boolean,
+): boolean {
+  if (eventType !== 'rename' || !exists) return false
+  return MODULE_ROUTE_EXT.test(filePath)
+}
+
 async function processFileEvent(
   filePath: string,
   server: any,
   isDevWorker: boolean,
+  eventType = 'change',
 ) {
   if (isDevWorker) {
     if (isBackendPriorityFile(filePath)) {
+      serveLog.BACKEND_CHANGE({ file: filePath })
+      return process.exit(42)
+    }
+
+    // Checked before the cheap path below: a *new* page cannot be imported by
+    // this process at all — see `isCreatedRouteModule`.
+    if (
+      isCreatedRouteModule(
+        filePath,
+        eventType,
+        await Bun.file(filePath).exists(),
+      )
+    ) {
       serveLog.BACKEND_CHANGE({ file: filePath })
       return process.exit(42)
     }
@@ -380,7 +602,24 @@ export async function startCompileService(server: any): Promise<void> {
   const watcher = watch('./', { recursive: true })
   const isDevWorker = Boolean(import.meta.env.DEV_WORKER && import.meta.env.DEV)
 
-  for await (const { filename } of watcher) {
+  // Only the dev worker serves `/_livereload` (LiveReloadHandler.canHandle
+  // gates on DEV && DEV_WORKER), so only the dev worker has anywhere to publish
+  // to. Everywhere else the sink stays null and the plugin is never registered,
+  // which is what keeps this off the production path entirely.
+  if (isDevWorker) {
+    setDevErrorSink((title, body) => notifyError(server, title, body))
+    if (registerDevErrorOverlay() === 'unavailable') {
+      // Not fatal: hot reload and the watcher-fault overlay still work, the
+      // request-time overlay just will not appear. Say so rather than leaving
+      // the developer to wonder why it never shows.
+      serveLog.WATCHER_ERR({
+        error:
+          'dev error overlay not registered: config.plugins is not writable',
+      })
+    }
+  }
+
+  for await (const { filename, eventType } of watcher) {
     if (!filename) continue
     const filePath = filename.replace(/\\/g, '/')
 
@@ -397,7 +636,7 @@ export async function startCompileService(server: any): Promise<void> {
     }
 
     const [error] = await Try.catch(
-      processFileEvent(filePath, server, isDevWorker),
+      processFileEvent(filePath, server, isDevWorker, eventType),
     )
     if (error) {
       // A single bad event must not kill the watcher: before this, a throw

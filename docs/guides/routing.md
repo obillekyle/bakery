@@ -46,7 +46,7 @@ The `fetch` registry, as populated by `setupServer()`
 
 | Priority | Handler | Claims |
 | --- | --- | --- |
-| 100 | `MiddlewareHandler` | every request (see [Middleware](middleware.md)) |
+| 100 | `MiddlewareHandler` | only a request `onRequest` or a middleware answered with a `Response` (see [Middleware](middleware.md)) |
 | 95 | `ProxyHandler` | any prefix in `config.proxy` |
 | 90 | `VirtualAssetHandler` | `/_client/*`, `/_virtual/*` |
 | 87 | `GoogleFontHandler` | `/_gf`, `/_gf/*` |
@@ -61,6 +61,14 @@ The `fetch` registry, as populated by `setupServer()`
 
 Plugins register into the same scale: `DashboardHandler` 120, `AnalyticsHandler`
 110, `VueHandler` 58.
+
+`MiddlewareHandler` is the one whose "claims" column is easy to misread. Its
+`canHandle` *runs* the whole chain on every request, but returns true only if
+`onRequest` or a middleware produced a `Response`
+(`packages/core/src/handlers/core/$middleware.ts`) — otherwise the request falls
+through to the handler that actually serves it. That is also why it sets
+`alwaysResolve`: a request that middleware allows must not be answered from the
+route cache next time without middleware running again.
 
 The `error` registry is separate and much smaller: `ApiErrorHandler` 30,
 `TSXErrorHandler` 20, `VueErrorHandler` 18, `HTMLErrorHandler` 10,
@@ -365,10 +373,36 @@ no longer restart the process — they clear the per-handler caches only, and
 
 ## Reserved paths
 
-`/_*` and `/api/_*` belong to the framework and its plugins. Currently in use:
-`/_client/*`, `/_virtual/*`, `/_gf/*`, `/_nm/*`, `/_livereload` (dev),
-`/_dashboard`, `/api/_dashboard/*`, `/_analytics_ws`. Do not create app routes
-under those prefixes.
+`/_*` and `/api/_*` belong to the framework and its plugins, and `__bakery.`
+prefixes framework session keys. Do not create app routes under those prefixes.
+
+This is the complete set in use today. Core's entries always exist; a plugin's
+only exist when that plugin is installed.
+
+| Path | Served by | Registered by |
+| --- | --- | --- |
+| `/_client/*`, `/_virtual/*` | framework browser runtime | core (`VirtualAssetHandler`) |
+| `/_gf`, `/_gf/*` | Google Fonts, proxied and cached to disk | core (`GoogleFontHandler`) |
+| `/_nm/*` | `node_modules`, bundled on demand | core (`NMHandler`) |
+| `/_livereload` | the live-reload WebSocket — **development only** | core (`LiveReloadHandler`) |
+| `/_dashboard`, `/_dashboard/dashboard.js`, `/api/_dashboard`, `/api/_dashboard/*` | admin console | `@bakery/plugin-dashboard` |
+| `/_analytics/ping`, `/api/_analytics/stats`, `/api/_analytics/reset` | telemetry endpoints | `@bakery/plugin-analytics` |
+| `/_analytics_ws` | telemetry WebSocket | `@bakery/plugin-analytics` |
+| `/_vue/*` | compiled SFC chunks and the Vue runtime | `@bakery/plugin-vue` |
+
+Two of these are namespace *roots*, not string prefixes: `DashboardHandler`
+matches `/_dashboard` and `/api/_dashboard` exactly or a segment below them, so
+an application route named `/api/_dashboard-export` is yours, not the plugin's
+(`packages/plugins/dashboard/src/setup.ts`).
+
+The analytics collector additionally treats *any* path beginning `/_` as an
+asset and leaves it out of page-hit counts
+(`packages/plugins/analytics/src/core.ts`), so an app route under `/_` would
+also go uncounted even where nothing claims it.
+
+`/api/*` and `/uploads/*` are reserved in a different sense — they are ordinary
+app-servable prefixes owned by `ApiHandler` and `PublicHandler`. See
+[Project structure](../getting-started/project-structure.md#reserved-url-prefixes).
 
 The default blocked globs (`packages/core/src/utils/constants.ts`) also make a
 number of files unreachable from file-serving handlers regardless of where they

@@ -1,3 +1,4 @@
+import { errorDetail } from '../../logger/serve-log'
 import type { MixedPromise } from '../../types'
 import { is } from '../../utils/common'
 import { fs } from '../../utils/fs'
@@ -87,6 +88,30 @@ export class ErrorHandler extends Handler {
     return error.errorCode >= 500 ? DEFAULT_ERROR.errorBody : error.errorBody
   }
 
+  /**
+   * Whether `error` is one of Bun's compile-time diagnostics.
+   *
+   * `BuildMessage` (a syntax error) and `ResolveMessage` (an import that
+   * resolves to nothing) are what the transpiler and the module resolver throw,
+   * and neither is `instanceof Error`. They used to reach the `is.object`
+   * branch below, which reads only `errorCode`/`errorText`/`errorBody` — none
+   * of which a diagnostic has — and so returned the untouched default. A typo
+   * in a route file, the single most common server-side failure there is,
+   * answered `An unexpected error occurred.` in development as well as in
+   * production.
+   *
+   * Recognised by shape rather than by constructor: the classes are not
+   * exported, and both report zero own enumerable keys, so a string `message`
+   * on a non-`Error` object is the only tell. The error-data keys are checked
+   * first by the caller, so a record that carries those still takes its own
+   * branch.
+   */
+  static isDiagnostic(error: any): boolean {
+    if (!is.object(error)) return false
+    if (error instanceof Error || error instanceof Response) return false
+    return is.string(error.message) && error.message.length > 0
+  }
+
   static extractErrorData(error: any): Handler.Error.Data {
     if (error instanceof HandlerError) return error.data
 
@@ -94,7 +119,11 @@ export class ErrorHandler extends Handler {
       return {
         ...this.DEFAULT_ERROR,
         errorText: error.message,
-        errorBody: error.stack || String(error),
+        // `errorDetail` is `error.stack` whenever there is one — so the common
+        // case is untouched — and falls back to the aggregated sub-diagnostics
+        // for the stackless `AggregateError` that `import()`ing a broken `.tsx`
+        // throws, where `String(error)` was a summary count and nothing else.
+        errorBody: errorDetail(error) || String(error),
       }
     }
 
@@ -108,8 +137,23 @@ export class ErrorHandler extends Handler {
     }
 
     if (is.object(error)) {
-      const errorData = this.DEFAULT_ERROR
       const errorObj = error as Partial<Handler.Error.Data>
+      const authored =
+        errorObj.errorCode !== undefined ||
+        errorObj.errorText !== undefined ||
+        errorObj.errorBody !== undefined
+
+      // Authored error data wins, `message` or no `message` — the branch order
+      // and its semantics are unchanged for everything that ever reached it.
+      if (!authored && this.isDiagnostic(error)) {
+        return {
+          ...this.DEFAULT_ERROR,
+          errorText: error.message,
+          errorBody: errorDetail(error),
+        }
+      }
+
+      const errorData = this.DEFAULT_ERROR
 
       errorData.errorCode = errorObj.errorCode ?? errorData.errorCode
       errorData.errorText = errorObj.errorText ?? errorData.errorText
@@ -176,4 +220,24 @@ export class DynamicErrorHandler extends DynamicHandler {
 
     return null
   }
+}
+
+/**
+ * Error data with `errorBody` reduced to what a client may see.
+ *
+ * `ErrorHandler.publicBody` is the rule; this is it applied to a whole record,
+ * for the handlers that hand error data to a *template* rather than rendering
+ * a string themselves. `HTMLErrorHandler` and `TSXErrorHandler` merge the
+ * record into their page params, and those params reach the document twice —
+ * through `{{...}}` substitution and through the `window.__PAGE_PARAMS__`
+ * script `DOMTools.params` injects into every page. The second path is why
+ * redacting in the template was never enough: an `error.html` that never
+ * mentions `errorBody` still published the stack, absolute source paths and
+ * all, to any anonymous request in production.
+ *
+ * `errorText` is deliberately untouched — `DefaultErrorHandler` shows it in
+ * its heading in every mode, and one rule in one place beats two that drift.
+ */
+export function publicErrorData(error: Handler.Error.Data): Handler.Error.Data {
+  return { ...error, errorBody: ErrorHandler.publicBody(error) }
 }

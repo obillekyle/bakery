@@ -30,9 +30,7 @@
       "@bakery/cli/*": ["./packages/cli/src/*"],
       "@bakery/plugin-vue": ["./packages/plugins/vue/src/index.ts"],
       "@bakery/plugin-analytics": ["./packages/plugins/analytics/src/index.ts"],
-      "@bakery/plugin-dashboard": ["./packages/plugins/dashboard/src/index.ts"],
-      "@client/utils": ["./packages/core/src/client/utils"],
-      "~/*": ["./apps/example/*"]
+      "@bakery/plugin-dashboard": ["./packages/plugins/dashboard/src/index.ts"]
     }
   }
 }

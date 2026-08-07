@@ -182,11 +182,15 @@ string-first form (`response.json.error('bad input')` → 400). A plain object
 returned from a handler is `JSON.stringify`d as-is, without the envelope — use
 the helpers unless you specifically want a bare payload.
 
-Returning `undefined` or `null` produces a **404**, not a 204: `ApiHandler.handle`
-substitutes `response.error('No response from handler')`
+A handler that runs and returns nothing produces a **404**, not a 204:
+`ApiHandler.handle` substitutes `response.error('No response from handler')`
 (`handlers/routes/api.ts`), which defaults to status 404. The 204 that
-`processResponse` produces for an empty result never applies here. A module with
-no default export is likewise a 404. If you want an empty success, say so:
+`processResponse` produces for an empty result never applies here.
+
+A module with **no default export** is a different fault and answers **500**,
+naming the file: the route resolved and the file is on disk, so a 404 sent you
+looking for something that was already there. The server log names it too. If
+you want an empty success, say so:
 
 ```ts
 import { response } from '@bakery/core'

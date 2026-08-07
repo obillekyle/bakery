@@ -26,10 +26,11 @@ Nothing else. `@bakery/core` has **no runtime dependencies**; `@bakery/orm` and
 There is no `bun add bakery` and no `bun create bakery`. The packages are
 unpublished — export maps, the package names and the
 `@bakery/orm/schema-registry` module name that your `schema.ts` writes into are
-all still free to change, and publishing freezes them
-([MONOREPO.md](../../MONOREPO.md), "Remaining before a first publish", item 10).
-A scaffolder is explicitly deferred until after that, because its whole job is
-pulling published packages.
+all still free to change, and publishing freezes them. The export maps are the
+sharpest of those: every package currently exposes `"./*"`, so each internal
+file is importable, and curating that surface is a breaking change once anyone
+depends on it. A scaffolder is deferred until after the first publish, because
+its whole job is pulling published packages.
 
 So today you install Bakery by cloning the repo and working inside the Bun
 workspace. The workspace covers `packages/*`, `packages/plugins/*` and `apps/*`,

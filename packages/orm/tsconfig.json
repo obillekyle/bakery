@@ -1,8 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "paths": { "@database/*": ["./src/*"] }
-  },
+  "$comment": "No `paths` block on purpose — see packages/core/tsconfig.json. The @database/* alias it used to carry died with the workspace split.",
   "include": ["src/**/*.ts", "src/**/*.d.ts"],
   "files": [
     "../core/src/global.d.ts",

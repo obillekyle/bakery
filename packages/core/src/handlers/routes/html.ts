@@ -3,7 +3,7 @@ import { assembleHtml, fs, toHash } from '../../utils'
 import { injectIfHtml, response } from '../../utils/http'
 import type { Handler } from '../core/$base'
 import { DynamicHandler } from '../core/$dynamic'
-import { DynamicErrorHandler } from '../core/$error'
+import { DynamicErrorHandler, publicErrorData } from '../core/$error'
 
 export class HTMLHandler extends DynamicHandler {
   static get config() {
@@ -68,7 +68,14 @@ async function sharedHandler(
 
   const params = await this.params(req, info.getParams(path) || {})
   const content = await info.file.text()
-  const data = { ...params, ...errorData }
+  // `publicErrorData`, not `errorData`: these params reach the document
+  // through `{{...}}` *and* through the `__PAGE_PARAMS__` script injected
+  // into every page, so the raw stack was published in PROD even by a
+  // template that never mentioned it. Guarded because `errorData` is
+  // `undefined` for an ordinary page — `DEFAULT_ERROR` only exists on the
+  // error handler — and the spread below tolerates that where the helper,
+  // deliberately strict about the shape it redacts, does not.
+  const data = { ...params, ...(errorData && publicErrorData(errorData)) }
 
   if (import.meta.env.DEV) {
     data.__file = info.path

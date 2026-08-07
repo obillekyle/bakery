@@ -98,6 +98,7 @@ The watcher decides per changed file
 | Changed | Result |
 | --- | --- |
 | `server.config.ts`, anything under the configured api directory | worker exits 42; supervisor restarts it (clearing the screen only if the worker had come up) |
+| a **newly created** `.tsx` or `.jsx` | worker exits 42; supervisor restarts it |
 | `.ts`, `.js`, `.tsx`, `.jsx`, `.html`, `.vue` | route caches cleared, live-reload message pushed |
 | `.css` | live-reload message pushed |
 
@@ -106,6 +107,24 @@ module with a `?v=<mtime>` cache-buster, so a page edit needs a browser reload,
 not a process restart. The one thing a restart still buys — flushing shared
 components a page *imports* — is a documented limitation; see
 [Your first app](../getting-started/first-app.md#what-reloading-does-and-does-not-do).
+
+**Creating a page is the exception, and it costs a restart.** Bun caches the
+directory listing it resolved an import against, so a `.tsx` that did not exist
+when the worker booted fails to import at *any* specifier — including a
+freshly-stamped `?v=<mtime>` one — and the page 500s with `Cannot find module`
+until the process restarts. `isCreatedRouteModule` detects it from the watcher's
+`rename` event plus the file still existing, and takes the restart
+([packages/core/src/compiler/dev-service.ts](../../packages/core/src/compiler/dev-service.ts)).
+
+The practical consequence is about your editor, not your code. An ordinary
+in-place save (`Bun.write`, `fs.writeFile`, most editors) emits only `change`
+and stays on the ~15 ms fast path. A writer that *replaces* the file — shell
+redirection (`> file`), or an editor that saves atomically by writing a temp
+file and renaming over the original — reports `rename` for an edit too, and pays
+the ~440 ms restart on **every save**. That is the deliberate direction to be
+wrong in: a slower save beats a page that does not serve at all. If your dev
+loop feels like it restarts constantly, check whether your editor does atomic
+saves.
 
 Ignored entirely: `node_modules`, `.git`, `.vscode`, `.backups`, `.cache`,
 `.bakery`, `.data`, and `schema.ts` at **any** depth (the ORM schema
@@ -236,7 +255,8 @@ Two things exit 1 before any diffing:
 | `THREAD_WORKER`, `THREAD_ID` | init, cluster | set by the supervisor; do not set by hand |
 | `DETACHED` | dev supervisor | `1` detaches the worker's stdin and hides its window |
 | `DEV_WATCHER_ACTIVE` | logger, sync engine | set by the supervisor so prompts and restarts coordinate |
-| `DASHPASS`, `DASHBOARD_ALLOW_WRITES` | dashboard plugin | see [Dashboard](../plugins/dashboard.md) |
+| `DASHBOARD_ALLOW_WRITES` | dashboard plugin | `1` permits write SQL from the dashboard's query console; see [Dashboard](../plugins/dashboard.md) |
+| `DASHPASS` | **analytics** plugin | vestigial. Read only by `analytics/endpoints/stats.ts`; unset makes the stats endpoints 404, set makes them 401. Grants no access — see [Environment](../configuration/environment.md#dashpass-is-vestigial) |
 
 `.env` files are read by Bun itself, not by Bakery.
 

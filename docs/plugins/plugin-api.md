@@ -264,9 +264,9 @@ a high priority intercepts paths *before* the mount is consulted. Keep
   preferences endpoint becomes a privilege-escalation primitive. Use
   `isReservedSessionKey` from `@bakery/core/session`.
 
-Existing occupants: `/_client/`, `/_virtual/`, `/_gf/`, `/_nm/`, `/_livereload`,
-`/_dashboard`, `/api/_dashboard/*`, `/_analytics/ping`, `/_analytics_ws`,
-`/api/_analytics/*`, and `/_vue/` when the Vue plugin is installed.
+The paths already taken — by core and by each bundled plugin — are listed in
+[Routing → Reserved paths](../guides/routing.md#reserved-paths). Check it before
+choosing a namespace for your own plugin; it is the single canonical copy.
 
 ## Conventions a plugin is expected to follow
 

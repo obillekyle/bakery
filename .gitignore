@@ -27,8 +27,6 @@ scratch
 
 *.tsbuildinfo
 
-# Windows device-name artifact
-nul
 # Local-only maintainer/agent context - not published.
 /.claude/
 /CLAUDE.md

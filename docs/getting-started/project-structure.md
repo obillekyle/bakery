@@ -130,24 +130,21 @@ Custom HTML and TSX error pages are served with the real error status:
 
 ## Reserved URL prefixes
 
-These are claimed by the framework and its plugins. A file of yours at the same
-path is unreachable
+Two prefixes are ordinary parts of an app, but their contents come from a fixed
+directory rather than from wherever the URL points
 ([packages/core/src/startup.ts](../../packages/core/src/startup.ts)):
 
 | Prefix | Serves | Registered by |
 | --- | --- | --- |
-| `/api/*` | `<serveRoot>/api` | core |
-| `/uploads/*` | `<cwd>/public` | core |
-| `/_nm/*` | `<cwd>/node_modules`, bundled on demand | core |
-| `/_client/*`, `/_virtual/*` | framework browser runtime | core |
-| `/_gf/*` | Google Fonts, proxied and cached to disk | core |
-| `/_dashboard`, `/api/_dashboard/*` | admin console | `@bakery/plugin-dashboard` |
-| `/_analytics/*`, `/_analytics_ws` | telemetry | `@bakery/plugin-analytics` |
-| `/_vue/*` | compiled SFC chunks | `@bakery/plugin-vue` |
+| `/api/*` | `<serveRoot>/api` | core (`ApiHandler`) |
+| `/uploads/*` | `<cwd>/public` | core (`PublicHandler`) |
 
-The convention is that `/_*` and `/api/_*` belong to the framework, and
-`__bakery.` prefixes framework session keys. Plugins are expected to stay inside
-it.
+Beyond those, `/_*` and `/api/_*` belong to the framework and its plugins, and
+`__bakery.` prefixes framework session keys. A file of yours at one of those
+paths is unreachable. The complete list of what is claimed today — core and each
+bundled plugin — is in
+[Routing → Reserved paths](../guides/routing.md#reserved-paths); it is kept in
+one place so it cannot drift.
 
 ## Files that are never served
 
@@ -155,14 +152,15 @@ Even inside the serve root, a set of globs is refused whenever a file-serving
 handler would answer
 ([packages/core/src/utils/constants.ts](../../packages/core/src/utils/constants.ts)):
 
-```
-.env  *.env  *.sql  *.db  *.yaml  *.yml  *.lock  bun.lockb  *.exe
-package.json  package-lock.json  tsconfig.json  tsconfig.*.json
-.bakery/  .data/  _internal/  .git/  .vscode/  node_modules/
-server.config.ts  schema.ts  .gitignore
-```
+The list covers secrets and dotfiles, database and dump files, lockfiles, the
+project-describing JSON files, and the generated and tooling directories. The
+patterns themselves are written out once, in
+[Server config → Blocked paths](../configuration/server-config.md#blocked-paths).
 
-`blocked` in `server.config.ts` appends to that list; it cannot shorten it.
+`blocked` in `server.config.ts` **appends** to that list; it cannot shorten it.
+A per-host `blocked` behaves slightly differently — it replaces the app-level
+additions while still inheriting every default — which is covered in
+[Static assets](../guides/static-assets.md#what-is-never-served).
 
 The check is on the **request path**, applied after routing and only to the
 handlers that serve files off disk — middleware, the proxy and the API handler

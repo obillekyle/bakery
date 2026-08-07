@@ -20,7 +20,7 @@
     {
       "label": "bun-tsc-watch",
       "type": "shell",
-      "command": "bun --bun tsc --noEmit -w --project .server/tsconfigs/tsconfig.server.json",
+      "command": "bun --bun tsc --noEmit -w --project packages/core/tsconfig.json",
       "isBackground": true,
       "problemMatcher": {
         "base": "$tsc-watch",

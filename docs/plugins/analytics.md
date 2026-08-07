@@ -137,11 +137,11 @@ unreachable. The regression tests in
 pin the closed behaviour.
 
 Deciding what should replace it — most likely the same `AuthorizeFn` the
-dashboard takes — is a security decision, not a cleanup, and is tracked in
-[MONOREPO.md](../../MONOREPO.md) alongside splitting collection from
-presentation behind a typed interface. Until then: collection is live and
-persisted, and the data is readable only by querying
-`.data/shared-cache.db` directly.
+dashboard takes ([`plugins/dashboard/src/authorize.ts`](../../packages/plugins/dashboard/src/authorize.ts))
+— is a security decision rather than a cleanup, and is deliberately not being
+made in passing. Until then: collection is live and persisted, and the data is
+readable only by querying `.data/shared-cache.db` directly, or in-process via
+the export below.
 
 ## Programmatic access
 

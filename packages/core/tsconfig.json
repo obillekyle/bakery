@@ -1,12 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "paths": {
-      "@server/*": ["./src/*"],
-      "@plugins/*": ["./src/plugins/*"]
-    }
-  },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
-  "$comment": "src/client/** was excluded until the duplicate ambient declarations were removed; it now typechecks with the rest.",
-  "exclude": ["src/.cache/**/*"]
+  "$comment": "src/client/** was excluded until the duplicate ambient declarations were removed; it now typechecks with the rest. No `paths` block on purpose: declaring one here *replaces* the base's rather than extending it, and the two aliases this used to carry (@server/*, @plugins/*) died with the workspace split and had zero importers."
 }

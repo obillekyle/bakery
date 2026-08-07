@@ -43,7 +43,15 @@ export class TSHandler extends DynamicHandler {
 
     // 500, not the default 404: the route exists, the server failed to build
     // it, and a 404 sends the developer hunting for a missing file.
-    return cached || response.error('Compilation Failed', 500)
+    //
+    // The route is named because this branch was unreachable until
+    // `compileText` stopped throwing past it, and a nameless "Compilation
+    // Failed" is only half an answer: the diagnostic — file, line, column,
+    // source line — goes to the log as `compLog.COMPILE_FAIL`, and the two
+    // have to be joinable. Naming it discloses nothing a client did not
+    // already send: `info.path` is what it asked for. In production
+    // `publicBody` replaces the whole 5xx body anyway.
+    return cached || response.error(`Compilation Failed: ${info.path}`, 500)
   }
 
   /** Compile seam — ts.test.ts substitutes it to exercise the failure branch. */
