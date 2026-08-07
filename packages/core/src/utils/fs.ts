@@ -187,8 +187,9 @@ export namespace Glob {
   }
 
   export function strings(...patterns: string[]): Bun.Glob {
-    const pattern = `{${patterns.join(',')}}`
-    return pattern.length ? new Bun.Glob(pattern) : new Bun.Glob('')
+    // No empty-pattern fallback: the braces make `pattern` at least `"{}"`, so
+    // the length check it used to carry could never be false.
+    return new Bun.Glob(`{${patterns.join(',')}}`)
   }
 
   export function fromArray(globs: Pattern[]): ArrayOfGlobs {

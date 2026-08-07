@@ -2,6 +2,7 @@ import { watch } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { initRoutes } from '../cache'
 import { Bakery } from '../core/bakery'
+import { isDevWorker } from '../core/init'
 import { Try } from '../utils'
 import { Glob, fs } from '../utils/fs'
 import { compLog, serveLog } from '../logger'
@@ -603,7 +604,6 @@ async function processFileEvent(
 export async function startCompileService(server: any): Promise<void> {
   if (!import.meta.env.DEV) return
   const watcher = watch('./', { recursive: true })
-  const isDevWorker = Boolean(import.meta.env.DEV_WORKER && import.meta.env.DEV)
 
   // Only the dev worker serves `/_livereload` (LiveReloadHandler.canHandle
   // gates on DEV && DEV_WORKER), so only the dev worker has anywhere to publish

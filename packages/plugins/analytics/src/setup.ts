@@ -105,20 +105,34 @@ import { startAnalyticsLoop, stopAnalyticsLoop } from './loop'
 
 export { startAnalyticsLoop }
 
+/**
+ * The three paths this plugin claims, written once.
+ *
+ * `canHandle` and `resolveRoute` have to agree exactly: the handler sits at
+ * priority 110, above every content handler, so a path only `canHandle` knows
+ * about is claimed and then unroutable, and one only `resolveRoute` knows about
+ * is never reached. They held two verbatim copies of this list. The dashboard
+ * plugin keeps the same rule in `isDashboardPath`, over namespaces rather than
+ * exact paths.
+ *
+ * Exact matches, not prefixes — `/_analytics/pingback` belongs to the app.
+ */
+const ANALYTICS_PATHS = new Set([
+  '/_analytics/ping',
+  '/api/_analytics/stats',
+  '/api/_analytics/reset',
+])
+
+function isAnalyticsPath(path: string): boolean {
+  return ANALYTICS_PATHS.has(path)
+}
+
 class AnalyticsHandler extends Handler {
   static canHandle(path: string) {
-    return (
-      path === '/_analytics/ping' ||
-      path === '/api/_analytics/stats' ||
-      path === '/api/_analytics/reset'
-    )
+    return isAnalyticsPath(path)
   }
   static resolveRoute(path: string): Handler.Route.Info | null {
-    if (
-      path === '/_analytics/ping' ||
-      path === '/api/_analytics/stats' ||
-      path === '/api/_analytics/reset'
-    ) {
+    if (isAnalyticsPath(path)) {
       return new Handler.Route.Info(fs.resolve(''), path)
     }
     return null

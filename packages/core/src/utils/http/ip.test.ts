@@ -10,7 +10,7 @@ import { getClientIp } from './ip'
 // This file used to `mock.module` both core/config and core/bakery. Bun's
 // module mocks are process-global and never restored, so it replaced
 // core/bakery with `{ Bakery: { server } }` for every test file loaded
-// afterwards — four tests in tests/multi-host.test.ts fail if the two run in
+// afterwards — four tests in src/tests/multi-host.test.ts fail if the two run in
 // that order. Both dependencies are real seams; use them.
 
 const stubServer = { requestIP: () => ({ address: '127.0.0.1' }) }

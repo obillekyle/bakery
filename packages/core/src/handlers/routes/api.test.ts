@@ -6,46 +6,16 @@ import {
   expect,
   test,
 } from 'bun:test'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { rm } from 'node:fs/promises'
 import {
   __resetTestConfig,
   __setTestConfig,
   initConfig,
 } from '../../core/config'
+import { asDev, asProd, executeAcrossEdit } from '../../tests/fixtures'
 import { fs } from '../../utils/fs'
 import { ErrorHandler } from '../core/$error'
 import { ApiErrorHandler, ApiHandler } from './api'
-
-/**
- * `import.meta.env.DEV` is a getter on `process.env` installed by `core/init`,
- * so it is swapped by descriptor and put back — not assigned to, which throws
- * once init has defined the getter, and not module-mocked, which never
- * unwinds.
- */
-function withEnvFlag<T>(flag: string, value: unknown, fn: () => T): T {
-  const original = Object.getOwnPropertyDescriptor(process.env, flag)
-  Object.defineProperty(process.env, flag, {
-    get: () => value,
-    configurable: true,
-  })
-
-  try {
-    return fn()
-  } finally {
-    if (original) Object.defineProperty(process.env, flag, original)
-    else delete (process.env as any)[flag]
-  }
-}
-
-const asDev = <T>(fn: () => T): T => withEnvFlag('DEV', true, fn)
-// PROD alone is not enough: init.ts defaults PROD to true without `--dev`,
-// so the production gate is `PROD && !TEST` — and under `bun test` the TEST
-// flag is genuinely on once init has loaded. Simulating production means
-// forcing both.
-const asProd = <T>(fn: () => T): T =>
-  withEnvFlag('PROD', true, () => withEnvFlag('TEST', false, fn))
 
 const req = () => new Request('http://localhost/api/students')
 
@@ -61,25 +31,17 @@ describe('ApiHandler.executeModule', () => {
   test('PROD imports the bare specifier and hits the module registry cache', async () => {
     // In DEV (and in tests, where neither flag is set) the specifier carries
     // `?v=<mtime>` so an edited route re-imports fresh; that behavior is
-    // pinned by tests/api-isolation.test.ts. In PROD the mtime stat is a
-    // per-request cost for files that cannot change, so the bare specifier is
-    // imported once and the second read must come from Bun's registry cache.
-    const dir = await mkdtemp(join(tmpdir(), 'bakery-api-prod-'))
+    // pinned by src/tests/api-isolation.test.ts, which runs the *same*
+    // fixture without the wrapper. In PROD the mtime stat is a per-request
+    // cost for files that cannot change, so the bare specifier is imported
+    // once and the second read must come from Bun's registry cache.
+    const { dir, first, second } = await executeAcrossEdit(
+      'bakery-api-prod-',
+      asProd,
+    )
     directories.push(dir)
-    const file = join(dir, 'handler.ts')
-    const request = req()
 
-    await writeFile(file, "export default () => 'first'")
-    const first = await asProd(() =>
-      ApiHandler.executeModule(file as any, request, null),
-    )
     expect(first).toBe('first')
-
-    await new Promise(resolve => setTimeout(resolve, 10))
-    await writeFile(file, "export default () => 'second'")
-    const second = await asProd(() =>
-      ApiHandler.executeModule(file as any, request, null),
-    )
     expect(second).toBe('first')
   })
 })
@@ -186,9 +148,9 @@ describe('ApiErrorHandler', () => {
     ])
   })
 
-  test('development still gets the full stack', () => {
+  test('development still gets the full stack', async () => {
     const data = thrownData()
-    const res = asDev(() =>
+    const res = await asDev(() =>
       ApiErrorHandler.handle('/api/students', req(), data),
     )
 

@@ -20,6 +20,18 @@ export type RouteScanOptions = {
 // descent have all missed.
 const catchAllGlob = (ext: string) => new Bun.Glob(`[[]...*${ext || '.*'}`)
 
+// The single-param route forms, in the order they are tried: `[name].ext`
+// first, then the escaped-literal `*.ext`. Built here rather than twice inside
+// `routeGlobs` — the `dynamicOnly` branch and the combined branch returned
+// character-identical pairs, and the two must stay in step or a route form
+// resolves under one caller and not the other. A function, not a hoisted
+// constant: `ext` varies per handler, and `staticOnly` returns before it needs
+// them at all.
+const dynamicGlobs = (ext: string) => [
+  new Bun.Glob(`[[][!.]*${ext || '.*'}`),
+  new Bun.Glob(`\\*${ext || '.*'}`),
+]
+
 const routeGlobs = (
   first: string,
   ext: string,
@@ -27,10 +39,7 @@ const routeGlobs = (
   options: RouteScanOptions = {},
 ) => {
   if (options.dynamicOnly) {
-    return [
-      new Bun.Glob(`[[][!.]*${ext || '.*'}`),
-      new Bun.Glob(`\\*${ext || '.*'}`),
-    ]
+    return dynamicGlobs(ext)
   }
 
   const hasExt = Boolean(fs.parse(first).ext)
@@ -49,11 +58,7 @@ const routeGlobs = (
     return staticGlobs
   }
 
-  return [
-    ...staticGlobs,
-    new Bun.Glob(`[[][!.]*${ext || '.*'}`),
-    new Bun.Glob(`\\*${ext || '.*'}`),
-  ]
+  return [...staticGlobs, ...dynamicGlobs(ext)]
 }
 
 /**
@@ -163,7 +168,7 @@ export async function getRoute(
     // here as well made every level of a nested route pay two identical
     // directory tree-walks — and `isForbidden` walks from the file to the root
     // doing an existsSync at each level, so that is the most expensive thing
-    // this function does. `tests/forbidden.test.ts` pins both branches.
+    // this function does. `src/tests/forbidden.test.ts` pins both branches.
     if (first !== 'index') {
       const targetDir = fs.resolve(dir, first)
       const route = await getRoute('', exts, targetDir, root, options)

@@ -228,32 +228,53 @@ export function selectDatabaseTable(tableName: string) {
   void fetchTableData()
 }
 
-export function formatTableCell(val: any, col: string, rowidVal: any): string {
-  let displayVal = ''
-  let cellClass = ''
-
+/**
+ * How one cell value becomes markup, for both grids on this page.
+ *
+ * The only literal markup here is `<em>null</em>`; every path that carries a
+ * value escapes it. That is not defensive habit — every XSS this repo has
+ * found came from hand-built DOM strings in this file. `is.object([])` is true
+ * by a documented decision, so this is the branch any JSON- or array-typed
+ * column lands in, and the value is a database row, i.e. whatever the last
+ * writer put there. Unescaped it was stored XSS in an origin that owns
+ * /api/_dashboard/query.
+ *
+ * `cellClass` is `''` for the ordinary scalar case, which is also the signal
+ * `formatTableCell` uses to know it may apply its own boolean-badge branch.
+ * The query console has no such branch and gaining one would be a change in
+ * behaviour, not a dedupe — so the badge stays at the one call site that had
+ * it.
+ */
+function cellDisplay(val: any): { displayVal: string; cellClass: string } {
   if (val === null) {
-    displayVal = '<em>null</em>'
-    cellClass = 'cell-null'
-  } else if (is.object(val)) {
-    // Escaped like every sibling branch. `is.object([])` is true by a
-    // documented decision, so this is the branch any JSON- or array-typed
-    // column lands in — and the value is a database row, i.e. whatever the last
-    // writer put there. Unescaped it was stored XSS in an origin that owns
-    // /api/_dashboard/query.
-    displayVal = escapeHTML(JSON.stringify(val))
-    cellClass = 'cell-json'
-  } else if (
-    is.boolean(val) ||
-    (col.toLowerCase().includes('status') && (val === 0 || val === 1))
-  ) {
-    displayVal = val
-      ? '<span class="badge badge-success">true</span>'
-      : '<span class="badge badge-secondary">false</span>'
-    cellClass = 'cell-boolean'
-  } else {
-    displayVal = escapeHTML(val)
+    return { displayVal: '<em>null</em>', cellClass: 'cell-null' }
   }
+  if (is.object(val)) {
+    return {
+      displayVal: escapeHTML(JSON.stringify(val)),
+      cellClass: 'cell-json',
+    }
+  }
+  return { displayVal: escapeHTML(val), cellClass: '' }
+}
+
+export function formatTableCell(val: any, col: string, rowidVal: any): string {
+  // The grid's extra branch, ahead of the shared scalar case: a boolean (or a
+  // 0/1 in a `status` column) renders as a badge rather than as its text.
+  const isBadge =
+    val !== null &&
+    !is.object(val) &&
+    (is.boolean(val) ||
+      (col.toLowerCase().includes('status') && (val === 0 || val === 1)))
+
+  const { displayVal, cellClass } = isBadge
+    ? {
+        displayVal: val
+          ? '<span class="badge badge-success">true</span>'
+          : '<span class="badge badge-secondary">false</span>',
+        cellClass: 'cell-boolean',
+      }
+    : cellDisplay(val)
 
   // Identifiers come from the schema rather than a request, but they are still
   // interpolated into an inline handler — keep them out of the JS string.
@@ -1082,16 +1103,9 @@ export function buildResultTableHtml(rows: any[], keys: string[]): string {
   rows.forEach((row: any) => {
     tableHtml += '<tr>'
     keys.forEach(k => {
-      const val = row[k]
-      // Same shape as `formatTableCell`, same reason for the escape: the object
-      // branch reaches innerHTML with a database row in it.
-      const displayVal =
-        val === null
-          ? '<em>null</em>'
-          : is.object(val)
-            ? escapeHTML(JSON.stringify(val))
-            : escapeHTML(val)
-      tableHtml += `<td>${displayVal}</td>`
+      // Same rendering as the browser grid, minus the boolean badge — see
+      // `cellDisplay`, which both go through.
+      tableHtml += `<td>${cellDisplay(row[k]).displayVal}</td>`
     })
     tableHtml += '</tr>'
   })

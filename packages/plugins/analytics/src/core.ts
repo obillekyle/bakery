@@ -62,6 +62,27 @@ const uniqueRequestsThisSecond = new Set<string>()
 let dbHitsThisSecond = 0
 let errorPageHitsThisSecond = 0
 
+/**
+ * Drop the oldest `count` entries from the log and take their paths back out
+ * of the per-path tally.
+ *
+ * `pageHitsMap` is a count per path, so an entry leaving the log has to
+ * decrement it — and a count that reaches zero is deleted rather than left at
+ * 0, which is what keeps the map from growing one dead path at a time. Both
+ * pruning rules below (the retention window and the hard cap) evict from the
+ * front, so both need exactly this.
+ */
+function dropOldestHits(count: number) {
+  if (count <= 0) return
+  for (let j = 0; j < count; j++) {
+    const p = pageHitsLog[j].path
+    const c = pageHitsMap.get(p)
+    if (c === 1) pageHitsMap.delete(p)
+    else if (c) pageHitsMap.set(p, c - 1)
+  }
+  pageHitsLog.splice(0, count)
+}
+
 function prunePageHitsLog(now: number) {
   let i = 0
   while (
@@ -69,25 +90,10 @@ function prunePageHitsLog(now: number) {
     pageHitsLog[i].timestamp < now - RETENTION_MS
   )
     i++
-  if (i > 0) {
-    for (let j = 0; j < i; j++) {
-      const p = pageHitsLog[j].path
-      const c = pageHitsMap.get(p)
-      if (c === 1) pageHitsMap.delete(p)
-      else if (c) pageHitsMap.set(p, c - 1)
-    }
-    pageHitsLog.splice(0, i)
-  }
+  dropOldestHits(i)
 
   if (pageHitsLog.length > HARD_CAP) {
-    const excess = pageHitsLog.length - HARD_CAP
-    for (let j = 0; j < excess; j++) {
-      const p = pageHitsLog[j].path
-      const c = pageHitsMap.get(p)
-      if (c === 1) pageHitsMap.delete(p)
-      else if (c) pageHitsMap.set(p, c - 1)
-    }
-    pageHitsLog.splice(0, excess)
+    dropOldestHits(pageHitsLog.length - HARD_CAP)
   }
 }
 

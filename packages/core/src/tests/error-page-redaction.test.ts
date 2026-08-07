@@ -4,6 +4,7 @@ import { __resetTestConfig, __setTestConfig, initConfig } from '../core/config'
 import { fs } from '../utils'
 import { HTMLErrorHandler } from '../handlers/routes/html'
 import { TSXErrorHandler } from '../handlers/assets/tsx'
+import { asDev, asProd } from './fixtures'
 
 /**
  * `ErrorHandler.publicBody` redacts `errorBody` — the thrown error's stack —
@@ -25,31 +26,6 @@ const ERROR = {
   errorText: 'Something broke',
   errorBody: STACK,
 }
-
-/**
- * The mode flags are accessors on `process.env` installed by `core/init`, so
- * they are swapped by descriptor and put back — never assigned to or deleted.
- */
-async function withEnvFlag<T>(
-  flag: string,
-  value: unknown,
-  fn: () => Promise<T>,
-): Promise<T> {
-  const original = Object.getOwnPropertyDescriptor(process.env, flag)
-  Object.defineProperty(process.env, flag, { get: () => value, configurable: true })
-  try {
-    // Awaited *inside* the swap: these handlers read the flag after several
-    // awaits, and a synchronous wrapper restores the descriptor first — which
-    // silently tested the ambient mode instead of the requested one.
-    return await fn()
-  } finally {
-    if (original) Object.defineProperty(process.env, flag, original)
-    else delete (process.env as any)[flag]
-  }
-}
-
-const asProd = <T,>(fn: () => Promise<T>) => withEnvFlag('DEV', false, fn)
-const asDev = <T,>(fn: () => Promise<T>) => withEnvFlag('DEV', true, fn)
 
 const req = () => new Request('http://localhost/__boom')
 

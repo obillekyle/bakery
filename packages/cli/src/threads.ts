@@ -1,4 +1,4 @@
-import { log, serveLog } from '@bakery/core/logger'
+import { errorMsg, log, serveLog } from '@bakery/core/logger'
 import { Try } from '@bakery/core/utils/common'
 
 /**
@@ -122,7 +122,7 @@ export async function handleThreadsMaster(threadCount: number) {
     Bakery = bakeryMod.Bakery
   } catch (error: any) {
     serveLog.UNHANDLED_ERR({
-      error: `Fatal error during master startup: ${error?.stack || error}`,
+      error: `Fatal error during master startup: ${errorMsg(error)}`,
     })
     process.exit(1)
   }

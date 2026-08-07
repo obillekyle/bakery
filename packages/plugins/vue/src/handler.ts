@@ -2,7 +2,10 @@ import { LRUCache } from '@bakery/core/cache/lru'
 import { Bakery, hostKey } from '@bakery/core/core/bakery'
 import type { Handler } from '@bakery/core/handlers/core/$base'
 import { DynamicHandler } from '@bakery/core/handlers/core/$dynamic'
-import { DynamicErrorHandler } from '@bakery/core/handlers/core/$error'
+import {
+  beginPageRoute,
+  DynamicErrorHandler,
+} from '@bakery/core/handlers/core/$error'
 import { Logger } from '@bakery/core/logger'
 import { JsonResponseData, fs, response, toHash } from '@bakery/core/utils'
 import { ETag, injectIfHtml } from '@bakery/core/utils/http'
@@ -362,6 +365,24 @@ function asDirectResponse(value: any) {
   return null
 }
 
+/**
+ * Serve `value` if the server script already produced a complete response,
+ * otherwise `null` so the caller treats it as page data.
+ *
+ * Both paths through `sharedHandler` — the `__vue_action` call and the ordinary
+ * page render — need exactly this, and each carried its own verbatim copy. A
+ * `BunFile` goes through `ETag.sendFile` so a conditional request can 304; the
+ * `new Response` is the fallback for the un-cacheable case.
+ */
+async function serveIfDirect(value: any, req: Request) {
+  const direct = asDirectResponse(value)
+  if (!direct) return null
+  if (direct instanceof Response || direct instanceof JsonResponseData) {
+    return direct
+  }
+  return (await ETag.sendFile(direct, req)) || new Response(direct as any)
+}
+
 async function sharedHandler(
   this: typeof DynamicHandler | typeof DynamicErrorHandler,
   path: string,
@@ -373,9 +394,9 @@ async function sharedHandler(
   }
 
   path = normalizePath(path)
-  const errorData = errors || (this as any).DEFAULT_ERROR
-  const info = await this.resolveRoute(path, errorData)
-  if (!info) return response.error('Not Found')
+  const begun = await beginPageRoute(this, path, errors)
+  if (begun instanceof Response) return begun
+  const { errorData, info } = begun
   const routePath = `/${info.path}`
 
   const diskFile = info.file
@@ -473,13 +494,8 @@ async function sharedHandler(
       actionArgs,
     })
 
-    const direct = asDirectResponse(actionResult)
-    if (direct instanceof Response || direct instanceof JsonResponseData) {
-      return direct
-    }
-    if (direct) {
-      return (await ETag.sendFile(direct, req)) || new Response(direct as any)
-    }
+    const direct = await serveIfDirect(actionResult, req)
+    if (direct) return direct
     return response.json.success('OK', actionResult)
   }
 
@@ -502,13 +518,8 @@ async function sharedHandler(
     filePath: diskFile.name,
   })
 
-  const direct = asDirectResponse(serverParams)
-  if (direct instanceof Response || direct instanceof JsonResponseData) {
-    return direct
-  }
-  if (direct) {
-    return (await ETag.sendFile(direct, req)) || new Response(direct as any)
-  }
+  const direct = await serveIfDirect(serverParams, req)
+  if (direct) return direct
 
   if (isScript) {
     const serverValues = serverScript.trim() ? serverParams : undefined

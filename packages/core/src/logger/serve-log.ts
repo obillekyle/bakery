@@ -5,7 +5,6 @@ const serveMsgs = {
   STARTING_THREADS:
     'I Starting cluster supervisor with %g{count}%* workers (%creusePort%*)...',
   THREAD_STARTED: 'I [%cWorker #{id}%*] Server running at:',
-  START_WATCHER: 'I Starting %yDEV%* watcher...',
   RESTART_REQ: 'I Dev server restart requested from %ysync engine%*!',
   // Emitted by the dev worker (cli/dev.ts) when the schema-source hash matches
   // the one recorded after the last successful sync, so the boot-time schema
@@ -18,7 +17,6 @@ const serveMsgs = {
   SERVER_STARTED: 'I %gServer running at:%*',
   SERVER_URL: 'I   ➜ %w{type}%*: %bhttp://{host}:{port}%*',
   WATCHER_ERR: 'E Watcher error: %r{error}%*',
-  CONFIG_LOADED: 'I Loaded %yserver.config.ts%*',
   TSCONFIG_SYNCED:
     'I Synced %ytsconfig.json%* paths with %yserver.config.ts%*!',
   MANUAL_RELOAD: 'I %yManual reload%* triggered from client logger!',
@@ -75,12 +73,8 @@ const handlerMsgs = {
   // developer to guess which route answered.
   API_NO_RESPONSE: 'W API route returned no response: %y{file}%*',
   PROXY_REQ: 'I Proxying %y{path}%* -> %b{target}%*',
-  ERROR_HANDLER_ERR: 'E Error in custom ErrorHandler (%y{name}%*): %r{error}%*',
-  CUSTOM_ERROR_PAGE_ERR: 'E Failed to render custom error page: %r{error}%*',
   MIDDLEWARE_ERR: 'E Middleware error: %r{error}%*',
-  DISK_CACHE_WRITE_ERR: 'E Failed to write node module disk cache: %r{error}%*',
   BUNDLE_ERR: 'E Failed to bundle module (%y{file}%*): %r{error}%*',
-  UNHANDLED_ERR: 'E Unhandled Handler Error: %r{error}%*',
 } as const
 
 export const handlerLog = messageLogger(new Logger('handlers'), handlerMsgs)
@@ -90,7 +84,6 @@ const compileMsgs = {
   COMPILE_FAIL: 'E Failed to compile %y{file}%*: %r{error}%*',
   /** Same failure, but for a source string with no originating file. */
   COMPILE_SOURCE_FAIL: 'E Failed to compile inline source: %r{error}%*',
-  COMPILE_OK: 'I Compiled %w{file}%* %gsuccessfully%*.',
   FILE_DEL: 'I File deleted: %w{file}%*',
 } as const
 

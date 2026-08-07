@@ -28,9 +28,11 @@ const journalMode = process.platform === 'win32' ? 'DELETE' : 'WAL'
 cacheDb.run(`PRAGMA journal_mode = ${journalMode};`)
 cacheDb.run('PRAGMA synchronous = NORMAL;')
 cacheDb.run('PRAGMA temp_store = memory;')
-const isWorker = Boolean(
-  process.env.THREAD_WORKER && process.env.THREAD_WORKER !== 'false',
-)
+// `core/init.ts` installs THREAD_WORKER as an accessor holding a **boolean**,
+// so the string comparison this used to carry (`!== 'false'`) was always true
+// and the flag worked by accident. Read it through `import.meta.env`, which is
+// where every other mode flag is read from.
+const isWorker = Boolean(import.meta.env.THREAD_WORKER)
 cacheDb.run(`PRAGMA cache_size = ${isWorker ? -256 : -2000};`)
 cacheDb.run('PRAGMA busy_timeout = 5000;')
 cacheDb.run('PRAGMA mmap_size = 0;')

@@ -2,7 +2,7 @@ import { Bakery, getHostname, hostStore } from '@bakery/core/core/bakery'
 import { initConfig, resolveHostConfig } from '@bakery/core/core/config'
 import { log } from '@bakery/core/logger'
 import { deferredValue, is, Try } from '@bakery/core/utils/common'
-import '@bakery/core/core/init'
+import { isDevWorker } from '@bakery/core/core/init'
 import { getClientIp } from '@bakery/core/utils/http/ip'
 import {
   handleRequest,
@@ -21,8 +21,6 @@ import {
   sampleRateLimitLog,
 } from './rate-limit'
 import { runShutdownSequence } from './shutdown'
-
-const isDevWorker = Boolean(import.meta.env.DEV_WORKER && import.meta.env.DEV)
 
 /**
  * How long a cluster worker holds `Bun.serve` waiting for the master's

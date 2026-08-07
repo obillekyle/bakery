@@ -1,5 +1,4 @@
 import { Bakery } from '../../core/bakery'
-import { NOOP } from '../../core/config'
 import { errorMsg, handlerLog } from '../../logger/serve-log'
 import { injectIfHtml, response } from '../../utils/http'
 import { Handler } from './$base'
@@ -23,12 +22,6 @@ export class MiddlewareHandler extends Handler {
    * and every later request to that path would skip middleware entirely.
    */
   static override alwaysResolve = true
-
-  protected static get hasMiddleware() {
-    // One read of the config getter (an AsyncLocalStorage getStore), not two.
-    const config = Bakery.config
-    return Boolean(config.middleware.length || config.onRequest !== NOOP)
-  }
 
   static async canHandle(path: string, req: Request) {
     const result = await this.handle(path, req)
