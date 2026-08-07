@@ -270,17 +270,29 @@ main {
   main { margin-left: 0; padding: 28px 20px 80px; }
   #search { width: 130px; } #search:focus { width: 170px; }
 }
-/* Below ~600px the nav ran out of room and pushed the GitHub link off-screen
-   entirely (445px of content in a 388px viewport). Rather than pick a smaller
-   fixed width — which only moves the breakpoint where it overflows again — the
-   search field absorbs whatever is left after the fixed-size items. */
+/* The nav ran out of room below ~600px — 445px of content in a 388px viewport,
+   which pushed the GitHub link off-screen where it could not be tapped. A
+   narrower field only moves the breakpoint where that happens again, so the
+   field collapses to an icon instead and expands over the nav when tapped. */
+#search-toggle, #search-close { display: none; }
 @media (max-width: 600px) {
   .nav { padding: 0 12px; gap: 8px; }
   .nav-spacer { display: none; }
   .badge { display: none; }
-  .search-wrap { flex: 1; min-width: 0; }
-  #search, #search:focus { width: 100%; }
-  .results { width: min(320px, calc(100vw - 24px)); }
+  #search-toggle { display: grid; }
+  .search-wrap { display: none; }
+
+  /* Expanded: the field claims the bar and everything else steps aside, so
+     there is no width left to fight over. */
+  body.search-open .search-wrap { display: block; flex: 1; min-width: 0; }
+  body.search-open #search, body.search-open #search:focus { width: 100%; }
+  body.search-open #menu-btn,
+  body.search-open .brand,
+  body.search-open #theme-btn,
+  body.search-open .gh-link,
+  body.search-open #search-toggle { display: none; }
+  body.search-open #search-close { display: grid; }
+  .results { width: calc(100vw - 24px); right: -40px; }
 }
 </style>
 </head>
@@ -297,10 +309,16 @@ main {
     <input id="search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-label="Search documentation">
     <div class="results" id="results"></div>
   </div>
+  <button class="icon-btn" id="search-toggle" aria-label="Search" title="Search" aria-expanded="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+  </button>
+  <button class="icon-btn" id="search-close" aria-label="Close search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
   <button class="icon-btn" id="theme-btn" aria-label="Toggle theme" title="Toggle theme">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.25" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 2.75a9.25 9.25 0 0 1 0 18.5z" fill="currentColor"/></svg>
   </button>
-  <a class="icon-btn" href="https://github.com/obillekyle/bun-server" target="_blank" rel="noopener" aria-label="GitHub repository" title="GitHub">
+  <a class="icon-btn gh-link" href="https://github.com/obillekyle/bun-server" target="_blank" rel="noopener" aria-label="GitHub repository" title="GitHub">
     <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
   </a>
 </nav>
@@ -650,6 +668,36 @@ document.getElementById('theme-btn').onclick = () => {
 document.getElementById('menu-btn').onclick = () => document.body.classList.toggle('menu-open')
 document.getElementById('scrim').onclick = () => document.body.classList.remove('menu-open')
 
+/**
+ * Collapsed search, for the narrow layout where the field does not fit.
+ *
+ * `search-open` is only consulted by the mobile media query, so leaving it set
+ * when the viewport grows is harmless — the field is visible at that width
+ * regardless, and forcing it closed on resize would clear a query mid-typing on
+ * a phone that merely rotated.
+ */
+const searchToggle = document.getElementById('search-toggle')
+const searchClose = document.getElementById('search-close')
+
+function openSearch() {
+  document.body.classList.add('search-open')
+  searchToggle.setAttribute('aria-expanded', 'true')
+  box.focus()
+}
+function closeSearch() {
+  document.body.classList.remove('search-open')
+  searchToggle.setAttribute('aria-expanded', 'false')
+  box.value = ''
+  results.classList.remove('open')
+  // Must blur, not just hide. The field keeps focus after it goes
+  // `display: none`, which leaves keystrokes going into an invisible input and
+  // makes the `/` shortcut a no-op — its guard sees the box already focused and
+  // returns without expanding anything.
+  box.blur()
+}
+searchToggle.onclick = openSearch
+searchClose.onclick = closeSearch
+
 document.addEventListener('click', e => {
   const btn = e.target.closest('.copy-btn')
   if (!btn) return
@@ -749,7 +797,7 @@ async function search() {
 box.addEventListener('input', search)
 box.addEventListener('keydown', e => {
   const links = [...results.querySelectorAll('a')]
-  if (e.key === 'Escape') { box.blur(); results.classList.remove('open'); return }
+  if (e.key === 'Escape') { box.blur(); closeSearch(); return }
   if (!links.length) return
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault()
@@ -758,15 +806,17 @@ box.addEventListener('keydown', e => {
     links[selected].scrollIntoView({ block: 'nearest' })
   } else if (e.key === 'Enter' && selected >= 0) {
     location.hash = links[selected].getAttribute('href')
-    box.blur(); results.classList.remove('open'); box.value = ''
+    box.blur(); closeSearch()
   }
 })
 document.addEventListener('click', e => {
   if (!e.target.closest('.search-wrap')) results.classList.remove('open')
 })
-results.addEventListener('click', () => { results.classList.remove('open'); box.value = '' })
+results.addEventListener('click', closeSearch)
 addEventListener('keydown', e => {
-  if (e.key === '/' && document.activeElement !== box) { e.preventDefault(); box.focus() }
+  // `/` has to open the collapsed field too, or the shortcut focuses an input
+  // that is display:none and silently does nothing.
+  if (e.key === '/' && document.activeElement !== box) { e.preventDefault(); openSearch() }
 })
 
 addEventListener('hashchange', route)
