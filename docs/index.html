@@ -270,12 +270,26 @@ main {
   main { margin-left: 0; padding: 28px 20px 80px; }
   #search { width: 130px; } #search:focus { width: 170px; }
 }
+/* Below ~600px the nav ran out of room and pushed the GitHub link off-screen
+   entirely (445px of content in a 388px viewport). Rather than pick a smaller
+   fixed width — which only moves the breakpoint where it overflows again — the
+   search field absorbs whatever is left after the fixed-size items. */
+@media (max-width: 600px) {
+  .nav { padding: 0 12px; gap: 8px; }
+  .nav-spacer { display: none; }
+  .badge { display: none; }
+  .search-wrap { flex: 1; min-width: 0; }
+  #search, #search:focus { width: 100%; }
+  .results { width: min(320px, calc(100vw - 24px)); }
+}
 </style>
 </head>
 <body>
 
 <nav class="nav">
-  <button class="icon-btn" id="menu-btn" aria-label="Menu">☰</button>
+  <button class="icon-btn" id="menu-btn" aria-label="Open navigation" title="Menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
   <a class="brand" href="#/"><span>🥖</span> Bakery <span class="badge" id="ver">v4</span></a>
   <span class="nav-spacer"></span>
   <div class="search-wrap">
