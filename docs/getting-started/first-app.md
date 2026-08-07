@@ -321,8 +321,22 @@ The dev master supervises a worker process and decides per changed file
 | Changed file | What happens |
 | --- | --- |
 | `server.config.ts`, anything under `src/api/` | worker exits 42, master restarts it |
+| a **newly created** `.tsx` or `.jsx` | worker exits 42, master restarts it |
 | `.ts`, `.js`, `.tsx`, `.jsx`, `.html`, `.vue` | route caches cleared, browser reloaded |
 | `.css` | stylesheet hot-swapped in the browser |
+
+**Adding a page costs a restart; editing one does not.** Bun caches the
+directory listing it resolved an import against, so a `.tsx` created after the
+worker booted cannot be imported at any specifier — the page 500s with
+`Cannot find module` — until the process restarts. The watcher spots it from the
+`rename` event and restarts for you (~440 ms), which is why a brand-new page
+takes a beat longer to appear than an edit to an existing one (~15 ms).
+
+One thing to know about your editor: an in-place save keeps the fast path, but a
+writer that *replaces* the file — shell redirection (`> file`), or an editor
+that saves atomically by writing a temp file and renaming it over the original —
+looks identical to a creation and pays the restart on every save. If your dev
+loop restarts on saves you did not expect, that is why.
 
 API routes are also re-imported per request in dev with a cache-busting
 `?v=<mtime>`

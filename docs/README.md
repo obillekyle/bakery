@@ -57,6 +57,8 @@ build step in development.
 
 - [CLI](reference/cli.md)
 - [Architecture](reference/architecture.md) — the request pipeline
+- [Troubleshooting](reference/troubleshooting.md) — symptoms, and what the
+  framework is actually doing
 
 ## Packages
 

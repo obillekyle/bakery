@@ -1,8 +1,17 @@
 # Production
 
-Production is the default. There is no build step and no `NODE_ENV` you must
-set to unlock it: the process is in production mode unless `--dev` is on the
-command line (`packages/core/src/core/init.ts`).
+Production is the default, and there is no build step: the process is in
+production mode unless `--dev` is on the command line
+(`packages/core/src/core/init.ts`).
+
+**Set `NODE_ENV=production` anyway.** The framework's own mode does not read it,
+but one thing does, and it is the most destructive operation here: the schema
+sync's guard on dropped tables, dropped columns and table rebuilds is
+`process.env.NODE_ENV === 'production'` and nothing else
+(`isProductionSync` in `packages/orm/src/sync/engine.ts`). Without it a
+destructive plan on a production host falls through to the interactive
+"Proceed with sync?" prompt instead of refusing outright. See
+[Migrations](#migrations).
 
 ```bash
 bunx bakery
@@ -254,6 +263,9 @@ prevents it; only a worker that misses that deadline can lose buffered writes.
 
 - [ ] `.data` is on a persistent volume, and you have verified it survives a
       redeploy.
+- [ ] `NODE_ENV=production` set in the process environment — it is the only
+      thing that arms the destructive-sync guard
+      (`packages/orm/src/sync/engine.ts`).
 - [ ] `PORT` set if your platform assigns one — it overrides `port` in the
       config (`packages/cli/src/worker.ts`).
 - [ ] `trustProxy` on **only** if a proxy is the only way in, with `host` bound

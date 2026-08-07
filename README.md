@@ -41,8 +41,10 @@ typechecking — Bun transpiles everything at runtime.
 
 - **Filesystem routing** — a URL resolves to a file under `root` (default
   `src/`): `.tsx` pages rendered to HTML on the server through Bakery's own
-  JSX runtime, with a sibling `page.ts`/`page.css` auto-injected as script and
-  stylesheet; `.html` pages with `{{param}}` substitution; `.ts` files
+  JSX runtime, with a same-stem sibling `.ts`/`.css` auto-injected as script
+  and stylesheet (`about.tsx` picks up `about.ts` and `about.css` — the stem is
+  the page's own filename, not a reserved name); `.html` pages with
+  `{{param}}` substitution; `.ts` files
   compiled for the browser on request; `/api/*` JSON handlers; `[param]`
   dynamic segments; and static files with ETag/conditional-GET handling.
 - **Typed routes** — `defineRoute<P>` types the body an `/api` handler
@@ -121,8 +123,12 @@ are additionally imported with mtime cache-busting, so editing one is live too
 `bakery --dev` runs a supervisor that spawns the serving worker and watches
 files. Editing the `.tsx` page or `/api` route you are working on takes effect
 immediately (mtime-busted re-import); `.css` changes hot-swap the stylesheet in
-the browser; other source changes clear route caches and reload the page; a
-`server.config.ts` or `.tsx` change restarts the worker. Server-pushed errors
+the browser; other source changes clear route caches and reload the page. Only
+three things restart the worker: a change to `server.config.ts`, a change
+anywhere under the api directory, and *creating* a `.tsx`/`.jsx` file — Bun
+caches the directory listing it resolved against, so a page that did not exist
+at boot cannot be imported at any specifier until the process restarts. Editing
+an existing page does not restart. Server-pushed errors
 appear in the browser as a dismissable overlay, and a dead dev server shows a
 "disconnected" overlay that reloads when it returns. Schema sync runs before
 each boot, but only actually executes when a content hash of the schema sources

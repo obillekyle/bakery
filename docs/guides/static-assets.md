@@ -57,14 +57,12 @@ serves files off disk — route-only handlers (middleware, proxy, API) are
 exempt, since a route name is not a file. A match returns a plain-text
 `403 Forbidden`.
 
-The defaults block, anywhere in the tree:
-
-```
-.env  *.env  *.sql  *.db  *.yaml  *.yml  *.lock  bun.lockb  *.exe  .gitignore
-package.json  package-lock.json  tsconfig.json  tsconfig.*.json
-.bakery/  .data/  _internal/  .git/  .vscode/  node_modules/
-server.config.ts  schema.ts
-```
+The default list covers dotfiles and secrets, database and dump files, the
+lockfiles, the project-describing JSON files, and the generated and tooling
+directories. **The patterns are written out once, in
+[Server config → Blocked paths](../configuration/server-config.md#blocked-paths)** —
+transcribing them a second time here is how they drift out of sync with
+`packages/core/src/utils/constants.ts`.
 
 **There is deliberately no blanket `*.json` ban.** It caught every JSON
 document an app might legitimately publish — a `manifest.json`, a
@@ -88,6 +86,14 @@ export default defineConfig({
 
 Per-host `blocked` replaces the app-level list rather than extending it — the
 framework defaults are always re-applied (`core/config.ts`).
+
+Those two statements are about different scopes and both are true. At the
+process level, `blocked` in `server.config.ts` is *appended* to the built-in
+defaults, so an app can only ever add. At the host level, a `hosts` entry's
+`blocked` is compiled fresh from the defaults plus that entry's own patterns —
+so it *replaces* the app-level additions while still inheriting every default.
+The defaults are unshortenable in both cases; the only thing a host entry can
+discard is what the app-level `blocked` added.
 
 ## Uploads: `PublicHandler` (84)
 
