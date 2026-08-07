@@ -83,23 +83,32 @@ export class PGAdapter extends SQLAdapter {
       skipNext: false,
       paramsLength: params.length,
     }
+    // `skipNext` is consumed in exactly one place — the `i++` below — and
+    // cleared there.
+    //
+    // It used to be consumed twice: a top-of-loop `if (state.skipNext) continue`
+    // *and* the `i++`. A handler that set the flag therefore ate two characters
+    // instead of one, so every doubled quote swallowed whatever followed it:
+    // `'a''b'` was rewritten to `'a'''`, which Postgres reads as `a'`. A string
+    // default containing an apostrophe silently lost the rest of its value, and
+    // the same applied to a backslash escape. Values bind as parameters, so this
+    // only ever reached literals the framework itself emits — DDL defaults —
+    // which is why it survived: `ddl.test.ts` asserts the SQL *before*
+    // normalisation, and no live server ran until now.
     for (let i = 0; i < sql.length; i++) {
-      if (state.skipNext) {
-        state.skipNext = false
-        continue
-      }
       const char = sql[i]
       const nextChar = sql[i + 1]
-      const quoteRes = PGAdapter.handleQuote(char, nextChar, state)
-      if (quoteRes !== null) {
-        result += quoteRes
-        if (state.skipNext) i++
-        continue
-      }
-      const specialRes = PGAdapter.handleSpecial(char, nextChar, state)
-      if (specialRes !== null) {
-        result += specialRes
-        if (state.skipNext) i++
+
+      const handled =
+        PGAdapter.handleQuote(char, nextChar, state) ??
+        PGAdapter.handleSpecial(char, nextChar, state)
+
+      if (handled !== null) {
+        result += handled
+        if (state.skipNext) {
+          state.skipNext = false
+          i++
+        }
         continue
       }
       result += char
