@@ -14,6 +14,11 @@
   A generator would either fork the content or move it out of that test's reach.
 */
 :root {
+  /* Tells the browser to render *native* UI — scrollbars, the search input's
+     clear button, focus rings — in the matching scheme. Without it the page
+     goes dark and the scrollbar stays white, which is the one piece of chrome
+     no amount of custom CSS reaches on its own. */
+  color-scheme: light;
   --brand: #c2681a;
   --brand-soft: #e08c3e;
   --bg: #ffffff;
@@ -30,6 +35,7 @@
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --brand: #e8974a;
   --brand-soft: #f0a962;
   --bg: #1b1b1f;
@@ -43,6 +49,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --brand: #e8974a; --brand-soft: #f0a962;
     --bg: #1b1b1f; --bg-alt: #202127; --bg-code: #161618;
     --text: #c9c9cc; --text-strong: #ffffff; --text-mute: #8e8e93;
@@ -52,6 +59,23 @@
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: calc(var(--nav-h) + 16px); }
+
+/* Both engines, because they disagree: Firefox takes `scrollbar-*`, WebKit and
+   Chromium take the pseudo-elements. Both read the theme variables, so the
+   thumb tracks light/dark without a second rule. */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-mute) 45%, transparent) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  /* Padded via a transparent border + background-clip so the thumb reads as a
+     slim pill rather than filling the gutter edge to edge. */
+  background: color-mix(in srgb, var(--text-mute) 45%, transparent);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--text-mute) 75%, transparent); background-clip: content-box; }
+::-webkit-scrollbar-corner { background: transparent; }
 body {
   margin: 0;
   background: var(--bg);
@@ -90,16 +114,18 @@ body {
 }
 .results {
   position: absolute; top: calc(100% + 6px); right: 0; width: min(460px, 80vw);
-  max-height: 60vh; overflow-y: auto; background: var(--bg);
+  max-height: 60vh; overflow-y: auto; overflow-x: hidden; background: var(--bg);
   border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
   display: none; padding: 6px;
 }
 .results.open { display: block; }
-.results a { display: block; padding: 8px 10px; border-radius: 7px; text-decoration: none; color: var(--text); }
+.results a { display: block; padding: 8px 10px; border-radius: 7px; text-decoration: none; color: var(--text); overflow: hidden; }
 .results a:hover, .results a.sel { background: var(--bg-alt); }
-.results .r-title { font-weight: 600; color: var(--text-strong); font-size: 14px; }
-.results .r-crumb { font-size: 11px; color: var(--brand); text-transform: uppercase; letter-spacing: .04em; }
-.results .r-snip { font-size: 12px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* All three are spans, so each needs `display:block` — without it the crumb,
+   title and snippet run together on one line ("ARCHITECTUREArchitecture…"). */
+.results .r-title { display: block; font-weight: 600; color: var(--text-strong); font-size: 14px; line-height: 1.4; }
+.results .r-crumb { display: block; font-size: 11px; color: var(--brand); text-transform: uppercase; letter-spacing: .04em; }
+.results .r-snip { display: block; font-size: 12px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .results .empty { padding: 14px; color: var(--text-mute); font-size: 13px; text-align: center; }
 .icon-btn {
   display: grid; place-items: center; width: 32px; height: 32px; flex: none;
@@ -614,20 +640,46 @@ let index = null
 const box = document.getElementById('search')
 const results = document.getElementById('results')
 
+/**
+ * Markdown source reduced to the words a reader would recognise.
+ *
+ * The index stores prose, not syntax. Without this a snippet reads
+ * `- [CLI](reference/cli.md) - [Architecture](reference/arch…` — the link
+ * targets crowd out the sentence, and a search for a word in a URL matches text
+ * nobody can see on the page.
+ */
+function plain(line) {
+  return line
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/[`*_>|]/g, '')
+    .replace(/^\s*[-+]\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 async function buildIndex() {
   if (index) return index
   index = []
   await Promise.all(FLAT.map(async ([page, label]) => {
     let src
     try { src = await load(page) } catch { return }
-    let section = label, body = []
+    let section = label, body = [], inFence = false
     for (const line of src.split('\n')) {
+      // Track the fence rather than skipping only the ``` line itself. The old
+      // test let every line *inside* a code block into the index, so a snippet
+      // could be a fragment of someone's example mid-identifier.
+      if (/^```/.test(line)) { inFence = !inFence; continue }
+      if (inFence) continue
       const h = /^(#{1,4})\s+(.*)$/.exec(line)
       if (h) {
         if (body.length) index.push({ page, label, section, id: slug(section), text: body.join(' ') })
         section = h[2].replace(/`/g, '').trim()
         body = []
-      } else if (line.trim() && !/^```/.test(line)) body.push(line.trim())
+      } else if (line.trim()) {
+        const text = plain(line)
+        if (text) body.push(text)
+      }
     }
     if (body.length) index.push({ page, label, section, id: slug(section), text: body.join(' ') })
   }))
@@ -655,8 +707,13 @@ async function search() {
   selected = -1
   results.innerHTML = hits.length
     ? hits.map(({ e }) => {
+        // Window around the first hit, then advance to a word boundary —
+        // slicing at a fixed offset otherwise opens the snippet mid-word
+        // ("ation-supplied authorization predicate"), which reads as corruption.
         const pos = e.text.toLowerCase().indexOf(terms[0])
-        const snip = pos >= 0 ? e.text.slice(Math.max(0, pos - 40), pos + 90) : e.text.slice(0, 110)
+        const from = pos >= 0 ? Math.max(0, pos - 40) : 0
+        let snip = e.text.slice(from, from + 130)
+        if (from > 0) snip = '…' + snip.slice(snip.indexOf(' ') + 1)
         return `<a href="#/${e.page}#${e.id}"><span class="r-crumb">${esc(e.label)}</span>` +
           `<span class="r-title">${esc(e.section)}</span>` +
           `<span class="r-snip">${esc(snip)}…</span></a>`
