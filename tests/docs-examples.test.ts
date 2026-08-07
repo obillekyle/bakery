@@ -44,14 +44,28 @@ interface Example {
 
 const FENCE = /^```(\w+)([^\n]*)$/
 
+/**
+ * `file` is assigned centrally, in `beforeAll`, and **must not** be assigned
+ * here.
+ *
+ * It used to be, from a counter declared inside this function — so the counter
+ * restarted at 0 for every document and each doc's `ex0.ts` overwrote the
+ * previous one's. Only the last writer of each index survived to disk: 103
+ * blocks across the tree produced **18** files, so 85 examples were never
+ * compiled at all, and the failures that did surface were attributed to
+ * whichever doc happened to own that index in `examples[]` rather than the doc
+ * the code came from.
+ *
+ * That made this file's whole claim — "every example compiles, so a broken one
+ * fails on the commit that breaks it" — about one-sixth true, and quietly.
+ */
 function extract(doc: string, text: string): {
-  examples: Example[]
+  examples: Omit<Example, 'file'>[]
   skippedWithoutReason: string[]
 } {
   const lines = text.split('\n')
-  const examples: Example[] = []
+  const examples: Omit<Example, 'file'>[] = []
   const skippedWithoutReason: string[] = []
-  let index = 0
 
   for (let i = 0; i < lines.length; i++) {
     const open = FENCE.exec(lines[i])
@@ -74,8 +88,7 @@ function extract(doc: string, text: string): {
         }
       } else {
         const code = lines.slice(start, end).join('\n')
-        const file = `${WORK}/ex${index++}.${lang}`
-        examples.push({ doc, line: i + 1, lang, code, file })
+        examples.push({ doc, line: i + 1, lang, code })
       }
     }
 
@@ -85,11 +98,27 @@ function extract(doc: string, text: string): {
   return { examples, skippedWithoutReason }
 }
 
+/**
+ * `docs/` plus every published package README.
+ *
+ * The READMEs were the gap. They are the most public prose in the repo — a
+ * package README *is* its npm landing page, and for most readers it is the only
+ * page they will ever see — and they were the one body of examples nothing
+ * compiled. Exactly the shape of the problem this file exists to prevent, with
+ * a wider audience than `docs/`.
+ */
 async function docFiles(): Promise<string[]> {
-  const glob = new Bun.Glob('docs/**/*.md')
+  const patterns = [
+    'docs/**/*.md',
+    'packages/*/README.md',
+    'packages/plugins/*/README.md',
+  ]
   const found: string[] = []
-  for await (const scanned of glob.scan({ cwd: ROOT, onlyFiles: true })) {
-    found.push(scanned.replace(/\\/g, '/'))
+  for (const pattern of patterns) {
+    const glob = new Bun.Glob(pattern)
+    for await (const scanned of glob.scan({ cwd: ROOT, onlyFiles: true })) {
+      found.push(scanned.replace(/\\/g, '/'))
+    }
   }
   return found.sort()
 }
@@ -117,7 +146,11 @@ beforeAll(async () => {
   for (const doc of docs) {
     const text = await Bun.file(`${ROOT}/${doc}`).text()
     const result = extract(doc, text)
-    examples.push(...result.examples)
+    // One counter across the whole tree, so `exN.ts` and `examples[N]` are the
+    // same N and no document can overwrite another's files.
+    for (const found of result.examples) {
+      examples.push({ ...found, file: `${WORK}/ex${examples.length}.${found.lang}` })
+    }
     skippedWithoutReason.push(...result.skippedWithoutReason)
   }
 
