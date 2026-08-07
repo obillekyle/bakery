@@ -53,12 +53,25 @@ That is the entire list.
 ### Port and host
 
 **There is no port flag.** The port is resolved as
-`process.env.PORT` → `port` in `server.config.ts` → `3000`
-([packages/cli/src/worker.ts](../../packages/cli/src/worker.ts)):
+`process.env.PORT` → `port` in `server.config.ts` → `3000`, by one shared
+resolver so that what the server binds and what the startup banner prints
+cannot disagree
+([packages/core/src/core/port.ts](../../packages/core/src/core/port.ts)):
 
 ```bash
 PORT=8080 bunx bakery
 ```
+
+**A malformed `PORT` is a boot error, not a fallback.** It must be digits in
+`0..65535`; `PORT=3000x`, `0x1f`, `1e3` and `+80` are all refused with
+`Invalid PORT: … is not an integer between 0 and 65535` and exit 1. An unset
+or empty `PORT` counts as absent and falls through to the config. `PORT=0` is
+allowed and means "let the OS choose" — the banner then reports the port
+actually bound. Failing loudly is deliberate: a value the operator plainly
+meant as a port and which is not one has no safe default, and the previous
+behaviour was worse than a bad default — `Number('3000x')` is `NaN`, which
+`Bun.serve` turns into a *random* ephemeral port while the banner advertised
+`http://localhost:3000/`.
 
 The host comes from `host` in `server.config.ts`, defaulting to `0.0.0.0`. When
 it is `0.0.0.0` or `::`, the startup banner enumerates the machine's non-internal

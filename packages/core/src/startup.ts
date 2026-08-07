@@ -23,6 +23,7 @@ import { log } from './logger'
 import { match } from './utils/common'
 import { serveLog } from './logger'
 import { getConfigLoadError } from './core/config'
+import { resolvePort } from './core/port'
 import { DEFAULT_RATE_LIMIT } from './utils/constants'
 
 let pluginSetup: Promise<void> | null = null
@@ -94,11 +95,15 @@ export async function setupServer(): Promise<void> {
 
 export async function runStartupBanner(): Promise<void> {
   const host = Bakery.config.host
-  let port = process.env.PORT
-    ? parseInt(process.env.PORT, 10)
-    : Bakery.config.port
 
-  port ||= Bakery.server?.port || 0
+  // Ground truth first. The banner's job is to print where the server is
+  // listening, and `Bakery.server.port` is what the OS actually gave us —
+  // which is the only correct answer under `PORT=0`, and the only *honest*
+  // one if the bound port and the requested one ever part company again.
+  // `resolvePort` covers the callers that print a banner without a server
+  // (a `--sync`-only run, an embedder), and it is the same function
+  // `worker.ts` binds with, so the two cannot drift apart.
+  const port = Bakery.server?.port || resolvePort(Bakery.config.port)
 
   const isThreadWorker = import.meta.env.THREAD_WORKER
   if (!isThreadWorker || import.meta.env.THREAD_ID === '0') {

@@ -47,6 +47,11 @@ nothing (`packages/cli/src/index.ts`). Use the environment variable:
 PORT=8080 bunx bakery
 ```
 
+A *malformed* `PORT` is the opposite of silent: it refuses to boot with
+`Invalid PORT: "3277x" is not an integer between 0 and 65535` and exits 1,
+rather than quietly binding somewhere unexpected
+(`packages/core/src/core/port.ts`).
+
 The same silence applies to `bakery --help`, which does not exist. See
 [CLI reference](cli.md#flags).
 

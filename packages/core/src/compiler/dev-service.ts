@@ -3,6 +3,9 @@ import { relative, resolve } from 'node:path'
 import { initRoutes } from '../cache'
 import { Bakery } from '../core/bakery'
 import { isDevWorker } from '../core/init'
+// Dependency-free by construction (see the note above about not dragging the
+// handler or plugin runtime into this graph): `core/port` imports nothing.
+import { resolvePort } from '../core/port'
 import { Try } from '../utils'
 import { Glob, fs } from '../utils/fs'
 import { compLog, serveLog } from '../logger'
@@ -287,9 +290,12 @@ export async function handleDevMaster(): Promise<never> {
   const { initConfig } = await import('../core/config')
   const config = await initConfig()
 
-  const port = process.env.PORT
-    ? parseInt(process.env.PORT, 10)
-    : config.port || 3000
+  // Shared with `worker.ts` (which binds) and `startup.ts` (which prints the
+  // banner), so the URL this master advertises cannot drift from the port its
+  // worker listens on. A malformed `PORT` throws here rather than in the
+  // spawned worker: the dev master is the process the developer is watching,
+  // and `cli/index.ts`'s bootstrap catch turns it into one clear fatal line.
+  const port = resolvePort(config.port)
   const host =
     config.host === '0.0.0.0' ? '127.0.0.1' : config.host || '127.0.0.1'
   const url = `http://${host}:${port}/`
