@@ -368,9 +368,22 @@ export namespace Mutation {
       for (let i = 0; i < this._clauses.length; i++) {
         const c = this._clauses[i]!
         const left = evalOperands(c.left, params, true)
-        const right = evalOperands(c.right, params, c.isRightColumn)
-        const clauseStr = `${left} ${c.operator} ${right}`
-        parts.push(i === 0 ? clauseStr : `${c.connector} ${clauseStr}`)
+        // `parseWhereArgs` emits `operator: ''` for the one-argument form —
+        // `where(DB.raw`…`)` or `where(<subquery>)` — where the left operand
+        // is the whole condition and there is no right one. This branch is a
+        // copy of `UpdateExecutable.evalWhere` above, which is a copy of
+        // `formatClause` in query.ts; it was the copy that never got it. The
+        // failure was silent rather than loud: `evalOperands(undefined)` binds
+        // rather than throwing, so the clause came out as
+        // `(LOWER(email) = ?)  ?` with a stray `undefined` pushed onto
+        // `params` *ahead* of every later clause's value, shifting them all.
+        if (c.operator === '') {
+          parts.push(i === 0 ? left : `${c.connector} ${left}`)
+        } else {
+          const right = evalOperands(c.right, params, c.isRightColumn)
+          const clauseStr = `${left} ${c.operator} ${right}`
+          parts.push(i === 0 ? clauseStr : `${c.connector} ${clauseStr}`)
+        }
       }
       return parts.join(' ')
     }
