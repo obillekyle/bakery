@@ -3,10 +3,10 @@ import { Bakery } from '@bakery/core/core/bakery'
 import { isDevWorker } from '@bakery/core/core/init'
 import { Handler } from '@bakery/core/handlers'
 import { setLogCallback } from '@bakery/core/logger'
-import { errorMsg, pluginLog } from '@bakery/core/logger/serve-log'
+import { errorMsg, pluginLog } from '@bakery/core/logger'
 import { mountRoutes } from '@bakery/core/handlers'
 import { pluginPath } from './paths'
-import { type PluginRouteTable, routeTable } from '@bakery/core/plugins/routes'
+import { type PluginRouteTable, routeTable } from '@bakery/core/plugins'
 import {
   type AuthorizeFn,
   defaultAuthorize,
@@ -14,9 +14,9 @@ import {
   resolveAuthorize,
 } from './authorize'
 // LiveReloadHandler owns this registry — it adds and removes sockets from it.
-import { connectedLoggers } from '@bakery/core/logger/clients'
+import { connectedLoggers } from '@bakery/core/logger'
 import { Try } from '@bakery/core/utils/common'
-import type { JsonResponseData } from '@bakery/core/utils/common/json'
+import type { JsonResponseData } from '@bakery/core/utils/common'
 import { checkCsrf, injectIfHtml, response } from '@bakery/core/utils/http'
 import {
   handleExecuteAction,

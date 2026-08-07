@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { is } from '@bakery/core/utils/common'
 // The same binding `client/utils.ts` publishes to the browser as `escapeHTML`.
-import { escapeHtml } from '@bakery/core/utils/http/escape'
+import { escapeHtml } from '@bakery/core/utils/http'
 import {
   buildResultTableHtml,
   buildTableHtml,

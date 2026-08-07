@@ -26,12 +26,16 @@ Nothing else. `@bakery/core` has **no runtime dependencies**; `@bakery/orm` and
 There is no `bun add bakery`, and **`bun create bakery` does not work yet** —
 not because the scaffolder is missing, but because `bun create x` fetches
 `create-x` from npm and nothing here is published. The packages are
-unpublished — export maps, the package names and the
-`@bakery/orm/schema-registry` module name that your `schema.ts` writes into are
-all still free to change, and publishing freezes them. The export maps are the
-sharpest of those: every package currently exposes `"./*"`, so each internal
-file is importable, and curating that surface is a breaking change once anyone
-depends on it.
+unpublished — the package names and the `@bakery/orm/schema-registry` module
+name that your `schema.ts` writes into are still free to change, and publishing
+freezes them.
+
+The export maps were the sharpest of those, and they are now settled. The
+packages no longer carry a `"./*"` wildcard, so only the enumerated subpaths
+exist and everything else is private: `@bakery/core/cache/tiered` does not
+resolve for you, whatever your editor suggests. Adding a subpath later is easy;
+taking one away once someone imports it is a breaking change, which is why it
+was closed before the first publish rather than after.
 
 `create-bakery` itself exists, in `packages/create`, and you can run it from a
 clone today:

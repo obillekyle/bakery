@@ -1,5 +1,5 @@
 import { processBody } from '@bakery/core/utils'
-import type { JsonResponseData } from '@bakery/core/utils/common/json'
+import type { JsonResponseData } from '@bakery/core/utils/common'
 import { response } from '@bakery/core/utils/http'
 import { isReservedSessionKey, Session } from '@bakery/core/session'
 

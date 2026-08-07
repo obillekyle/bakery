@@ -46,7 +46,7 @@ export class MySQLAdapter extends SQLAdapter {
 
   async hasCol(table: string, column: string): Promise<boolean> {
     const res = (await this.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_name = ? AND table_schema = DATABASE()`,
+      `SELECT column_name AS column_name FROM information_schema.columns WHERE table_name = ? AND table_schema = DATABASE()`,
     ).all(table)) as SQLAdapter.ColumnNameRow[]
     return res.some(r => r.column_name === column)
   }
@@ -85,7 +85,7 @@ export class MySQLAdapter extends SQLAdapter {
       ).run()
     } catch {
       const col = (await this.query(
-        'SELECT column_type, is_nullable, column_default, extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?',
+        'SELECT column_type AS column_type, is_nullable AS is_nullable, column_default AS column_default, extra AS extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?',
       ).get(table, oldColumn)) as any
       const type = String(col?.column_type || 'TEXT')
       const notNull = col?.is_nullable === 'NO' ? ' NOT NULL' : ''
@@ -123,7 +123,7 @@ export class MySQLAdapter extends SQLAdapter {
     if (type === 'INDEX') {
       const indexName = params[0]
       const row = (await this.query(
-        'SELECT DISTINCT table_name FROM information_schema.statistics WHERE index_name = ? AND table_schema = DATABASE()',
+        'SELECT DISTINCT table_name AS table_name FROM information_schema.statistics WHERE index_name = ? AND table_schema = DATABASE()',
       ).get(indexName)) as SQLAdapter.TableNameRow | undefined
       if (row?.table_name)
         return await this.query(
@@ -289,9 +289,20 @@ export class MySQLAdapter extends SQLAdapter {
     ).run(...keys.map(k => row[k]), rowid)
   }
 
+  /**
+   * Every information_schema column is aliased to its own lowercase name, and
+   * the aliases are load-bearing despite looking redundant.
+   *
+   * MySQL 8 returns information_schema field names **uppercase** — a bare
+   * `SELECT table_name` yields a row keyed `TABLE_NAME` — while an alias is
+   * returned exactly as written. Without them `t.table_name` is `undefined`
+   * and this method throws `undefined is not an object` inside `Case.camel`,
+   * which takes `db:sync` against MySQL down entirely. Postgres was never
+   * affected because its adapter already aliased everything.
+   */
   async getConstraints(): Promise<SyncTypes.DBConstraints> {
     const tables = (await this.query(
-      "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type IN ('BASE TABLE','VIEW')",
+      "SELECT table_name AS table_name, table_type AS table_type FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type IN ('BASE TABLE','VIEW')",
     ).all()) as any[]
     const dbConstraints: SyncTypes.DBConstraints = {}
 
@@ -301,14 +312,14 @@ export class MySQLAdapter extends SQLAdapter {
 
       if (t.table_type === 'VIEW') {
         const viewDef = (await this.query(
-          'SELECT view_definition FROM information_schema.views WHERE table_schema = DATABASE() AND table_name = ?',
+          'SELECT view_definition AS view_definition FROM information_schema.views WHERE table_schema = DATABASE() AND table_name = ?',
         ).get(t.table_name)) as any
         if (viewDef?.view_definition)
           dbConstraints[tName]._view = viewDef.view_definition
       }
 
       const cols = (await this.query(
-        'SELECT column_name, column_type, data_type, is_nullable, column_key, column_default, extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ordinal_position',
+        'SELECT column_name AS column_name, column_type AS column_type, data_type AS data_type, is_nullable AS is_nullable, column_key AS column_key, column_default AS column_default, extra AS extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ordinal_position',
       ).all(t.table_name)) as any[]
 
       for (const col of cols) {
@@ -321,7 +332,7 @@ export class MySQLAdapter extends SQLAdapter {
 
   async getIndexes(): Promise<SyncTypes.DBIndexes> {
     const rows = (await this.query(
-      'SELECT index_name, non_unique, table_name, column_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND index_name IS NOT NULL ORDER BY index_name, seq_in_index',
+      'SELECT index_name AS index_name, non_unique AS non_unique, table_name AS table_name, column_name AS column_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND index_name IS NOT NULL ORDER BY index_name, seq_in_index',
     ).all()) as any[]
     const idxMap: Record<
       string,

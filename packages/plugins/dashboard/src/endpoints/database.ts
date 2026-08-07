@@ -1,6 +1,6 @@
 import { processBody } from '@bakery/core/utils'
 import { is, Try } from '@bakery/core/utils/common'
-import type { JsonResponseData } from '@bakery/core/utils/common/json'
+import type { JsonResponseData } from '@bakery/core/utils/common'
 import { response } from '@bakery/core/utils/http'
 import { getElapsed } from '@bakery/core/logger'
 import { connection } from '@bakery/orm/connection'

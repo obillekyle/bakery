@@ -2,7 +2,7 @@ import { Logger, log } from '../logger'
 import { definePlugin as _definePlugin } from '../plugins/types'
 import { Case, is, Math2, match, Try } from '../utils/common'
 import { response } from '../utils/http'
-import Bakery from './bakery'
+import Bakery, { getHostname, hostKey, hostStore } from './bakery'
 import { getConfig, NOOP } from './config'
 import { createElement, Fragment, html } from './jsx'
 import type { RouteHandler } from '../types'
@@ -41,6 +41,11 @@ export {
   createElement,
   Fragment,
   getConfig,
+  // Multi-host helpers. Documented in docs/configuration/multi-host.md, and
+  // the only reason `./core/bakery` had to be a subpath of its own.
+  getHostname,
+  hostKey,
+  hostStore,
   html,
   html as HTMLBody,
   is,

@@ -450,7 +450,7 @@ describe('index DDL diverges on MySQL', () => {
     )
     await db.drop('INDEX', 'idx_name')
     expect(calls[0]).toEqual({
-      sql: 'SELECT DISTINCT table_name FROM information_schema.statistics WHERE index_name = ? AND table_schema = DATABASE()',
+      sql: 'SELECT DISTINCT table_name AS table_name FROM information_schema.statistics WHERE index_name = ? AND table_schema = DATABASE()',
       params: ['idx_name'],
     })
     expect(calls[1].sql).toBe('DROP INDEX `idx_name` ON `app_users`')
@@ -520,7 +520,7 @@ describe('rename DDL diverges on MySQL', () => {
     await db.rename('COLUMN', 'app_users', 'old_col', 'nick_name')
 
     expect(calls[1]).toEqual({
-      sql: 'SELECT column_type, is_nullable, column_default, extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?',
+      sql: 'SELECT column_type AS column_type, is_nullable AS is_nullable, column_default AS column_default, extra AS extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?',
       params: ['app_users', 'old_col'],
     })
     expect(calls[2].sql).toBe(
@@ -610,7 +610,7 @@ describe('MySQL introspection queries', () => {
     expect(await db.hasCol('app_users', 'nick_name')).toBe(true)
     expect(await db.hasCol('app_users', 'absent')).toBe(false)
     expect(calls[0]).toEqual({
-      sql: 'SELECT column_name FROM information_schema.columns WHERE table_name = ? AND table_schema = DATABASE()',
+      sql: 'SELECT column_name AS column_name FROM information_schema.columns WHERE table_name = ? AND table_schema = DATABASE()',
       params: ['app_users'],
     })
   })
@@ -651,8 +651,8 @@ describe('MySQL introspection queries', () => {
       },
     })
     expect(texts(calls)).toEqual([
-      "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type IN ('BASE TABLE','VIEW')",
-      'SELECT column_name, column_type, data_type, is_nullable, column_key, column_default, extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ordinal_position',
+      "SELECT table_name AS table_name, table_type AS table_type FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type IN ('BASE TABLE','VIEW')",
+      'SELECT column_name AS column_name, column_type AS column_type, data_type AS data_type, is_nullable AS is_nullable, column_key AS column_key, column_default AS column_default, extra AS extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ordinal_position',
     ])
   })
 
@@ -668,7 +668,7 @@ describe('MySQL introspection queries', () => {
     const constraints = await db.getConstraints()
     expect(constraints.activeUsers._view).toBe('select `id` from `app_users`')
     expect(texts(calls)[1]).toBe(
-      'SELECT view_definition FROM information_schema.views WHERE table_schema = DATABASE() AND table_name = ?',
+      'SELECT view_definition AS view_definition FROM information_schema.views WHERE table_schema = DATABASE() AND table_name = ?',
     )
     expect(calls[1].params).toEqual(['active_users'])
   })
@@ -709,7 +709,7 @@ describe('MySQL introspection queries', () => {
       },
     })
     expect(texts(calls)).toEqual([
-      'SELECT index_name, non_unique, table_name, column_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND index_name IS NOT NULL ORDER BY index_name, seq_in_index',
+      'SELECT index_name AS index_name, non_unique AS non_unique, table_name AS table_name, column_name AS column_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND index_name IS NOT NULL ORDER BY index_name, seq_in_index',
     ])
   })
 
@@ -852,6 +852,8 @@ describe('Postgres introspection queries', () => {
       default: null,
     })
     expect(texts(calls)[0]).toBe(
+      // Not aliased, unlike MySQL's: Postgres folds unquoted identifiers to
+      // lowercase, so `table_name` comes back as written.
       "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = current_schema() AND table_type IN ('BASE TABLE','VIEW')",
     )
     expect(texts(calls)[1]).toBe(

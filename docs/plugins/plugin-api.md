@@ -169,7 +169,7 @@ hand-rolled `if (path === … && method === …)` chain
 ([`plugins/routes.ts`](../../packages/core/src/plugins/routes.ts)):
 
 ```ts
-import { type PluginRouteTable, routeTable } from '@bakery/core/plugins/routes'
+import { type PluginRouteTable, routeTable } from '@bakery/core/plugins'
 import { response } from '@bakery/core/utils/http'
 
 const routes = routeTable({

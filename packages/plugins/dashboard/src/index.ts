@@ -1,4 +1,4 @@
-import { definePlugin } from '@bakery/core/plugins/types'
+import { definePlugin } from '@bakery/core/plugins'
 import type { AuthorizeFn } from './authorize'
 
 export type { AuthorizeFn } from './authorize'

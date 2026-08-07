@@ -49,7 +49,7 @@ export const parsedCache = new LRUCache<string, ParsedCacheEntry>(1000)
  * on `@bakery/vue` once these ship as separate packages. Re-exported so this
  * plugin's own modules and tests keep their existing import path.
  */
-export { escapeHtml, escapeScriptJson } from '@bakery/core/utils/http/escape'
+export { escapeHtml, escapeScriptJson } from '@bakery/core/utils/http'
 
 const RX_SERVER_SCRIPT_OPEN =
   /<script\b(?=[^>]*\bserver(?=[\s/>=]))[^>]*>/gi

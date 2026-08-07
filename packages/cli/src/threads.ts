@@ -117,7 +117,7 @@ export async function handleThreadsMaster(threadCount: number) {
   let Bakery: any
   try {
     const configMod = await import('@bakery/core/core/config')
-    const bakeryMod = await import('@bakery/core/core/bakery')
+    const bakeryMod = await import('@bakery/core')
     await configMod.initConfig()
     Bakery = bakeryMod.Bakery
   } catch (error: any) {

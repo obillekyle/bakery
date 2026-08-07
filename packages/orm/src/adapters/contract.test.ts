@@ -70,6 +70,28 @@ describe('Postgres normalisation', () => {
     expect(normalize('SELECT `a`.`b` FROM `t`')).toBe('SELECT "a"."b" FROM "t"')
   })
 
+  test('a doubled quote does not swallow the character after it', () => {
+    // The scanner consumed its `skipNext` flag twice — once at the top of the
+    // loop and again via `i++` — so an escaped quote ate the *next* character
+    // too. `'a''b'` came out as `'a'''`, which Postgres reads as `a'`.
+    //
+    // It reached a live server as a corrupted column DEFAULT: a schema saying
+    // `value('string', "it's fine")` created a column whose default was
+    // `it' fine`, and every row silently got the truncated value. Nothing
+    // caught it because these assertions run *before* normalisation and the
+    // MySQL/Postgres suites had never been run against a real database.
+    expect(normalize("SELECT 'a''b'")).toBe("SELECT 'a''b'")
+    expect(normalize("SELECT 'it''s fine'")).toBe("SELECT 'it''s fine'")
+    // …and the escape must not leak the scanner out of the literal: a `?`
+    // after it is still data, not a placeholder.
+    expect(normalize("SELECT 'a''b?' , ?", [1])).toBe("SELECT 'a''b?' , $1")
+  })
+
+  test('a backslash escape keeps the character it escapes', () => {
+    // Same double-consume, via handleSpecial.
+    expect(normalize("SELECT 'a\\'b'")).toBe("SELECT 'a\\'b'")
+  })
+
   test('leaves a ? inside a string literal alone', () => {
     // The whole reason for a scanner rather than a regex: a question mark in
     // user data must not become a parameter reference.

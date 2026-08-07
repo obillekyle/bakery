@@ -36,9 +36,7 @@
     "./schema-registry": "./src/schema-registry.ts",
     "./schema-util": "./src/schema-util.ts",
     "./connection": "./src/connection.ts",
-    "./backup": "./src/backup.ts",
-    "./*": "./src/*.ts",
-    "./*.ts": "./src/*.ts"
+    "./backup": "./src/backup.ts"
   },
   "files": [
     "src",

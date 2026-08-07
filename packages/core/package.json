@@ -43,9 +43,16 @@
     "./tsconfig.app.json": "./tsconfig.app.json",
     "./session": "./src/session.ts",
     "./jsx": "./src/core/jsx.ts",
-    "./plugins": "./src/plugins/routes.ts",
-    "./*": "./src/*.ts",
-    "./*.ts": "./src/*.ts"
+    "./plugins": "./src/plugins/index.ts",
+    "./cache/lru": "./src/cache/lru.ts",
+    "./cache/shared-db": "./src/cache/shared-db.ts",
+    "./core/config": "./src/core/config.ts",
+    "./core/init": "./src/core/init.ts",
+    "./core/port": "./src/core/port.ts",
+    "./router": "./src/router.ts",
+    "./utils/shared-pool": "./src/utils/shared-pool.ts",
+    "./global.d.ts": "./src/global.d.ts",
+    "./core/bakery": "./src/core/bakery.ts"
   },
   "files": [
     "src",
