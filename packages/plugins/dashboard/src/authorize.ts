@@ -1,4 +1,4 @@
-import { getClientIp } from '@bakery/core/utils/http/ip'
+import { getClientIp } from '@bakery/core/utils/http'
 
 /**
  * Decides whether a request may use the console.

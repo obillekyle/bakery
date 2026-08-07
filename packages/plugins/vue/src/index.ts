@@ -1,4 +1,4 @@
-import { definePlugin } from '@bakery/core/plugins/types'
+import { definePlugin } from '@bakery/core/plugins'
 import { rewriteVueImports } from './utils'
 import type { VuePluginOptions } from './types'
 import { setVuePluginOptions } from './compile'

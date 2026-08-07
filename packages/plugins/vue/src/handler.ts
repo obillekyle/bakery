@@ -1,11 +1,11 @@
 import { LRUCache } from '@bakery/core/cache/lru'
 import { Bakery, hostKey } from '@bakery/core/core/bakery'
-import type { Handler } from '@bakery/core/handlers/core/$base'
-import { DynamicHandler } from '@bakery/core/handlers/core/$dynamic'
+import type { Handler } from '@bakery/core/handlers'
+import { DynamicHandler } from '@bakery/core/handlers'
 import {
   beginPageRoute,
   DynamicErrorHandler,
-} from '@bakery/core/handlers/core/$error'
+} from '@bakery/core/handlers'
 import { Logger } from '@bakery/core/logger'
 import { JsonResponseData, fs, response, toHash } from '@bakery/core/utils'
 import { ETag, injectIfHtml } from '@bakery/core/utils/http'

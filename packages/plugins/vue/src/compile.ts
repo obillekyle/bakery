@@ -1,4 +1,4 @@
-import { compileText } from '@bakery/core/compiler/compiler'
+import { compileText } from '@bakery/core/compiler'
 import { Logger } from '@bakery/core/logger'
 import type { SFCStyleCompileResults } from '@vue/compiler-sfc'
 

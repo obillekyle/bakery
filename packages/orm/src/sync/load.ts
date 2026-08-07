@@ -1,5 +1,5 @@
 import { Try } from '@bakery/core/utils/common'
-import { fs } from '@bakery/core/utils/fs'
+import { fs } from '@bakery/core/utils'
 import { collectConstraints } from '../define'
 import type * as SyncTypes from './types'
 

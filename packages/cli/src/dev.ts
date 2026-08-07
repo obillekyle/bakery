@@ -90,8 +90,8 @@ async function computeSchemaHash(
 }
 
 try {
-  const { Bakery } = await import('@bakery/core/core/bakery')
-  const { classifySchemaSync } = await import('@bakery/core/compiler/dev-service')
+  const { Bakery } = await import('@bakery/core')
+  const { classifySchemaSync } = await import('@bakery/core/compiler')
   const { schemaFromConfig } = await import('@bakery/orm/sync/load')
   const { Try } = await import('@bakery/core/utils')
 

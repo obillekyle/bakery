@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
-import { fs } from '@bakery/core/utils/fs'
+import { fs } from '@bakery/core/utils'
 import {
   findUnsupportedForeignKeys,
   loadSchema,

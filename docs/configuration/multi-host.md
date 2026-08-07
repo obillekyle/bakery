@@ -107,7 +107,7 @@ Which is what `hostKey()` is for (`core/bakery.ts`). It prefixes a string
 with the current hostname, so a cache keyed by path stays correct across hosts:
 
 ```ts
-import { hostKey } from '@bakery/core/core/bakery'
+import { hostKey } from '@bakery/core'
 
 const key = hostKey('/styles/app.css')
 ```

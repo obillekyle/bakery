@@ -1,5 +1,5 @@
 import { response } from '@bakery/core/utils/http'
-import type { JsonResponseData } from '@bakery/core/utils/common/json'
+import type { JsonResponseData } from '@bakery/core/utils/common'
 import { Bakery } from '@bakery/core/core/bakery'
 import { DASHPASS_SESSION_KEY, Session } from '@bakery/core/session'
 import * as core from '../core'

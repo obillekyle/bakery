@@ -11,7 +11,7 @@ import {
   pageHitsMap,
   RETENTION_MS,
 } from './core'
-import { errorMsg, pluginLog } from '@bakery/core/logger/serve-log'
+import { errorMsg, pluginLog } from '@bakery/core/logger'
 import { Try } from '@bakery/core/utils/common'
 import { analyticsLog } from './log'
 import { timescaleToMs } from './timescale'

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
-import { JsonResponseData } from '@bakery/core/utils/common/json'
+import { JsonResponseData } from '@bakery/core/utils/common'
 import { __resetTestDb, __setTestDb } from '@bakery/orm/connection'
 import {
   __resetTestAuthorize,

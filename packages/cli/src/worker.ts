@@ -3,7 +3,7 @@ import { initConfig, resolveHostConfig } from '@bakery/core/core/config'
 import { log } from '@bakery/core/logger'
 import { deferredValue, is, Try } from '@bakery/core/utils/common'
 import { isDevWorker } from '@bakery/core/core/init'
-import { getClientIp } from '@bakery/core/utils/http/ip'
+import { getClientIp } from '@bakery/core/utils/http'
 import {
   handleRequest,
   handleRequestError,

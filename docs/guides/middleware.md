@@ -186,7 +186,7 @@ rather than trusting `X-Forwarded-For` blindly:
 
 ```ts
 import { defineConfig } from '@bakery/core'
-import { getClientIp } from '@bakery/core/utils/http/ip'
+import { getClientIp } from '@bakery/core/utils/http'
 
 export default defineConfig({
   trustProxy: true,
