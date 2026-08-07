@@ -1,13 +1,13 @@
 {
-  "name": "@bakery/cli",
+  "name": "create-bakery",
   "version": "4.0.0",
-  "description": "Bakery entry point and process supervision: mode dispatch, dev watcher, cluster.",
+  "description": "Scaffold a Bakery app: bun create bakery <directory>",
   "author": "obillekyle",
   "license": "CC0-1.0 & MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/obillekyle/bun-server.git",
-    "directory": "packages/cli"
+    "directory": "packages/create"
   },
   "homepage": "https://github.com/obillekyle/bun-server#readme",
   "bugs": "https://github.com/obillekyle/bun-server/issues",
@@ -17,11 +17,12 @@
   "type": "module",
   "main": "./src/index.ts",
   "bin": {
-    "bakery": "./src/index.ts"
+    "create-bakery": "./src/index.ts"
   },
   "exports": {
     ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    "./template": "./src/template.ts",
+    "./package.json": "./package.json"
   },
   "files": [
     "src",
@@ -29,9 +30,5 @@
   ],
   "engines": {
     "bun": ">=1.0.0"
-  },
-  "dependencies": {
-    "@bakery/core": "workspace:*",
-    "@bakery/orm": "workspace:*"
   }
 }

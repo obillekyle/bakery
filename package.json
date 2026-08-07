@@ -1,6 +1,6 @@
 {
   "name": "bakery-monorepo",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "private": true,
   "description": "A ridiculously fast, zero-config full-stack framework built on Bun.",
   "author": "obillekyle",
@@ -19,13 +19,14 @@
     "serve": "cd apps/example && bun run serve",
     "db:sync": "cd apps/example && bun run db:sync",
     "test": "bun test ./packages ./tests",
-    "typecheck": "bun run typecheck:core && bun run typecheck:orm && bun run typecheck:cli && bun run typecheck:plugins && bun run typecheck:app && bun run typecheck:tests",
+    "typecheck": "bun run typecheck:core && bun run typecheck:orm && bun run typecheck:cli && bun run typecheck:create && bun run typecheck:plugins && bun run typecheck:app && bun run typecheck:tests",
     "typecheck:tests": "bunx tsc -p tests/tsconfig.json --noEmit",
     "typecheck:core": "bunx tsc -p packages/core/tsconfig.json --noEmit",
     "typecheck:orm": "bunx tsc -p packages/orm/tsconfig.json --noEmit",
     "typecheck:cli": "bunx tsc -p packages/cli/tsconfig.json --noEmit",
     "typecheck:plugins": "bunx tsc -p packages/plugins/vue/tsconfig.json --noEmit && bunx tsc -p packages/plugins/analytics/tsconfig.json --noEmit && bunx tsc -p packages/plugins/dashboard/tsconfig.json --noEmit",
-    "typecheck:app": "bunx tsc -p apps/example/tsconfig.json --noEmit && bunx tsc -p apps/starter/tsconfig.json --noEmit"
+    "typecheck:app": "bunx tsc -p apps/example/tsconfig.json --noEmit && bunx tsc -p apps/starter/tsconfig.json --noEmit",
+    "typecheck:create": "bunx tsc -p packages/create/tsconfig.json --noEmit"
   },
   "devDependencies": {
     "bun-types": "^1.3.14",

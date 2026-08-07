@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src/**/*.ts"],
+  "$comment": "No `paths` block on purpose — see packages/core/tsconfig.json. This package deliberately has no @bakery/* dependency: it writes files and nothing else, so the framework is never imported here, only named in the strings it emits."
+}
