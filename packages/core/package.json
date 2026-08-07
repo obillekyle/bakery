@@ -2,8 +2,19 @@
   "name": "@bakery/core",
   "version": "4.0.0",
   "description": "Bakery framework core: handlers, router, config, session, caches, logger, compiler.",
+  "keywords": [
+    "bakery",
+    "bun",
+    "framework",
+    "web-framework",
+    "server",
+    "http",
+    "router",
+    "ssr",
+    "jsx"
+  ],
   "author": "obillekyle",
-  "license": "CC0-1.0 & MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/obillekyle/bun-server.git",
@@ -39,22 +50,10 @@
   "files": [
     "src",
     "tsconfig.app.json",
-    "!src/**/*.test.ts"
+    "!src/**/*.test.ts",
+    "!src/tests"
   ],
   "engines": {
     "bun": ">=1.0.0"
-  },
-  "peerDependencies": {
-    "typescript": "^6.0.3",
-    "vue": "^3.5.0"
-  },
-  "peerDependenciesMeta": {
-    "vue": {
-      "optional": true
-    }
-  },
-  "devDependencies": {
-    "@vue/compiler-sfc": "^3.5.38",
-    "vue": "^3.5.38"
   }
 }

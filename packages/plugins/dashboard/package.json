@@ -2,8 +2,15 @@
   "name": "@bakery/plugin-dashboard",
   "version": "4.0.0",
   "description": "Bakery dashboard plugin.",
+  "keywords": [
+    "bakery",
+    "bun",
+    "dashboard",
+    "admin",
+    "plugin"
+  ],
   "author": "obillekyle",
-  "license": "CC0-1.0 & MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/obillekyle/bun-server.git",
@@ -22,10 +29,11 @@
   },
   "files": [
     "src",
-    "!src/**/*.test.ts"
+    "!src/**/*.test.ts",
+    "!src/tests"
   ],
   "dependencies": {
-    "@bakery/core": "workspace:*",
-    "@bakery/orm": "workspace:*"
+    "@bakery/core": "workspace:^",
+    "@bakery/orm": "workspace:^"
   }
 }
