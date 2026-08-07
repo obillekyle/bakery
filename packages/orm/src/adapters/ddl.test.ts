@@ -135,9 +135,11 @@ describe('colDef maps the schema type set onto each dialect', () => {
     // which every dialect rejects.
     const db = new SQLiteAdapter(':memory:')
     recorded.push(db)
-    expect(db.colDef({ type: 'json' })).toBe('TEXT NOT NULL')
-    expect(new MySQLAdapter().colDef({ type: 'json' })).toBe('TEXT NOT NULL')
-    expect(new PGAdapter().colDef({ type: 'json' })).toBe('TEXT NOT NULL')
+    // Not 'json' — that is a real schema type now, mapping to JSON/JSONB. This
+    // needs a name the map genuinely does not know.
+    expect(db.colDef({ type: 'geometry' })).toBe('TEXT NOT NULL')
+    expect(new MySQLAdapter().colDef({ type: 'geometry' })).toBe('TEXT NOT NULL')
+    expect(new PGAdapter().colDef({ type: 'geometry' })).toBe('TEXT NOT NULL')
   })
 })
 
@@ -876,7 +878,11 @@ describe('Postgres introspection queries', () => {
       return parse({ data_type: dataType, is_nullable: 'YES' }).type
     }
     expect(map('integer')).toBe('integer')
-    expect(map('bigint')).toBe('integer')
+    // `bigint` is its own schema type now, and is matched *before* the generic
+    // 'int' rule precisely so it does not collapse back into 'integer' — which
+    // would rebuild every BIGINT column on every sync.
+    expect(map('bigint')).toBe('bigint')
+    expect(map('jsonb')).toBe('json')
     expect(map('smallint')).toBe('integer')
     expect(map('boolean')).toBe('boolean')
     expect(map('bytea')).toBe('buffer')

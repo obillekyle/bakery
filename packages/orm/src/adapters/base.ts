@@ -298,7 +298,16 @@ export abstract class SQLAdapter {
     if (def === null || def === undefined) return def
     const isStr = typeof def === 'string'
     if (isStr && def.toUpperCase() === 'NULL') return null
-    if (isStr && !Number.isNaN(Number(def))) return Number(def)
+    // `def.trim() !== ''` first, because `Number('')` is `0` and `Number(' ')`
+    // is `0` — so an empty-string default came back as the *number* zero. The
+    // schema then said `''`, the database said `0`, and the column was rebuilt
+    // on every single sync, forever.
+    //
+    // Unreachable until now only by accident: MySQL rejects a default on TEXT,
+    // which is what `value('string', '')` emitted, so the one shape that
+    // triggers it could not be created. `Field.Varchar(n, '')` can.
+    if (isStr && def.trim() !== '' && !Number.isNaN(Number(def)))
+      return Number(def)
     if (isStr && this.isDateNowDefault(def)) return '%dateNow%'
     return def
   }

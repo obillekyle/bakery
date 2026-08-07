@@ -49,9 +49,66 @@ export const Field = {
   Float: <D extends number | null | undefined = undefined>(d?: D) =>
     value('number', d),
 
-  /** Text. Note the MySQL caveat on defaults — see the note below. */
+  /** Text. `Text()` and `Varchar()` say which kind; this stays the plain one. */
   String: <D extends string | null | undefined = undefined>(d?: D) =>
     value('string', d),
+
+  /**
+   * Unbounded text — `TEXT` on every dialect.
+   *
+   * **MySQL rejects a literal `DEFAULT` on TEXT**, so this takes no default.
+   * That is not an omission: `Field.String('')` emits
+   * `TEXT NOT NULL DEFAULT ''`, which MySQL refuses outright with "BLOB, TEXT,
+   * GEOMETRY or JSON column can't have a default value" — the shipped schema
+   * template could not `db:sync` against MySQL because of exactly this. Use
+   * `Varchar` when you need a default.
+   */
+  Text: (nullable?: true) =>
+    nullable ? value('string', null) : value('string'),
+
+  /**
+   * Sized text — `VARCHAR(n)`, and the answer to TEXT's default problem, since
+   * every dialect accepts a default on a sized column.
+   *
+   *     slug: Field.Varchar(255, ''),
+   *
+   * SQLite has no real `VARCHAR` — all text is TEXT affinity — but it stores
+   * the declared type verbatim and reads it back, so one schema round-trips on
+   * all three.
+   *
+   * `length` is not part of the column diff, so **widening a Varchar does not
+   * migrate on its own**; see `ColumnConstraint.length` for why that is
+   * deliberate rather than missing.
+   */
+  Varchar: <D extends string | null | undefined = undefined>(
+    length: number,
+    d?: D,
+  ) => Object.assign(value('string', d), { length }),
+
+  /**
+   * A 64-bit integer — `BIGINT` everywhere.
+   *
+   * Reads back as a **string** on MySQL and Postgres, which is how they avoid
+   * losing precision, and as a **number** on SQLite, which does not: values
+   * past 2^53 round. Measured on live servers, not assumed. If you need exact
+   * large integers on SQLite, store them as `Varchar`.
+   */
+  BigInt: <D extends number | null | undefined = undefined>(d?: D) =>
+    value('bigint' as any, d as any),
+
+  /**
+   * A JSON document — `JSON` on MySQL, `JSONB` on Postgres, a `JSON`-declared
+   * text column on SQLite.
+   *
+   * MySQL and Postgres parse it into an object on read; SQLite hands back the
+   * raw string. The row type is therefore `unknown` — narrow it where you use
+   * it rather than trusting a type that would be wrong on one of the three.
+   *
+   * Takes no default, for the same reason `Text` does not: MySQL refuses a
+   * literal default on a JSON column.
+   */
+  Json: (nullable?: true) =>
+    nullable ? value('json' as any, null) : value('json' as any),
 
   /** True/false — `BOOLEAN` on Postgres, `TINYINT(1)` on MySQL. */
   Bool: <D extends boolean | null | undefined = undefined>(d?: D) =>

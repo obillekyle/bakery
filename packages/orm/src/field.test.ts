@@ -50,6 +50,34 @@ describe('Field is value() with names', () => {
     }
   })
 
+  test('Varchar carries its width, Text deliberately takes no default', () => {
+    // The width is what lets a text column hold a default at all on MySQL,
+    // which rejects one on TEXT.
+    expect({ ...Field.Varchar(255, '') }).toEqual({
+      type: 'string',
+      default: '',
+      length: 255,
+    } as any)
+    expect({ ...Field.Text() }).toEqual({ type: 'string' })
+    expect({ ...Field.Text(true) }).toEqual({
+      type: 'string',
+      default: null,
+      nullable: true,
+    } as any)
+  })
+
+  test('BigInt and Json are their own types, not aliases of string', () => {
+    // If either collapsed back into an existing type, the adapters would emit
+    // one column type and read another back — a rebuild on every sync.
+    expect({ ...Field.BigInt() }).toEqual({ type: 'bigint' } as any)
+    expect({ ...Field.Json() }).toEqual({ type: 'json' } as any)
+    expect({ ...Field.Json(true) }).toEqual({
+      type: 'json',
+      default: null,
+      nullable: true,
+    } as any)
+  })
+
   test('Primary is the id column, spelled correctly', () => {
     expect({ ...Field.Primary() }).toEqual({
       type: 'integer',

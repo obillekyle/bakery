@@ -60,8 +60,16 @@ export class MySQLAdapter extends SQLAdapter {
         number: 'DOUBLE',
         boolean: 'TINYINT(1)',
         buffer: 'BLOB',
+        bigint: 'BIGINT',
+        json: 'JSON',
       }[d.type as string] || 'TEXT'
-    let sql = typeStr
+    // The reason `Field.Varchar` exists: MySQL rejects a literal DEFAULT on
+    // TEXT/BLOB/JSON, so a sized column is the only way to have both text and
+    // a default on this dialect.
+    let sql =
+      d.type === 'string' && typeof d.length === 'number'
+        ? `VARCHAR(${d.length})`
+        : typeStr
     if (d.autoIncrement && d.type === 'integer') sql += ' AUTO_INCREMENT'
     if (d.primary) sql += ' PRIMARY KEY'
     if (!d.nullable && !d.primary) sql += ' NOT NULL'
@@ -404,6 +412,8 @@ export class MySQLAdapter extends SQLAdapter {
         t === 'bool',
       type: 'boolean' as const,
     },
+    { test: (t: string) => t.includes('json'), type: 'json' as const },
+    { test: (t: string) => t.includes('bigint'), type: 'bigint' as const },
     {
       test: (t: string) =>
         t.includes('int') ||
