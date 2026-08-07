@@ -42,7 +42,7 @@ DB_URL=sqlite://./data/app.db                    # sqlite
 DB_URL=./data/app.db                             # sqlite (a path is a path)
 ```
 
-With nothing set, the ORM uses SQLite at `.data/server.db`, resolved against the
+With nothing set, the ORM uses SQLite at `bakery/server.db`, resolved against the
 working directory (`packages/orm/src/adapters/sqlite.ts`). That directory
 holds real data and must survive a redeploy — see
 [Production](../deployment/production.md).

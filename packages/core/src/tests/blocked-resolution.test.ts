@@ -18,7 +18,7 @@ import { TSHandler } from '../handlers/assets/ts'
  * only the path that was requested.
  */
 
-const ROOT = fs.resolve(process.cwd(), '.bakery/cache/__blocked-res__')
+const ROOT = fs.resolve(process.cwd(), '.cache/__blocked-res__')
 const blocked = new Bun.Glob('{**/schema.ts,**/*.env}')
 
 beforeAll(async () => {

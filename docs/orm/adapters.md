@@ -28,12 +28,12 @@ DB_URL=postgres://user:pass@localhost:5432/app   # or DATABASE_URL
 The path-like rule is why a bare filename such as `app.db` or `./data/app.db`
 picks SQLite, and why a hostname with no scheme falls through to Postgres.
 
-With nothing configured, SQLite writes to `.data/server.db` under the app's
+With nothing configured, SQLite writes to `bakery/server.db` under the app's
 working directory. `SQLITE_PATH` overrides that, but only when neither `DB_URL`
 nor `DATABASE_URL` is set — the connection string is consulted first.
 
-`.data` is deliberately not under `.bakery`: a cache is safe to delete, and the
-database is not.
+`bakery/` is deliberately visible while the disposable `.cache/` is hidden: a
+cache is safe to delete, and the database is not.
 
 ## Connection lifecycle
 
@@ -154,7 +154,7 @@ destructive [sync](sync.md#destructive-changes):
 - **SQLite** copies the database file to `<dir>/backups/<name>.<timestamp>.db`.
   An in-memory database backs up to nothing and returns `null`.
 - **MySQL** shells out to `mysqldump`; **Postgres** to `pg_dump`. Both write
-  `.sql` into `.data/backups`, pass the password through the environment rather
+  `.sql` into `bakery/backups`, pass the password through the environment rather
   than the command line, and prompt before continuing if the tool is missing.
 
 Older backups beyond the keep count are pruned oldest-first; the count comes

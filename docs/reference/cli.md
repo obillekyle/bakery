@@ -127,7 +127,7 @@ loop feels like it restarts constantly, check whether your editor does atomic
 saves.
 
 Ignored entirely: `node_modules`, `.git`, `.vscode`, `.backups`, `.cache`,
-`.bakery`, `.data`, and `schema.ts` at **any** depth (the ORM schema
+`.cache`, `bakery`, and `schema.ts` at **any** depth (the ORM schema
 convention — `orm/schema.ts` is covered too). Anything without a
 `.css/.html/.ts/.js/.tsx/.jsx/.vue` extension is dropped by an extension filter
 ([packages/core/src/compiler/dev-service.ts](../../packages/core/src/compiler/dev-service.ts)).

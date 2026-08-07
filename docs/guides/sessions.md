@@ -230,7 +230,7 @@ The dashboard's own session editor does exactly this check
 ## Where sessions are stored
 
 A two-tier cache (`packages/core/src/cache/tiered.ts`): a `Map` in memory, and a
-`sessions` table in a SQLite file at **`.data/shared-cache.db`**
+`sessions` table in a SQLite file at **`bakery/shared-cache.db`**
 (`packages/core/src/cache/shared-db.ts`). Reads hit memory first and fall back
 to the table, promoting the row back into memory.
 
@@ -242,7 +242,7 @@ to the table, promoting the row back into memory.
 
 Two things follow.
 
-**`.data/` is not disposable.** Deleting it logs everyone out, and it is the
+**`bakery/` is not disposable.** Deleting it logs everyone out, and it is the
 same directory as the database. See
 [Production](../deployment/production.md).
 

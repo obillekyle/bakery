@@ -1,3 +1,4 @@
+import { Bakery } from '@bakery/core/core/bakery'
 import { isSafeIdentifier } from '../schema-util'
 import type { SQLAdapter } from '../adapters/base'
 import type { SchemaLayout } from './load'
@@ -203,7 +204,7 @@ export class SchemaBuilder {
  * TS-wins sync, which will say so before it does it.
  *
  * This file is rewritten wholesale on every regeneration; the previous copy is
- * kept under \`.data/backups/\`.
+ * kept under \`bakery/backups/\`.
  */
 import { ${helpers.sort().join(', ')} } from '@bakery/orm'
 
@@ -304,8 +305,9 @@ declare module '@bakery/orm/schema-registry' {
    * source, was not. It is also gitignored, so `git checkout` cannot recover
    * it either: this is the one file with no other safety net.
    *
-   * Stored under `.data/backups` rather than the cache, because a cache is
-   * defined as safe to delete and this is not.
+   * Stored under `bakery/backups` (`Bakery.dataDir`) rather than the cache,
+   * because a cache is defined as safe to delete and this is not — the
+   * framework itself deletes the cache directory on every version bump.
    */
   private static async preserveExisting(
     schemaPath: string,
@@ -316,7 +318,7 @@ declare module '@bakery/orm/schema-registry' {
     const contents = await current.text()
     if (!contents.trim()) return null
 
-    const dir = `${process.cwd()}/.data/backups`
+    const dir = `${Bakery.dataDir}/backups`
     const name = `schema.${Date.now()}.ts`
     await Bun.write(`${dir}/${name}`, contents)
 

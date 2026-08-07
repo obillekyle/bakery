@@ -94,7 +94,7 @@ describe('ApiHandler.executeModule', () => {
  * the router found it, and it was answered with a 404 that named nothing. The
  * developer is sent looking for a file that is right there.
  */
-const API_ROOT = fs.resolve(process.cwd(), '.bakery/cache/__api-test__')
+const API_ROOT = fs.resolve(process.cwd(), '.cache/__api-test__')
 
 describe('ApiHandler.handle — a module that resolves but yields nothing', () => {
   beforeAll(async () => {

@@ -8,7 +8,7 @@ import { TSXHandler } from '../assets/tsx'
 /**
  * A stand-in for a plugin's own directory, outside the app's serve root.
  */
-const PLUGIN_DIR = fs.resolve(process.cwd(), '.bakery/cache/__mount-test__')
+const PLUGIN_DIR = fs.resolve(process.cwd(), '.cache/__mount-test__')
 
 beforeAll(async () => {
   await initConfig()

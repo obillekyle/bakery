@@ -68,7 +68,7 @@ beforeAll(() => {
   )
   emptyDir = mkdtempSync(join(tmpdir(), 'bakery-no-config-'))
 
-  // Skip checkCacheVersion's `.bakery/cache` bookkeeping inside the temp dirs.
+  // Skip checkCacheVersion's `.cache` bookkeeping inside the temp dirs.
   process.env.WORKER = '1'
 })
 

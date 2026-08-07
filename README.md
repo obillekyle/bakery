@@ -132,7 +132,7 @@ an existing page does not restart. Server-pushed errors
 appear in the browser as a dismissable overlay, and a dead dev server shows a
 "disconnected" overlay that reloads when it returns. Schema sync runs before
 each boot, but only actually executes when a content hash of the schema sources
-(recorded under `.bakery/cache/`) has changed — so restarts stay fast.
+(recorded under `.cache/`) has changed — so restarts stay fast.
 
 One honest limitation: only the route file's own mtime is checked. Editing a
 shared helper or component that a page imports needs a dev-server restart.
@@ -140,7 +140,7 @@ shared helper or component that a page imports needs a dev-server restart.
 ## Configuration
 
 `server.config.ts` is optional — the defaults (`root: 'src'`, port 3000, host
-`0.0.0.0`, SQLite at `.data/server.db`) are a working config. `defineConfig`
+`0.0.0.0`, SQLite at `bakery/server.db`) are a working config. `defineConfig`
 is an identity function that typechecks the object against `AppConfig`:
 
 ```ts

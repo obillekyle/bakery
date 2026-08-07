@@ -36,7 +36,7 @@ name, not a file — and again in the static fallback
 list (`packages/core/src/utils/constants.ts`) covers `.env`, `*.db`,
 `*.sql`, `*.yaml`, `*.lock`, the project-describing JSON files
 (`package.json`, `tsconfig.json` and variants — deliberately not every
-`.json`), `.git/`, `node_modules/`, `.bakery/`, `.data/`, `server.config.ts`
+`.json`), `.git/`, `node_modules/`, `.cache/`, `bakery/`, `server.config.ts`
 and `schema.ts`. Matching folds case and Win32 trailing dots, so shift-key
 variants are refused too. Your `blocked` entries are added to it, never
 replace it.
@@ -140,7 +140,7 @@ Bakery does not do these. If you need them, they are yours to add.
 - **Input validation.** Request bodies reach your handler as parsed data with no
   schema check.
 - **Encryption at rest.** The SQLite database and the session store are plain
-  files under `.data/`.
+  files under `bakery/`.
 - **Authentication on WebSocket upgrades.** Cross-origin handshakes *are*
   refused — `upgradeWebsocket` compares the handshake's `Origin` hostname
   against the request's own before consulting the registry
@@ -221,6 +221,6 @@ back with credentials enabled is the same as having no check.
 - [ ] Security headers and CORS added if you need them; nothing sets them for
       you.
 - [ ] Request bodies validated in your handlers.
-- [ ] `.data/` not web-reachable (it is blocked by default — do not remove that
+- [ ] `bakery/` not web-reachable (it is blocked by default — do not remove that
       pattern) and not in a public volume.
 - [ ] WebSocket handlers authenticate their own connections.

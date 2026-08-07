@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises'
 import { fs } from '../../utils'
 import { getRoute } from './$routing'
 
-const ROOT = fs.resolve(process.cwd(), '.bakery/cache/__routing-test__')
+const ROOT = fs.resolve(process.cwd(), '.cache/__routing-test__')
 
 const write = (rel: string) =>
   Bun.write(`${ROOT}/${rel}`, 'export default () => null\n')

@@ -6,7 +6,7 @@ import { fs } from '../../utils'
 import { RouteData, type Route } from './$base'
 import { DynamicHandler } from './$dynamic'
 
-const ROUTE_DIR = fs.resolve(process.cwd(), '.bakery/cache/__dynamic-test__')
+const ROUTE_DIR = fs.resolve(process.cwd(), '.cache/__dynamic-test__')
 const ECHO = `${ROUTE_DIR}/echo.ts` as fs.AbsolutePath
 const BROKEN = `${ROUTE_DIR}/broken.ts` as fs.AbsolutePath
 const NO_DEFAULT = `${ROUTE_DIR}/no-default.ts` as fs.AbsolutePath

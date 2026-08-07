@@ -18,7 +18,7 @@ import { TSXErrorHandler } from '../handlers/assets/tsx'
  * a live production server before the fix — absolute source paths and all.
  */
 
-const ROOT = fs.resolve(process.cwd(), '.bakery/cache/__err-redact__')
+const ROOT = fs.resolve(process.cwd(), '.cache/__err-redact__')
 const STACK = 'SECRETSTACK at C:/private/path/secret.ts:9:9'
 const ERROR = {
   errorCode: 500,

@@ -10,7 +10,7 @@ troubleshooting note is usually the mechanism rather than the fix.
 
 `server.config.ts` is resolved against `process.cwd()`, not against the
 framework or the repo root (`packages/core/src/core/config.ts`). So is `root`,
-so are `.data` and the cache directory, and so is the schema. Running the CLI
+so are `bakery` and the cache directory, and so is the schema. Running the CLI
 from the repo root instead of the application directory silently gives you a
 *different application* — one with no config at all. That is why the root
 `package.json` scripts `cd apps/example` first.

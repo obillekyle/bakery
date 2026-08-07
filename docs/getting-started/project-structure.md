@@ -28,8 +28,9 @@ apps/notes/
     styles/app.css      /styles/app.css
     script.ts           /script.js  (and /script.ts)
   public/               ← served at /uploads/, NOT under the serve root
-  .data/                generated: database, backups, cache store
-  .bakery/cache/        generated: compiled and assembled output
+  bakery/               generated: database and backups (must persist)
+  .cache/               generated: compiled assets, session store (disposable)
+  .cache/        generated: compiled and assembled output
 ```
 
 Only `package.json` is strictly required. With no `server.config.ts` at all the
@@ -48,8 +49,8 @@ working directory, and `root` in `server.config.ts`. All of it lives on the
 | `Bakery.serveRoot` | `config.root`, default `src` | the only directory routes are resolved in |
 | `Bakery.apiRoot` | `<serveRoot>/api` | JSON endpoints |
 | `Bakery.publicRoot` | `<cwd>/public` | served at `/uploads/`, outside the serve root |
-| `Bakery.cacheDir` | `<cwd>/.bakery/cache` | disposable |
-| `Bakery.dataDir` | `<cwd>/.data` | **not** disposable |
+| `Bakery.cacheDir` | `<cwd>/.cache` | disposable |
+| `Bakery.dataDir` | `<cwd>/bakery` | **not** disposable |
 
 Two of these routinely surprise people.
 
@@ -60,9 +61,9 @@ under the `/uploads/` prefix
 `src/public/` would be served as ordinary static files at `/public/...`, which
 is a different thing entirely.
 
-**`.data` is deliberately not under `.bakery`.** The comment in the source says
-why: cache is disposable and the database is not, and a single shared parent
-would mean "clear the cache" could destroy data.
+**The precious directory is the visible one.** The framework deletes `.cache/`
+wholesale on every version bump and dev/production switch, so the data lives
+where a `rm -rf .*` — or a "clean the dotfiles" habit — cannot reach it.
 
 Because everything resolves against `process.cwd()`, running the CLI from the
 repo root instead of the app directory silently gives you a different app. The
@@ -201,7 +202,7 @@ hand-written declarations survive.
 
 Both are gitignored and neither should be committed.
 
-**`.bakery/cache/`** — safe to delete at any time:
+**`.cache/`** — safe to delete at any time:
 
 | Subdirectory | Contents |
 | --- | --- |
@@ -217,7 +218,7 @@ That last file is the invalidation key: on boot, if either value differs from
 the current process, the whole cache directory is deleted and recreated
 ([packages/core/src/core/config.ts](../../packages/core/src/core/config.ts)).
 
-**`.data/`** — not disposable:
+**`bakery/`** — not disposable:
 
 | Path | Contents |
 | --- | --- |

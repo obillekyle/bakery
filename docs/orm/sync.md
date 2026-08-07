@@ -24,7 +24,7 @@ the app directory, not the repo root.
 
 Development syncs itself: `dev.ts` calls `SyncService.run()` after config and
 plugins are loaded and before the worker starts, unless a hash of the schema
-sources and the DB target matches the one recorded under `.bakery/cache/` after
+sources and the DB target matches the one recorded under `.cache/` after
 the previous *successful* sync
 ([`packages/cli/src/dev.ts`](../../packages/cli/src/dev.ts)). The check fails
 closed: unreadable sources, no recorded hash, or a missing local database file
@@ -158,7 +158,7 @@ schema. The write target is the schema file for the layout in use — for the
 `orm/` folder that is `orm/schema.ts`, never `orm/index.ts`, so your re-exports
 and hand-written `indexes.ts` survive.
 
-The previous schema is copied to `.data/backups/schema.<timestamp>.ts` first,
+The previous schema is copied to `bakery/backups/schema.<timestamp>.ts` first,
 keeping the ten most recent. The file is gitignored and the generator rewrites
 it wholesale — comments, `_view` bodies and `old()` wrappers included — so this
 is the one source file with no other safety net.

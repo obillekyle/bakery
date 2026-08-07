@@ -30,7 +30,7 @@ const ROOT = `${import.meta.dir}/..`
  * confident, wrong "error in multi-host.md" during parallel authoring, which is
  * the same class of misattribution these docs exist to stop.
  */
-const WORK = `${ROOT}/.bakery/cache/__docs-examples__.${process.pid}`
+const WORK = `${ROOT}/.cache/__docs-examples__.${process.pid}`
 
 interface Example {
   /** Repo-relative doc path. */
@@ -135,7 +135,7 @@ beforeAll(async () => {
     `${WORK}/tsconfig.json`,
     JSON.stringify(
       {
-        extends: '../../../tsconfig.base.json',
+        extends: '../../tsconfig.base.json',
         compilerOptions: {
           // Examples elide obvious things; unused locals are not the point.
           noUnusedLocals: false,
@@ -143,10 +143,10 @@ beforeAll(async () => {
         },
         include: ['*.ts', '*.tsx'],
         files: [
-          '../../../packages/core/src/global.d.ts',
-          '../../../packages/core/src/shared.d.ts',
-          '../../../packages/core/src/types.d.ts',
-          '../../../packages/orm/src/globals.d.ts',
+          '../../packages/core/src/global.d.ts',
+          '../../packages/core/src/shared.d.ts',
+          '../../packages/core/src/types.d.ts',
+          '../../packages/orm/src/globals.d.ts',
         ],
       },
       null,

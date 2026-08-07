@@ -96,26 +96,29 @@ page.
 
 | Path | Contents | Redeploy |
 | --- | --- | --- |
-| **`.data/`** | `server.db`, `backups/`, `shared-cache.db` | **Must survive.** This is your database. |
-| `.bakery/cache/` | compiled assets, static cache, `server.json` | Disposable. Rebuilt on demand. |
+| **`bakery/`** | `server.db`, `backups/` | **Must survive.** This is your database. |
+| `.cache/` | compiled assets, static cache, `server.json`, `shared-cache.db` | Disposable. Rebuilt on demand — including sessions, which do not survive a framework upgrade. |
 
-`.data` is deliberately *not* under `.bakery` — clearing a cache must never be
-able to destroy data (`packages/core/src/core/bakery.ts`). Both paths are
+The visible one is the precious one, deliberately: the framework deletes
+`.cache/` wholesale on its own, so the directory it can never reach is the one
+that is *not* hidden — a `rm -rf .*` or a "clean the dotfiles" sweep cannot
+touch your database (`packages/core/src/core/bakery.ts`). Both paths are
 resolved against the working directory, and both are in the default blocked-path
 list so neither is ever served
 (`packages/core/src/utils/constants.ts`).
 
-`.bakery/cache` is wiped automatically whenever the mode or the app version
+`.cache` is wiped automatically whenever the mode or the app version
 changes (`packages/core/src/core/config.ts`), so a stale cache after a
 deploy is not a failure mode you have to plan for. The process does need write
 access to it: a fully read-only filesystem will not work.
 
-If you point the ORM at Postgres or MySQL, `.data` still holds
-`shared-cache.db`, which is where sessions live.
+If you point the ORM at Postgres or MySQL, `bakery/` holds only `backups/` —
+the session store lives in `.cache/` and is rebuilt from empty after any
+framework upgrade.
 
 ## Docker
 
-The volume goes on **`/app/.data`**. Not `/app/.server`, not
+The volume goes on **`/app/bakery`**. Not `/app/.server`, not
 `/app/.server/database` — those paths do not exist and mounting them does
 nothing, which means the database gets baked into the image layer and is
 **destroyed on every redeploy**.
@@ -134,7 +137,7 @@ ENV PORT=3000
 EXPOSE 3000
 
 # The database, its backups, and the session store.
-VOLUME ["/app/.data"]
+VOLUME ["/app/bakery"]
 
 CMD ["bunx", "bakery"]
 ```
@@ -146,7 +149,7 @@ services:
     ports: ['3000:3000']
     volumes:
       # This line is the difference between a database and a fresh one.
-      - bakery-data:/app/.data
+      - bakery-data:/app/bakery
     environment:
       NODE_ENV: production
 
@@ -159,9 +162,9 @@ Do not mount a volume over `/app` itself — that hides the application.
 Verify it once, on a throwaway deploy, before you need it:
 
 ```bash
-docker compose exec app ls -la /app/.data
+docker compose exec app ls -la /app/bakery
 docker compose down && docker compose up -d
-docker compose exec app ls -la /app/.data   # server.db still there?
+docker compose exec app ls -la /app/bakery   # server.db still there?
 ```
 
 ## Behind a reverse proxy
@@ -261,7 +264,7 @@ prevents it; only a worker that misses that deadline can lose buffered writes.
 
 ## Checklist
 
-- [ ] `.data` is on a persistent volume, and you have verified it survives a
+- [ ] `bakery` is on a persistent volume, and you have verified it survives a
       redeploy.
 - [ ] `NODE_ENV=production` set in the process environment — it is the only
       thing that arms the destructive-sync guard

@@ -147,8 +147,8 @@ by path.
 cd apps/notes && bun run db:sync
 ```
 
-This creates `.data/server.db`, applies the schema, and prints what it did.
-Nothing is configured — SQLite at `.data/server.db` is the default when no
+This creates `bakery/server.db`, applies the schema, and prints what it did.
+Nothing is configured — SQLite at `bakery/server.db` is the default when no
 `DB_URL` is set.
 
 You can preview instead of applying:
@@ -273,7 +273,7 @@ if (list) {
 Note the mismatch between the filename and the URL: the file is `script.ts` and
 the page requests `/script.js`. `TSHandler` strips a trailing `.js`, compiles
 the TypeScript through `Bun.build`, and caches the output under
-`.bakery/cache/ts_cache`
+`.cache/ts_cache`
 ([packages/core/src/handlers/assets/ts.ts](../../packages/core/src/handlers/assets/ts.ts)).
 Requesting `/script.ts` directly works too. There is no bundler config and no
 output directory.
@@ -299,7 +299,7 @@ cd apps/notes && bun run dev
 Development mode checks the schema before every boot, so step 4 is really only
 needed the first time — but it only *runs* the full sync when the schema
 sources changed since the last successful one (a content hash is recorded
-under `.bakery/cache/`), which keeps restarts fast. Pass `--sync` to force a
+under `.cache/`), which keeps restarts fast. Pass `--sync` to force a
 sync regardless; a failed sync never records the hash, so the next boot
 re-syncs.
 

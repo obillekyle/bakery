@@ -1156,7 +1156,7 @@ describe('Action target gating (__vue_file)', () => {
 
 describe('Action target resolution (path traversal)', () => {
   test('rejects traversal outside the serve root', async () => {
-    expect(await resolveActionTarget('../.server/.cache/vue/test-root.vue')).toBeNull()
+    expect(await resolveActionTarget('../.cache/vue/test-root.vue')).toBeNull()
     expect(await resolveActionTarget('../../etc/passwd.vue')).toBeNull()
   })
 

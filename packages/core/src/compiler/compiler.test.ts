@@ -39,7 +39,7 @@ describe('compileText', () => {
  * `TSHandler`'s own `'Compilation Failed'` 500 could never fire, because
  * nothing ever returned to it.
  */
-const BROKEN_ROOT = fs.resolve(process.cwd(), '.bakery/cache/__compiler-test__')
+const BROKEN_ROOT = fs.resolve(process.cwd(), '.cache/__compiler-test__')
 
 describe('compileText — a failure with a path in hand', () => {
   test('returns null instead of throwing past the caller', async () => {

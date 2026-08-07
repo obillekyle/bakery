@@ -1,3 +1,4 @@
+import { Bakery } from '@bakery/core/core/bakery'
 import { Logger } from '@bakery/core/logger'
 import type { MapOf } from '@bakery/core/types'
 import { Case, Try } from '@bakery/core/utils'
@@ -396,7 +397,7 @@ export abstract class SQLAdapter {
     baseName: string,
     envOverride?: Record<string, string>,
   ): Promise<SQLAdapter.BackupResult | null> {
-    const backupDir = `${process.cwd()}/.data/backups`
+    const backupDir = `${Bakery.dataDir}/backups`
     const backupName = `${baseName}.${Date.now()}${ext}`
     const fullPath = `${backupDir}/${backupName}`
     await Bun.write(`${backupDir}/.keep`, '')
