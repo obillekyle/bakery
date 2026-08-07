@@ -2,7 +2,8 @@ import { Logger, messageLogger } from './logger'
 
 const serveMsgs = {
   STARTING: 'I Starting server in %c{mode}%* mode...',
-  STARTING_THREADS: 'I Starting cluster supervisor with %g{count}%* workers (%creusePort%*)...',
+  STARTING_THREADS:
+    'I Starting cluster supervisor with %g{count}%* workers (%creusePort%*)...',
   THREAD_STARTED: 'I [%cWorker #{id}%*] Server running at:',
   START_WATCHER: 'I Starting %yDEV%* watcher...',
   RESTART_REQ: 'I Dev server restart requested from %ysync engine%*!',
@@ -59,10 +60,20 @@ const serveMsgs = {
 export const serveLog = messageLogger(new Logger('serve'), serveMsgs)
 
 const handlerMsgs = {
-  API_IMPORT_ERR: 'E Failed to import API module (%y{file}%*): %r{error}%*',
-  TSX_IMPORT_ERR: 'E Failed to import TSX module (%y{file}%*): %r{error}%*',
-  TSX_EXPORT_NOT_FUNCTION:
-    'E TSX module does not export a function: %y{file}%*',
+  // Emitted by `DynamicHandler.executeModule`, which every route handler goes
+  // through — an API route, a `.tsx` page and an `error-*.tsx` all land here.
+  // It used to say "API module" while printing a `.tsx` path, alongside a
+  // `TSX_IMPORT_ERR` that no code ever reached.
+  API_IMPORT_ERR: 'E Failed to import route module (%y{file}%*): %r{error}%*',
+  // The other half of the same failure: the module *loaded*, and exports no
+  // default. `ApiHandler` used to answer that with a bare 404 naming nothing,
+  // which reads as "your route file is missing" for a file that is right there.
+  API_NO_DEFAULT:
+    'E API route has no %cexport default%* (%y{file}%*) — the module loaded but exposes no handler',
+  // A handler ran and returned neither a value nor a Response. Still a 404 (see
+  // `ApiHandler.handle`), but the log names the file rather than leaving the
+  // developer to guess which route answered.
+  API_NO_RESPONSE: 'W API route returned no response: %y{file}%*',
   PROXY_REQ: 'I Proxying %y{path}%* -> %b{target}%*',
   ERROR_HANDLER_ERR: 'E Error in custom ErrorHandler (%y{name}%*): %r{error}%*',
   CUSTOM_ERROR_PAGE_ERR: 'E Failed to render custom error page: %r{error}%*',
@@ -94,6 +105,97 @@ const pluginMsgs = {
 export const pluginLog = messageLogger(new Logger('plugins'), pluginMsgs)
 
 export const errorMsg = (err: any) => err?.stack || err?.message || String(err)
+
+/**
+ * The position record Bun attaches to a transpiler or resolver diagnostic.
+ *
+ * `BuildMessage` and `ResolveMessage` are the two things Bun throws for a
+ * syntax error and an unresolvable import. Neither is `instanceof Error`,
+ * neither carries a `stack`, and both report *zero* own enumerable keys — so
+ * nothing that inspects a thrown value by spreading it or by `instanceof` sees
+ * anything at all. `message`, `name` and `position` are the accessors that
+ * actually answer.
+ */
+type Diagnostic = {
+  name?: string
+  message?: string
+  position?: {
+    file?: string
+    line?: number
+    column?: number
+    lineText?: string
+  } | null
+}
+
+const headline = (err: Diagnostic) => {
+  const message = err.message || String(err)
+  return err.name && message
+    ? `${err.name}: ${message}`
+    : message || String(err)
+}
+
+function positionLines(position: Diagnostic['position']): string[] {
+  if (!position || typeof position !== 'object') return []
+
+  const lines: string[] = []
+  const { file, line, column, lineText } = position
+
+  if (file) lines.push(`  at ${file}:${line ?? 0}:${column ?? 0}`)
+  else if (line != null) lines.push(`  at line ${line}, column ${column ?? 0}`)
+
+  if (typeof lineText === 'string' && lineText.trim()) {
+    lines.push(`  | ${lineText}`)
+  }
+
+  return lines
+}
+
+/**
+ * Everything a thrown value knows about where it came from.
+ *
+ * `errorMsg` answers `stack || message`, which is the right answer for an
+ * `Error` and useless for the diagnostics above: they have no stack, so it
+ * degrades to a bare "Expected identifier but found end of file" with no file
+ * and no line. This walks `position` instead, and recurses through the
+ * `AggregateError.errors` array that `import()`ing a broken `.tsx` throws —
+ * that one *is* an `Error`, but it has no stack either, so the summary line
+ * ("4 errors building …") was all anyone ever saw.
+ *
+ * A real `Error` with a real stack still returns exactly `err.stack`, so the
+ * existing contract for the common case is unchanged.
+ */
+export function errorDetail(err: any): string {
+  if (!err || typeof err !== 'object') return String(err)
+  if (err.stack) return err.stack
+
+  const lines = [headline(err)]
+
+  if (Array.isArray(err.errors) && err.errors.length) {
+    for (const sub of err.errors) {
+      for (const line of errorDetail(sub).split('\n')) lines.push(`  ${line}`)
+    }
+    return lines.join('\n')
+  }
+
+  lines.push(...positionLines(err.position))
+  return lines.join('\n')
+}
+
+/**
+ * `errorMsg` with the diagnostic's line and column, but not its file.
+ *
+ * For the log lines whose template already names the file. Bun's own
+ * `position.file` is `input.ts` whenever `transform()` was handed a source
+ * string rather than a path — which is every compile this codebase does — so
+ * printing it beside the real path would contradict it.
+ */
+export function errorWithPosition(err: any): string {
+  const position = (err as Diagnostic)?.position
+  if (!position || position.line == null) return errorMsg(err)
+
+  const message = (err as Diagnostic).message || errorMsg(err)
+  return `${message} (line ${position.line}, column ${position.column ?? 0})`
+}
 
 const toMS = (ns: number) => parseFloat((ns / 1e6).toFixed(2))
 export const getElapsed = (start: number) => toMS(Bun.nanoseconds() - start)

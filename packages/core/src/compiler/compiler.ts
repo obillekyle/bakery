@@ -1,8 +1,13 @@
 import { Strings } from '../cache/string'
 import { Bakery } from '../core/bakery'
 import { PluginHooks } from '../core/plugins'
-import { compLog, errorMsg } from '../logger/serve-log'
-import { is } from '../utils/common'
+import {
+  compLog,
+  errorMsg,
+  errorWithPosition,
+  handlerLog,
+} from '../logger/serve-log'
+import { is, Try } from '../utils/common'
 import { FileSystem as fs } from '../utils/fs'
 import type { MapOf } from '../types'
 
@@ -103,6 +108,27 @@ function preprocessImports(source: string, filePath: fs.AbsolutePath): string {
   return source
 }
 
+/**
+ * Compile `source`, naming `path` so a failure can say where it happened.
+ *
+ * The two branches are not symmetric on purpose. Without a path there is no
+ * file to name and no caller that can render a 500 — the Vue plugin compiles
+ * fragments of an SFC it has already parsed — so a failure logs and hands the
+ * source back. With a path the failure is a served request, and the answer is
+ * `null`: `TSHandler` turns that into the 500 it has always had a branch for.
+ *
+ * It used to be neither. The transpiler was wrapped only on the pathless
+ * branch, so a syntax error in a `.ts` asset threw straight past `compile()`,
+ * past `TSHandler` — leaving its `'Compilation Failed'` arm permanently
+ * unreachable — and into the worker's catch-all, which printed
+ * `Unhandled Server Error: <message>` with no file and no line while the client
+ * got `An unexpected error occurred.` A total blackout for a one-character typo.
+ */
+export function compileText(source: string): Promise<string>
+export function compileText(
+  source: string,
+  path: fs.AbsolutePath,
+): Promise<string | null>
 export async function compileText(source: string, path?: fs.AbsolutePath) {
   if (!path) {
     try {
@@ -115,7 +141,22 @@ export async function compileText(source: string, path?: fs.AbsolutePath) {
   }
 
   source = preprocessImports(source, path)
-  const content = await (await getTranspiler()).transform(source)
+
+  const [failed, transformed] = await Try.catch(
+    (await getTranspiler()).transform(source),
+  )
+
+  if (failed) {
+    // `errorWithPosition`, not `errorMsg`: the thrown `BuildMessage` has no
+    // stack, so `errorMsg` degrades to the bare message and the line number —
+    // the only thing that makes this actionable — is dropped. The file comes
+    // from `{file}`; the diagnostic's own `position.file` is `input.ts`,
+    // because `transform()` was handed a string.
+    compLog.COMPILE_FAIL({ file: path, error: errorWithPosition(failed) })
+    return null
+  }
+
+  const content = transformed!
   const importRegex = /\b(from|import)(\s*\(?\s*)(["'])([^"']+)\3(\)?)/g
   const matches = [...content.matchAll(importRegex)]
 
@@ -154,12 +195,14 @@ export async function compileText(source: string, path?: fs.AbsolutePath) {
   return await PluginHooks.onCompile(result, path)
 }
 
-export async function compile(path: fs.AbsolutePath | Bun.BunFile) {
+export async function compile(
+  path: fs.AbsolutePath | Bun.BunFile,
+): Promise<string | null> {
   if (!fs.exists(path))
     throw new Error(`File not found: ${is.string(path) ? path : path.name}`)
 
   path = typeof path === 'string' ? Bun.file(path) : path
-  return compileText(await path.text(), path.name!)
+  return compileText(await path.text(), path.name! as fs.AbsolutePath)
 }
 
 type CompileResult = {
@@ -194,6 +237,16 @@ export async function bundleModule(
       return `${pos.file || ''}:${pos.line || 0}:${pos.column || 0} - ${msg}`
     })
     .filter(Boolean)
+
+  // `handlerLog.BUNDLE_ERR` was declared and never called, so a bundle that
+  // failed was silent here: every caller either swallowed the result
+  // (`nm.ts`, `virtual-asset.ts` fall back to serving nothing) or logged its
+  // own line, and none of them printed the diagnostics this function had
+  // already collected. The 500 the caller returns is not a description.
+  handlerLog.BUNDLE_ERR({
+    file: path,
+    error: errors.join('\n  ') || 'no diagnostics reported',
+  })
 
   return { success: false, errors }
 }
