@@ -2,8 +2,19 @@
   "name": "@bakery/orm",
   "version": "4.0.0",
   "description": "Bakery database layer: adapters, query builder, schema sync and backup.",
+  "keywords": [
+    "bakery",
+    "bun",
+    "orm",
+    "database",
+    "sqlite",
+    "mysql",
+    "postgres",
+    "query-builder",
+    "schema-migration"
+  ],
   "author": "obillekyle",
-  "license": "CC0-1.0 & MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/obillekyle/bun-server.git",
@@ -32,12 +43,13 @@
   "files": [
     "src",
     "templates",
-    "!src/**/*.test.ts"
+    "!src/**/*.test.ts",
+    "!src/tests"
   ],
   "engines": {
     "bun": ">=1.0.0"
   },
   "dependencies": {
-    "@bakery/core": "workspace:*"
+    "@bakery/core": "workspace:^"
   }
 }

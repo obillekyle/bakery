@@ -48,17 +48,6 @@
     "packages/core": {
       "name": "@bakery/core",
       "version": "4.0.0",
-      "devDependencies": {
-        "@vue/compiler-sfc": "^3.5.38",
-        "vue": "^3.5.38",
-      },
-      "peerDependencies": {
-        "typescript": "^6.0.3",
-        "vue": "^3.5.0",
-      },
-      "optionalPeers": [
-        "vue",
-      ],
     },
     "packages/create": {
       "name": "create-bakery",
@@ -93,13 +82,14 @@
       "name": "@bakery/plugin-vue",
       "version": "4.0.0",
       "dependencies": {
-        "@bakery/core": "workspace:*",
+        "@bakery/core": "workspace:^",
       },
       "devDependencies": {
         "@vue/compiler-sfc": "^3.5.38",
         "vue": "^3.5.38",
       },
       "peerDependencies": {
+        "@vue/compiler-sfc": "^3.5.0",
         "vue": "^3.5.0",
       },
     },
