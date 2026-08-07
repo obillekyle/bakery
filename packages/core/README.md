@@ -69,8 +69,9 @@ bun create bakery my-app
 - No runtime dependencies.
 - An unconfigured app gets an on-by-default per-IP rate limit (100 burst,
   10 req/s). The startup banner says so; `rateLimit: false` turns it off.
-- Subpaths under `"./*"` are currently importable but **not** public API. Prefer
-  the enumerated entry points; the wildcard is a deprecation ramp.
+- The export map is curated: only the subpaths it names can be imported, and
+  everything else is private. If you need something that is not exposed, open an
+  issue rather than reaching for a deep path — it will not resolve.
 
 Full documentation lives in the
 [repository](https://github.com/obillekyle/bun-server).

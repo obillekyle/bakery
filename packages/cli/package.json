@@ -28,8 +28,7 @@
     "bakery": "./src/index.ts"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts"
   },
   "files": [
     "src",

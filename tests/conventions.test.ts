@@ -421,4 +421,55 @@ describe('conventions (CLAUDE.md)', () => {
 
     expect(focused).toEqual([])
   })
+
+  test('every @bakery import names an enumerated export', async () => {
+    // The export maps no longer carry a `"./*"` wildcard, so a subpath that is
+    // not listed does not exist for anyone who installs the package. In-repo it
+    // still resolves — Bun reaches workspace packages through a symlink and
+    // does not apply their export map — so nothing fails here until a consumer
+    // installs a tarball, which is the worst place to find out.
+    //
+    // Verified against a real extracted tarball when the wildcard was removed:
+    // `@bakery/core/cache/tiered` and its neighbours are blocked while every
+    // enumerated path resolves. This keeps it that way.
+    //
+    // The fix for a failure is to add the subpath to that package's `exports`,
+    // and it is meant to be a deliberate edit: it is public API from then on.
+    const maps: Record<string, Set<string>> = {}
+    for (const dir of [
+      'packages/core',
+      'packages/orm',
+      'packages/cli',
+      'packages/plugins/vue',
+      'packages/plugins/analytics',
+      'packages/plugins/dashboard',
+    ]) {
+      const json = await Bun.file(`${ROOT}/${dir}/package.json`).json()
+      const entries = Object.keys(json.exports ?? {})
+      // A package that still has a wildcard cannot be checked by this rule, and
+      // must not pass silently as though it had been curated. `./templates/*`
+      // is data files, not modules.
+      expect(
+        entries.filter(e => e.includes('*') && e !== './templates/*'),
+      ).toEqual([])
+      maps[json.name] = new Set(entries)
+    }
+
+    // Built with `new RegExp` rather than a literal: an escaped slash in a
+    // regex literal is exactly the character that has been silently eaten
+    // rewriting this tree before.
+    const IMPORT = new RegExp("from '(@bakery/[^']+)'", 'g')
+    const offenders: string[] = []
+    for (const file of allSources) {
+      for (const [, spec] of file.text.matchAll(IMPORT)) {
+        const pkg = spec.split('/').slice(0, 2).join('/')
+        const map = maps[pkg]
+        if (!map) continue
+        const entry = spec === pkg ? '.' : `.${spec.slice(pkg.length)}`
+        if (!map.has(entry)) offenders.push(`${file.path}  ${spec}`)
+      }
+    }
+
+    expect(offenders).toEqual([])
+  })
 })
