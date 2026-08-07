@@ -191,6 +191,73 @@ describe('TieredCache persistence', () => {
     expect(onDisk).toEqual(['keeper'])
     cache.close()
   })
+
+  test('the search flush honours shouldPersist too', () => {
+    // The twin of the test above, for the third flush routine. `search()` has
+    // to get the dirty memory tier onto disk before it can page over it in
+    // SQL, and that flush was written as a raw `stmt.insert` loop rather than
+    // through `commitKey` — so the same predicate that the interval and
+    // shutdown flushes obey was ignored here. Consequence for the session
+    // tier, whose predicate is "has persisted keys or has data": opening the
+    // dashboard's session list wrote every empty session to disk and inflated
+    // the `Session.count` gauge shown next to it, and whether an entry showed
+    // up at all depended on whether the 10s interval flush had beaten the
+    // click.
+    const table = `test_search_pred_${Date.now()}`
+    const cache = new TieredCache<string, { keep: boolean }>(table, {
+      memoryThreshold: 500,
+      flushInterval: undefined,
+      shouldPersist: value => value.keep,
+    })
+
+    cache.set('keeper', { keep: true })
+    cache.set('junk', { keep: false })
+
+    // `search` is the only public caller of the flush under test.
+    const result = cache.search({
+      page: 1,
+      pageSize: 10,
+      sortBy: 'id',
+      sortOrder: 'ASC',
+    })
+
+    const onDisk = (
+      db.query(`SELECT key FROM ${table} ORDER BY key`).all() as {
+        key: string
+      }[]
+    ).map(row => row.key)
+
+    expect(onDisk).toEqual(['keeper'])
+    // And the paged result, which reads back out of that same table, must not
+    // report a row the cache just decided not to keep.
+    expect(result.totalRows).toBe(1)
+    expect(result.rows).toEqual([{ keep: true }])
+    cache.close()
+  })
+
+  test('a search flush drops a row that stopped qualifying', () => {
+    // `commitKey`'s reject branch is a DELETE, not a no-op: an entry that was
+    // persisted earlier and has since stopped qualifying must be removed. The
+    // raw-insert version could not express that at all.
+    const table = `test_search_evict_${Date.now()}`
+    const state = { keep: true }
+    const cache = new TieredCache<string, { keep: boolean }>(table, {
+      memoryThreshold: 500,
+      flushInterval: undefined,
+      shouldPersist: value => value.keep,
+    })
+
+    cache.set('fading', state)
+    cache.flushToDisk()
+    expect(cache.count).toBe(1)
+
+    state.keep = false
+    cache.set('fading', state) // re-dirty the key
+    cache.search({ page: 1, pageSize: 10, sortBy: 'id', sortOrder: 'ASC' })
+
+    expect(cache.count).toBe(0)
+    cache.close()
+  })
 })
 
 describe('cache shutdown', () => {
