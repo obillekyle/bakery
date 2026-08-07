@@ -12,6 +12,7 @@ export { DB, Mutation }
  * know which file a helper happens to sit in.
  */
 export { alias, table } from './define'
+export { Field } from './field'
 export type {
   InferOptionals,
   InferSchema,
