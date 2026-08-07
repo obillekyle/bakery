@@ -1,62 +1,64 @@
-import type { MapOf, Wrapped } from '../types'
+/**
+ * The browser globals, as types.
+ *
+ * Every name here is bound onto `globalThis` by `client/utils.ts`. This file
+ * used to *restate* each one's shape by hand, and four of them had drifted from
+ * the code they describe:
+ *
+ * - `Try.throw` was declared with a synchronous overload it never had
+ *   (`tryThrow` is `Promise.try(...).catch(...)`, so it always returns a
+ *   Promise) — browser code writing `const n: number = Try.throw(() => 1)`
+ *   typechecked and silently received a Promise.
+ * - `Case` lost its callable form: the implementation is
+ *   `Object.assign(function Case(type, str) {…}, {…})`, so `Case('kebab', s)`
+ *   is real but was untypeable.
+ * - `request` was `(url, method?, body?)` against an implementation of
+ *   `(url, init: RequestJson | string = {}, bodyData?)` — the object-init form
+ *   was unreachable from the types.
+ * - `randomId` was `() => string` against an implementation taking `length = 8`.
+ *
+ * So the shapes are no longer restated: each global is a `typeof import(...)`
+ * of the module that actually provides it, which fixes all four at once and
+ * cannot drift again. `typeof import(...)` inside a `.d.ts` is a type query —
+ * it is erased, and adds no runtime module edge into the browser bundle.
+ *
+ * Two globals genuinely cannot be derived, and stay hand-written:
+ * `server` (injected into a Vue SFC's module scope by the compiler, so no
+ * module exports it) and `Bakery` (an object literal written inline inside
+ * `client/utils.ts`'s `Object.assign(globalThis, …)` call, so there is no
+ * exported member to query).
+ */
+import type { MapOf } from '../types'
 
 declare global {
   /** Server-side exports from `<script server>` — available at runtime in `<script setup>` and templates. */
   const server: { [key: string]: any }
-  const matchDefault: unique symbol
-  var match: import('../types').Match<typeof matchDefault>
-  var is: ISFunction
-  type TryThrow = {
-    <T>(callback: () => T, error?: string | Error): T
-    <T>(callback: () => Promise<T>, error?: string | Error): Promise<T>
-  }
-  var Try: {
-    <T>(value: Wrapped<T>): T | null
-    catch: typeof tryCatch
-    return: <T, D>(
-      value: Wrapped<T>,
-      defaultValue: Wrapped<D, [Error]>,
-    ) => T | D
-    throw: TryThrow
-    silent: <T>(value: Wrapped<T>) => T | null
-  }
-  var Case: {
-    kebab: (str: string) => string
-    camel: (str: string) => string
-    pascal: (str: string) => string
-    snake: (str: string) => string
-    upper: (str: string) => string
-    lower: (str: string) => string
-    caps: (str: string) => string
-  }
-  var Math2: {
-    clamp: (value: number, min?: number, max?: number) => number
-    step: (value: number, step: number) => number
-  }
-  var throws: (message: string | Error) => never
-  var assert: (condition: any, message?: string) => asserts condition
-  var any: <T = any>(v: any) => T
-  var escapeHTML: (str: any) => string
-  var repeat: {
-    (n: number): number[]
-    <T>(n: number, fn: (i: number) => T): T[]
-  }
-  var tryCatch: <T = any>(
-    promise: Wrapped<Promise<T> | T>,
-  ) => Promise<[Error, null] | [null, T]> | ([Error, null] | [null, T])
 
+  const matchDefault: typeof import('../utils/isomorphic/match').matchDefault
+  var match: typeof import('../utils/isomorphic/match').match
+  var is: typeof import('../utils/isomorphic/is').is
+  var Try: typeof import('../utils/isomorphic/try').Try
+  var tryCatch: typeof import('../utils/isomorphic/try').tryCatch
+  var Case: typeof import('../utils/isomorphic/case').Case
+  var Math2: typeof import('../utils/isomorphic/math').Math2
+  var throws: typeof import('../utils/isomorphic/misc').throws
+  var assert: typeof import('../utils/isomorphic/misc').assert
+  var any: typeof import('../utils/isomorphic/misc').any
+  var repeat: typeof import('../utils/isomorphic/misc').repeat
+  var escapeHTML: typeof import('../utils/isomorphic/escape').escapeHtml
+
+  var request: typeof import('./utils').request
+  var randomId: typeof import('./utils').randomId
+
+  // Not derivable: written inline in client/utils.ts's Object.assign call
+  // rather than exported, so there is no module member to take `typeof` of.
+  // Verified against that literal — `version` is the BAKERY_VERSION define,
+  // `virtual` is `async virtual(path: string)`, `params` is generic.
   var Bakery: {
     version: string
     virtual(path: string): Promise<any>
     params<T = MapOf<any>>(): T
   }
-
-  var request: <T = any>(
-    url: string,
-    method?: string,
-    body?: any,
-  ) => Promise<JsonResponse<T>>
-  var randomId: () => string
 
   // `ImportMeta.env` is declared once, by global.d.ts's ImportMetaEnv. This
   // file used to redeclare it with an incompatible shape, and to carry

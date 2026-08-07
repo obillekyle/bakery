@@ -16,6 +16,15 @@ import { resolveMount } from './$mounts'
  * arrived the drift got worse: a mount-aware StaticHandler sitting next to a
  * mount-blind PublicHandler is the kind of inconsistency that turns into a bug
  * the first time someone mounts a directory containing an upload.
+ *
+ * **Three of those four go through this; NMHandler does not, on purpose.** Its
+ * entry point is resolved by `Bun.build`, not by the filesystem, so
+ * `/_nm/pkg/sub` legitimately means `pkg/sub/index.js` — a path this function
+ * answers `null` for, because it is a directory. It therefore repeats the
+ * containment test and calls `fs.isForbidden` itself; the reasoning, and the
+ * test that pins the divergence, are in `handlers/assets/nm.ts`. It is the one
+ * documented exception, and it stayed a *silent* one long enough for `/_nm/*`
+ * to be the only file-serving surface that ignored `.forbidden`.
  */
 export interface StaticTarget {
   /** Absolute path to the file on disk. */

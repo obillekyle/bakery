@@ -155,6 +155,16 @@ const HAS_DOM = typeof window !== 'undefined' && typeof document !== 'undefined'
   const mouse = { x: -9999, y: -9999 }
   let isAnimating = false
   let isPressed = false
+  /**
+   * The loop below keeps requesting frames while the pointer is anywhere on
+   * the page, which on a hidden tab is pure waste — and this console is the
+   * kind of page that lives in a background tab for hours. Ported from the
+   * example app's copy of this effect, which had the throttle where this one
+   * did not; the two files are separate copies on purpose (a plugin's client
+   * bundle and an app's script cannot share a module), so a fix to one is
+   * worth checking against the other.
+   */
+  let isTabVisible = !document.hidden
 
   function initDots() {
     dots = []
@@ -250,12 +260,19 @@ const HAS_DOM = typeof window !== 'undefined' && typeof document !== 'undefined'
       ctx.fill()
     }
 
-    if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    if (
+      window.matchMedia('(hover: hover) and (pointer: fine)').matches &&
+      isTabVisible
+    ) {
       if (mouse.x !== -9999 || needsMoreFrames) {
         requestAnimationFrame(draw)
       } else {
         isAnimating = false
       }
+    } else {
+      // Hidden tab: stop the loop and let visibilitychange restart it, or the
+      // flag would stay true and the resume below would never fire.
+      isAnimating = false
     }
   }
 
@@ -295,6 +312,14 @@ const HAS_DOM = typeof window !== 'undefined' && typeof document !== 'undefined'
       }
     })
   }
+
+  document.addEventListener('visibilitychange', () => {
+    isTabVisible = !document.hidden
+    if (isTabVisible && !isAnimating) {
+      isAnimating = true
+      requestAnimationFrame(draw)
+    }
+  })
 
   window.addEventListener('resize', resize)
   resize()

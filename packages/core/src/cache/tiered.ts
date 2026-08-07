@@ -307,7 +307,15 @@ export class TieredCache<K extends string | number, V> {
     pageSize: number
     totalPages: number
   } {
-    this.flushToDiskForSearch()
+    // Paging happens in SQL, so the dirty memory tier has to reach disk first.
+    // That was a third, hand-written copy of `flushToDisk` — same shape, but
+    // looping over `stmt.insert` instead of `commitKey`, which is exactly the
+    // bypass `flushAllToDisk` documents below having already been fixed once.
+    // There is nothing search needs that the predicate would deny it: an entry
+    // the predicate rejects is one the 10s interval flush deletes anyway, so
+    // including it here only made the listing depend on which flush won the
+    // race.
+    this.flushToDisk()
 
     const pattern = options.search ? `%${options.search}%` : ''
     const where = pattern ? 'WHERE key LIKE ? OR LOWER(value) LIKE ?' : ''
@@ -380,32 +388,15 @@ export class TieredCache<K extends string | number, V> {
     if (this.memoryStore.size === 0) return
     db.transaction(() => {
       // Through `commitKey`, not a raw insert. This is the shutdown flush, and
-      // it used to be the one write path that ignored `shouldPersist` — so the
-      // interval flush and eviction dropped a non-persisting entry while a
-      // clean stop wrote it. For the session tier that predicate is "has
-      // persisted keys or has data", so every shutdown wrote up to a thousand
-      // empty sessions, which then inflated `Session.count` (read by the
-      // dashboard and the analytics gauge) until the 15-minute pruner caught
-      // up.
+      // it used to ignore `shouldPersist` — so the interval flush and eviction
+      // dropped a non-persisting entry while a clean stop wrote it. For the
+      // session tier that predicate is "has persisted keys or has data", so
+      // every shutdown wrote up to a thousand empty sessions, which then
+      // inflated `Session.count` (read by the dashboard and the analytics
+      // gauge) until the 15-minute pruner caught up. `search()` had a third
+      // copy of this loop with the same bypass; it now calls `flushToDisk`.
       for (const key of this.memoryStore.keys()) this.commitKey(key)
       this.dirtyKeys.clear()
-    })()
-  }
-
-  private flushToDiskForSearch(): void {
-    if (this.dirtyKeys.size === 0) return
-    const keys = new Set(this.dirtyKeys)
-    this.dirtyKeys.clear()
-    db.transaction(() => {
-      for (const key of keys) {
-        const entry = this.memoryStore.get(key)
-        if (!entry) continue
-        this.stmt.insert.run(
-          String(key),
-          JSON.stringify(entry.value),
-          entry.accessedAt,
-        )
-      }
     })()
   }
 

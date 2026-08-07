@@ -13,6 +13,7 @@ import {
 import { Session } from '@bakery/core/session'
 import { COUNTER_SLOTS } from '@bakery/core/utils/shared-pool'
 import { runStartupBanner, setupServer } from '@bakery/core/startup'
+import { resolvePort } from '@bakery/core/core/port'
 import type { Handler } from '@bakery/core/handlers'
 import { errorMsg, serveLog } from '@bakery/core/logger'
 import {
@@ -104,7 +105,18 @@ if (import.meta.env.THREAD_WORKER) {
   }
 }
 
-const PORT = Number(process.env.PORT || Bakery.config.port || 3000)
+// Same resolver `startup.ts`'s banner and the dev master's URL use, so what we
+// bind and what they advertise cannot disagree. It throws on a malformed
+// `PORT` rather than handing `Bun.serve` a `NaN` it silently turns into a
+// random ephemeral port — which is how `PORT=3000x` used to produce a server
+// on 51570 under a banner reading `http://localhost:3000/`.
+let PORT: number
+try {
+  PORT = resolvePort(Bakery.config.port)
+} catch (error: any) {
+  serveLog.UNHANDLED_ERR({ error: errorMsg(error) })
+  process.exit(1)
+}
 
 try {
   Bakery.server = Bun.serve({
