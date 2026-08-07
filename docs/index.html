@@ -108,9 +108,9 @@ body {
   border: 1px solid var(--border); border-radius: 8px; outline: none;
 }
 #search:focus { border-color: var(--brand); width: 260px; }
-.search-wrap::before {
-  content: "⌕"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
-  color: var(--text-mute); font-size: 15px; pointer-events: none;
+.search-icon {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  width: 14px; height: 14px; color: var(--text-mute); pointer-events: none;
 }
 .results {
   position: absolute; top: calc(100% + 6px); right: 0; width: min(460px, 80vw);
@@ -127,11 +127,16 @@ body {
 .results .r-crumb { display: block; font-size: 11px; color: var(--brand); text-transform: uppercase; letter-spacing: .04em; }
 .results .r-snip { display: block; font-size: 12px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .results .empty { padding: 14px; color: var(--text-mute); font-size: 13px; text-align: center; }
+/* Every icon is an inline SVG sized identically and filled with currentColor.
+   These were text glyphs — "◐" and "⌥" — which sit on different optical
+   baselines, cannot be aligned reliably, and vary by installed font. "⌥" is the
+   Mac option key, which was standing in for a GitHub mark that did not exist. */
 .icon-btn {
   display: grid; place-items: center; width: 32px; height: 32px; flex: none;
   background: none; border: 0; border-radius: 7px; cursor: pointer;
-  color: var(--text-mute); font-size: 16px;
+  color: var(--text-mute); padding: 0; line-height: 0;
 }
+.icon-btn svg { display: block; width: 18px; height: 18px; }
 .icon-btn:hover { background: var(--bg-alt); color: var(--text-strong); }
 #menu-btn { display: none; }
 
@@ -274,11 +279,16 @@ main {
   <a class="brand" href="#/"><span>🥖</span> Bakery <span class="badge" id="ver">v4</span></a>
   <span class="nav-spacer"></span>
   <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
     <input id="search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false" aria-label="Search documentation">
     <div class="results" id="results"></div>
   </div>
-  <button class="icon-btn" id="theme-btn" aria-label="Toggle theme">◐</button>
-  <a class="icon-btn" href="https://github.com/obillekyle/bun-server" target="_blank" rel="noopener" aria-label="GitHub">⌥</a>
+  <button class="icon-btn" id="theme-btn" aria-label="Toggle theme" title="Toggle theme">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.25" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 2.75a9.25 9.25 0 0 1 0 18.5z" fill="currentColor"/></svg>
+  </button>
+  <a class="icon-btn" href="https://github.com/obillekyle/bun-server" target="_blank" rel="noopener" aria-label="GitHub repository" title="GitHub">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+  </a>
 </nav>
 
 <aside class="sidebar" id="sidebar"></aside>
