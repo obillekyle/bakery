@@ -2,6 +2,12 @@ import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
+// Side-effect import, and it must come before the descriptor capture below.
+// `@bakery/orm` does not otherwise load `core/init`, so without this the
+// capture sees no `PROD` accessor, and the restore below has nothing to put
+// back — deleting the one init installs later and leaving every subsequent
+// file in the run with `import.meta.env.PROD === undefined`.
+import '@bakery/core/core/init'
 import { setLogCallback } from '@bakery/core/logger'
 import { SQLiteAdapter } from '../adapters/sqlite'
 import { isProductionSync, SyncEngine } from './engine'
@@ -24,10 +30,29 @@ describe('the production guard reads a boolean, not the string "true"', () => {
     PROD: Object.getOwnPropertyDescriptor(process.env, 'PROD'),
   }
 
+  /**
+   * Restore, and never delete a flag this file did not create.
+   *
+   * The unconditional `delete` this used to open with was a cross-file leak.
+   * `@bakery/orm` does not import `core/init`, so when this file loads first
+   * the captured `PROD` descriptor is `undefined` — and the restore then
+   * removed the accessor init had installed in the meantime, leaving
+   * `import.meta.env.PROD` undefined for every file that ran afterwards.
+   * `bundleModule` passes that flag straight to `Bun.build`, which rejects a
+   * non-boolean `minify`, so two NMHandler tests failed under full-suite
+   * ordering while passing in isolation.
+   */
   function restore(key: 'NODE_ENV' | 'PROD') {
-    delete (process.env as Record<string, unknown>)[key]
     const desc = original[key]
-    if (desc) Object.defineProperty(process.env, key, desc)
+    if (desc) {
+      Object.defineProperty(process.env, key, desc)
+      return
+    }
+    // Absent when captured. Only remove what this file itself installed —
+    // `installProdFlag` defines a getter with no setter, which is how an
+    // accessor installed here is told apart from one init owns.
+    const current = Object.getOwnPropertyDescriptor(process.env, key)
+    if (current && !current.set) delete (process.env as Record<string, unknown>)[key]
   }
 
   /** Exactly what `core/init.ts` installs: a getter returning a boolean. */

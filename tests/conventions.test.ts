@@ -166,6 +166,79 @@ describe('conventions (CLAUDE.md)', () => {
     expect(find(serverCode, /\bconsole\.(?!clear\b)\w+\s*\(/)).toEqual([])
   })
 
+  /**
+   * The mode flags are accessors `core/init` installs on `process.env`, and Bun
+   * runs every test file in one process — so a file that mishandles one changes
+   * what a *different* file reads, and only under full-suite ordering. Both
+   * checks below were written against a real instance of exactly that: two
+   * `NMHandler` tests that passed in isolation and failed in the suite, because
+   * `bundleModule` passes `PROD` to `Bun.build` as `minify` and Bun rejects a
+   * non-boolean rather than coercing it.
+   *
+   * Three files got there by two different routes, which is why this is two
+   * rules rather than one.
+   */
+  const MODE_FLAGS =
+    'DEV|PROD|TEST|WORKER|DEV_WORKER|THREAD_WORKER|THREAD_ID|MODE'
+
+  test('no source deletes a mode flag it does not own', () => {
+    // Capturing a flag's descriptor before `core/init` has loaded captures
+    // nothing, and the restore then deletes the accessor init installed in the
+    // meantime — leaving the flag `undefined` for every file that runs after.
+    //
+    // Import `core/init` before capturing so the capture is real, or swap the
+    // flag with `withEnvFlag` (`packages/core/src/tests/fixtures.ts`).
+    //
+    // `engine.test.ts` legitimately deletes `PROD`: it asserts what
+    // `isProductionSync()` does in a process that never loaded init, which
+    // cannot be said without removing the flag. It is safe there because it
+    // imports init before capturing, so its `afterEach` puts a real accessor
+    // back rather than nothing.
+    const ALLOWED = new Set(['packages/orm/src/sync/engine.test.ts'])
+    const pattern = new RegExp(
+      `delete\\s*\\(?\\s*\\(?process\\.env[^\\n]{0,40}?(?:\\.|\\[['"\`])(?:${MODE_FLAGS})\\b`,
+    )
+    const offenders = find(allSources, pattern).filter(
+      hit => !ALLOWED.has(hit.split(':')[0]),
+    )
+    expect(offenders).toEqual([])
+  })
+
+  test('no source assigns a mode flag through process.env', () => {
+    // The subtler of the two, and the one that survived the first fix.
+    //
+    // Bun's `process.env` is a proxy that **stringifies on write but not on
+    // read**, so the round trip that looks obviously correct is not:
+    //
+    //   const saved = process.env.PROD   // boolean true
+    //   process.env.PROD = saved         // string "true"
+    //
+    // A file restoring `PROD` this way put back a value of the wrong type, and
+    // the failure surfaced in an unrelated package. Assigning a literal has the
+    // same effect: `process.env.PROD = '1'` is truthy and passes every test
+    // that reads it as a condition, right up until something reads it as a
+    // boolean.
+    //
+    // `setModeFlag` (`packages/core/src/tests/fixtures.ts`) calls the
+    // descriptor's own setter, which reaches init's closure without passing
+    // through the proxy.
+    //
+    // `init.ts` itself is exempt: `Object.defineProperties` is how the
+    // accessors get installed, and it is not an assignment. `threads.ts` is
+    // exempt for `THREAD_ID`, which is genuinely a string.
+    const ALLOWED = new Set([
+      'packages/core/src/core/init.ts',
+      'packages/cli/src/threads.ts',
+    ])
+    const pattern = new RegExp(
+      `process\\.env(?:\\.|\\[['"\`])(?:${MODE_FLAGS})(?:['"\`]\\])?\\s*=[^=]`,
+    )
+    const offenders = find(allSources, pattern).filter(
+      hit => !ALLOWED.has(hit.split(':')[0]),
+    )
+    expect(offenders).toEqual([])
+  })
+
   test('test seams, not module mocks — no mock.module anywhere', () => {
     // Bun's module mocks are process-global and never restored, so they leak
     // into every file loaded afterwards. This is not style: ip.test.ts mocked

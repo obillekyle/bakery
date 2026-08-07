@@ -45,6 +45,42 @@ export async function withEnvFlag<T>(
   }
 }
 
+/**
+ * Set a mode flag and keep its type, for the cases `withEnvFlag` cannot cover —
+ * a flag that has to stay set across several tests and be put back on a hook.
+ *
+ * The indirection is not ceremony. Bun's `process.env` is a proxy that
+ * **stringifies on write but not on read**, so the obvious round trip silently
+ * changes the type:
+ *
+ * ```ts no-check — demonstrates the bug this helper exists to avoid
+ * const saved = process.env.PROD   // boolean true — reads pass through
+ * process.env.PROD = saved         // string "true" — writes do not
+ * ```
+ *
+ * That is not cosmetic. `bundleModule` hands the flag straight to `Bun.build`
+ * as `minify`, and Bun rejects a non-boolean with "Expected minify to be a
+ * boolean or an object" — so a test file that saved and restored `PROD`
+ * correctly by every appearance still broke two NMHandler tests in a *different
+ * file*, and only under full-suite ordering.
+ *
+ * Calling the descriptor's own setter bypasses the proxy, so the value arrives
+ * at `core/init`'s closure unchanged.
+ */
+export function setModeFlag(flag: string, value: unknown): void {
+  const desc = Object.getOwnPropertyDescriptor(process.env, flag)
+  if (desc?.set) return void desc.set(value)
+
+  // No accessor yet: this process never loaded `core/init`. Install one of the
+  // same shape rather than assigning, which would stringify for the same
+  // reason.
+  Object.defineProperty(process.env, flag, {
+    get: () => value,
+    enumerable: true,
+    configurable: true,
+  })
+}
+
 export const asDev = <T,>(fn: () => T | Promise<T>) =>
   withEnvFlag('DEV', true, fn)
 
