@@ -148,12 +148,18 @@ function globalThisBindings(text: string): string[] {
 
 describe('conventions (CLAUDE.md)', () => {
   test('logging is data — no console.* in server code', () => {
-    // The two exceptions CLAUDE.md documents. Both emit program output rather
-    // than log lines: CLI usage text, and the bootstrap catch that wraps the
-    // very imports which load the logger.
+    // The exceptions CLAUDE.md documents. All emit program output rather than
+    // log lines: CLI usage text, and the bootstrap catch that wraps the very
+    // imports which load the logger.
+    //
+    // `create-bakery` is the third and is exempt wholesale rather than by line:
+    // it is a standalone scaffolder with no dependency on the framework at all,
+    // so there is no logger to route through — every byte it prints is for a
+    // human watching `bun create bakery` run.
     const ALLOWED = new Set([
       'packages/cli/src/index.ts',
       'packages/orm/src/sync/index.ts',
+      'packages/create/src/index.ts',
     ])
 
     const serverCode = packageSources.filter(
