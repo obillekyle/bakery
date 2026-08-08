@@ -453,3 +453,73 @@ describe('view bodies across dialects', () => {
     })
   }
 })
+
+/**
+ * Whether a view blocks a table rebuild, measured rather than assumed.
+ *
+ * `viewsBlockTableRebuild` gates a whole sync phase, and it reads backwards:
+ * the flag is `true` by default and MySQL is the exception. That is easy to
+ * "correct" into a SQLite-only check by someone reading the SQLite error alone,
+ * so the reason is asserted here against real servers — the rebuild sequence
+ * run with a view still standing, and each dialect's own answer recorded.
+ */
+describe('viewsBlockTableRebuild matches what the server does', () => {
+  const MYSQL_URL = process.env.MYSQL_TEST_URL
+  const PGSQL_URL = process.env.PGSQL_TEST_URL
+
+  const DIALECTS: [string, boolean, () => any, boolean][] = [
+    ['SQLite', false, () => new SQLiteAdapter(':memory:'), true],
+    ['MySQL', !MYSQL_URL, () => new MySQLAdapter(MYSQL_URL), false],
+    ['Postgres', !PGSQL_URL, () => new PGAdapter(PGSQL_URL), true],
+  ]
+
+  for (const [name, skip, open, blocks] of DIALECTS) {
+    test.skipIf(skip)(`${name}: declares ${blocks}`, () => {
+      const db = open()
+      expect({ dialect: name, blocks: db.viewsBlockTableRebuild }).toEqual({
+        dialect: name,
+        blocks,
+      })
+      db.close?.()
+    })
+
+    test.skipIf(skip)(`${name}: and the server agrees`, async () => {
+      const db = open()
+      const alive = <T,>(p: T | Promise<T>) => {
+        const t = setTimeout(() => {}, 30_000)
+        return Promise.resolve(p).finally(() => clearTimeout(t))
+      }
+      const run = (s: string, ...p: unknown[]) => alive(db.query(s).run(...p))
+      const clean = async () => {
+        await run('DROP VIEW IF EXISTS vb_active')
+        await run('DROP TABLE IF EXISTS vb_users')
+        await run('DROP TABLE IF EXISTS vb_users_temp_build')
+      }
+
+      await clean()
+      await run('CREATE TABLE vb_users (id INT NOT NULL, name VARCHAR(32))')
+      await run('CREATE VIEW vb_active AS SELECT id FROM vb_users')
+
+      // Exactly what processTableRebuild does, with the view left in place.
+      let refused = false
+      try {
+        await run(
+          'CREATE TABLE vb_users_temp_build (id INT NOT NULL, name VARCHAR(32))',
+        )
+        await run(
+          'INSERT INTO vb_users_temp_build (id, name) SELECT id, name FROM vb_users',
+        )
+        await run('DROP TABLE IF EXISTS vb_users')
+        await run('ALTER TABLE vb_users_temp_build RENAME TO vb_users')
+      } catch {
+        // Which statement threw differs by dialect — SQLite refuses the rename,
+        // Postgres the drop — so only the fact of refusal is asserted.
+        refused = true
+      }
+
+      expect({ dialect: name, refused }).toEqual({ dialect: name, refused: blocks })
+      await clean()
+      await db.close?.()
+    })
+  }
+})

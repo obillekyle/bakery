@@ -846,12 +846,12 @@ async function rebuildTablesPhase(
 }
 
 /**
- * Drop declared views before any table is rebuilt.
+ * Drop declared views before any table is rebuilt, where the dialect needs it.
  *
- * A rebuild swaps the table out and back, and SQLite refuses the swap while a
- * view still references the old name:
- *
- *     error in view published_posts: no such table: main.posts
+ * A rebuild swaps the table out and back, and two of the three dialects refuse
+ * to do that while a view still names the table — SQLite at the rename, Postgres
+ * at the drop. `viewsBlockTableRebuild` carries which, and why; MySQL is the one
+ * that does not care and skips this entirely.
  *
  * Views hold no data and `syncViewsAndTablesPhase` recreates every declared one
  * a moment later, so dropping them first costs nothing — it is the same "drop
@@ -866,6 +866,7 @@ async function dropViewsForRebuildPhase(
   plan: SyncPlan,
   constraints: SyncTypes.DBConstraints,
 ) {
+  if (!tx.viewsBlockTableRebuild) return
   if (!plan.tablesToRebuild.size) return
   for (const [name, cols] of Object.entries(constraints)) {
     if (!(cols as SyncTypes.TableConstraints)._view) continue

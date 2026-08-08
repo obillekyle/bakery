@@ -1,10 +1,13 @@
 # Adapters
 
-Three: SQLite, MySQL and Postgres. They implement one abstract class
+Three built in: SQLite, MySQL and Postgres. They implement one abstract class
 ([`adapters/base.ts`](../../packages/orm/src/adapters/base.ts)) — statement
 execution, introspection, DDL, transactions and backup — so the query builder
 and the sync engine never branch on the driver. Everything dialect-specific
 lives behind that class.
+
+The three are not special-cased anywhere: they register themselves through the
+same [registry](#writing-your-own) a package you install would use.
 
 ## Choosing one
 
@@ -20,13 +23,17 @@ DB_URL=postgres://user:pass@localhost:5432/app   # or DATABASE_URL
 | String | Driver |
 | --- | --- |
 | unset or empty | SQLite |
-| `mysql://`, `mysqls://`, `mysqli://` | MySQL |
+| `mysql://`, `mysqls://`, `mysqli://`, `mysqlis://` | MySQL |
 | `postgres://`, `postgresql://` | Postgres |
 | `:memory:`, `sqlite:…`, `file:…`, anything ending `.db`, anything containing a slash | SQLite |
 | anything else | Postgres |
 
-The path-like rule is why a bare filename such as `app.db` or `./data/app.db`
-picks SQLite, and why a hostname with no scheme falls through to Postgres.
+The order matters and is fixed: a **scheme** an adapter declared wins outright;
+only a string that matched none of them reaches the path-like rule. That is why
+a bare filename such as `app.db` or `./data/app.db` picks SQLite, why a hostname
+with no scheme falls through to Postgres, and why an installed adapter that
+claims `mssql://` gets it even though the path rule would happily have taken
+anything with a slash in it.
 
 With nothing configured, SQLite writes to `bakery/server.db` under the app's
 working directory. `SQLITE_PATH` overrides that, but only when neither `DB_URL`
@@ -278,6 +285,72 @@ Not equally.
 
 The live tests skip locally unless `MYSQL_TEST_URL` and `PGSQL_TEST_URL` are
 set, so `bun run test` on your machine is really testing SQLite.
+
+## Writing your own
+
+An adapter is a subclass of `SQLAdapter` plus a registration. Both come from
+`@bakery/orm/adapters`, which is the only subpath involved — the individual
+adapter modules are private.
+
+Two steps, and the first is the one that is easy to get wrong.
+
+**Declare the driver name.** `Driver` is `keyof DriverRegistry`, so a name that
+nothing declared is a type error rather than a string typo that surfaces at
+runtime. Add yours by merging into the interface:
+
+```ts no-check — a declaration file in the adapter's own package
+declare module '@bakery/orm/adapters' {
+  interface DriverRegistry {
+    mssql: true
+  }
+}
+```
+
+Aim that at `@bakery/orm/adapters` and nothing deeper. An augmentation pointed
+at a module you cannot resolve does not fail — it quietly declares a second,
+unrelated interface, and your driver name goes on being rejected with nothing
+to indicate why.
+
+**Register it**, at import time of your package's entry:
+
+```ts
+import { registerAdapter, type SQLAdapter } from '@bakery/orm/adapters'
+
+declare module '@bakery/orm/adapters' {
+  interface DriverRegistry {
+    mssql: true
+  }
+}
+
+export function install(open: () => SQLAdapter) {
+  return registerAdapter({
+    driver: 'mssql',
+    protocols: ['mssql', 'sqlserver'],
+    open: () => open(),
+  })
+}
+```
+
+`open` is async-capable specifically so it can `await import()` your driver —
+that is how the three built-ins avoid loading MySQL's module for a SQLite app,
+and yours should do the same.
+
+`registerAdapter` returns a disposer that removes exactly that registration,
+in any order relative to other disposers. Registering over an existing driver
+*stacks*: the built-in is hidden while yours is installed and comes back when
+the disposer runs, which is what makes overriding one for a single environment
+— or for a test — safe to undo.
+
+Two more hooks, both optional:
+
+- **`matches(target)`** — a last-resort claim on a string no scheme matched.
+  Consulted newest-registration-first, so registering after a built-in is enough
+  to take a target it would have claimed.
+- **capability getters on the base class** — `supportsAlterForeignKey`,
+  `viewsBlockTableRebuild`, `upsertClause`, `batchInsertIdPosition`,
+  `maxQueryParams`, `dateNowExpression`, `uuidExpression`. These are how a
+  dialect states what it can do; the sync engine and query builder read them
+  instead of asking which driver they are talking to.
 
 ## Next
 

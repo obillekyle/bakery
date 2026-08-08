@@ -168,7 +168,9 @@ export class PGAdapter extends SQLAdapter {
 
   async hasCol(table: string, column: string): Promise<boolean> {
     const res = await this.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_name = ? AND column_name = ? AND table_schema = current_schema()`,
+      'SELECT 1 FROM information_schema.columns' +
+        ' WHERE table_name = ? AND column_name = ?' +
+        ' AND table_schema = current_schema()',
     ).all(table, column)
     return res.length > 0
   }
@@ -241,7 +243,10 @@ export class PGAdapter extends SQLAdapter {
 
   async getSchema(): Promise<SQLAdapter.TableDetails[]> {
     const res = (await this.query(
-      "SELECT table_name AS name, table_type AS type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_name",
+      'SELECT table_name AS name, table_type AS type' +
+        ' FROM information_schema.tables' +
+        " WHERE table_schema NOT IN ('pg_catalog', 'information_schema')" +
+        ' ORDER BY table_name',
     ).all()) as any[]
     const tablesWithDetails: SQLAdapter.TableDetails[] = []
 
@@ -250,13 +255,25 @@ export class PGAdapter extends SQLAdapter {
       const [countRes, cols, pkCols, idxs] = (await Promise.all([
         this.query(`SELECT COUNT(*)::int as count FROM ${qName}`).get(),
         this.query(
-          `SELECT column_name AS name, data_type AS type, is_nullable AS is_nullable FROM information_schema.columns WHERE table_name = ? AND table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY ordinal_position`,
+          'SELECT column_name AS name, data_type AS type,' +
+            ' is_nullable AS is_nullable' +
+            ' FROM information_schema.columns' +
+            ' WHERE table_name = ?' +
+            " AND table_schema NOT IN ('pg_catalog', 'information_schema')" +
+            ' ORDER BY ordinal_position',
         ).all(t.name),
         this.query(
-          `SELECT a.attname AS name FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) WHERE i.indisprimary AND i.indrelid = ${qName}::regclass`,
+          'SELECT a.attname AS name' +
+            ' FROM pg_index i' +
+            ' JOIN pg_attribute a ON a.attrelid = i.indrelid' +
+            ' AND a.attnum = ANY(i.indkey)' +
+            ` WHERE i.indisprimary AND i.indrelid = ${qName}::regclass`,
         ).all(),
         this.query(
-          `SELECT indexname AS name, indexdef AS def FROM pg_indexes WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND tablename = ?`,
+          'SELECT indexname AS name, indexdef AS def' +
+            ' FROM pg_indexes' +
+            " WHERE schemaname NOT IN ('pg_catalog', 'information_schema')" +
+            ' AND tablename = ?',
         ).all(t.name),
       ])) as [SQLAdapter.CountRow, any[], any[], any[]]
       tablesWithDetails.push({
@@ -282,7 +299,10 @@ export class PGAdapter extends SQLAdapter {
     options: SQLAdapter.TableDataOptions,
   ): Promise<SQLAdapter.TableDataResult> {
     const cols = (await this.query(
-      `SELECT column_name AS name FROM information_schema.columns WHERE table_name = ? AND table_schema NOT IN ('pg_catalog', 'information_schema')`,
+      'SELECT column_name AS name' +
+        ' FROM information_schema.columns' +
+        ' WHERE table_name = ?' +
+        " AND table_schema NOT IN ('pg_catalog', 'information_schema')",
     ).all(tableName)) as SQLAdapter.NameRow[]
     const { whereSql, orderSql, whereParams } = this.buildFilterSort(
       options,
@@ -326,34 +346,49 @@ export class PGAdapter extends SQLAdapter {
   ): Promise<SQLAdapter.RunResult> {
     const keys = Object.keys(row).filter(k => k !== 'rowid')
     return await this.query(
-      `UPDATE ${this.quote(tableName)} SET ${keys.map(k => `${this.quote(k)} = ?`).join(', ')} WHERE ctid::text = ?`,
+      `UPDATE ${this.quote(tableName)}` +
+        ` SET ${keys.map(k => `${this.quote(k)} = ?`).join(', ')}` +
+        ' WHERE ctid::text = ?',
     ).run(...keys.map(k => row[k]), rowid)
   }
 
-
   override async getForeignKeys(): Promise<SyncTypes.DBForeignKeys> {
     const rows = (await this.query(
-      "SELECT con.conname AS name, c.relname AS child, att.attname AS child_col," +
-        " pc.relname AS parent, patt.attname AS parent_col," +
-        " con.confdeltype AS on_delete, con.confupdtype AS on_update" +
-        " FROM pg_constraint con" +
-        " JOIN pg_class c ON c.oid = con.conrelid" +
-        " JOIN pg_class pc ON pc.oid = con.confrelid" +
-        " JOIN unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord) ON true" +
-        " JOIN unnest(con.confkey) WITH ORDINALITY AS fk(attnum, ord) ON fk.ord = k.ord" +
-        " JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = k.attnum" +
-        " JOIN pg_attribute patt ON patt.attrelid = con.confrelid AND patt.attnum = fk.attnum" +
-        " WHERE con.contype = 'f' ORDER BY con.conname, k.ord",
+      'SELECT con.conname AS name, c.relname AS child,' +
+        ' att.attname AS child_col,' +
+        ' pc.relname AS parent, patt.attname AS parent_col,' +
+        ' con.confdeltype AS on_delete, con.confupdtype AS on_update' +
+        ' FROM pg_constraint con' +
+        ' JOIN pg_class c ON c.oid = con.conrelid' +
+        ' JOIN pg_class pc ON pc.oid = con.confrelid' +
+        ' JOIN unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord) ON true' +
+        ' JOIN unnest(con.confkey) WITH ORDINALITY AS fk(attnum, ord)' +
+        ' ON fk.ord = k.ord' +
+        ' JOIN pg_attribute att' +
+        ' ON att.attrelid = con.conrelid AND att.attnum = k.attnum' +
+        ' JOIN pg_attribute patt' +
+        ' ON patt.attrelid = con.confrelid AND patt.attnum = fk.attnum' +
+        " WHERE con.contype = 'f'" +
+        ' ORDER BY con.conname, k.ord',
     ).all()) as any[]
     return SQLAdapter.groupForeignKeyRows(rows)
   }
 
   async getConstraints(): Promise<SyncTypes.DBConstraints> {
     const tables = (await this.query(
-      "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = current_schema() AND table_type IN ('BASE TABLE','VIEW')",
+      'SELECT table_name, table_type' +
+        ' FROM information_schema.tables' +
+        ' WHERE table_schema = current_schema()' +
+        " AND table_type IN ('BASE TABLE','VIEW')",
     ).all()) as any[]
     const pkRows = (await this.query(
-      "SELECT tc.table_name, kcu.column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name AND tc.constraint_schema = kcu.constraint_schema WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.constraint_schema = current_schema()",
+      'SELECT tc.table_name, kcu.column_name' +
+        ' FROM information_schema.table_constraints tc' +
+        ' JOIN information_schema.key_column_usage kcu' +
+        ' ON tc.constraint_name = kcu.constraint_name' +
+        ' AND tc.constraint_schema = kcu.constraint_schema' +
+        " WHERE tc.constraint_type = 'PRIMARY KEY'" +
+        ' AND tc.constraint_schema = current_schema()',
     ).all()) as any[]
     const pkMap = pkRows.reduce(
       (acc, r) => {
@@ -373,7 +408,9 @@ export class PGAdapter extends SQLAdapter {
 
       if (t.table_type === 'VIEW') {
         const viewDef = (await this.query(
-          'SELECT view_definition FROM information_schema.views WHERE table_schema = current_schema() AND table_name = ?',
+          'SELECT view_definition' +
+            ' FROM information_schema.views' +
+            ' WHERE table_schema = current_schema() AND table_name = ?',
         ).get(t.table_name)) as any
         if (viewDef?.view_definition)
           dbConstraints[tName]._view = viewDef.view_definition
@@ -383,7 +420,12 @@ export class PGAdapter extends SQLAdapter {
       // — what colDef() emits — carries a NULL column_default; only the legacy
       // serial style leaves a nextval(...) marker there.
       const cols = (await this.query(
-        'SELECT column_name, data_type, is_nullable, column_default, udt_name, is_identity, identity_generation, character_maximum_length FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ? ORDER BY ordinal_position',
+        'SELECT column_name, data_type, is_nullable, column_default,' +
+          ' udt_name, is_identity, identity_generation,' +
+          ' character_maximum_length' +
+          ' FROM information_schema.columns' +
+          ' WHERE table_schema = current_schema() AND table_name = ?' +
+          ' ORDER BY ordinal_position',
       ).all(t.table_name)) as any[]
 
       for (const col of cols) {
@@ -397,7 +439,9 @@ export class PGAdapter extends SQLAdapter {
 
   async getIndexes(): Promise<SyncTypes.DBIndexes> {
     const rows = (await this.query(
-      'SELECT indexname, indexdef, tablename FROM pg_indexes WHERE schemaname = current_schema()',
+      'SELECT indexname, indexdef, tablename' +
+        ' FROM pg_indexes' +
+        ' WHERE schemaname = current_schema()',
     ).all()) as any[]
     const dbIndexes: SyncTypes.DBIndexes = {}
     for (const r of rows) {

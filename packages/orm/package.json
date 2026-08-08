@@ -29,6 +29,7 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./adapters": "./src/adapters.ts",
     "./orm": "./src/orm/index.ts",
     "./sync": "./src/sync/index.ts",
     "./sync/load": "./src/sync/load.ts",

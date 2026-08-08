@@ -285,7 +285,8 @@ export class SQLiteAdapter extends SQLAdapter {
 
   async getSchema(): Promise<SQLAdapter.TableDetails[]> {
     const res = (await this.query(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+      'SELECT name FROM sqlite_master' +
+        " WHERE type='table' AND name NOT LIKE 'sqlite_%'",
     ).all()) as SQLAdapter.NameRow[]
     const tablesWithDetails: SQLAdapter.TableDetails[] = []
     for (const t of res) {
@@ -366,7 +367,6 @@ export class SQLiteAdapter extends SQLAdapter {
     ).run(...keys.map(k => row[k]), rowid)
   }
 
-
   override async getForeignKeys(): Promise<SyncTypes.DBForeignKeys> {
     const out: SyncTypes.DBForeignKeys = {}
     const tables = await this.getSchema()
@@ -414,7 +414,6 @@ export class SQLiteAdapter extends SQLAdapter {
     return out
   }
 
-
   /**
    * SQLite has no `ALTER TABLE ADD/DROP FOREIGN KEY`: the constraint lives in
    * the table definition, so changing one means rebuilding the table. The
@@ -427,7 +426,9 @@ export class SQLiteAdapter extends SQLAdapter {
 
   async getConstraints(): Promise<SyncTypes.DBConstraints> {
     const tables = (await this.query(
-      "SELECT sql,name,type FROM sqlite_master WHERE (type='table' OR type='view') AND name NOT LIKE 'sqlite_%'",
+      'SELECT sql,name,type FROM sqlite_master' +
+        " WHERE (type='table' OR type='view')" +
+        " AND name NOT LIKE 'sqlite_%'",
     ).all()) as any[]
 
     const dbConstraints: SyncTypes.DBConstraints = {}
@@ -469,7 +470,9 @@ export class SQLiteAdapter extends SQLAdapter {
 
   async getIndexes(): Promise<SyncTypes.DBIndexes> {
     const indexes = (await this.query(
-      "SELECT name, tbl_name, sql FROM sqlite_master WHERE type='index' AND sql IS NOT NULL AND name NOT LIKE 'sqlite_autoindex_%'",
+      'SELECT name, tbl_name, sql FROM sqlite_master' +
+        " WHERE type='index' AND sql IS NOT NULL" +
+        " AND name NOT LIKE 'sqlite_autoindex_%'",
     ).all()) as any[]
     return Object.fromEntries(
       await Promise.all(
