@@ -41,8 +41,11 @@ export type {
  * export map is closed and every entry in it is public API from the moment it
  * ships, so a new subpath needs a reason — and there is none here: this is one
  * function and three types, the observer is process-wide, and an app sets it
- * once at boot next to where it already imports `DB`. `./adapters` is not
- * public and is not being opened up to make this reachable.
+ * once at boot next to where it already imports `DB`.
+ *
+ * `./adapters` *is* public now, but for writing an adapter, not for reaching
+ * these: an app that only wants an observer should not have to import the
+ * module that can open a database connection.
  */
 export { getQueryObserver, setQueryObserver } from './adapters/observe'
 export type {

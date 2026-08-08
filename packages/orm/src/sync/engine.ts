@@ -69,6 +69,10 @@ export const syncMsgs = {
     'I %yschema.ts contains _oldTable/_transform wrappers. Overriding file to match DB.%*',
   FATAL_ERROR:
     'E %rFATAL ERROR: Sync failed! All changes have been safely rolled back. Detail: {error}%*',
+  VIEWS_SEEDED:
+    'I Seeded %y{file}%* from the database. It is yours from now on — the generator will not overwrite it.',
+  VIEWS_KEPT:
+    'I Left %y{file}%* alone: view interfaces are hand-owned. Delete it and re-run to reseed.',
   LEDGER_DRIFT:
     'W %yDatabase has drifted from the last schema Bakery applied%*: {reason}. Diffing against live introspection instead of the ledger. Something changed this database outside Bakery — if that was not deliberate, check it before syncing.',
 } as const
@@ -159,13 +163,23 @@ export class SyncEngine {
     // Index and view changes are destructive too: any index present in the DB
     // but absent from the schema is dropped, which silently removes indexes an
     // operator added by hand in production.
+    // `viewsToUpdate` is deliberately not here, though it *is* a change below.
+    //
+    // Creating or recreating a view cannot lose anything: a view holds no data,
+    // and `createView` drops and recreates in one step. Counting it as
+    // destructive made a schema with a view demand `--force-sync` in production
+    // for no reason — and it matters more now that views are diffed at all,
+    // because MySQL and Postgres re-render a stored body, so a run that falls
+    // back to introspection sees one as changed every time.
+    //
+    // Dropping a view the schema no longer declares is a different act, and it
+    // lands in `tablesToDrop`, which is still dangerous.
     const isDangerous = Boolean(
       plan.tablesToDrop.length ||
         plan.tablesToRename.length ||
         plan.columnsToDrop.length ||
         plan.columnsToRename.length ||
         plan.tablesToRebuild.size ||
-        plan.viewsToUpdate.length ||
         indexesToDrop.size,
     )
 

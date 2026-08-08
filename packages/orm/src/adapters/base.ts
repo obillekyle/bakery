@@ -5,9 +5,16 @@ import { Case, Try } from '@bakery/core/utils'
 import { throws } from '@bakery/core/utils/common'
 import type * as SyncTypes from '../sync/types'
 import { observe, observeIterate } from './observe'
+import type { Driver as RegisteredDriver } from './registry'
 
 export namespace SQLAdapter {
-  export type Driver = 'sqlite' | 'postgres' | 'mysql'
+  /**
+   * Kept as `SQLAdapter.Driver` because that is what the ~40 existing call
+   * sites say, but the list itself now lives in `registry.ts` — a namespace
+   * member cannot be declaration-merged from another package, and adding a
+   * driver has to be possible from outside.
+   */
+  export type Driver = RegisteredDriver
   export interface RunResult {
     lastInsertRowid: number | bigint | null
     changes: number
@@ -212,6 +219,27 @@ export abstract class SQLAdapter {
   }
 
   /**
+   * The database this connection is pointed at, or `undefined`.
+   *
+   * Parsed from the URL rather than asked of the server, because the one caller
+   * — normalising a stored view body — runs inside the diff and must not add a
+   * round trip to it. SQLite has no such name and needs none: it does not
+   * qualify a view's tables in the first place.
+   *
+   * MySQL writes the schema into every table reference of a stored view, so the
+   * body carries a hard-coded database name. Left in, the same schema deployed
+   * against a differently-named database compares unequal and the view is
+   * recreated on every sync.
+   */
+  get databaseName(): string | undefined {
+    if (!this.url) return undefined
+    return Try.return(() => {
+      const path = new URL(this.url!).pathname.replace(/^\//, '')
+      return path || undefined
+    }, undefined)
+  }
+
+  /**
    * Placeholder ceiling for a single statement — see
    * {@link DEFAULT_MAX_QUERY_PARAMS} for why it is one number and not three.
    *
@@ -233,7 +261,8 @@ export abstract class SQLAdapter {
   abstract hasCol(table: string, column: string): Promise<boolean>
   async addCol(table: string, column: string, def: unknown): Promise<void> {
     await this.query(
-      `ALTER TABLE ${this.quote(table)} ADD COLUMN ${this.quote(column)} ${this.colDef(def, column)}`,
+      `ALTER TABLE ${this.quote(table)}` +
+        ` ADD COLUMN ${this.quote(column)} ${this.colDef(def, column)}`,
     ).run()
   }
   abstract colDef(def: unknown, column?: string): string
@@ -357,6 +386,40 @@ export abstract class SQLAdapter {
   }
 
   /**
+   * The upsert clause of an `INSERT`: `ON CONFLICT (...) DO UPDATE SET ...`.
+   *
+   * The SQL-standard spelling, which SQLite and Postgres both take. MySQL uses
+   * a different construct entirely and overrides this.
+   *
+   * `cols` names the unique columns that decide "already there"; `targets` are
+   * the columns to overwrite, empty meaning "insert if absent". Both arrive as
+   * declared — snake-casing and quoting happen here, so the caller never has to
+   * know which dialect it is talking to.
+   */
+  upsertClause(cols: string[], targets: string[]): string {
+    const target = cols.map(c => this.quote(Case.snake(c))).join(', ')
+    if (!targets.length) return ` ON CONFLICT (${target}) DO NOTHING`
+    const sets = targets.map(k => {
+      const q = this.quote(Case.snake(k))
+      return `${q} = excluded.${q}`
+    })
+    return ` ON CONFLICT (${target}) DO UPDATE SET ${sets.join(', ')}`
+  }
+
+  /**
+   * Which end of a batched multi-row insert `lastInsertRowid` refers to.
+   *
+   * A large insert is split into batches, so the id has to be taken from one of
+   * them — and the dialects do not agree which. SQLite and Postgres report the
+   * *last* row written; MySQL's `insertId` reports the *first* of the block.
+   * Taking the matching end keeps each dialect's own answer true rather than
+   * inventing a third one.
+   */
+  get batchInsertIdPosition(): 'first' | 'last' {
+    return 'last'
+  }
+
+  /**
    * Can this dialect attach a foreign key to a table that already exists?
    *
    * SQLite cannot: the constraint is part of the table definition and the only
@@ -367,16 +430,41 @@ export abstract class SQLAdapter {
     return true
   }
 
+  /**
+   * Does a view standing on a table prevent that table from being rebuilt?
+   *
+   * A rebuild is `CREATE t_temp` → copy → `DROP TABLE t` → `RENAME t_temp TO t`,
+   * and two of the three dialects refuse to run it while a view still names `t`
+   * — at different steps, and with different messages:
+   *
+   * - **SQLite** refuses the *rename*: `error in view v: no such table: main.t`
+   * - **Postgres** refuses the *drop*: `cannot drop table t because other
+   *   objects depend on it`
+   * - **MySQL** allows the whole sequence, and the view still reads afterwards:
+   *   it resolves a view's tables at query time rather than binding them at
+   *   creation.
+   *
+   * So this is `true` by default and MySQL is the exception — the reverse of
+   * how it first reads. Where it holds, the planner drops declared views before
+   * the rebuild phase and recreates them a moment later; where it does not, the
+   * drop is skipped and the views are simply left alone.
+   */
+  get viewsBlockTableRebuild(): boolean {
+    return true
+  }
+
   async addForeignKey(fk: SyncTypes.ForeignKeyInfo): Promise<void> {
     await this.query(
-      `ALTER TABLE ${this.quote(Case.snake(fk.table))} ADD ${this.foreignKeyClause(fk)}`,
+      `ALTER TABLE ${this.quote(Case.snake(fk.table))}` +
+        ` ADD ${this.foreignKeyClause(fk)}`,
     ).run()
   }
 
   async dropForeignKey(fk: SyncTypes.ForeignKeyInfo): Promise<void> {
     const name = fk.name || SQLAdapter.foreignKeyName(fk)
     await this.query(
-      `ALTER TABLE ${this.quote(Case.snake(fk.table))} DROP CONSTRAINT ${this.quote(name)}`,
+      `ALTER TABLE ${this.quote(Case.snake(fk.table))}` +
+        ` DROP CONSTRAINT ${this.quote(name)}`,
     ).run()
   }
 
@@ -476,7 +564,8 @@ export abstract class SQLAdapter {
       columnsList.map(k => r[k] ?? null),
     )
     return await this.execute.run(
-      `INSERT INTO ${this.quote(Case.snake(table))} (${columns}) VALUES ${placeholders}`,
+      `INSERT INTO ${this.quote(Case.snake(table))} (${columns})` +
+        ` VALUES ${placeholders}`,
       params,
     )
   }
@@ -492,7 +581,8 @@ export abstract class SQLAdapter {
   ): Promise<SQLAdapter.RunResult> {
     if (type === 'COLUMN') {
       return await this.query(
-        `ALTER TABLE ${this.quote(params[0])} DROP COLUMN ${this.quote(params[1])}`,
+        `ALTER TABLE ${this.quote(params[0])}` +
+          ` DROP COLUMN ${this.quote(params[1])}`,
       ).run()
     }
     return await this.query(
@@ -505,11 +595,14 @@ export abstract class SQLAdapter {
   ): Promise<SQLAdapter.RunResult> {
     if (type === 'TABLE') {
       return await this.query(
-        `ALTER TABLE ${this.quote(params[0])} RENAME TO ${this.quote(params[1])}`,
+        `ALTER TABLE ${this.quote(params[0])}` +
+          ` RENAME TO ${this.quote(params[1])}`,
       ).run()
     }
     return await this.query(
-      `ALTER TABLE ${this.quote(params[0])} RENAME COLUMN ${this.quote(params[1])} TO ${this.quote(params[2])}`,
+      `ALTER TABLE ${this.quote(params[0])}` +
+        ` RENAME COLUMN ${this.quote(params[1])}` +
+        ` TO ${this.quote(params[2])}`,
     ).run()
   }
   async createIndex(
@@ -519,7 +612,9 @@ export abstract class SQLAdapter {
     unique = false,
   ): Promise<SQLAdapter.RunResult> {
     return await this.query(
-      `CREATE ${unique ? 'UNIQUE ' : ''}INDEX ${this.quote(name)} ON ${this.quote(table)} (${cols.map(c => this.quote(c)).join(', ')})`,
+      `CREATE ${unique ? 'UNIQUE ' : ''}INDEX ${this.quote(name)}` +
+        ` ON ${this.quote(table)}` +
+        ` (${cols.map(c => this.quote(c)).join(', ')})`,
     ).run()
   }
   async createView(name: string, sql: string): Promise<SQLAdapter.RunResult> {
@@ -532,7 +627,8 @@ export abstract class SQLAdapter {
     ifNotExists = false,
   ): Promise<SQLAdapter.RunResult> {
     return await this.query(
-      `CREATE TABLE ${ifNotExists ? 'IF NOT EXISTS ' : ''}${this.quote(table)} (\n${defs.join(',\n')}\n)`,
+      `CREATE TABLE ${ifNotExists ? 'IF NOT EXISTS ' : ''}${this.quote(table)}` +
+        ` (\n${defs.join(',\n')}\n)`,
     ).run()
   }
   async copyTableData(
@@ -542,7 +638,8 @@ export abstract class SQLAdapter {
   ): Promise<SQLAdapter.RunResult> {
     const cSql = cols.map(c => this.quote(c)).join(', ')
     return await this.query(
-      `INSERT INTO ${this.quote(to)} (${cSql}) SELECT ${cSql} FROM ${this.quote(from)}`,
+      `INSERT INTO ${this.quote(to)} (${cSql})` +
+        ` SELECT ${cSql} FROM ${this.quote(from)}`,
     ).run()
   }
 

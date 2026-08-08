@@ -219,9 +219,12 @@ describe('the previous schema is preserved before it is overwritten', () => {
     await SchemaBuilder.generate(db as any, schemaPath, silentMessages)
     const after = await listSchemaBackups()
 
-    expect(after.length).toBeGreaterThan(before.length)
-
+    // A *new* file, not a bigger count. `preserveExisting` prunes to ten, so
+    // once the directory reaches the cap it adds one and drops one and the
+    // count never moves — making a count assertion pass until enough syncs
+    // have run, then fail for a reason unrelated to what it tests.
     const added = after.find(name => !before.includes(name))!
+    expect({ added: Boolean(added) }).toEqual({ added: true })
     expect(await Bun.file(`${backupDir}/${added}`).text()).toBe(original)
 
     // And the generated file really did replace it.
@@ -372,6 +375,35 @@ describe('views are generated into their own module', () => {
     await SchemaBuilder.generate(db as any, tablesPath, silentMessages, {}, 'folder')
     expect(await Bun.file(`${Bakery.cacheDir}/views.ts`).exists()).toBe(false)
     await Bun.file(tablesPath).delete()
+    await db.close()
+  })
+  test('an existing views.ts is never overwritten', async () => {
+    // The whole reason the interface form exists is that you refine it:
+    // introspection can only call a JSON column `unknown`, and that a
+    // `json_arrayagg(json_object(...))` column holds `{ id: number }[]` is
+    // knowledge only the author has. Regenerating over it would delete exactly
+    // that work — so the generator seeds this file once and then leaves it.
+    const db = new SQLiteAdapter(':memory:')
+    await db.query('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)').run()
+    await db.query('CREATE VIEW active_users AS SELECT id, name FROM users').run()
+
+    const tablesPath = `${Bakery.cacheDir}/tables.ts`
+    const viewsPath = `${Bakery.cacheDir}/views.ts`
+    await Bun.file(viewsPath).delete().catch(() => {})
+
+    await SchemaBuilder.generate(db as any, tablesPath, silentMessages, {}, 'folder')
+    const seeded = await Bun.file(viewsPath).text()
+    expect(seeded).toContain('ActiveUsersView')
+
+    // Refine it, exactly as a user would after seeing `unknown`.
+    const edited = seeded.replace('name: string', 'name: string & { brand: 1 }')
+    await Bun.write(viewsPath, edited)
+
+    await SchemaBuilder.generate(db as any, tablesPath, silentMessages, {}, 'folder')
+    expect(await Bun.file(viewsPath).text()).toBe(edited)
+
+    await Bun.file(tablesPath).delete()
+    await Bun.file(viewsPath).delete()
     await db.close()
   })
 })

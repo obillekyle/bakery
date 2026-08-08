@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { MySQLAdapter } from './adapters/mysql'
+import { PGAdapter } from './adapters/pgsql'
 import { SQLiteAdapter } from './adapters/sqlite'
 import {
   collectConstraints,
@@ -287,4 +289,237 @@ describe('a schema with a view settles', () => {
     ])
     await db.close()
   })
+})
+
+/**
+ * The view lifecycle.
+ *
+ * Views were invisible to the planner: `initDbTablesMap` skips `_view` entries
+ * and every comparison walked that map, so nothing about a view ever reached
+ * `hasChanges`. A new view was never planned, an edited `SELECT` was never
+ * detected — you could not change a view — and one the schema had dropped was
+ * never removed. They stayed roughly correct only because
+ * `syncViewsAndTablesPhase` recreates every declared view whenever a sync runs
+ * for some *other* reason.
+ */
+describe('the view lifecycle is planned', () => {
+  const BODY = 'SELECT id, name FROM vl_users WHERE active = 1'
+  const quiet: any = { log() {}, confirm: () => false, selectIndex: () => 0 }
+  const msgs: any = new Proxy({}, { get: () => () => {} })
+
+  async function fixture(withView: boolean) {
+    const db = new SQLiteAdapter(':memory:')
+    await db.query('CREATE TABLE vl_users (id INT, name TEXT, active INT)').run()
+    if (withView) await db.createView('vl_active', BODY)
+    const live: any = await db.getConstraints()
+    const tk = Object.keys(live).find(k => /vlUsers/i.test(k))!
+    const vk = Object.keys(live).find(k => /vlActive/i.test(k))
+    return { db, live, tk, vk }
+  }
+
+  async function plan(db: any, constraints: any) {
+    const { buildSyncPlan } = await import('./sync/helpers')
+    return buildSyncPlan(db, constraints, quiet, msgs)
+  }
+
+  test('an unchanged view is not touched', async () => {
+    const { db, live, tk, vk } = await fixture(true)
+    const p = await plan(db, { [tk]: live[tk], [vk!]: { ...live[vk!], _view: BODY } })
+    expect(p.viewsToUpdate).toEqual([])
+    expect(p.tablesToDrop).toEqual([])
+    await db.close()
+  })
+
+  test('an edited SELECT is detected', async () => {
+    // Without this you simply cannot change a view: the schema said one thing,
+    // the database another, and `db:sync` reported it perfectly synced.
+    const { db, live, tk, vk } = await fixture(true)
+    const p = await plan(db, {
+      [tk]: live[tk],
+      [vk!]: { ...live[vk!], _view: 'SELECT id, name FROM vl_users WHERE active = 0' },
+    })
+    expect(p.viewsToUpdate).toEqual(['vl_active'])
+    await db.close()
+  })
+
+  test('a new view is planned even when nothing else changed', async () => {
+    // Excluding views from `unmappedTsTables` stopped them being counted as
+    // tables waiting to be created — which also removed the only signal that a
+    // new one needed creating. This is the replacement.
+    const { db, live, tk } = await fixture(false)
+    const p = await plan(db, {
+      [tk]: live[tk],
+      vlActive: { _view: BODY, id: { type: 'integer' } },
+    })
+    expect(p.viewsToUpdate).toEqual(['vl_active'])
+    await db.close()
+  })
+
+  test('a view the schema no longer declares is dropped', async () => {
+    const { db, live, tk } = await fixture(true)
+    const p = await plan(db, { [tk]: live[tk] })
+    expect(p.tablesToDrop).toEqual(['vl_active'])
+    await db.close()
+  })
+
+  test('recreating a view is a change, but not a destructive one', async () => {
+    // A view holds no data and `createView` drops and recreates in one step, so
+    // counting it as destructive made a schema with a view demand --force-sync
+    // in production for nothing.
+    const { SyncEngine } = await import('./sync/engine')
+    const evaluate = (SyncEngine as any).evaluateChanges
+    const base = {
+      tablesToDrop: [], tablesToRename: [], columnsToDrop: [], columnsToAdd: [],
+      columnsToRename: [], tablesToRebuild: new Set(), unmappedTsTables: new Set(),
+    }
+    const r = evaluate({ ...base, viewsToUpdate: ['v'] }, new Set(), new Map())
+    expect(r).toEqual({ isDangerous: false, hasChanges: true })
+    // Dropping one still is: that is `tablesToDrop`.
+    const d = evaluate({ ...base, tablesToDrop: ['v'], viewsToUpdate: [] }, new Set(), new Map())
+    expect(d.isDangerous).toBe(true)
+  })
+})
+
+/**
+ * What a stored view body looks like coming back, per dialect.
+ *
+ * SQLite keeps the text verbatim. MySQL re-qualifies every column and adds
+ * parentheses; Postgres adds parentheses and a trailing semicolon. So an
+ * *authored* `SELECT` and the server's rendering of it are different strings,
+ * and no amount of text normalisation short of a SQL parser closes that.
+ *
+ * The ledger is what makes it converge, and that is precisely what the ledger
+ * is for — it records what was *applied*, so the next run compares the authored
+ * body against the authored body. Falling back to live introspection costs one
+ * view recreate per sync on MySQL and Postgres, which is why recreating a view
+ * is no longer treated as destructive.
+ */
+describe('view bodies across dialects', () => {
+  const MYSQL_URL = process.env.MYSQL_TEST_URL
+  const PGSQL_URL = process.env.PGSQL_TEST_URL
+  const BODY = 'SELECT id, name FROM vd_users WHERE active = 1'
+  const quiet: any = { log() {}, confirm: () => false, selectIndex: () => 0 }
+  const msgs: any = new Proxy({}, { get: () => () => {} })
+
+  const DIALECTS: [string, boolean, () => any, boolean][] = [
+    ['SQLite', false, () => new SQLiteAdapter(':memory:'), true],
+    ['MySQL', !MYSQL_URL, () => new MySQLAdapter(MYSQL_URL), false],
+    ['Postgres', !PGSQL_URL, () => new PGAdapter(PGSQL_URL), false],
+  ]
+
+  for (const [name, skip, open, verbatim] of DIALECTS) {
+    test.skipIf(skip)(`${name}: stable once the ledger records it`, async () => {
+      const db = open()
+      const alive = <T,>(p: T | Promise<T>) => {
+        const t = setTimeout(() => {}, 30_000)
+        return Promise.resolve(p).finally(() => clearTimeout(t))
+      }
+      for (const s of [
+        'DROP VIEW IF EXISTS vd_active',
+        'DROP TABLE IF EXISTS vd_users',
+        'DROP TABLE IF EXISTS __bakery_schema',
+      ]) await alive(db.query(s).run())
+      await alive(db.query('CREATE TABLE vd_users (id INT, name VARCHAR(64), active INT)').run())
+      await alive(db.createView('vd_active', BODY))
+
+      const { buildSyncPlan } = await import('./sync/helpers')
+      const { writeLedger } = await import('./sync/ledger')
+      const live: any = await alive(db.getConstraints())
+      const tk = Object.keys(live).find(k => /vdUsers|vd_users/i.test(k))!
+      const vk = Object.keys(live).find(k => /vdActive|vd_active/i.test(k))!
+      const schema: any = { [tk]: live[tk], [vk]: { ...live[vk], _view: BODY } }
+
+      // Against live introspection: only a dialect that stores the body
+      // verbatim can match an authored SELECT.
+      const first = await alive(buildSyncPlan(db, schema, quiet, msgs))
+      expect({ dialect: name, changed: first.viewsToUpdate.length > 0 }).toEqual({
+        dialect: name,
+        changed: !verbatim,
+      })
+
+      // Against the ledger — the normal path — every dialect is stable.
+      await alive(writeLedger(db, schema, {}))
+      const second = await alive(buildSyncPlan(db, schema, quiet, msgs))
+      expect({ dialect: name, source: second.ledgerSource, changed: second.viewsToUpdate }).toEqual(
+        { dialect: name, source: 'ledger', changed: [] },
+      )
+
+      for (const s of [
+        'DROP VIEW IF EXISTS vd_active',
+        'DROP TABLE IF EXISTS vd_users',
+        'DROP TABLE IF EXISTS __bakery_schema',
+      ]) await alive(db.query(s).run())
+      await db.close?.()
+    })
+  }
+})
+
+/**
+ * Whether a view blocks a table rebuild, measured rather than assumed.
+ *
+ * `viewsBlockTableRebuild` gates a whole sync phase, and it reads backwards:
+ * the flag is `true` by default and MySQL is the exception. That is easy to
+ * "correct" into a SQLite-only check by someone reading the SQLite error alone,
+ * so the reason is asserted here against real servers — the rebuild sequence
+ * run with a view still standing, and each dialect's own answer recorded.
+ */
+describe('viewsBlockTableRebuild matches what the server does', () => {
+  const MYSQL_URL = process.env.MYSQL_TEST_URL
+  const PGSQL_URL = process.env.PGSQL_TEST_URL
+
+  const DIALECTS: [string, boolean, () => any, boolean][] = [
+    ['SQLite', false, () => new SQLiteAdapter(':memory:'), true],
+    ['MySQL', !MYSQL_URL, () => new MySQLAdapter(MYSQL_URL), false],
+    ['Postgres', !PGSQL_URL, () => new PGAdapter(PGSQL_URL), true],
+  ]
+
+  for (const [name, skip, open, blocks] of DIALECTS) {
+    test.skipIf(skip)(`${name}: declares ${blocks}`, () => {
+      const db = open()
+      expect({ dialect: name, blocks: db.viewsBlockTableRebuild }).toEqual({
+        dialect: name,
+        blocks,
+      })
+      db.close?.()
+    })
+
+    test.skipIf(skip)(`${name}: and the server agrees`, async () => {
+      const db = open()
+      const alive = <T,>(p: T | Promise<T>) => {
+        const t = setTimeout(() => {}, 30_000)
+        return Promise.resolve(p).finally(() => clearTimeout(t))
+      }
+      const run = (s: string, ...p: unknown[]) => alive(db.query(s).run(...p))
+      const clean = async () => {
+        await run('DROP VIEW IF EXISTS vb_active')
+        await run('DROP TABLE IF EXISTS vb_users')
+        await run('DROP TABLE IF EXISTS vb_users_temp_build')
+      }
+
+      await clean()
+      await run('CREATE TABLE vb_users (id INT NOT NULL, name VARCHAR(32))')
+      await run('CREATE VIEW vb_active AS SELECT id FROM vb_users')
+
+      // Exactly what processTableRebuild does, with the view left in place.
+      let refused = false
+      try {
+        await run(
+          'CREATE TABLE vb_users_temp_build (id INT NOT NULL, name VARCHAR(32))',
+        )
+        await run(
+          'INSERT INTO vb_users_temp_build (id, name) SELECT id, name FROM vb_users',
+        )
+        await run('DROP TABLE IF EXISTS vb_users')
+        await run('ALTER TABLE vb_users_temp_build RENAME TO vb_users')
+      } catch {
+        // Which statement threw differs by dialect — SQLite refuses the rename,
+        // Postgres the drop — so only the fact of refusal is asserted.
+        refused = true
+      }
+
+      expect({ dialect: name, refused }).toEqual({ dialect: name, refused: blocks })
+      await clean()
+      await db.close?.()
+    })
+  }
 })
