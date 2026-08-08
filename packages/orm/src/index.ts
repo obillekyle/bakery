@@ -17,6 +17,8 @@ export type {
   InferOptionals,
   InferSchema,
   InferViews,
+  InsertOf,
+  RowOf,
   TableColumn,
   TableDef,
 } from './define'

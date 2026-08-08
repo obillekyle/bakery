@@ -1,5 +1,5 @@
 import { Field } from '@bakery/orm'
-import { posts, users } from './schema'
+import { posts, users } from './tables'
 
 export const usernameUniq = Field.Unique(users.username)
 export const slugUniq = Field.Unique(posts.slug)

@@ -15,9 +15,10 @@ apps/notes/
   server.config.ts      optional; `root` is the only option most apps set
   tsconfig.json         extends @bakery/core/tsconfig.app.json
   orm/
-    schema.ts           tables — the generator owns this file
-    index.ts            re-exports + the schema type registration
+    tables.ts           table() declarations — the generator owns this file
+    views.ts            view() declarations
     indexes.ts          Field.Index() / Field.Unique() declarations
+    index.ts            re-exports the three + the schema type registration
   src/                  ← the serve root. Everything here is web-reachable.
     index.tsx           /
     about.html          /about

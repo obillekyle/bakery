@@ -13,13 +13,25 @@ typechecks without one; the ORM is simply untyped until you
 Two layouts, probed in this order from the app's working directory
 ([`sync/load.ts`](../../packages/orm/src/sync/load.ts)):
 
-1. **`orm/`** — `orm/index.ts` is the entry. Tables go in `orm/schema.ts`,
-   indexes in `orm/indexes.ts`, and `index.ts` re-exports both.
+1. **`orm/`** — one file per kind of declaration:
+
+   | File | Holds |
+   | --- | --- |
+   | `orm/tables.ts` | `table()` declarations |
+   | `orm/views.ts` | `view()` declarations |
+   | `orm/indexes.ts` | `Field.Index()` / `Field.Unique()` |
+   | `orm/index.ts` | re-exports the three, and registers the schema |
+
 2. **`schema.ts`** at the root — a single file holding everything.
 
 The folder is preferred because `db:sync --choose=db` regenerates *tables* by
-overwriting `schema.ts`. With the folder, your hand-written `indexes.ts` and the
-`index.ts` re-exports are never touched. With one file, they are collateral.
+overwriting one file. With the folder that file is `tables.ts`, and your
+hand-written views, indexes and re-exports are never touched. With one file,
+they are collateral.
+
+`tables.ts` was called `schema.ts`; the old name is still honoured when it is
+the one on disk, so an existing project keeps working and the generator will not
+write a second file beside it.
 
 To keep the model somewhere else, set `schema` in `server.config.ts`:
 
@@ -333,6 +345,33 @@ the write anyway; refusing it earlier is strictly better.
 
 In the older single-file `DBInfo` layout a view is a table entry carrying a
 `_view` key, which is what `--choose=db` writes and what `view()` builds.
+
+### Naming a row type
+
+```ts
+import { Field, type InsertOf, type RowOf, table, view } from '@bakery/orm'
+
+const users = table('users', {
+  id: Field.Primary(),
+  name: Field.Varchar(64),
+  createdAt: Field.Date.now(),
+})
+const activeUsers = view('active_users', users, 'SELECT * FROM users WHERE 1')
+
+export type ActiveUsersView = RowOf<typeof activeUsers>
+//          ^ { id: number; name: string; createdAt: number }
+
+export type NewUser = InsertOf<typeof users>
+//          ^ { name: string; id?: number; createdAt?: number }
+```
+
+TypeScript cannot mint a *named* interface from a value — the name has to be
+written somewhere — so this is the one line that does it. Derived rather than
+copied, which is the point: a hand-written `interface ActiveUsersView { … }`
+would be a second source of truth that nothing checks against the first.
+
+`RowOf` is what you read, `InsertOf` is what you write — the difference being
+the optional columns.
 
 ## Making the schema typed
 

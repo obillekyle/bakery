@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import { SQLiteAdapter } from './adapters/sqlite'
-import { collectConstraints, table, type InferViews, view } from './define'
+import {
+  collectConstraints,
+  type InferViews,
+  type InsertOf,
+  type RowOf,
+  table,
+  view,
+} from './define'
 import { Field } from './field'
 import type { ExtractTableTypes } from './schema-util'
 
@@ -113,5 +120,67 @@ describe('a view reaches the database as a view', () => {
     const rows = (await db.query('SELECT * FROM active_users').all()) as any[]
     expect(rows.map(r => r.name)).toEqual(['ada'])
     await db.close()
+  })
+})
+
+describe('view() borrowing a source table', () => {
+  const src = table('users', {
+    id: Field.Primary(),
+    name: Field.Varchar(64),
+    active: Field.Int(0),
+  })
+  const derived = view('active_users2', src, 'SELECT * FROM users WHERE active = 1')
+
+  test('takes the source table columns without restating them', () => {
+    const cols = derived.__columns as any
+    expect(Object.keys(cols).sort()).toEqual(['_view', 'active', 'id', 'name'])
+    expect(cols._view).toBe('SELECT * FROM users WHERE active = 1')
+  })
+
+  test('columns qualify against the view, not the source table', () => {
+    // Otherwise a join against the view would emit `users`.`id`.
+    expect(derived.id).toEqual({ __table: 'active_users2', __column: 'id' } as any)
+  })
+
+  test('the explicit and borrowed forms agree', () => {
+    const explicit = view('active_users2', 'SELECT * FROM users WHERE active = 1', {
+      id: Field.Primary(),
+      name: Field.Varchar(64),
+      active: Field.Int(0),
+    })
+    expect(derived.__columns).toEqual(explicit.__columns as any)
+  })
+})
+
+describe('RowOf / InsertOf name a declaration without copying it', () => {
+  const users = table('users', {
+    id: Field.Primary(),
+    name: Field.Varchar(64),
+    createdAt: Field.Date.now(),
+  })
+  const v = view('active_users3', users, 'SELECT * FROM users')
+
+  // Derived, so it cannot drift from the declaration the way a hand-written
+  // `interface ActiveUsersView { … }` would.
+  type ActiveUsersView = RowOf<typeof v>
+  type NewUser = InsertOf<typeof users>
+
+  const _row: Expect<
+    ActiveUsersView,
+    { id: number; name: string; createdAt: number }
+  > = true
+  // `name` is required; the auto-increment key and the defaulted timestamp are
+  // not, which is what `optional` on the descriptor now states outright.
+  const _ins: Expect<
+    NewUser,
+    { name: string } & { id?: number; createdAt?: number }
+  > = true
+
+  test('the row type carries no view metadata', () => {
+    void [_row, _ins]
+    expect(Object.keys(v.__columns as any)).toContain('_view')
+    // …but `_view` is filtered out of the row type — asserted above at compile
+    // time; this only pins that the runtime key is genuinely there to filter.
+    expect(true).toBe(true)
   })
 })

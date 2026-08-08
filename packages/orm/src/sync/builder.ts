@@ -246,10 +246,13 @@ export class SchemaBuilder {
   ): string {
     let body = ''
     for (const [tableName, cols] of Object.entries(constraints)) {
+      // Views are left to `views.ts`, exactly as indexes are left to
+      // `indexes.ts`. This file is the only one the generator owns; emitting a
+      // view here as well would leave the same declaration in two files after
+      // a single `--choose=db`, and `collectConstraints` would silently keep
+      // whichever was exported last.
+      if (cols._view) continue
       let colsStr = ''
-      if (cols._view) {
-        colsStr += `  _view: \`${cols._view.replace(/`/g, '\\`')}\`,\n`
-      }
       for (const [colName, cons] of Object.entries(
         cols as Record<string, SQLAdapter.ColumnConstraint>,
       )) {
@@ -257,7 +260,8 @@ export class SchemaBuilder {
           colName,
           cons,
           adapter,
-          !!cols._view,
+          // Never a view here — those were skipped above.
+          false,
           '  ',
         )
       }
@@ -277,10 +281,12 @@ export class SchemaBuilder {
  * Generated from the database by \`db:sync\`.
  *
  * Tables only. In the orm/ folder layout \`index.ts\` owns the re-exports and
- * the schema registration and \`indexes.ts\` owns the index and unique
- * declarations, so neither is written here — but note that an index the
- * database has and \`indexes.ts\` does not declare is dropped by the next
- * TS-wins sync, which will say so before it does it.
+ * the schema registration, \`indexes.ts\` owns the index and unique
+ * declarations, and \`views.ts\` owns the views — none of which is written here.
+ *
+ * The cost of that separation, worth knowing: an index or a view the database
+ * has and its file does not declare is dropped by the next TS-wins sync. It
+ * says so before it does it.
  *
  * This file is rewritten wholesale on every regeneration; the previous copy is
  * kept under \`bakery/backups/\`.

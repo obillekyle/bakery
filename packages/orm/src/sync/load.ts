@@ -189,6 +189,27 @@ type Resolved =
  * which is the same folder addressed by its entry file; pointing the
  * generator at that file would have it overwrite the re-exports.
  */
+
+/**
+ * Where the folder layout's table declarations live.
+ *
+ * `tables.ts`, beside `views.ts` and `indexes.ts` — one file per kind of
+ * declaration, which is the separation the folder layout exists for. It was
+ * `schema.ts`, which read oddly next to its siblings and collided with the
+ * single-file layout's `schema.ts` in conversation.
+ *
+ * The old name is still honoured when it is the one on disk. Loading never
+ * cared — that goes through `index.ts`'s re-exports, so any filename works —
+ * but *generation* writes here, and writing `tables.ts` beside someone's
+ * existing `schema.ts` would leave two files declaring the same tables.
+ */
+async function folderTarget(dir: string): Promise<string> {
+  const tables = `${dir}/tables.ts`
+  if (await Bun.file(tables).exists()) return tables
+  const legacy = `${dir}/schema.ts`
+  return (await Bun.file(legacy).exists()) ? legacy : tables
+}
+
 async function resolveConfigured(
   cwd: string,
   configured: string,
@@ -197,7 +218,7 @@ async function resolveConfigured(
 
   if (await fs.isDir(path)) {
     const entry = `${path}/index.ts`
-    const target = `${path}/schema.ts`
+    const target = await folderTarget(path)
     if (!(await Bun.file(entry).exists())) {
       return { missing: entry, targetPath: target }
     }
@@ -211,7 +232,7 @@ async function resolveConfigured(
     return {
       entry: path,
       layout: 'folder',
-      targetPath: `${fs.dirname(path)}/schema.ts`,
+      targetPath: await folderTarget(fs.dirname(path)),
     }
   }
 
@@ -237,7 +258,7 @@ export async function loadSchema(
     const loaded = await readSchema(
       folderEntry,
       'folder',
-      `${cwd}/orm/schema.ts`,
+      await folderTarget(`${cwd}/orm`),
     )
     // Unchanged from before this file learned about `config.schema`: when the
     // folder entry exists but cannot be imported, the generator stays pointed

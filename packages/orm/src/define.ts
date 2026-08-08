@@ -99,6 +99,55 @@ export function view<N extends string, C extends ColumnMap>(
   columns: C,
 ): TableDef<N, C & { _view: string }> & {
   readonly [K in keyof C]: TableColumn<N, K & string>
+}
+/**
+ * A view over one table, borrowing its columns.
+ *
+ *     export const activeUsers = view('active_users', users, 'SELECT * FROM users WHERE active = 1')
+ *
+ * The filtered-view case, which is the common one: the shape is the source
+ * table's, so restating it is duplication that nothing checks — declare a
+ * column the `SELECT` does not return and you find out at query time.
+ *
+ * The source is a **value**, not a type argument, and that is forced rather
+ * than chosen. `view<typeof users>(name, body)` cannot work: TypeScript stops
+ * inferring the *remaining* type parameters as soon as one is supplied
+ * explicitly, so `N` would fall back to `string` and the view's name would stop
+ * being a literal. `__table` is what `InferConstraints` keys the schema map on,
+ * so that name degrading takes `InferViews` with it — and since
+ * `Mutation.Tables` now excludes views, `Exclude<…, string>` is `never` and
+ * *every* mutation stops compiling. Passing the table keeps both inferred.
+ *
+ * Projecting a subset? Use the three-argument form and name the columns.
+ */
+export function view<N extends string, C extends ColumnMap>(
+  name: N,
+  source: TableDef<string, C>,
+  body: string,
+): TableDef<N, C & { _view: string }> & {
+  readonly [K in keyof C]: TableColumn<N, K & string>
+}
+export function view(
+  name: string,
+  bodyOrSource: string | TableDef,
+  columnsOrBody?: ColumnMap | string,
+): unknown {
+  // The second argument tells the two forms apart: a `SELECT` string, or the
+  // table to borrow columns from.
+  const derived = typeof bodyOrSource !== 'string'
+  const body = derived ? (columnsOrBody as string) : bodyOrSource
+  const columns = derived
+    ? (bodyOrSource as TableDef).__columns
+    : (columnsOrBody as ColumnMap)
+  return viewImpl(name, body, columns)
+}
+
+function viewImpl<N extends string, C extends ColumnMap>(
+  name: N,
+  body: string,
+  columns: C,
+): TableDef<N, C & { _view: string }> & {
+  readonly [K in keyof C]: TableColumn<N, K & string>
 } {
   // `_view` rides inside `__columns` because that is the object the sync engine
   // receives, and it is where `ExtractViews` and the adapters already look for
@@ -193,3 +242,41 @@ export function collectConstraints(module: Record<string, unknown>) {
 
   return constraints
 }
+
+/**
+ * The row type of a `table()` or `view()`, for naming.
+ *
+ *     export type ActiveUsersView = RowOf<typeof activeUsers>
+ *     //     ^ { id: number; name: string }
+ *
+ * TypeScript cannot mint a *named* interface from a value — a name has to be
+ * written somewhere — so this is the one line that does it, and it stays
+ * correct when the declaration changes because it is derived rather than
+ * copied. A hand-written `interface ActiveUsersView` would be a second source
+ * of truth that nothing checks against the first.
+ *
+ * `_view` is filtered out by `ExtractTableTypes`, so a view's row type is its
+ * columns and nothing else.
+ */
+export type RowOf<T extends TableDef> = ExtractTableTypes<
+  { t: T['__columns'] },
+  't'
+>
+
+/**
+ * What an `INSERT` into it accepts: {@link RowOf} with the optional columns
+ * made optional.
+ *
+ *     export type NewUser = InsertOf<typeof users>
+ *     //     ^ { name: string; id?: number; createdAt?: number }
+ */
+export type InsertOf<T extends TableDef> = Omit<
+  RowOf<T>,
+  ExtractOptionals<{ t: T['__columns'] }, 't'> & keyof RowOf<T>
+> &
+  Partial<
+    Pick<
+      RowOf<T>,
+      ExtractOptionals<{ t: T['__columns'] }, 't'> & keyof RowOf<T>
+    >
+  >

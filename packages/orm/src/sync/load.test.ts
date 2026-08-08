@@ -114,7 +114,7 @@ describe('the default layouts are unchanged', () => {
     expect(loaded.layout).toBe('folder')
     expect(Object.keys(loaded.constraints)).toEqual(['folderTable'])
     // The generator writes tables beside index.ts, never over it.
-    expect(loaded.targetPath).toBe(`${BOTH}/orm/schema.ts`)
+    expect(loaded.targetPath).toBe(`${BOTH}/orm/tables.ts`)
     expect(loaded.indexes).toHaveProperty('byName')
     expect(loaded.missing).toBeUndefined()
   })
@@ -153,12 +153,12 @@ describe('a configured schema path replaces the probe', () => {
     expect(loaded.targetPath).toBe(`${CONFIGURED}/db/model.ts`)
   })
 
-  test('a directory is the folder layout, written back to schema.ts inside it', async () => {
+  test('a directory is the folder layout, written back to tables.ts inside it', async () => {
     const loaded = await loadSchema(CONFIGURED, 'db/orm')
 
     expect(loaded.layout).toBe('folder')
     expect(Object.keys(loaded.constraints)).toEqual(['nested'])
-    expect(loaded.targetPath).toBe(`${CONFIGURED}/db/orm/schema.ts`)
+    expect(loaded.targetPath).toBe(`${CONFIGURED}/db/orm/tables.ts`)
   })
 
   test('naming the folder entry file is the same thing, and never the write target', async () => {
@@ -168,7 +168,7 @@ describe('a configured schema path replaces the probe', () => {
     expect(Object.keys(loaded.constraints)).toEqual(['nested'])
     // index.ts re-exports hand-authored indexes/foreign; --choose=db must not
     // overwrite it.
-    expect(loaded.targetPath).toBe(`${CONFIGURED}/db/orm/schema.ts`)
+    expect(loaded.targetPath).toBe(`${CONFIGURED}/db/orm/tables.ts`)
   })
 
   test('an empty configured value auto-detects, exactly as if unset', async () => {
@@ -222,5 +222,47 @@ describe('reading the option off the app config', () => {
     expect(schemaFromConfig({ schema: 42 })).toBeUndefined()
     expect(schemaFromConfig(undefined)).toBeUndefined()
     expect(schemaFromConfig(null)).toBeUndefined()
+  })
+})
+
+/**
+ * `orm/tables.ts` was called `orm/schema.ts`.
+ *
+ * Loading never cared — that goes through `index.ts`'s re-exports, so the
+ * filename is free — but *generation* writes to this path. Writing `tables.ts`
+ * beside someone's existing `schema.ts` would leave two files declaring the
+ * same tables, and `collectConstraints` would silently keep whichever the
+ * module exported last.
+ */
+describe('the folder write target honours the old filename', () => {
+  const LEGACY = `${FIXTURES}/legacy`
+  const FRESH = `${FIXTURES}/fresh`
+  const BOTH_NAMES = `${FIXTURES}/bothnames`
+
+  beforeAll(async () => {
+    // A project that predates the rename: index.ts + schema.ts, no tables.ts.
+    await Bun.write(`${LEGACY}/orm/index.ts`, tableSource('legacyTable', 'id'))
+    await Bun.write(`${LEGACY}/orm/schema.ts`, tableSource('legacyTable', 'id'))
+    // A project with neither: the generator should create the new name.
+    await Bun.write(`${FRESH}/orm/index.ts`, tableSource('freshTable', 'id'))
+    // Both present: the new name wins, so a half-migrated project converges.
+    await Bun.write(`${BOTH_NAMES}/orm/index.ts`, tableSource('bothTable', 'id'))
+    await Bun.write(`${BOTH_NAMES}/orm/schema.ts`, tableSource('bothTable', 'id'))
+    await Bun.write(`${BOTH_NAMES}/orm/tables.ts`, tableSource('bothTable', 'id'))
+  })
+
+  test('an existing schema.ts stays the write target', async () => {
+    const loaded = await loadSchema(LEGACY)
+    expect(loaded.targetPath).toBe(`${LEGACY}/orm/schema.ts`)
+  })
+
+  test('a folder with neither gets the new name', async () => {
+    const loaded = await loadSchema(FRESH)
+    expect(loaded.targetPath).toBe(`${FRESH}/orm/tables.ts`)
+  })
+
+  test('when both exist the new name wins', async () => {
+    const loaded = await loadSchema(BOTH_NAMES)
+    expect(loaded.targetPath).toBe(`${BOTH_NAMES}/orm/tables.ts`)
   })
 })

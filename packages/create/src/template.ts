@@ -134,7 +134,7 @@ export const posts = table('posts', {
 `
 
 const ORM_INDEXES = `import { Field } from '@bakery/orm'
-import { posts, users } from './schema'
+import { posts, users } from './tables'
 
 export const usernameUniq = Field.Unique(users.username)
 export const slugUniq = Field.Unique(posts.slug)
@@ -147,18 +147,37 @@ export const postsByAuthor = Field.Index(posts.authorId)
  * are just permissive `any` — which is a quiet enough failure that it is worth
  * generating rather than documenting.
  */
-const ORM_INDEX = `import type { InferOptionals, InferSchema, InferViews } from '@bakery/orm'
-import * as model from './schema'
 
-export * from './schema'
+const ORM_VIEWS = `import { view } from '@bakery/orm'
+import { posts } from './tables'
+
+// A view is a stored SELECT the database treats as a read-only table. Borrowing
+// the source table's columns rather than restating them keeps the two in step.
+export const publishedPosts = view(
+  'published_posts',
+  posts,
+  'SELECT * FROM posts WHERE published = 1',
+)
+`
+
+const ORM_INDEX = `import type { InferOptionals, InferSchema, InferViews } from '@bakery/orm'
+import * as tables from './tables'
+import * as views from './views'
+
+export * from './tables'
+export * from './views'
 export * from './indexes'
+
+// Tables *and* views: InferSchema reads both, and InferViews reads the views
+// specifically -- that is what stops DB.Insert.into() targeting one.
+type Model = typeof tables & typeof views
 
 declare module '@bakery/orm/schema-registry' {
   interface SchemaRegistry {
     schema: {
-      DBSchema: InferSchema<typeof model>
-      DBOptionals: InferOptionals<typeof model>
-      Views: InferViews<typeof model>
+      DBSchema: InferSchema<Model>
+      DBOptionals: InferOptionals<Model>
+      Views: InferViews<Model>
     }
   }
 }
@@ -195,7 +214,7 @@ Built with [Bakery](https://github.com/obillekyle/bun-server).
 
 \`\`\`bash
 bun install
-bun run db:sync   # create the tables in orm/schema.ts
+bun run db:sync   # create the tables in orm/tables.ts
 bun run dev
 \`\`\`
 
@@ -206,7 +225,8 @@ Then open http://localhost:3000.
 | Path | What it is |
 | --- | --- |
 | \`src/\` | Served. Every file is a route — \`src/index.tsx\` is \`/\`, \`src/api/notes.ts\` is \`/api/notes\`. |
-| \`orm/schema.ts\` | Table definitions. Run \`bun run db:sync\` after editing. |
+| \`orm/tables.ts\` | Table definitions. Run \`bun run db:sync\` after editing. |
+| \`orm/views.ts\` | View definitions -- stored SELECTs, read-only. |
 | \`orm/index.ts\` | Registers the schema with the ORM's types. Without its \`declare module\` block the ORM still works, untyped. |
 | \`server.config.ts\` | Port, root directory, plugins. |
 
@@ -276,7 +296,8 @@ export function templateFiles(name: string, range: string): TemplateFile[] {
     { path: 'README.md', contents: README.replaceAll('{{name}}', name) },
     { path: 'server.config.ts', contents: SERVER_CONFIG },
     { path: 'scripts/db-sync.ts', contents: DB_SYNC_SCRIPT },
-    { path: 'orm/schema.ts', contents: ORM_SCHEMA },
+    { path: 'orm/tables.ts', contents: ORM_SCHEMA },
+    { path: 'orm/views.ts', contents: ORM_VIEWS },
     { path: 'orm/indexes.ts', contents: ORM_INDEXES },
     { path: 'orm/index.ts', contents: ORM_INDEX },
     { path: 'src/index.tsx', contents: INDEX_PAGE.replaceAll('{{name}}', name) },

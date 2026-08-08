@@ -257,7 +257,24 @@ describe('the generated app', () => {
     // columns — a quiet enough failure to be worth generating rather than
     // documenting.
     expect(index).toContain("declare module '@bakery/orm/schema-registry'")
-    expect(index).toContain('InferSchema<typeof model>')
+    expect(index).toContain('InferSchema<Model>')
+    // Tables *and* views. Inferring from tables alone leaves `InferViews`
+    // empty, and a view is then writable — which is the whole thing declaring
+    // one is meant to prevent.
+    expect(index).toContain('type Model = typeof tables & typeof views')
+    expect(index).toContain('InferViews<Model>')
+  })
+
+  test('the orm folder is one file per kind of declaration', async () => {
+    const dir = await scaffold()
+    for (const f of ['tables.ts', 'views.ts', 'indexes.ts', 'index.ts']) {
+      expect({ f, exists: await Bun.file(join(dir, 'orm', f)).exists() }).toEqual(
+        { f, exists: true },
+      )
+    }
+    // `schema.ts` was the old name for `tables.ts`; a scaffold should not emit
+    // both, or `collectConstraints` silently keeps whichever exported last.
+    expect(await Bun.file(join(dir, 'orm/schema.ts')).exists()).toBe(false)
   })
 })
 
