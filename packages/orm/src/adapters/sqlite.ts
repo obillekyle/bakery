@@ -11,6 +11,22 @@ export class SQLiteAdapter extends SQLAdapter {
   override readonly quoteChar: string = '"'
 
   protected readonly sql: SQL
+
+  /**
+   * Resolves once `foreign_keys` is on, and every query awaits it.
+   *
+   * SQLite defaults the pragma OFF and it is per-connection, so without this a
+   * FOREIGN KEY is stored, reported by `PRAGMA foreign_key_list`, shown in the
+   * dashboard — and enforces nothing.
+   *
+   * Deliberately *not* in the performance pragma chain above it. That chain is
+   * fire-and-forget by design (its own comment calls the statements
+   * "unawaited"), which is fine for `cache_size`: applying late costs a little
+   * speed. Applying `foreign_keys` late costs a row that was never checked, so
+   * this one has to be something callers can wait on. A resolved promise after
+   * the first query, so the cost is one microtask.
+   */
+  private readonly ready: Promise<unknown>
   private static readonly sqliteTypes: [
     string,
     SyncTypes.ColumnConstraint['type'],
@@ -126,6 +142,12 @@ export class SQLiteAdapter extends SQLAdapter {
       (filename === ':memory:'
         ? new SQL('sqlite://:memory:')
         : new SQL(filename, { adapter: 'sqlite' }))
+    // Every owned connection, `:memory:` included — the perf pragmas below
+    // skip in-memory databases, but correctness does not get to.
+    this.ready = ownsConnection
+      ? this.sql.unsafe('PRAGMA foreign_keys = ON;')
+      : Promise.resolve()
+
     if (ownsConnection && filename !== ':memory:') {
       const cacheSize = import.meta.env.THREAD_WORKER ? -1000 : -10000
       const journalMode = process.platform === 'win32' ? 'DELETE' : 'WAL'
@@ -164,12 +186,15 @@ export class SQLiteAdapter extends SQLAdapter {
   }
 
   readonly execute: SQLAdapter.Executor = createExecutor(
-    async (sqlText: string, params: unknown[] = []) =>
-      (await this.sql.unsafe(sqlText, params)) as SQLAdapter.RowRecord[],
+    async (sqlText: string, params: unknown[] = []) => {
+      await this.ready
+      return (await this.sql.unsafe(sqlText, params)) as SQLAdapter.RowRecord[]
+    },
     async (
       sqlText: string,
       params: unknown[] = [],
     ): Promise<SQLAdapter.RunResult> => {
+      await this.ready
       const result = (await this.sql.unsafe(sqlText, params)) as any
       return {
         lastInsertRowid:
@@ -333,6 +358,43 @@ export class SQLiteAdapter extends SQLAdapter {
       SET ${keys.map(k => `${this.quote(k)} = ?`).join(', ')} 
       WHERE rowid = ?`,
     ).run(...keys.map(k => row[k]), rowid)
+  }
+
+
+  override async getForeignKeys(): Promise<SyncTypes.DBForeignKeys> {
+    const out: SyncTypes.DBForeignKeys = {}
+    const tables = await this.getSchema()
+    for (const t of tables) {
+      // PRAGMA takes an identifier, not a bound parameter.
+      const rows = (await this.query(
+        `PRAGMA foreign_key_list(${this.quote(t.name)})`,
+      ).all()) as any[]
+      // One row per column, grouped by `id` for a composite key.
+      const byId = new Map<number, { cols: string[]; refCols: string[]; refTable: string }>()
+      for (const r of rows) {
+        const id = Number(r.id ?? 0)
+        const g = byId.get(id) ?? { cols: [], refCols: [], refTable: String(r.table) }
+        g.cols.push(String(r.from))
+        g.refCols.push(String(r.to))
+        byId.set(id, g)
+      }
+      for (const g of byId.values()) {
+        const fk = { table: t.name, cols: g.cols, refTable: g.refTable, refCols: g.refCols }
+        out[SQLAdapter.foreignKeyId(fk)] = fk
+      }
+    }
+    return out
+  }
+
+
+  /**
+   * SQLite has no `ALTER TABLE ADD/DROP FOREIGN KEY`: the constraint lives in
+   * the table definition, so changing one means rebuilding the table. The
+   * planner reads this and schedules a rebuild instead of emitting DDL that
+   * would fail.
+   */
+  override get supportsAlterForeignKey(): boolean {
+    return false
   }
 
   async getConstraints(): Promise<SyncTypes.DBConstraints> {

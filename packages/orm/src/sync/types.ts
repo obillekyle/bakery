@@ -36,10 +36,31 @@ export type TableConstraints = {
 }
 
 export interface IndexConstraint {
-  type: 'index' | 'unique'
+  type: 'index' | 'unique' | 'foreign'
   table: string
   cols: string[]
+  /** Set only when `type` is 'foreign'. */
+  refTable?: string
+  refCols?: string[]
 }
+
+/**
+ * A foreign key as the database reports it.
+ *
+ * Identity is the tuple, not the name: SQLite's `PRAGMA foreign_key_list`
+ * does not return a constraint name at all, so keying on one would make every
+ * SQLite foreign key look new on every sync — the perpetual-rebuild failure
+ * this project keeps hitting.
+ */
+export interface ForeignKeyInfo {
+  table: string
+  cols: string[]
+  refTable: string
+  refCols: string[]
+  name?: string
+}
+
+export type DBForeignKeys = Record<string, ForeignKeyInfo>
 
 export type DBConstraints = Record<string, TableConstraints>
 

@@ -1,11 +1,14 @@
 import { Logger, messageLogger } from '@bakery/core/logger'
+import { Case } from '@bakery/core/utils'
 import type { SQLAdapter } from '../adapters/base'
 import { SchemaBuilder } from './builder'
 import type { SchemaLayout } from './load'
 import { writeLedger } from './ledger'
 import {
   buildSyncPlan,
+  calculateForeignKeyDiff,
   calculateIndexDiff,
+  collectForeignKeys,
   executeSyncPlan,
   hasOldWrappers,
   logPlannedChanges,
@@ -207,6 +210,9 @@ export class SyncEngine {
     indexesToAdd: any,
     genLocal: (c?: any) => Promise<void>,
     isDangerous = false,
+    tsFks: SyncTypes.DBForeignKeys = {},
+    fksToAdd: Map<string, SyncTypes.ForeignKeyInfo> = new Map(),
+    fksToDrop: Map<string, SyncTypes.ForeignKeyInfo> = new Map(),
   ): Promise<void> {
     const { backupDatabase } = await import('../backup')
     const backedUp = await backupDatabase(adapter)
@@ -229,6 +235,9 @@ export class SyncEngine {
           indexesToDrop,
           indexesToAdd,
           MESSAGES,
+          tsFks,
+          fksToAdd,
+          fksToDrop,
         ),
       )
     }
@@ -285,11 +294,33 @@ export class SyncEngine {
       plan.tablesToRebuild,
     )
 
-    const { isDangerous, hasChanges } = SyncEngine.evaluateChanges(
+    const tsFks = collectForeignKeys(tsIndexes)
+    const dbFks = await adapter.getForeignKeys()
+    // A table being created carries its foreign keys inline from CREATE TABLE,
+    // so counting them here would double up.
+    const beingCreated = new Set([...plan.unmappedTsTables].map(Case.snake))
+    const { fksToAdd, fksToDrop } = calculateForeignKeyDiff(
+      dbFks,
+      tsFks,
+      plan.tablesToRebuild,
+      beingCreated,
+    )
+    // SQLite cannot ALTER a foreign key in or out — the constraint is part of
+    // the table definition — so those become table rebuilds, which recreate the
+    // table with the keys inline. Decided here rather than in the adapter so
+    // the printed plan states the work that will actually happen.
+    if (!adapter.supportsAlterForeignKey) {
+      for (const fk of [...fksToAdd.values(), ...fksToDrop.values()]) {
+        plan.tablesToRebuild.add(Case.snake(fk.table))
+      }
+    }
+
+    const { isDangerous, hasChanges: planChanged } = SyncEngine.evaluateChanges(
       plan,
       indexesToDrop,
       indexesToAdd,
     )
+    const hasChanges = planChanged || fksToAdd.size > 0 || fksToDrop.size > 0
 
     if (!hasChanges) {
       MESSAGES.PERFECT_SYNC()
@@ -324,6 +355,9 @@ export class SyncEngine {
       indexesToAdd,
       genLocal,
       isDangerous,
+      tsFks,
+      fksToAdd,
+      fksToDrop,
     )
   }
 }

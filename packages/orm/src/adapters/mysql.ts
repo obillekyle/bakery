@@ -308,6 +308,27 @@ export class MySQLAdapter extends SQLAdapter {
    * which takes `db:sync` against MySQL down entirely. Postgres was never
    * affected because its adapter already aliased everything.
    */
+
+  override async getForeignKeys(): Promise<SyncTypes.DBForeignKeys> {
+    const rows = (await this.query(
+      'SELECT kcu.constraint_name AS name, kcu.table_name AS child, kcu.column_name AS child_col,' +
+        ' kcu.referenced_table_name AS parent, kcu.referenced_column_name AS parent_col' +
+        ' FROM information_schema.key_column_usage kcu' +
+        ' WHERE kcu.table_schema = DATABASE() AND kcu.referenced_table_name IS NOT NULL' +
+        ' ORDER BY kcu.constraint_name, kcu.ordinal_position',
+    ).all()) as any[]
+    return SQLAdapter.groupForeignKeyRows(rows)
+  }
+
+
+  /** MySQL spells it `DROP FOREIGN KEY`, not `DROP CONSTRAINT`. */
+  override async dropForeignKey(fk: SyncTypes.ForeignKeyInfo): Promise<void> {
+    const name = fk.name || SQLAdapter.foreignKeyName(fk)
+    await this.query(
+      `ALTER TABLE ${this.quote(Case.snake(fk.table))} DROP FOREIGN KEY ${this.quote(name)}`,
+    ).run()
+  }
+
   async getConstraints(): Promise<SyncTypes.DBConstraints> {
     const tables = (await this.query(
       "SELECT table_name AS table_name, table_type AS table_type FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type IN ('BASE TABLE','VIEW')",

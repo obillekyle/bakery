@@ -160,7 +160,110 @@ export abstract class SQLAdapter {
   ): SyncTypes.ColumnConstraint
   abstract getConstraints(): Promise<SyncTypes.DBConstraints>
   abstract getIndexes(): Promise<SyncTypes.DBIndexes>
+
+  /**
+   * A table-level `FOREIGN KEY` clause, for inclusion in `CREATE TABLE`.
+   *
+   * Emitted inline rather than by `ALTER` wherever possible, because SQLite has
+   * no `ALTER TABLE ADD FOREIGN KEY` at all — inline is the only spelling all
+   * three dialects share.
+   */
+  foreignKeyClause(fk: SyncTypes.ForeignKeyInfo): string {
+    const name = fk.name || SQLAdapter.foreignKeyName(fk)
+    const cols = fk.cols.map(c => this.quote(Case.snake(c))).join(', ')
+    const refCols = fk.refCols.map(c => this.quote(Case.snake(c))).join(', ')
+    return (
+      `CONSTRAINT ${this.quote(name)} FOREIGN KEY (${cols}) ` +
+      `REFERENCES ${this.quote(Case.snake(fk.refTable))} (${refCols})`
+    )
+  }
+
+  /** Deterministic name, so a re-run produces the same constraint. */
+  static foreignKeyName(fk: SyncTypes.ForeignKeyInfo): string {
+    return `fk_${Case.snake(fk.table)}_${fk.cols.map(Case.snake).join('_')}`
+  }
+
+  /**
+   * Can this dialect attach a foreign key to a table that already exists?
+   *
+   * SQLite cannot: the constraint is part of the table definition and the only
+   * way to add one is to rebuild the table. The planner uses this to choose
+   * between an ALTER and a rebuild rather than emitting DDL that fails.
+   */
+  get supportsAlterForeignKey(): boolean {
+    return true
+  }
+
+  async addForeignKey(fk: SyncTypes.ForeignKeyInfo): Promise<void> {
+    await this.query(
+      `ALTER TABLE ${this.quote(Case.snake(fk.table))} ADD ${this.foreignKeyClause(fk)}`,
+    ).run()
+  }
+
+  async dropForeignKey(fk: SyncTypes.ForeignKeyInfo): Promise<void> {
+    const name = fk.name || SQLAdapter.foreignKeyName(fk)
+    await this.query(
+      `ALTER TABLE ${this.quote(Case.snake(fk.table))} DROP CONSTRAINT ${this.quote(name)}`,
+    ).run()
+  }
+
   abstract getSchema(): Promise<SQLAdapter.TableDetails[]>
+
+  /**
+   * Foreign keys as the database has them, keyed by the tuple that identifies
+   * one rather than by constraint name.
+   *
+   * Not abstract: an adapter without an implementation reports "none declared"
+   * and the diff simply has nothing to compare, instead of throwing mid-sync.
+   */
+  async getForeignKeys(): Promise<SyncTypes.DBForeignKeys> {
+    return {}
+  }
+
+  /**
+   * Stable identity for a foreign key: child table, its columns, the parent,
+   * its columns.
+   *
+   * Names are deliberately excluded. SQLite's `PRAGMA foreign_key_list` does
+   * not report one, so a name-keyed diff would see every SQLite foreign key as
+   * new on every sync — the perpetual-rebuild failure this project has hit
+   * repeatedly. The tuple is the same on all three dialects.
+   */
+  static foreignKeyId(fk: {
+    table: string
+    cols: string[]
+    refTable: string
+    refCols: string[]
+  }): string {
+    const snake = (s: string) => Case.snake(s)
+    return [
+      snake(fk.table),
+      fk.cols.map(snake).join('+'),
+      snake(fk.refTable),
+      fk.refCols.map(snake).join('+'),
+    ].join('->')
+  }
+
+  /** Fold one-row-per-column introspection results into one entry per key. */
+  static groupForeignKeyRows(rows: any[]): SyncTypes.DBForeignKeys {
+    const byName = new Map<string, any>()
+    for (const r of rows) {
+      const key = String(r.name)
+      const g = byName.get(key) ?? {
+        table: String(r.child),
+        cols: [] as string[],
+        refTable: String(r.parent),
+        refCols: [] as string[],
+        name: key,
+      }
+      g.cols.push(String(r.child_col))
+      g.refCols.push(String(r.parent_col))
+      byName.set(key, g)
+    }
+    const out: SyncTypes.DBForeignKeys = {}
+    for (const fk of byName.values()) out[SQLAdapter.foreignKeyId(fk)] = fk
+    return out
+  }
   abstract getData(
     table: string,
     opts: SQLAdapter.TableDataOptions,

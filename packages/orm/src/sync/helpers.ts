@@ -1,5 +1,5 @@
 import { Case } from '@bakery/core/utils'
-import type { SQLAdapter } from '../adapters/base'
+import { SQLAdapter } from '../adapters/base'
 import type * as SyncTypes from './types'
 import { resolveCurrentState } from './ledger'
 
@@ -473,7 +473,13 @@ export function calculateIndexDiff(
   const indexesToDrop = new Set<string>()
   const indexesToAdd = new Map<string, SyncTypes.IndexConstraint>()
 
+  // Foreign keys ride in the same declaration map as index()/unique() but are
+  // a different thing: they are emitted with the table or by ALTER, never by
+  // CREATE INDEX. `calculateForeignKeyDiff` owns them.
+  const isFk = (i: any) => i?.type === 'foreign'
+
   for (const [dbIdxName, dbIdx] of Object.entries(dbIndexes)) {
+    if (isFk(dbIdx)) continue
     const tsIdx = tsIndexes[dbIdxName]
     const isRebuilt = tablesToRebuild.has(Case.snake(dbIdx.table))
 
@@ -491,6 +497,7 @@ export function calculateIndexDiff(
   }
 
   for (const [tsIdxName, tsIdx] of Object.entries(tsIndexes)) {
+    if (isFk(tsIdx)) continue
     if (!dbIndexes[tsIdxName]) indexesToAdd.set(Case.snake(tsIdxName), tsIdx)
   }
 
@@ -720,8 +727,15 @@ async function syncViewsAndTablesPhase(
   tx: SQLAdapter,
   constraints: SyncTypes.DBConstraints,
   MESSAGES: any,
+  tsFks: SyncTypes.DBForeignKeys = {},
 ) {
-  for (const [tableName, cols] of Object.entries(constraints)) {
+  // Parents before children: a foreign key needs the referenced table to exist,
+  // and an unordered CREATE simply fails.
+  for (const tableName of orderTablesByDependency(
+    Object.keys(constraints),
+    tsFks,
+  )) {
+    const cols = constraints[tableName]!
     if ((cols as SyncTypes.TableConstraints)._view) {
       MESSAGES.EXEC_SYNC_VIEW({ view: Case.snake(tableName) })
       await tx.createView(
@@ -737,6 +751,13 @@ async function syncViewsAndTablesPhase(
           ([name, cons]) =>
             `  ${tx.quote(Case.snake(name))} ${tx.colDef(cons)}`,
         )
+      // Inline, not a later ALTER: SQLite has no
+      // `ALTER TABLE ADD FOREIGN KEY`, so this is the only spelling that works
+      // on all three dialects.
+      for (const fk of Object.values(tsFks)) {
+        if (Case.snake(fk.table) !== Case.snake(tableName)) continue
+        colDefs.push(`  ${tx.foreignKeyClause(fk)}`)
+      }
       MESSAGES.EXEC_SYNC_CONS({ table: Case.snake(tableName) })
       await tx.createTable(Case.snake(tableName), colDefs, true)
     }
@@ -759,6 +780,30 @@ async function addIndexesPhase(
   }
 }
 
+/**
+ * Foreign keys on tables that already existed.
+ *
+ * Only reachable where the dialect can ALTER one in. SQLite cannot, so its
+ * missing keys are handled by scheduling a table rebuild in the planner — the
+ * rebuild recreates the table through `createTable`, which emits them inline.
+ */
+async function foreignKeysPhase(
+  tx: SQLAdapter,
+  fksToAdd: Map<string, SyncTypes.ForeignKeyInfo>,
+  fksToDrop: Map<string, SyncTypes.ForeignKeyInfo>,
+  MESSAGES: any,
+) {
+  if (!tx.supportsAlterForeignKey) return
+  for (const fk of fksToDrop.values()) {
+    MESSAGES.EXEC_DROP_FK?.({ table: fk.table, name: fk.name ?? '' })
+    await tx.dropForeignKey(fk)
+  }
+  for (const fk of fksToAdd.values()) {
+    MESSAGES.EXEC_ADD_FK?.({ table: fk.table, ref: fk.refTable })
+    await tx.addForeignKey(fk)
+  }
+}
+
 export async function executeSyncPlan(
   tx: SQLAdapter,
   plan: SyncPlan,
@@ -766,6 +811,9 @@ export async function executeSyncPlan(
   indexesToDrop: Set<string>,
   indexesToAdd: Map<string, SyncTypes.IndexConstraint>,
   MESSAGES: any,
+  tsFks: SyncTypes.DBForeignKeys = {},
+  fksToAdd: Map<string, SyncTypes.ForeignKeyInfo> = new Map(),
+  fksToDrop: Map<string, SyncTypes.ForeignKeyInfo> = new Map(),
 ) {
   await dropIndexesPhase(tx, indexesToDrop, MESSAGES)
   await renameTablesPhase(tx, plan, MESSAGES)
@@ -774,9 +822,12 @@ export async function executeSyncPlan(
   await dropColumnsPhase(tx, plan, MESSAGES)
   await addColumnsPhase(tx, plan, MESSAGES)
   await rebuildTablesPhase(tx, plan, constraints, MESSAGES)
-  await syncViewsAndTablesPhase(tx, constraints, MESSAGES)
+  await syncViewsAndTablesPhase(tx, constraints, MESSAGES, tsFks)
   await addIndexesPhase(tx, indexesToAdd, MESSAGES)
+  // Last, so every table a key could reference already exists.
+  await foreignKeysPhase(tx, fksToAdd, fksToDrop, MESSAGES)
 }
+
 
 export function hasOldWrappers(constraints: SyncTypes.DBConstraints) {
   return Object.values(constraints).some(
@@ -787,4 +838,116 @@ export function hasOldWrappers(constraints: SyncTypes.DBConstraints) {
         c => (c as any)?._oldColumn || (c as any)?._transform,
       ),
   )
+}
+
+
+/** The `foreign()` declarations, normalised into the shape the diff uses. */
+export function collectForeignKeys(
+  tsIndexes: SyncTypes.DBIndexes,
+): SyncTypes.DBForeignKeys {
+  const out: SyncTypes.DBForeignKeys = {}
+  for (const [name, idx] of Object.entries(tsIndexes)) {
+    if ((idx as any)?.type !== 'foreign') continue
+    const fk = idx as any
+    if (!fk.refTable || !fk.refCols?.length) continue
+    const info: SyncTypes.ForeignKeyInfo = {
+      table: fk.table,
+      cols: fk.cols,
+      refTable: fk.refTable,
+      refCols: fk.refCols,
+      name,
+    }
+    out[SQLAdapter.foreignKeyId(info)] = info
+  }
+  return out
+}
+
+/**
+ * Which foreign keys to add and which to drop.
+ *
+ * Keyed by the tuple, so a constraint the database named itself still matches
+ * the declaration that produced it — including on SQLite, which reports no name
+ * at all.
+ */
+export function calculateForeignKeyDiff(
+  dbFks: SyncTypes.DBForeignKeys,
+  tsFks: SyncTypes.DBForeignKeys,
+  tablesToRebuild: Set<string>,
+  /**
+   * Tables that already exist, so a key on a table being *created* is left out.
+   *
+   * `CREATE TABLE` emits its foreign keys inline — the only spelling SQLite
+   * has. Counting those as "to add" made MySQL and Postgres ALTER in a
+   * constraint that already existed, and made SQLite schedule a rebuild of a
+   * table that did not exist yet: a fresh `db:sync` announced
+   * "Tables to rebuild: posts" against an empty database.
+   *
+   * Phrased as "being created" rather than "already exists" deliberately. The
+   * inverse defaults to an *empty* set, which reads as "nothing exists" and so
+   * suppressed every key precisely when the database was new — the case that
+   * exposed this in the first place.
+   */
+  tablesBeingCreated: Set<string> = new Set(),
+) {
+  const fksToAdd = new Map<string, SyncTypes.ForeignKeyInfo>()
+  const fksToDrop = new Map<string, SyncTypes.ForeignKeyInfo>()
+
+  for (const [id, fk] of Object.entries(tsFks)) {
+    // A rebuilt table is recreated from the constraints, foreign keys included,
+    // so adding one separately would duplicate it.
+    if (dbFks[id] || tablesToRebuild.has(Case.snake(fk.table))) continue
+    if (tablesBeingCreated.has(Case.snake(fk.table))) continue
+    fksToAdd.set(id, fk)
+  }
+  for (const [id, fk] of Object.entries(dbFks)) {
+    if (tsFks[id] || tablesToRebuild.has(Case.snake(fk.table))) continue
+    fksToDrop.set(id, fk)
+  }
+  return { fksToAdd, fksToDrop }
+}
+
+/**
+ * Table names ordered so a parent is always created before its children.
+ *
+ * Not cosmetic: a foreign key requires the referenced table to exist, so an
+ * unordered CREATE fails outright — verified against Postgres, which answers
+ * `relation "o_parent" does not exist`. Dropping runs in reverse for the
+ * mirror-image reason.
+ *
+ * A cycle cannot be ordered at all. Rather than loop forever or drop tables,
+ * the remainder is appended in declaration order: the foreign key that closes
+ * the cycle then fails loudly at the database, which is the honest outcome —
+ * breaking it needs a deferred constraint, which no dialect here spells alike.
+ */
+export function orderTablesByDependency(
+  tables: string[],
+  tsFks: SyncTypes.DBForeignKeys,
+): string[] {
+  const deps = new Map<string, Set<string>>()
+  for (const t of tables) deps.set(Case.snake(t), new Set())
+  for (const fk of Object.values(tsFks)) {
+    const child = Case.snake(fk.table)
+    const parent = Case.snake(fk.refTable)
+    // A self-reference is satisfied by the table's own CREATE.
+    if (child === parent) continue
+    if (deps.has(child) && deps.has(parent)) deps.get(child)!.add(parent)
+  }
+
+  const ordered: string[] = []
+  const done = new Set<string>()
+  let progressed = true
+  while (progressed && done.size < tables.length) {
+    progressed = false
+    for (const t of tables) {
+      const snake = Case.snake(t)
+      if (done.has(snake)) continue
+      const unmet = [...(deps.get(snake) ?? [])].some(d => !done.has(d))
+      if (unmet) continue
+      ordered.push(t)
+      done.add(snake)
+      progressed = true
+    }
+  }
+  for (const t of tables) if (!done.has(Case.snake(t))) ordered.push(t)
+  return ordered
 }

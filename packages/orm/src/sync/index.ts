@@ -80,14 +80,13 @@ Flags:
       return process.exit(1)
     }
 
-    // Fail before planning rather than creating an index that masquerades as
-    // a foreign key and then re-diffs on every boot.
-    const unsupported = findUnsupportedForeignKeys(tsIndexes)
-    if (unsupported.length) {
-      MESSAGES.FOREIGN_UNSUPPORTED({ names: unsupported.join(', ') })
-      await closeDB()
-      return process.exit(1)
-    }
+    // `foreign()` used to abort here, because no adapter emitted FOREIGN KEY
+    // DDL and the declaration would have become a plain index — referential
+    // integrity in appearance only. All three adapters now emit and read back
+    // real foreign keys, so the guard is gone.
+    //
+    // `findUnsupportedForeignKeys` is kept and still exported: it is what a
+    // future adapter without support would use to refuse rather than pretend.
 
     if (loaded.layout === 'none' && (await Bun.file(schemaPath).exists())) {
       MESSAGES.NO_DBINFO()
