@@ -36,10 +36,49 @@ export type TableConstraints = {
 }
 
 export interface IndexConstraint {
-  type: 'index' | 'unique'
+  type: 'index' | 'unique' | 'foreign'
   table: string
   cols: string[]
+  /** Set only when `type` is 'foreign'. */
+  refTable?: string
+  refCols?: string[]
 }
+
+/**
+ * A foreign key as the database reports it.
+ *
+ * Identity is the tuple, not the name: SQLite's `PRAGMA foreign_key_list`
+ * does not return a constraint name at all, so keying on one would make every
+ * SQLite foreign key look new on every sync — the perpetual-rebuild failure
+ * this project keeps hitting.
+ */
+/**
+ * Referential actions, normalised to the SQL spelling.
+ *
+ * One vocabulary for three dialects: MySQL and SQLite report these words back
+ * verbatim, Postgres reports single characters (`c`, `a`, `r`, `n`, `d`) which
+ * the adapter maps. Without one normal form the diff would compare `CASCADE`
+ * against `c` and drop-and-recreate the key on every sync.
+ */
+export type ForeignKeyAction =
+  | 'NO ACTION'
+  | 'RESTRICT'
+  | 'CASCADE'
+  | 'SET NULL'
+  | 'SET DEFAULT'
+
+export interface ForeignKeyInfo {
+  table: string
+  cols: string[]
+  refTable: string
+  refCols: string[]
+  name?: string
+  /** Defaults to `NO ACTION`, which is what every dialect emits when omitted. */
+  onDelete?: ForeignKeyAction
+  onUpdate?: ForeignKeyAction
+}
+
+export type DBForeignKeys = Record<string, ForeignKeyInfo>
 
 export type DBConstraints = Record<string, TableConstraints>
 

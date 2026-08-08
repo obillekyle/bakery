@@ -320,6 +320,24 @@ export class PGAdapter extends SQLAdapter {
     ).run(...keys.map(k => row[k]), rowid)
   }
 
+
+  override async getForeignKeys(): Promise<SyncTypes.DBForeignKeys> {
+    const rows = (await this.query(
+      "SELECT con.conname AS name, c.relname AS child, att.attname AS child_col," +
+        " pc.relname AS parent, patt.attname AS parent_col," +
+        " con.confdeltype AS on_delete, con.confupdtype AS on_update" +
+        " FROM pg_constraint con" +
+        " JOIN pg_class c ON c.oid = con.conrelid" +
+        " JOIN pg_class pc ON pc.oid = con.confrelid" +
+        " JOIN unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord) ON true" +
+        " JOIN unnest(con.confkey) WITH ORDINALITY AS fk(attnum, ord) ON fk.ord = k.ord" +
+        " JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = k.attnum" +
+        " JOIN pg_attribute patt ON patt.attrelid = con.confrelid AND patt.attnum = fk.attnum" +
+        " WHERE con.contype = 'f' ORDER BY con.conname, k.ord",
+    ).all()) as any[]
+    return SQLAdapter.groupForeignKeyRows(rows)
+  }
+
   async getConstraints(): Promise<SyncTypes.DBConstraints> {
     const tables = (await this.query(
       "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = current_schema() AND table_type IN ('BASE TABLE','VIEW')",

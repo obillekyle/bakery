@@ -15,6 +15,8 @@ const logger = new Logger('db-sync')
 const syncMsgs = {
   INVALID_SCHEMA: 'W %yschema.ts is invalid or corrupt. Treating as new.%*',
   NO_DBINFO: 'W %yDBInfo namespace not found in schema.ts!%*',
+  FOREIGN_TARGET:
+    'E %rForeign key target is not a primary key or unique%*: {refs}. SQL requires the referenced column to be a PRIMARY KEY or carry a UNIQUE index. MySQL and Postgres refuse the CREATE; SQLite accepts it and then fails every insert with "foreign key mismatch". Add unique() on the target column.',
   FOREIGN_UNSUPPORTED:
     'E %rforeign() is declared but not implemented%*: {names}. No adapter emits FOREIGN KEY DDL, so it would be created as a plain index and then re-diffed on every sync. Use index() on the column and enforce the reference in your application.',
   SCHEMA_NOT_FOUND:
@@ -80,14 +82,19 @@ Flags:
       return process.exit(1)
     }
 
-    // Fail before planning rather than creating an index that masquerades as
-    // a foreign key and then re-diffs on every boot.
-    const unsupported = findUnsupportedForeignKeys(tsIndexes)
-    if (unsupported.length) {
-      MESSAGES.FOREIGN_UNSUPPORTED({ names: unsupported.join(', ') })
+    if (loaded.unreferenceable?.length) {
+      MESSAGES.FOREIGN_TARGET({ refs: loaded.unreferenceable.join(', ') })
       await closeDB()
       return process.exit(1)
     }
+
+    // `foreign()` used to abort here, because no adapter emitted FOREIGN KEY
+    // DDL and the declaration would have become a plain index — referential
+    // integrity in appearance only. All three adapters now emit and read back
+    // real foreign keys, so the guard is gone.
+    //
+    // `findUnsupportedForeignKeys` is kept and still exported: it is what a
+    // future adapter without support would use to refuse rather than pretend.
 
     if (loaded.layout === 'none' && (await Bun.file(schemaPath).exists())) {
       MESSAGES.NO_DBINFO()

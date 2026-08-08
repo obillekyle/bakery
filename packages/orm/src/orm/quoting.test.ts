@@ -410,3 +410,87 @@ describe('DISTINCT inside an aggregate', () => {
     await db.query('DROP TABLE IF EXISTS ad_test').run()
   })
 })
+
+describe('upsert', () => {
+  test('emits ON CONFLICT … DO UPDATE, quoting every identifier', () => {
+    expect(
+      DB.Insert.into('teachers')
+        .values({ surname: 'a', campus: 'b' })
+        .upsert(['surname'])
+        .parse().sql,
+    ).toBe(
+      'INSERT INTO "teachers" ("surname", "campus") VALUES (?, ?) ' +
+        'ON CONFLICT ("surname") DO UPDATE SET "campus" = excluded."campus"',
+    )
+  })
+
+  test('updates every inserted column except the conflict key by default', () => {
+    const { sql } = DB.Insert.into('teachers')
+      .values({ surname: 'a', campus: 'b', room: 'c' })
+      .upsert(['surname'])
+      .parse()
+    expect(sql).toContain('"campus" = excluded."campus"')
+    expect(sql).toContain('"room" = excluded."room"')
+    // The key identifies the row; overwriting it with itself is noise.
+    expect(sql).not.toContain('"surname" = excluded."surname"')
+  })
+
+  test('a narrowed list leaves the other columns alone', () => {
+    const { sql } = DB.Insert.into('teachers')
+      .values({ surname: 'a', campus: 'b', room: 'c' })
+      .upsert(['surname'], ['campus'])
+      .parse()
+    expect(sql).toContain('"campus" = excluded."campus"')
+    expect(sql).not.toContain('"room"= excluded."room"')
+    expect(sql).not.toContain('"room" = excluded."room"')
+  })
+
+  test('an empty update list is insert-if-absent', () => {
+    expect(
+      DB.Insert.into('teachers')
+        .values({ surname: 'a', campus: 'b' })
+        .upsert(['surname'], [])
+        .parse().sql,
+    ).toContain('ON CONFLICT ("surname") DO NOTHING')
+  })
+
+  test('inserting only the conflict column has nothing to update', () => {
+    // Not a special case in the code — it falls out of "everything except the
+    // key", and DO NOTHING is the correct statement for it.
+    expect(
+      DB.Insert.into('teachers').values({ surname: 'a' }).upsert(['surname']).parse().sql,
+    ).toContain('DO NOTHING')
+  })
+
+  test('composes with returning', () => {
+    const { sql } = DB.Insert.into('teachers')
+      .values({ surname: 'a', campus: 'b' })
+      .upsert(['surname'])
+      .returning('*')
+      .parse()
+    expect(sql.indexOf('ON CONFLICT')).toBeLessThan(sql.indexOf('RETURNING'))
+  })
+
+  test('refuses an empty conflict target', () => {
+    // Postgres and SQLite cannot express the statement without one, and
+    // silently falling back to a plain INSERT would reintroduce the race the
+    // method exists to remove.
+    expect(() =>
+      DB.Insert.into('teachers').values({ surname: 'a' }).upsert([]),
+    ).toThrow()
+  })
+
+  test('two upserts leave one row, against a real database', async () => {
+    await db.query('DROP TABLE IF EXISTS up_q').run()
+    await db.query('CREATE TABLE up_q (email TEXT NOT NULL, name TEXT NOT NULL)').run()
+    await db.query('CREATE UNIQUE INDEX up_q_email ON up_q (email)').run()
+
+    await DB.Insert.into('up_q').values({ email: 'a@b.c', name: 'first' }).upsert(['email']).run()
+    await DB.Insert.into('up_q').values({ email: 'a@b.c', name: 'second' }).upsert(['email']).run()
+
+    const rows: any[] = await db.query('SELECT * FROM up_q').all()
+    expect(rows.length).toBe(1)
+    expect(rows[0].name).toBe('second')
+    await db.query('DROP TABLE IF EXISTS up_q').run()
+  })
+})

@@ -1,4 +1,5 @@
 import { primary, value } from './schema-util'
+import type * as SyncTypes from './sync/types'
 
 /**
  * `Field` — the column vocabulary, namespaced so it is discoverable.
@@ -116,6 +117,54 @@ export const Field = {
 
   /** Binary. Always nullable: no dialect here takes a binary literal default. */
   Blob: () => value('buffer', null),
+
+  /**
+   * A column that references another table's column.
+   *
+   *     export const posts = table('posts', {
+   *       id:       Field.Primary(),
+   *       authorId: Field.Foreign(users.id),
+   *     })
+   *
+   * Replaces a separate `foreign(posts.authorId).references(users.id)` export
+   * for the common single-column case, and puts the reference on the column it
+   * constrains rather than somewhere else in the file where it can be forgotten
+   * or left unexported.
+   *
+   * **The column's type is copied from the target, not declared here**, and
+   * that is the real reason to prefer this form. MySQL refuses a foreign key
+   * whose column type does not match the referenced key *exactly* — an
+   * `INT` child against a `BIGINT` parent is rejected outright — and that
+   * mismatch is invisible in a schema where the two columns are declared pages
+   * apart. Resolution happens in `resolveColumnForeignKeys()`, where the whole
+   * schema is in scope, so the two cannot disagree.
+   *
+   * Composite keys still use `foreign()`: a multi-column reference has no
+   * single column to hang off.
+   */
+  Foreign: (
+    target: { __table: string; __column: string },
+    options: {
+      nullable?: true
+      /** Defaults to NO ACTION, as SQL does. */
+      onDelete?: SyncTypes.ForeignKeyAction
+      onUpdate?: SyncTypes.ForeignKeyAction
+    } = {},
+  ) =>
+    ({
+      // Filled in from the referenced column at load time. `integer` is the
+      // placeholder rather than the answer — a schema that somehow reaches an
+      // adapter unresolved gets the overwhelmingly common case instead of a
+      // column with no type at all.
+      type: 'integer',
+      ...(options.nullable ? { nullable: true, default: null } : {}),
+      _references: {
+        table: target.__table,
+        column: target.__column,
+        onDelete: options.onDelete,
+        onUpdate: options.onUpdate,
+      },
+    }) as any,
 
   /**
    * A timestamp in Unix **seconds**, stored as an integer.

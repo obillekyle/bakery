@@ -88,12 +88,18 @@ describe('--help is answered before anything is opened', () => {
     expect(dataAfterHelp).toBe(false)
   })
 
-  test('without the flag the guards still run and still exit 1', () => {
-    // The complement: moving the check must not have skipped the guards, only
-    // reordered them. It also shows the assertion above can fail — the very
-    // same invocation minus `--help` does open the database.
-    expect(noFlag.out).toContain('foreign() is declared but not implemented')
-    expect(noFlag.exitCode).toBe(1)
+  test('without the flag the schema is loaded and the database is opened', () => {
+    // The complement to the assertions above: moving the `--help` check must
+    // not have skipped the schema work, only reordered it. The same invocation
+    // minus `--help` does open the database.
+    //
+    // This used to assert `exit 1` and the "foreign() is declared but not
+    // implemented" message, because `foreign()` aborted the run. It no longer
+    // does — all three adapters emit and read back real foreign keys — so the
+    // fixture's `foreign()` now reaches the planner like any other declaration
+    // and the run reports a plan instead of refusing.
+    expect(noFlag.out).not.toContain('foreign() is declared but not implemented')
+    expect(noFlag.out).toContain('db-sync')
     expect(dataAfterNoFlag).toBe(true)
   })
 })
