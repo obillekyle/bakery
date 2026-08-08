@@ -113,3 +113,36 @@ describe('the newly-typed orders actually execute', () => {
     expect((rows[0] as any).username).toBe('grace')
   })
 })
+
+describe('distinct is reachable from every stage of the chain', () => {
+  /**
+   * These assert at *compile* time as much as runtime: the interface chain
+   * hands back a different type at each stage, so a `distinct()` declared on
+   * only some of them still runs but stops typechecking at the others. That is
+   * exactly the gap `IQBTable` had for `orderBy`/`limit`.
+   */
+  test('off the table, and after where / select / groupBy / orderBy / limit', () => {
+    expect(DB.table('users').distinct().parse().sql).toContain('DISTINCT')
+    expect(DB.table('users').where('users.id', 1).distinct().parse().sql).toContain('DISTINCT')
+    expect(
+      DB.table('users').select({ n: 'users.username' }).distinct().parse().sql,
+    ).toContain('DISTINCT')
+    expect(
+      DB.table('users').groupBy('users.username').distinct().parse().sql,
+    ).toContain('DISTINCT')
+    expect(DB.table('users').orderBy('users.id').distinct().parse().sql).toContain('DISTINCT')
+    expect(DB.table('users').limit(5).distinct().parse().sql).toContain('DISTINCT')
+  })
+
+  test('and the chain continues after it', () => {
+    const sql = DB.table('users')
+      .distinct()
+      .where('users.id', 1)
+      .orderBy('users.id')
+      .limit(3)
+      .parse().sql
+    expect(sql).toContain('DISTINCT')
+    expect(sql).toContain('ORDER BY')
+    expect(sql).toContain('LIMIT')
+  })
+})

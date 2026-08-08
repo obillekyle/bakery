@@ -477,6 +477,8 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
+    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
   }
@@ -513,6 +515,8 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
+    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
   }
@@ -539,6 +543,15 @@ export namespace DB {
       column: WhereColumn<S, J>,
       valueOrRef?: WhereValue<ColumnString<S, J>>,
     ): IQBHaving<S, J, P>
+    /**
+     * `SELECT DISTINCT` — see the runtime method for the semantics.
+     *
+     * Declared here too, unlike the sibling stages, because this one has no
+     * `limit`: `distinct()` was added everywhere `limit` already appeared, and
+     * that heuristic silently skipped `groupBy`. It ran fine and stopped
+     * typechecking, which is precisely what `fluent.test.ts` exists to catch.
+     */
+    distinct(): this
   }
 
   export interface IQBHaving<
@@ -558,6 +571,8 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
+    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
   }
@@ -607,6 +622,8 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
+    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
   }
@@ -620,6 +637,8 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
+    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
   }
@@ -629,6 +648,8 @@ export namespace DB {
     J extends string,
     P = any,
   > extends QBObject<P> {
+    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
   }
@@ -747,6 +768,7 @@ export namespace DB {
       right: any
       isRightColumn?: boolean
     }> = []
+    private _distinct = false
     private _select: Record<string, any> = {}
     private _selectAllAlias?: string
     private _orderBy: string[] = []
@@ -766,6 +788,7 @@ export namespace DB {
       qb._where = this._where.map(w => ({ ...w }))
       qb._groupBy = [...this._groupBy]
       qb._having = this._having.map(h => ({ ...h }))
+      qb._distinct = this._distinct
       qb._select = { ...this._select }
       qb._selectAllAlias = this._selectAllAlias
       qb._orderBy = [...this._orderBy]
@@ -974,6 +997,17 @@ export namespace DB {
       return this as any
     }
 
+    /**
+     * `SELECT DISTINCT`. Applies to the whole select list, not one column —
+     * SQL has no per-column distinct, and offering one would imply otherwise.
+     *
+     * Idempotent, so `.distinct().distinct()` is one keyword rather than two.
+     */
+    distinct(): any {
+      this._distinct = true
+      return this as any
+    }
+
     limit(count: number, offset?: number): any {
       // Coerced here rather than at parse time so a bad value fails at the
       // call site instead of emitting `LIMIT NaN`.
@@ -1116,7 +1150,8 @@ export namespace DB {
           ? ` LIMIT ${this._limit}${this._offset !== undefined ? ` OFFSET ${this._offset}` : ''}`
           : ''
 
-      const sql = `${withSql}SELECT ${selectSql} ${fromSql}${joinSql}${whereSql}${groupSql}${havingSql}${orderSql}${limitSql}`
+      const distinctSql = this._distinct ? 'DISTINCT ' : ''
+      const sql = `${withSql}SELECT ${distinctSql}${selectSql} ${fromSql}${joinSql}${whereSql}${groupSql}${havingSql}${orderSql}${limitSql}`
       return { sql, params }
     }
   }
