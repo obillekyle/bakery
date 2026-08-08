@@ -2,6 +2,17 @@ import { describe, expect, test } from 'bun:test'
 import { Field } from './field'
 
 /**
+ * The runtime object, widened.
+ *
+ * `TableDef` now describes what a column *is* — `type` is the row type — while
+ * the object it builds still carries the dialect name there for the adapters.
+ * The two are deliberately different, so an assertion about the runtime shape
+ * has to say it is reading the runtime shape.
+ */
+const shape = (d: unknown) => ({ ...(d as Record<string, unknown>) })
+
+
+/**
  * The exact objects each builder emits.
  *
  * These used to be written as "`Field` is `value()` with names", comparing each
@@ -13,35 +24,35 @@ import { Field } from './field'
  */
 describe('Field emits plain column descriptors', () => {
   test('each builder emits the shape its name promises', () => {
-    expect({ ...Field.Int() }).toEqual({ type: 'integer' })
-    expect({ ...Field.Int(0) }).toEqual({ type: 'integer', default: 0 } as any)
-    expect({ ...Field.Float(1.5) }).toEqual({
+    expect(shape(Field.Int())).toEqual({ type: 'integer' })
+    expect(shape(Field.Int(0))).toEqual({ type: 'integer', default: 0 } as any)
+    expect(shape(Field.Float(1.5))).toEqual({
       type: 'number',
       default: 1.5,
     } as any)
-    expect({ ...Field.String('x') }).toEqual({
+    expect(shape(Field.String('x'))).toEqual({
       type: 'string',
       default: 'x',
     } as any)
-    expect({ ...Field.Bool(true) }).toEqual({
+    expect(shape(Field.Bool(true))).toEqual({
       type: 'boolean',
       default: true,
     } as any)
-    expect({ ...Field.Blob() }).toEqual({
+    expect(shape(Field.Blob())).toEqual({
       type: 'buffer',
       default: null,
       nullable: true,
     } as any)
     // `Date` is an integer column; `Date.now()` is the same column with the
     // marker default each adapter renders in its own dialect.
-    expect({ ...Field.Date(0) }).toEqual({ ...Field.Int(0) })
-    expect({ ...Field.Date.now() }).toEqual({
+    expect(shape(Field.Date(0))).toEqual(shape(Field.Int(0)))
+    expect(shape(Field.Date.now())).toEqual({
       type: 'integer',
       default: '%dateNow%',
     } as any)
     // `String()` and `Text()` are the same unbounded column; the names differ
     // only in what they tell the reader about intent.
-    expect({ ...Field.String() }).toEqual({ ...Field.Text() })
+    expect(shape(Field.String())).toEqual(shape(Field.Text()))
   })
 
   test('null means nullable', () => {
@@ -49,13 +60,13 @@ describe('Field emits plain column descriptors', () => {
     // from its type when the default is null (the column is nullable instead),
     // so the literal is wider than the computed type even though the runtime
     // objects match — which is exactly what this asserts.
-    expect({ ...Field.String(null) }).toEqual({
+    expect(shape(Field.String(null))).toEqual({
       type: 'string',
       default: null,
       nullable: true,
     } as any)
     // …and no argument is NOT the same as null: NOT NULL, no default.
-    expect({ ...Field.String() }).toEqual({ type: 'string' })
+    expect(shape(Field.String())).toEqual({ type: 'string' })
   })
 
   test('a constraint carries only data, never builder machinery', () => {
@@ -72,13 +83,13 @@ describe('Field emits plain column descriptors', () => {
   test('Varchar carries its width, Text deliberately takes no default', () => {
     // The width is what lets a text column hold a default at all on MySQL,
     // which rejects one on TEXT.
-    expect({ ...Field.Varchar(255, '') }).toEqual({
+    expect(shape(Field.Varchar(255, ''))).toEqual({
       type: 'string',
       default: '',
       length: 255,
     } as any)
-    expect({ ...Field.Text() }).toEqual({ type: 'string' })
-    expect({ ...Field.Text(true) }).toEqual({
+    expect(shape(Field.Text())).toEqual({ type: 'string' })
+    expect(shape(Field.Text(true))).toEqual({
       type: 'string',
       default: null,
       nullable: true,
@@ -88,9 +99,9 @@ describe('Field emits plain column descriptors', () => {
   test('BigInt and Json are their own types, not aliases of string', () => {
     // If either collapsed back into an existing type, the adapters would emit
     // one column type and read another back — a rebuild on every sync.
-    expect({ ...Field.BigInt() }).toEqual({ type: 'bigint' } as any)
-    expect({ ...Field.Json() }).toEqual({ type: 'json' } as any)
-    expect({ ...Field.Json(true) }).toEqual({
+    expect(shape(Field.BigInt())).toEqual({ type: 'bigint' } as any)
+    expect(shape(Field.Json())).toEqual({ type: 'json' } as any)
+    expect(shape(Field.Json(true))).toEqual({
       type: 'json',
       default: null,
       nullable: true,
@@ -98,7 +109,7 @@ describe('Field emits plain column descriptors', () => {
   })
 
   test('Primary is the id column, spelled correctly', () => {
-    expect({ ...Field.Primary() }).toEqual({
+    expect(shape(Field.Primary())).toEqual({
       type: 'integer',
       autoIncrement: true,
       primary: true,

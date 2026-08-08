@@ -17,16 +17,31 @@ import type * as SyncTypes from './sync/types'
  * computes from `N extends true`, so the emitted DDL and the inferred row type
  * cannot disagree.
  */
-function column<
-  T extends DataTypes,
-  D extends Defs<T> | null | undefined = undefined,
-  N extends boolean = false,
->(t: T, d?: D, n?: N): TableDef<T, D, N, false, false> {
-  const result: Record<string, unknown> = { type: t }
+function column<T, N extends boolean = false, O extends boolean = false>(
+  sql: DataTypes,
+  d?: unknown,
+  nullable?: boolean,
+): TableDef<T, N, O> {
+  const result: Record<string, unknown> = { type: sql }
   if (d !== undefined) result.default = d
-  if (n === true || d === null) result.nullable = true
-  return result as TableDef<T, D, N, false, false>
+  if (nullable === true || d === null) result.nullable = true
+  // The runtime object is byte-for-byte what it was before `TableDef` changed
+  // shape: `type` holds the dialect name, `optional` is type-level only. That
+  // is the whole safety argument for this change — no adapter, no generated
+  // file and no stored ledger payload sees any difference.
+  return result as unknown as TableDef<T, N, O>
 }
+
+/** `T` when the column is NOT NULL, `T | null` when it is nullable. */
+type Nullable<T, N extends boolean> = N extends true ? T | null : T
+
+/**
+ * Optional on insert when there is a default, or the column is nullable.
+ *
+ * Computed once here so each builder does not restate it, and so the rule is
+ * in one place rather than implied by five `TableDef` arguments.
+ */
+type OptionalFor<D> = D extends undefined ? false : true
 
 const isColumnValue = (v: unknown): v is ColumnValue =>
   Boolean(v) &&
@@ -82,11 +97,9 @@ export interface ForeignKeyActions {
  * `number`.
  */
 type ForeignDef<N extends true | undefined> = TableDef<
-  'integer',
-  N extends true ? null : undefined,
+  N extends true ? number | null : number,
   N extends true ? true : false,
-  false,
-  false
+  N extends true ? true : false
 >
 
 /** What `Field.Index` / `Field.Unique` accept — a column produced by `table()`. */
@@ -157,17 +170,15 @@ export const Field = {
    * instead of inferring it.
    */
   Primary: () =>
-    ({ type: 'integer', autoIncrement: true, primary: true }) as TableDef<
-      'integer',
-      undefined,
+    ({ type: 'integer', autoIncrement: true, primary: true }) as unknown as TableDef<
+      number,
       false,
-      true,
       true
     >,
 
   /** A whole number. */
   Int: <D extends number | null | undefined = undefined>(d?: D) =>
-    column('integer', d),
+    column<Nullable<number, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('integer', d),
 
   /**
    * A fractional number — `DOUBLE` on MySQL, `DOUBLE PRECISION` on Postgres,
@@ -178,11 +189,11 @@ export const Field = {
    * next to `Int`.
    */
   Float: <D extends number | null | undefined = undefined>(d?: D) =>
-    column('number', d),
+    column<Nullable<number, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('number', d),
 
   /** Text. `Text()` and `Varchar()` say which kind; this stays the plain one. */
   String: <D extends string | null | undefined = undefined>(d?: D) =>
-    column('string', d),
+    column<Nullable<string, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('string', d),
 
   /**
    * Unbounded text — `TEXT` on every dialect.
@@ -199,8 +210,8 @@ export const Field = {
   // compile because `nullable` is absent from the other member.
   Text: ((nullable?: true) =>
     nullable ? column('string', null) : column('string')) as {
-    (): TableDef<'string', undefined, false, false, false>
-    (nullable: true): TableDef<'string', null, true, false, false>
+    (): TableDef<string, false, false>
+    (nullable: true): TableDef<string | null, true, true>
   },
 
   /**
@@ -220,7 +231,11 @@ export const Field = {
   Varchar: <D extends string | null | undefined = undefined>(
     length: number,
     d?: D,
-  ) => Object.assign(column('string', d), { length }),
+  ) =>
+    Object.assign(
+      column<Nullable<string, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('string', d),
+      { length },
+    ),
 
   /**
    * A 64-bit integer — `BIGINT` everywhere.
@@ -231,7 +246,7 @@ export const Field = {
    * large integers on SQLite, store them as `Varchar`.
    */
   BigInt: <D extends number | null | undefined = undefined>(d?: D) =>
-    column('bigint' as any, d as any),
+    column<Nullable<number, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('bigint' as any, d),
 
   /**
    * A JSON document — `JSON` on MySQL, `JSONB` on Postgres, a `JSON`-declared
@@ -247,16 +262,16 @@ export const Field = {
   // Overloaded for the same reason as `Text` above.
   Json: ((nullable?: true) =>
     nullable ? column('json' as any, null) : column('json' as any)) as {
-    (): TableDef<any, undefined, false, false, false>
-    (nullable: true): TableDef<any, null, true, false, false>
+    (): TableDef<unknown, false, false>
+    (nullable: true): TableDef<unknown, true, true>
   },
 
   /** True/false — `BOOLEAN` on Postgres, `TINYINT(1)` on MySQL. */
   Bool: <D extends boolean | null | undefined = undefined>(d?: D) =>
-    column('boolean', d),
+    column<Nullable<boolean, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('boolean', d),
 
   /** Binary. Always nullable: no dialect here takes a binary literal default. */
-  Blob: () => column('buffer', null),
+  Blob: () => column<Buffer | null, true, true>('buffer', null),
 
   /**
    * A column that references another table's column.
@@ -437,7 +452,9 @@ export const Field = {
    */
   Uuid: (nullable?: true) =>
     Object.assign(
-      nullable ? column('string', null) : column('string', '%uuid%' as const),
+      nullable
+        ? column<string | null, true, true>('string', null)
+        : column<string, false, true>('string', '%uuid%'),
       { length: 36 },
     ),
 
@@ -489,10 +506,14 @@ export const Field = {
       // element type out of here to build the row type, so widening it would
       // silently turn the column back into plain text.
       _enum: members,
-    }) as unknown as ReturnType<typeof column<'string', D>> & {
-      length: number
-      _enum: readonly EnumValues<V>[]
-    }
+      // The enum union rides in `type` now, so it reaches the row type by the
+      // ordinary path. `ExtractTableTypes` no longer needs to read `_enum`
+      // *before* `type` to stop `TypeMap` widening it back to `string`.
+    }) as unknown as TableDef<
+      D extends null ? EnumValues<V> | null : EnumValues<V>,
+      D extends null ? true : false,
+      D extends undefined ? false : true
+    > & { length: number; _enum: readonly EnumValues<V>[] }
   },
 
   /**
@@ -515,8 +536,8 @@ export const Field = {
    *     DB.Update('users').set({ name, updatedAt: Field.now() }).where(...)
    */
   Timestamps: () => ({
-    createdAt: column('integer', '%dateNow%' as const),
-    updatedAt: column('integer', '%dateNow%' as const),
+    createdAt: column<number, false, true>('integer', '%dateNow%'),
+    updatedAt: column<number, false, true>('integer', '%dateNow%'),
   }),
 
   /**
@@ -537,7 +558,8 @@ export const Field = {
    */
   Date: Object.assign(
     <D extends number | null | undefined = undefined>(d?: D) =>
-      column('integer', d),
-    { now: () => column('integer', '%dateNow%' as const) },
+      column<Nullable<number, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('integer', d),
+    // Optional on insert: the database supplies it.
+    { now: () => column<number, false, true>('integer', '%dateNow%') },
   ),
 }

@@ -24,47 +24,99 @@ export type Defs<T extends keyof TypeMap> =
   | '%dateNow%'
   | TypeMap[T]
 
+/**
+ * A column, described by what it *is* rather than by how it is spelled.
+ *
+ *     TableDef<number>              // NOT NULL, required on insert
+ *     TableDef<string | null, true> // nullable
+ *     TableDef<Status, false, true> // an enum, optional on insert
+ *
+ * Three parameters, where there were five (`type, default, nullable,
+ * autoIncrement, primary`). The two that went were positional booleans nothing
+ * outside `Field.Primary()` ever set, and `default` was carried only so
+ * nullability and optionality could be *derived* from it — which is why
+ * "defaulted but not nullable" and "nullable" were indistinguishable to
+ * anything downstream.
+ *
+ * **`T` is the row type, not a dialect name.** `number`, `string | null`, or an
+ * enum's own union — so `ExtractTableTypes` is a lookup rather than a mapping
+ * through `TypeMap`, and a type `TypeMap` cannot express (an enum, a branded
+ * id) needs no special case.
+ *
+ * At runtime this key holds the dialect discriminator (`'integer'`, `'string'`)
+ * that the adapters switch on. The two never meet: every adapter takes
+ * `def: unknown` and casts, and the sync engine has its own `ColumnConstraint`,
+ * bridged by the cast in `sync/load.ts`. That separation already existed and is
+ * what lets this change the schema-facing type without touching a single
+ * adapter, generated file, or stored ledger payload.
+ */
 export type TableDef<
-  T extends DataTypes,
-  D extends Defs<T> | null | undefined,
-  N extends boolean,
-  A extends boolean,
-  P extends boolean,
-> = OmitNever<{
+  T,
+  N extends boolean = false,
+  O extends boolean = false,
+> = {
   type: T
-  default: D extends undefined ? never : D extends null ? never : D
-  nullable: N extends true ? true : D extends null ? true : never
-  autoIncrement: A extends true ? true : never
-  primary: P extends true ? true : never
-}>
+  nullable: N
+  optional: O
+  default?: unknown
+  length?: number
+  autoIncrement?: boolean
+  primary?: boolean
+  _enum?: readonly string[]
+}
 
 export const dateNow = '%dateNow%'
 
+/**
+ * The row type of a column descriptor.
+ *
+ * Two forms reach here. A `Field.*` builder returns `TableDef<T, …>`, whose
+ * `type` **is** the row type, so this is a lookup. A hand-written literal —
+ * `{ type: 'integer', default: 0, nullable: true }`, the one shape `Field`
+ * does not spell — carries a dialect name there instead, which still goes
+ * through `TypeMap`.
+ *
+ * Distinguished by whether `type` is one of `TypeMap`'s keys. That is
+ * unambiguous because those keys are string *literals* and no row type is one:
+ * a column of literal type `'integer'` would be `Field.Enum(['integer'])`,
+ * whose `type` is the union, not the key.
+ */
+type RowTypeOf<Col> = Col extends { type: infer T }
+  ? T extends keyof TypeMap
+    ? TypeMap[T] | (Col extends { nullable: true } ? null : never)
+    : T
+  : any
+
 export type ExtractTableTypes<C, K extends keyof C> = {
-  [P in keyof C[K] as P extends '_view' ? never : P]: C[K][P] extends {
-    // `_enum` first: an enum column's `type` is `'string'`, so routing it
-    // through `TypeMap` would widen `'draft' | 'published'` to `string` and
-    // throw away the only reason `Field.Enum` exists over `Field.Varchar`.
-    _enum: readonly (infer V)[]
-  }
-    ? V | (C[K][P] extends { nullable: true } ? null : never)
-    : C[K][P] extends { type: infer Type }
-      ? Type extends keyof TypeMap
-        ? TypeMap[Type] | (C[K][P] extends { nullable: true } ? null : never)
-        : any
-      : any
+  [P in keyof C[K] as P extends '_view' ? never : P]: RowTypeOf<C[K][P]>
 }
 
+/**
+ * Which columns may be omitted from an `INSERT`.
+ *
+ * `optional: true` when a `Field.*` builder said so, which is the whole check
+ * for anything `Field` produces — it states optionality rather than leaving it
+ * to be reconstructed. The three derived conditions below it are the fallback
+ * for a hand-written literal, which has no `optional` key.
+ *
+ * Stating it also makes a shape expressible that derivation could not:
+ * **optional but neither nullable nor defaulted** — a column the database fills
+ * in, such as a generated key.
+ */
 export type ExtractOptionals<C, T extends keyof C> = {
   [K in keyof C[T]]: K extends '_view'
     ? never
-    : C[T][K] extends { nullable: true }
+    : C[T][K] extends { optional: true }
       ? K
-      : C[T][K] extends { default: string | number | boolean | null }
-        ? K
-        : C[T][K] extends { autoIncrement: true }
+      : C[T][K] extends { optional: false }
+        ? never
+        : C[T][K] extends { nullable: true }
           ? K
-          : never
+          : C[T][K] extends { default: string | number | boolean | null }
+            ? K
+            : C[T][K] extends { autoIncrement: true }
+              ? K
+              : never
 }[keyof C[T]]
 
 export type ExtractViews<C> = {
@@ -313,7 +365,20 @@ export function old<TSchema extends SyncTypes.DBConstraints>(
   transform?: (oldRow: Record<string, unknown>) => unknown,
 ): TSchema
 
-export function old<T extends SyncTypes.ColumnConstraint>(
+/**
+ * Constrained on `{ type: unknown }`, not on `ColumnConstraint`.
+ *
+ * This is the one function that takes a column descriptor in a *typed*
+ * position, so it is where the two vocabularies meet: `ColumnConstraint.type`
+ * is the dialect name the sync engine reads, while a `Field.*` builder declares
+ * `type` as the **row type**. Requiring the sync-side shape here rejected every
+ * `Field` value — `old('title', Field.Varchar(255))` stopped compiling.
+ *
+ * `old()` only copies the object and adds two keys, so it needs no more than
+ * "something with a `type`", and returning `T` unchanged means the row type and
+ * optionality survive the wrapper.
+ */
+export function old<T extends { type: unknown }>(
   oldColumnName: string,
   columnDef: T,
   transform?: (oldValue: unknown, oldRow: Record<string, unknown>) => unknown,

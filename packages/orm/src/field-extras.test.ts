@@ -68,6 +68,72 @@ void [
   _reqAuthor,
 ]
 
+/**
+ * What `TableDef<TYPE, nullable, optional>` buys, checked at compile time.
+ *
+ * The descriptor now carries the *row type* in `type` rather than a dialect
+ * name, and states optionality instead of leaving it to be reconstructed from
+ * `nullable ∥ default ∥ autoIncrement`. Both are load-bearing, so both are
+ * pinned here rather than left to the runtime assertions below.
+ */
+const SHAPE = {
+  t: {
+    // A type `TypeMap` cannot express at all — the case that previously needed
+    // `_enum` to be read *before* `type`, or the union widened back to `string`.
+    status: Field.Enum(['draft', 'published'] as const, 'draft'),
+    // Optional despite being neither nullable nor defaulted by the caller: the
+    // database supplies it. Derivation could not express this.
+    createdAt: Field.Date.now(),
+    // Required: no default, not nullable.
+    title: Field.Varchar(255),
+    nickname: Field.Varchar(64, null),
+  },
+}
+type S = typeof SHAPE
+type SRow = ExtractTableTypes<S, 't'>
+type SOpt = ExtractOptionals<S, 't'>
+
+const _rowEnum: Expect<SRow['status'], 'draft' | 'published'> = true
+const _rowReq: Expect<SRow['title'], string> = true
+const _rowNull: Expect<SRow['nickname'], string | null> = true
+const _rowDate: Expect<SRow['createdAt'], number> = true
+// `title` is the only one required on insert.
+const _sOptCreated: Expect<Extract<SOpt, 'createdAt'>, 'createdAt'> = true
+const _sOptStatus: Expect<Extract<SOpt, 'status'>, 'status'> = true
+const _sOptNick: Expect<Extract<SOpt, 'nickname'>, 'nickname'> = true
+const _sReqTitle: Expect<Extract<SOpt, 'title'>, never> = true
+void [
+  _rowEnum,
+  _rowReq,
+  _rowNull,
+  _rowDate,
+  _sOptCreated,
+  _sOptStatus,
+  _sOptNick,
+  _sReqTitle,
+]
+
+describe('the descriptor carries the row type, not a dialect name', () => {
+  test('the runtime object is unchanged — `type` is still the dialect name', () => {
+    // The entire safety argument for the reshape: adapters, generated files and
+    // stored ledger payloads see exactly what they saw before.
+    const asRuntime = (d: unknown) => d as Record<string, unknown>
+    expect(asRuntime(Field.Varchar(64, null))).toEqual({
+      type: 'string',
+      default: null,
+      nullable: true,
+      length: 64,
+    })
+    expect(asRuntime(Field.Date.now())).toEqual({
+      type: 'integer',
+      default: '%dateNow%',
+    })
+    // `optional` is type-level only and must not reach the object, or it would
+    // show up in the ledger and in every column diff.
+    expect('optional' in (Field.Int(0) as object)).toBe(false)
+  })
+})
+
 describe('Field.Primary and Field.Foreign are integer', () => {
   test('Primary is an auto-increment integer key', () => {
     expect(Field.Primary()).toEqual({

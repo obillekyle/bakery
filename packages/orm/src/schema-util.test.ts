@@ -14,6 +14,17 @@ afterAll(() => __resetTestDb())
 import { evalOperands, isSafeIdentifier, SQLFunctionRef } from './schema-util'
 import { Field } from './field'
 
+/**
+ * The runtime object, widened.
+ *
+ * `TableDef` now describes what a column *is* — `type` is the row type — while
+ * the object it builds still carries the dialect name there for the adapters.
+ * The two are deliberately different, so an assertion about the runtime shape
+ * has to say it is reading the runtime shape.
+ */
+const shape = (d: unknown) => ({ ...(d as Record<string, unknown>) })
+
+
 describe('evalOperands', () => {
   test('pushes scalar values as params', () => {
     const params: any[] = []
@@ -170,7 +181,7 @@ describe('a default does not make a column nullable', () => {
 
   test('Field.Int(0) carries the default and no nullable flag', () => {
     const def = Field.Int(0)
-    expect(def).toEqual({ type: 'integer', default: 0 } as typeof def)
+    expect(shape(def)).toEqual({ type: 'integer', default: 0 })
     expect('nullable' in def).toBe(false)
   })
 
@@ -198,7 +209,9 @@ describe('a default does not make a column nullable', () => {
 
 describe('primary', () => {
   test('creates integer auto-increment primary key', () => {
-    const def = Field.Primary()
+    // `shape()` because `def.type` is declared as the *row* type now — `number`
+    // — while the object carries the dialect name the adapters read.
+    const def = shape(Field.Primary())
     expect(def.type).toBe('integer')
     expect(def.autoIncrement).toBe(true)
     expect(def.primary).toBe(true)
