@@ -17,7 +17,7 @@ apps/notes/
   orm/
     schema.ts           tables — the generator owns this file
     index.ts            re-exports + the schema type registration
-    indexes.ts          index() / unique() declarations
+    indexes.ts          Field.Index() / Field.Unique() declarations
   src/                  ← the serve root. Everything here is web-reachable.
     index.tsx           /
     about.html          /about

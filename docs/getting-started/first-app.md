@@ -103,19 +103,21 @@ hand-written beside the tables would be collateral
 `apps/notes/orm/schema.ts`:
 
 ```ts
-import { dateNow, primary, table, value } from '@bakery/orm'
+import { Field, table } from '@bakery/orm'
 
 export const notes = table('notes', {
-  id: primary(),
-  title: value('string', null),
-  body: value('string', ''),
-  createdAt: value('integer', dateNow),
+  id: Field.Primary(),
+  title: Field.Varchar(255, null),
+  body: Field.Varchar(8192, ''),
+  createdAt: Field.Date.now(),
 })
 ```
 
-`value(type, default)` — a `null` default means the column is NOT NULL with no
-default, so you must supply it on insert. A third argument, `true`, marks the
-column optional on insert regardless.
+Columns come from `Field`; typing `Field.` lists every kind. A `null` default
+makes the column nullable and therefore optional on insert — `Field.Varchar(255)`
+without one is NOT NULL, so you must supply it. `Field.Varchar` rather than
+`Field.Text` wherever there is a default, because MySQL refuses a literal
+DEFAULT on a TEXT column.
 
 `apps/notes/orm/index.ts`:
 

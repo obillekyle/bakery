@@ -95,17 +95,22 @@ describe('the generated shape follows the layout it is written into', () => {
     const source = await generate('folder')
 
     expect(source).toContain("export const widgets = table('widgets', {")
-    expect(source).toContain('id: primary(),')
-    expect(source).toContain("note: value('string', null, true),")
-    expect(source).toContain("qty: value('integer', 0, true),")
-    expect(source).toContain("madeAt: value('integer', dateNow),")
+    expect(source).toContain('id: Field.Primary(),')
+    expect(source).toContain('note: Field.String(null),')
+    expect(source).toContain('madeAt: Field.Date.now(),')
     expect(source).not.toContain('namespace DBInfo')
 
-    // `label` is NOT NULL with no default, and comes back as
-    // `value('string', null)` — which `value()` reads as nullable. That is the
-    // column formatter's long-standing round-trip loss, shared with the DBInfo
-    // form and unchanged here; pinned so the shape change is not blamed for it.
-    expect(source).toContain("label: value('string', null),")
+    // `qty` is nullable *and* defaults to 0, which `Field` cannot spell: its one
+    // convention is that a null default means nullable. So it falls through to
+    // `value()`, which has a separate argument for it — emitting `Field.Int(0)`
+    // here would quietly turn a nullable column into NOT NULL.
+    expect(source).toContain("qty: value('integer', 0, true),")
+
+    // `label` is NOT NULL with no default and comes back as nullable. That is
+    // the column formatter's long-standing round-trip loss, shared with the
+    // DBInfo form and unchanged by the move to `Field`; pinned so the vocabulary
+    // change is not blamed for it.
+    expect(source).toContain('label: Field.String(null),')
   })
 
   test('a folder layout never emits a second registration block', async () => {
@@ -125,9 +130,11 @@ describe('the generated shape follows the layout it is written into', () => {
 
   test('the folder module imports exactly the helpers it used', async () => {
     const source = await generate('folder')
-    expect(source).toContain(
-      "import { dateNow, primary, table, value } from '@bakery/orm'",
-    )
+    // Exactly the helpers used, sorted: `Field` for the columns it can name,
+    // `value` for the one it cannot, and no `dateNow` — `Field.Date.now()` needs
+    // no marker import.
+    expect(source).toContain("import { Field, table, value } from '@bakery/orm'")
+    expect(source).not.toContain('dateNow')
   })
 
   test('the emitted module really is importable, and round-trips', async () => {

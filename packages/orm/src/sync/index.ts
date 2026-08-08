@@ -53,6 +53,7 @@ Flags:
   --choose=ts     Apply schema.ts to the database (TS wins, default)
   --dry-run       Preview planned changes without applying them
   --force-sync    In production, allow destructive changes
+  --no-ledger     Diff against live introspection, ignoring the recorded schema
   --help, -h      Show this help message
 `)
   }

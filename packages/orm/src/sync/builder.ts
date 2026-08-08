@@ -86,11 +86,17 @@ export class SchemaBuilder {
     const n = p ? false : (cons.nullable ?? false)
 
     if (p && cons.type === 'integer' && a) {
-      return `${indent}${colName}: primary(),\n`
+      return `${indent}${colName}: Field.Primary(),\n`
     }
 
     const d = SchemaBuilder.getDefaultValue(cons, isView, adapter)
+    const named = SchemaBuilder.asFieldCall(cons, d, n)
+    if (named) return `${indent}${colName}: ${named},\n`
 
+    // Nothing in the `Field` vocabulary spells this column — an explicit
+    // `primary` that is not auto-increment, for instance. `value()` remains the
+    // primitive precisely so the generator always has something to emit rather
+    // than dropping a column it cannot name.
     const args = [
       t,
       d,
@@ -105,6 +111,70 @@ export class SchemaBuilder {
 
     const finalArgs = args.map(arg => (arg === undefined ? 'undefined' : arg))
     return `${indent}${colName}: value(${finalArgs.join(', ')}),\n`
+  }
+
+  /**
+   * The `Field` call for a column, or `null` when none fits.
+   *
+   * Generated schemas are the first thing most people read, and `value('string',
+   * undefined, true)` teaches three positional booleans where
+   * `Field.Text(true)` teaches a name. Only shapes that round-trip are emitted:
+   * anything else falls through to `value()` above rather than being
+   * approximated into a column that means something slightly different.
+   *
+   * `_enum` is deliberately absent — the members are not part of the column diff
+   * and are not introspected, so the database cannot tell us an enum from a
+   * `VARCHAR`, and guessing would silently invent a constraint.
+   */
+  private static asFieldCall(
+    cons: any,
+    def: string | undefined,
+    nullable: boolean,
+  ): string | null {
+    if (cons.primary || cons.autoIncrement) return null
+    const hasLen = typeof cons.length === 'number'
+    // `undefined` from getDefaultValue means "no default", which is a different
+    // column from one defaulting to null.
+    const arg = def === undefined ? '' : def
+
+    // `Field`'s one convention is that a **null default means nullable**, which
+    // makes "nullable *and* defaulted to something else" unspellable: emitting
+    // `Field.Int(0)` for `value('integer', 0, true)` would quietly turn a
+    // nullable column into NOT NULL. That shape falls through to `value()`,
+    // which has a separate argument for it.
+    if (nullable && def !== undefined && def !== 'null') return null
+
+    // Markers are matched on the *raw* default, not on `def`, which is already
+    // source text: `getDefaultValue` turns `%dateNow%` into the identifier
+    // `dateNow` and `%uuid%` into a quoted literal, so comparing against either
+    // spelling is a guess about formatting rather than about the column.
+    //
+    // Emitting `Field.Uuid()` / `Field.Date.now()` also removes the need for the
+    // `dateNow` import, which is added only when the body still mentions it.
+    if (cons.type === 'string' && cons.default === '%uuid%') return 'Field.Uuid()'
+    switch (cons.type) {
+      case 'integer':
+        if (cons.default === '%dateNow%') return 'Field.Date.now()'
+        return nullable && def === undefined ? null : `Field.Int(${arg})`
+      case 'number':
+        return nullable && def === undefined ? null : `Field.Float(${arg})`
+      case 'boolean':
+        return nullable && def === undefined ? null : `Field.Bool(${arg})`
+      case 'bigint':
+        return nullable && def === undefined ? null : `Field.BigInt(${arg})`
+      case 'buffer':
+        // `Field.Blob()` is always nullable, so it can only stand in for one.
+        return nullable && def === 'null' ? 'Field.Blob()' : null
+      case 'json':
+        if (def === undefined) return 'Field.Json()'
+        return nullable && def === 'null' ? 'Field.Json(true)' : null
+      case 'string':
+        if (hasLen) return `Field.Varchar(${cons.length}${arg ? `, ${arg}` : ''})`
+        if (def === undefined) return nullable ? 'Field.Text(true)' : 'Field.Text()'
+        return `Field.String(${arg})`
+      default:
+        return null
+    }
   }
 
   private static buildConstraintsString(
@@ -190,8 +260,11 @@ export class SchemaBuilder {
     // would either miss a helper or leave an unused one in a file the app
     // typechecks.
     const helpers = ['table']
-    if (/\bprimary\(/.test(body)) helpers.push('primary')
+    if (/\bField\./.test(body)) helpers.push('Field')
+    // Still possible: `asFieldCall` returns null for a shape `Field` cannot
+    // spell, and the fallback emits `value()`.
     if (/\bvalue\(/.test(body)) helpers.push('value')
+    if (/\bprimary\(/.test(body)) helpers.push('primary')
     if (/\bdateNow\b/.test(body)) helpers.push('dateNow')
 
     return `/**
@@ -211,21 +284,26 @@ import { ${helpers.sort().join(', ')} } from '@bakery/orm'
 ${body}`
   }
 
+  /**
+   * The standalone `schema.ts`: constraints, indexes and the registration block.
+   *
+   * `Field` is imported from the package root and the types from
+   * `schema-util`, in two statements rather than one, because `schema-util`
+   * cannot re-export `Field` without closing a cycle — `field.ts` calls
+   * `value`/`primary`/`index`/`unique`, and this repo has already paid once for
+   * a cycle that typechecked and then failed at runtime.
+   */
   private static buildDbInfoBlock(
     stringifiedConstraints: string,
     stringifiedIndexes: string,
   ): string {
     return `
+import { Field } from '@bakery/orm';
 import {
-  dateNow,
   type ExtractOptionals,
   type ExtractTableTypes,
   type ExtractViews,
-  index,
   old,
-  primary,
-  unique,
-  value,
 } from '@bakery/orm/schema-util';
 
 export namespace DBInfo {

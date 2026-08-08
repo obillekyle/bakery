@@ -150,6 +150,33 @@ describe('width participates in the column diff', () => {
     )
 
     test.skipIf(skip)(
+      `${name}: sizing an existing TEXT column migrates it`,
+      async () => {
+        // The reverse direction, and the one that was silently a no-op: the
+        // database has TEXT, the schema now says VARCHAR(n). Requiring both
+        // sides to be sized made `db:sync` report a perfect sync against a
+        // database whose columns did not match the schema.
+        const { db, table } = await fixture(open, 'grew')
+        await alive(
+          db
+            .query(
+              `CREATE TABLE ${table} (${db.quote('id')} INTEGER, ${db.quote('slug')} TEXT)`,
+            )
+            .run(),
+        )
+
+        const { plan, live, key } = await planFor(db, table, {
+          id: Field.Int(),
+          slug: Field.Varchar(128),
+        })
+        // Genuinely unsized in the database …
+        expect(live[key].slug.length).toBeUndefined()
+        // … so declaring a width is a change.
+        expect([...plan.tablesToRebuild]).toHaveLength(1)
+      },
+    )
+
+    test.skipIf(skip)(
       `${name}: an unsized schema column does not shrink a sized one`,
       async () => {
         // Declaring Text() against an existing VARCHAR is not a request to

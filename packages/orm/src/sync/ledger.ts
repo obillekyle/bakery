@@ -249,12 +249,27 @@ export function shapesMatch(
  */
 export async function resolveCurrentState(
   adapter: SQLAdapter,
+  options: { ignoreLedger?: boolean } = {},
 ): Promise<{
   constraints: SyncTypes.DBConstraints
   source: 'ledger' | 'introspection'
   reason?: string
 }> {
   const live = stripLedger(await adapter.getConstraints())
+  // `--no-ledger`, and it exists because the ledger can be *wrong about types*
+  // in a way `shapesMatch` cannot see. That check compares names only, on
+  // purpose — comparing types would need the dialect normalisation the ledger
+  // exists to avoid — so a ledger claiming `VARCHAR(64)` where the column is
+  // really `TEXT` matches its shape and wins the diff. That happens whenever a
+  // sync legitimately concluded "no change needed" and the *rule* it used later
+  // got stricter, which is exactly what adding width to the diff did.
+  //
+  // Without an escape hatch the only recovery is deleting the ledger table by
+  // hand, and the symptom is `db:sync` insisting a database is perfectly synced
+  // against a schema it does not match.
+  if (options.ignoreLedger) {
+    return { constraints: live, source: 'introspection', reason: 'ledger ignored (--no-ledger)' }
+  }
   const ledger = await readLedger(adapter)
   if (!ledger) return { constraints: live, source: 'introspection', reason: 'no ledger yet' }
 

@@ -56,23 +56,23 @@ A table is a value carrying its own name and columns.
 
 ```ts
 // orm/schema.ts
-import { dateNow, primary, table, value } from '@bakery/orm'
+import { Field, table } from '@bakery/orm'
 
 export const users = table('users', {
-  id: primary(),
-  username: value('string'),
-  email: value('string', null),
-  createdAt: value('integer', dateNow),
+  id: Field.Primary(),
+  username: Field.Varchar(64),
+  email: Field.Varchar(255, null),
+  createdAt: Field.Date.now(),
 })
 
 export const posts = table('posts', {
-  id: primary(),
-  authorId: value('integer'),
-  title: value('string'),
-  slug: value('string'),
-  body: value('string', ''),
-  published: value('integer', 0),
-  createdAt: value('integer', dateNow),
+  id: Field.Primary(),
+  authorId: Field.Foreign(users.id, { onDelete: 'CASCADE' }),
+  title: Field.Varchar(255),
+  slug: Field.Varchar(255),
+  body: Field.Varchar(8192, ''),
+  published: Field.Int(0),
+  createdAt: Field.Date.now(),
 })
 ```
 
@@ -80,43 +80,69 @@ The name is passed explicitly rather than inferred from the export binding —
 inferring it would need a build step or a Proxy.
 
 Because a table is a value, its columns are values too: `posts.authorId` is a
-reference that knows it belongs to `posts`. That is what lets `index()` take one
-argument instead of two strings, and what makes a typo a compile error rather
-than a sync-time surprise.
+reference that knows it belongs to `posts`. That is what lets `Field.Index()`
+take one argument instead of two strings, what lets `Field.Foreign()` name its
+target directly, and what makes a typo a compile error rather than a sync-time
+surprise.
 
 `table` from `@bakery/orm` declares a table. `DB.table` starts a *query* — see
 [Queries](queries.md). They are different functions with the same name.
 
 ## Columns
 
-`value(type, default?, nullable?, autoIncrement?, primary?)`.
+Columns are declared with `Field`. Typing `Field.` lists everything a column can
+be, which is the point of it having a name for each case.
 
-| Type | SQLite | MySQL | Postgres | TypeScript |
+| Builder | SQLite | MySQL | Postgres | TypeScript |
 | --- | --- | --- | --- | --- |
-| `'integer'` | `INTEGER` | `INT` | `INTEGER` | `number` |
-| `'number'` | `REAL` | `DOUBLE` | `DOUBLE PRECISION` | `number` |
-| `'string'` | `TEXT` | `TEXT` | `TEXT` | `string` |
-| `'boolean'` | `INTEGER` | `TINYINT(1)` | `BOOLEAN` | `boolean` |
-| `'buffer'` | `BLOB` | `BLOB` | `BYTEA` | `Buffer` |
+| `Field.Int(d?)` | `INTEGER` | `INT` | `INTEGER` | `number` |
+| `Field.Float(d?)` | `REAL` | `DOUBLE` | `DOUBLE PRECISION` | `number` |
+| `Field.BigInt(d?)` | `BIGINT` | `BIGINT` | `BIGINT` | `number` |
+| `Field.Text(nullable?)` | `TEXT` | `TEXT` | `TEXT` | `string` |
+| `Field.Varchar(n, d?)` | `VARCHAR(n)` | `VARCHAR(n)` | `VARCHAR(n)` | `string` |
+| `Field.Bool(d?)` | `INTEGER` | `TINYINT(1)` | `BOOLEAN` | `boolean` |
+| `Field.Blob()` | `BLOB` | `BLOB` | `BYTEA` | `Buffer` |
+| `Field.Json(nullable?)` | `JSON` | `JSON` | `JSONB` | `unknown` |
+| `Field.Uuid(nullable?)` | `VARCHAR(36)` | `VARCHAR(36)` | `VARCHAR(36)` | `string` |
+| `Field.Enum(members, d?)` | `VARCHAR(n)` | `VARCHAR(n)` | `VARCHAR(n)` | the union |
+| `Field.Date(d?)` | `INTEGER` | `INT` | `INTEGER` | `number` |
+| `Field.Primary()` | auto-increment integer key — see [Adapters](adapters.md) | | | `number` |
+| `Field.Foreign(target, o?)` | integer + `FOREIGN KEY` | | | `number` |
 
-- `value('string')` — `TEXT NOT NULL`, no default.
-- `value('string', 'guest')` — adds `DEFAULT 'guest'`.
-- `value('string', null)` — nullable, `DEFAULT NULL`. Passing `null` as the
-  default is how you make a column nullable in the common case.
-- `value('integer', 0, true)` — nullable *and* defaulted.
-- `primary()` — shorthand for an auto-incrementing integer primary key. Each
-  dialect spells it differently; see [Adapters](adapters.md).
-- `dateNow` — a marker default, emitted as the dialect's "epoch seconds now"
-  expression. Store timestamps as `value('integer', dateNow)`.
+**`null` as the default means nullable**, which is the one convention to carry
+across: `Field.Varchar(64)` is `NOT NULL` with no default, `Field.Varchar(64,
+'')` is `NOT NULL` defaulting to empty, and `Field.Varchar(64, null)` is
+nullable.
 
-The third argument is nullability: `value('string', null, true)` is nullable,
-`value('integer', 0, false)` is not. It used to treat *any* third argument as
-"nullable", including an explicit `false`, because the check was
-`n !== undefined` rather than `n === true`. Omitting it still means not-null.
+**Modifiers are not chained.** There is no `.nullable().primary()`, because a
+builder that is also a column definition breaks inference — while it was being
+prototyped, `email` came out `string` instead of `string | null`. The named
+constructors cover the real cases without it.
+
+A few carry a constraint worth knowing:
+
+- **`Field.Text` takes no default.** MySQL refuses a literal `DEFAULT` on a
+  `TEXT` column, so use `Field.Varchar(n, d)` when you need one. This is not
+  hypothetical: it is what previously stopped the shipped schema template from
+  syncing against MySQL at all.
+- **`Field.Primary()` and `Field.Foreign()` are always integers.** Primary is an
+  `INTEGER PRIMARY KEY AUTOINCREMENT`, and a foreign key exists to point at one,
+  so its row type is `number` — or `number | null` with `{ nullable: true }`. For
+  a UUID key, use `Field.Uuid()` with `Field.Unique()`.
+- **`Field.Json`** reads back parsed on MySQL and Postgres and as a raw string on
+  SQLite, so its row type is `unknown`. Narrow it where you use it rather than
+  trusting a type that would be wrong on one of the three.
+- **`Field.Date.now()`** is a marker default emitted as the dialect's "epoch
+  seconds now" expression. `Field.now()` is the matching value for an `INSERT` or
+  `UPDATE`.
 
 A column is optional on insert when it is nullable, has a default, or
 auto-increments. That is what `InferOptionals` computes, and it is why
 `Insert.into('posts').values({ … })` does not demand an `id`.
+
+`value(type, default?, nullable?, autoIncrement?, primary?)` is the primitive
+underneath all of these and stays exported for anything `Field` does not spell.
+Every builder is a thin wrapper over it, so the two cannot disagree.
 
 ## Indexes and unique constraints
 
@@ -128,30 +154,30 @@ database.
 // orm/indexes.ts — in the folder layout this file starts with
 //   import { posts, users } from './schema'
 // The tables are inlined here so the example stands on its own.
-import { index, primary, table, unique, value } from '@bakery/orm'
+import { Field, table } from '@bakery/orm'
 
-const users = table('users', { id: primary(), username: value('string') })
+const users = table('users', { id: Field.Primary(), username: Field.Varchar(64) })
 const posts = table('posts', {
-  id: primary(),
-  authorId: value('integer'),
-  slug: value('string'),
-  createdAt: value('integer'),
+  id: Field.Primary(),
+  authorId: Field.Foreign(users.id),
+  slug: Field.Varchar(255),
+  createdAt: Field.Date.now(),
 })
 
-export const usernameUniq = unique(users.username)
-export const slugUniq = unique(posts.slug)
-export const postsByAuthor = index(posts.authorId)
-export const postsByAuthorDate = index(posts.authorId, posts.createdAt)
+export const usernameUniq = Field.Unique(users.username)
+export const slugUniq = Field.Unique(posts.slug)
+export const postsByAuthor = Field.Index(posts.authorId)
+export const postsByAuthorDate = Field.Index(posts.authorId, posts.createdAt)
 ```
 
 Both helpers also accept the older string form, which is what `--choose=db`
 generates:
 
 ```ts
-import { index, unique } from '@bakery/orm'
+import { Field } from '@bakery/orm'
 
-export const postsByAuthor = index('posts', ['authorId'])
-export const slugUniq = unique('posts', 'slug')
+export const postsByAuthor = Field.Index('posts', ['authorId'])
+export const slugUniq = Field.Unique('posts', 'slug')
 ```
 
 Prefer the column form. The string form cannot catch a typo in either argument
@@ -161,45 +187,75 @@ built from columns of two different tables throws at load.
 
 Index names, table names and column names are all snake-cased on the way to SQL.
 
-## `foreign()` is exported, and rejected at load
+## Foreign keys
 
-**Do not use it.** `foreign()` is in the export list, has two pleasant calling
-forms, and will stop `db:sync` dead:
-
-```
-foreign() is declared but not implemented: postsAuthorFk. No adapter emits
-FOREIGN KEY DDL, so it would be created as a plain index and then re-diffed on
-every sync. Use index() on the column and enforce the reference in your
-application.
-```
-
-`db:sync` exits 1 the moment it sees one
-([`sync/index.ts`](../../packages/orm/src/sync/index.ts)). The reason is
-worse than "unimplemented". No adapter emits `FOREIGN KEY` DDL, so a declaration
-used to be created as an ordinary index; the next diff then compared `foreign`
-in TypeScript against `index` in the database, decided to drop and re-add it,
-and — because index drops count as destructive — aborted. The dev server stopped
-booting, with nothing pointing at the cause. Failing at load turns that into one
-message.
-
-The workaround is an ordinary index plus enforcement in your code:
+Declare the reference on the column it constrains:
 
 ```ts
-import { index, table, value, primary } from '@bakery/orm'
+import { Field, table } from '@bakery/orm'
+
+const users = table('users', { id: Field.Primary(), name: Field.Varchar(64) })
 
 export const posts = table('posts', {
-  id: primary(),
-  // No FK. The index makes the lookup fast; nothing enforces the reference.
-  authorId: value('integer'),
+  id: Field.Primary(),
+  authorId: Field.Foreign(users.id, { onDelete: 'CASCADE' }),
+  // Nullable, so deleting the editor leaves the post with none.
+  editorId: Field.Foreign(users.id, { nullable: true, onDelete: 'SET NULL' }),
 })
-
-export const postsByAuthor = index(posts.authorId)
 ```
 
-Real support needs per-dialect DDL *and* introspection (SQLite has no
-`ALTER TABLE ADD CONSTRAINT`, so it means a table rebuild), and shipping
-unverified constraint DDL is the one failure mode that costs someone else their
-data.
+Real `FOREIGN KEY` DDL on all three dialects, read back by introspection, with
+`ON DELETE` and `ON UPDATE`. Actions default to `NO ACTION`, as SQL does.
+
+**`Field.Foreign` is always an integer** — `number` in the row type, or
+`number | null` when nullable — because `Field.Primary()` is always an
+`INTEGER PRIMARY KEY AUTOINCREMENT` and a foreign key exists to point at one.
+
+**The target must be a primary key or carry a unique index.** SQL requires it,
+and the dialects disagree about how to tell you: MySQL and Postgres refuse the
+`CREATE`, while SQLite accepts it and then fails *every insert* with "foreign
+key mismatch". `db:sync` checks first and names the offending reference rather
+than letting either happen.
+
+Two dialect details worth knowing, both handled for you:
+
+- **SQLite cannot `ALTER` a foreign key in or out** — the constraint is part of
+  the table definition — so adding or removing one becomes a table rebuild. The
+  printed plan says so before it runs.
+- **SQLite enforces foreign keys only when `PRAGMA foreign_keys` is on**, and it
+  defaults *off*, per connection. The adapter turns it on for every connection it
+  opens; without that a key is stored, reported by introspection, shown in the
+  dashboard, and enforces nothing.
+
+### Composite keys
+
+A key spanning more than one column uses `foreign()`, which is variadic on both
+sides — there is no single column for it to hang off:
+
+```ts
+import { Field, foreign, table } from '@bakery/orm'
+
+const orders = table('orders', {
+  id: Field.Primary(),
+  sku: Field.Varchar(32),
+})
+
+export const items = table('items', {
+  id: Field.Primary(),
+  orderId: Field.Int(),
+  sku: Field.Varchar(32),
+})
+
+export const itemsOrderFk = foreign(items.orderId, items.sku).references(
+  orders.id,
+  orders.sku,
+  { onDelete: 'CASCADE' },
+)
+```
+
+Both sides must name the same number of columns in the same order, and all of one
+side must belong to one table; each of those is refused at load with a message
+naming the mistake rather than at sync time with a server error.
 
 ## Renames and data migration: `old()`
 
@@ -207,12 +263,12 @@ data.
 engine renames instead of dropping and recreating.
 
 ```ts
-import { old, primary, table, value } from '@bakery/orm'
+import { Field, old, table } from '@bakery/orm'
 
 export const posts = table('posts', {
-  id: primary(),
+  id: Field.Primary(),
   // Was `title` in the database; rename it, keep the data.
-  headline: old('title', value('string')),
+  headline: old('title', Field.Varchar(255)),
 })
 ```
 
@@ -221,12 +277,12 @@ the change into a full table rebuild — rows are read, mapped in JavaScript, an
 inserted into the new shape:
 
 ```ts
-import { old, primary, table, value } from '@bakery/orm'
+import { Field, old, table } from '@bakery/orm'
 
 export const posts = table('posts', {
-  id: primary(),
+  id: Field.Primary(),
   // Old rows stored a string; the column is now an integer.
-  views: old('viewsText', value('integer', 0), oldValue => Number(oldValue) || 0),
+  views: old('viewsText', Field.Int(0), oldValue => Number(oldValue) || 0),
 })
 ```
 
@@ -297,28 +353,25 @@ The older form puts everything in one `schema.ts` under a `DBInfo` namespace.
 contains:
 
 ```ts no-check — a module augmentation retypes every other example in the shared docs compile
+import { Field } from '@bakery/orm'
 import {
-  dateNow,
   type ExtractOptionals,
   type ExtractTableTypes,
   type ExtractViews,
-  index,
-  primary,
-  unique,
-  value,
 } from '@bakery/orm/schema-util'
 
 export namespace DBInfo {
   export const constraints = {
     users: {
-      id: primary(),
-      username: value('string', null),
-      createdAt: value('integer', dateNow),
+      id: Field.Primary(),
+      username: Field.Varchar(64, null),
+      createdAt: Field.Date.now(),
     },
   } as const
 
   export const indexes = {
-    usersUsernameUniq: unique('users', ['username']),
+    // No table() values in this layout, so the string form is the one available.
+    usersUsernameUniq: Field.Unique('users', ['username']),
   } as const
 
   type C = typeof constraints

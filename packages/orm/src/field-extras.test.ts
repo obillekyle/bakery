@@ -5,6 +5,7 @@ import { SQLiteAdapter } from './adapters/sqlite'
 import type { SQLAdapter } from './adapters/base'
 import { Field } from './field'
 import { poolOptionsFromEnv, withPoolOptions } from './pool'
+import type { ExtractOptionals, ExtractTableTypes } from './schema-util'
 
 const MYSQL_URL = process.env.MYSQL_TEST_URL
 const PGSQL_URL = process.env.PGSQL_TEST_URL
@@ -14,6 +15,173 @@ function alive<T>(promise: T | Promise<T>): Promise<T> {
   const timer = setTimeout(() => {}, 30_000)
   return Promise.resolve(promise).finally(() => clearTimeout(timer))
 }
+
+/**
+ * Type-level assertions, checked by `bun run typecheck` rather than at runtime.
+ *
+ * `Field.Foreign` used to return `as any`, so every foreign-key column inferred
+ * as `any` and nothing noticed — a row type that silently gives up is worse than
+ * one that is wrong, because nothing downstream complains. These fail to
+ * *compile* if that regresses.
+ */
+type Expect<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never
+const TYPED = {
+  users: { id: Field.Primary(), name: Field.Varchar(64, '') },
+  posts: {
+    id: Field.Primary(),
+    authorId: Field.Foreign({ __table: 'users', __column: 'id' }),
+    editorId: Field.Foreign(
+      { __table: 'users', __column: 'id' },
+      { nullable: true },
+    ),
+    status: Field.Enum(['draft', 'published'] as const, 'draft'),
+  },
+}
+type C = typeof TYPED
+type PostRow = ExtractTableTypes<C, 'posts'>
+
+// Primary is always integer, so always `number`.
+const _primaryIsNumber: Expect<PostRow['id'], number> = true
+// Foreign is always integer, so always `number` …
+const _foreignIsNumber: Expect<PostRow['authorId'], number> = true
+// … and `number | null` when nullable. Not `any`, which is what it used to be.
+const _nullableForeign: Expect<PostRow['editorId'], number | null> = true
+// Enum contributes its union, not `string`.
+const _enumIsUnion: Expect<PostRow['status'], 'draft' | 'published'> = true
+// Nullable and defaulted columns are optional on insert; a plain key is not.
+type Opt = ExtractOptionals<C, 'posts'>
+// Checked per key rather than as one union: a union mismatch reports only
+// 'true is not assignable to never', which says nothing about which key moved.
+const _optId: Expect<Extract<Opt, 'id'>, 'id'> = true
+const _optEditor: Expect<Extract<Opt, 'editorId'>, 'editorId'> = true
+const _optStatus: Expect<Extract<Opt, 'status'>, 'status'> = true
+// authorId is required on insert: no default, not nullable.
+const _reqAuthor: Expect<Extract<Opt, 'authorId'>, never> = true
+void [
+  _primaryIsNumber,
+  _foreignIsNumber,
+  _nullableForeign,
+  _enumIsUnion,
+  _optId,
+  _optEditor,
+  _optStatus,
+  _reqAuthor,
+]
+
+describe('Field.Primary and Field.Foreign are integer', () => {
+  test('Primary is an auto-increment integer key', () => {
+    expect(Field.Primary()).toEqual({
+      type: 'integer',
+      autoIncrement: true,
+      primary: true,
+    } as any)
+  })
+
+  test('Foreign is an integer carrying its reference', () => {
+    const fk: any = Field.Foreign({ __table: 'users', __column: 'id' })
+    expect(fk.type).toBe('integer')
+    expect(fk.nullable).toBeUndefined()
+    expect(fk._references).toEqual({
+      table: 'users',
+      column: 'id',
+      onDelete: undefined,
+      onUpdate: undefined,
+    })
+  })
+
+  test('a nullable Foreign is integer-or-null', () => {
+    const fk: any = Field.Foreign(
+      { __table: 'users', __column: 'id' },
+      { nullable: true, onDelete: 'SET NULL' },
+    )
+    expect(fk.type).toBe('integer')
+    expect(fk.nullable).toBe(true)
+    expect(fk.default).toBeNull()
+    expect(fk._references.onDelete).toBe('SET NULL')
+  })
+})
+
+describe('Field.Index and Field.Unique', () => {
+  const col = (table: string, column: string) =>
+    ({ __table: table, __column: column }) as any
+
+  test('carry their own table, so there is no table argument to mistype', () => {
+    expect(Field.Index(col('posts', 'authorId'))).toEqual({
+      type: 'index',
+      table: 'posts',
+      cols: ['authorId'],
+    })
+    expect(Field.Unique(col('users', 'email'))).toEqual({
+      type: 'unique',
+      table: 'users',
+      cols: ['email'],
+    })
+  })
+
+  test('several columns make one composite declaration, in order', () => {
+    // Order is what decides which queries an index can serve, so it is part of
+    // the declaration rather than an implementation detail.
+    expect(Field.Index(col('posts', 'authorId'), col('posts', 'createdAt'))).toEqual(
+      { type: 'index', table: 'posts', cols: ['authorId', 'createdAt'] },
+    )
+  })
+})
+
+/** A real TypeScript string enum, which is what most schemas already have. */
+enum Status {
+  Draft = 'draft',
+  Published = 'published',
+}
+/** Numeric enums reverse-map, which is why they are refused. */
+enum Priority {
+  Low,
+  High,
+}
+
+// The enum form must infer the enum's own union, not `string`.
+const ENUM_TYPED = { posts: { status: Field.Enum(Status, Status.Draft) } }
+const _enumFromTsEnum: Expect<
+  ExtractTableTypes<typeof ENUM_TYPED, 'posts'>['status'],
+  Status
+> = true
+void _enumFromTsEnum
+
+describe('Field.Enum accepts a TypeScript enum', () => {
+  test('takes a string enum and reads its values', () => {
+    const col: any = Field.Enum(Status, Status.Draft)
+    expect(col._enum).toEqual(['draft', 'published'])
+    expect(col.default).toBe('draft')
+    expect(col.length).toBe('published'.length)
+  })
+
+  test('produces the same column as the equivalent array', () => {
+    // The two spellings must not drift — one is sugar for the other.
+    const fromEnum: any = Field.Enum(Status, Status.Draft)
+    const fromArray: any = Field.Enum(['draft', 'published'] as const, 'draft')
+    expect(fromEnum).toEqual(fromArray)
+  })
+
+  test('the CHECK is built from the enum values, not its names', () => {
+    const sql = new SQLiteAdapter(':memory:').colDef(
+      Field.Enum(Status, Status.Draft),
+      'status',
+    )
+    expect(sql).toContain("'draft'")
+    expect(sql).toContain("'published'")
+    // 'Draft'/'Published' are the member *names* and mean nothing to the column.
+    expect(sql).not.toContain("'Draft'")
+  })
+
+  test('a numeric enum is refused, by name, rather than half-stored', () => {
+    // Object.values(Priority) is ['Low','High',0,1] — a CHECK built from that
+    // would permit the member names and reject the values actually stored.
+    expect(() => Field.Enum(Priority as any)).toThrow(/numeric enum/)
+  })
+
+  test('an empty enum is refused', () => {
+    expect(() => Field.Enum([] as any)).toThrow(/at least one member/)
+  })
+})
 
 describe('Field.Enum', () => {
   test('carries its members and sizes itself to the longest', () => {

@@ -234,12 +234,17 @@ export const dateNow = '%dateNow%'
 
 export type ExtractTableTypes<C, K extends keyof C> = {
   [P in keyof C[K] as P extends '_view' ? never : P]: C[K][P] extends {
-    type: infer Type
+    // `_enum` first: an enum column's `type` is `'string'`, so routing it
+    // through `TypeMap` would widen `'draft' | 'published'` to `string` and
+    // throw away the only reason `Field.Enum` exists over `Field.Varchar`.
+    _enum: readonly (infer V)[]
   }
-    ? Type extends keyof TypeMap
-      ? TypeMap[Type] | (C[K][P] extends { nullable: true } ? null : never)
+    ? V | (C[K][P] extends { nullable: true } ? null : never)
+    : C[K][P] extends { type: infer Type }
+      ? Type extends keyof TypeMap
+        ? TypeMap[Type] | (C[K][P] extends { nullable: true } ? null : never)
+        : any
       : any
-    : any
 }
 
 export type ExtractOptionals<C, T extends keyof C> = {
