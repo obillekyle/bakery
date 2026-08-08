@@ -1,31 +1,50 @@
 import { describe, expect, test } from 'bun:test'
 import { Field } from './field'
-import { primary, value } from './schema-util'
 
 /**
- * `Field` must stay a pure renaming of `value()`.
+ * The exact objects each builder emits.
  *
- * The whole safety argument for it is that the sync engine and the type
- * inference never learn it exists — they keep seeing the objects `value()`
- * builds. These assertions are what makes that true rather than intended: if a
- * builder ever grows its own shape, the constraint it emits stops matching and
- * this fails.
+ * These used to be written as "`Field` is `value()` with names", comparing each
+ * builder against the primitive it wrapped. `Field` now *is* the primitive —
+ * `value`/`primary`/`index`/`unique`/`foreign` are gone — so there is nothing
+ * left to compare against and the assertions are the literal shapes instead.
+ * That is the stronger form anyway: the sync engine and the type inference
+ * consume these objects directly, so their exact keys are the contract.
  */
-describe('Field is value() with names', () => {
-  test('each builder emits exactly what value() emits', () => {
-    expect({ ...Field.Primary() }).toEqual({ ...primary() })
-    expect({ ...Field.Int() }).toEqual({ ...value('integer') })
-    expect({ ...Field.Int(0) }).toEqual({ ...value('integer', 0) })
-    expect({ ...Field.Float(1.5) }).toEqual({ ...value('number', 1.5) })
-    expect({ ...Field.String() }).toEqual({ ...value('string') })
-    expect({ ...Field.String('x') }).toEqual({ ...value('string', 'x') })
-    expect({ ...Field.Bool(true) }).toEqual({ ...value('boolean', true) })
-    expect({ ...Field.Blob() }).toEqual({ ...value('buffer', null) })
-    expect({ ...Field.Date(0) }).toEqual({ ...value('integer', 0) })
-    expect({ ...Field.Date.now() }).toEqual({ ...value('integer', '%dateNow%') })
+describe('Field emits plain column descriptors', () => {
+  test('each builder emits the shape its name promises', () => {
+    expect({ ...Field.Int() }).toEqual({ type: 'integer' })
+    expect({ ...Field.Int(0) }).toEqual({ type: 'integer', default: 0 } as any)
+    expect({ ...Field.Float(1.5) }).toEqual({
+      type: 'number',
+      default: 1.5,
+    } as any)
+    expect({ ...Field.String('x') }).toEqual({
+      type: 'string',
+      default: 'x',
+    } as any)
+    expect({ ...Field.Bool(true) }).toEqual({
+      type: 'boolean',
+      default: true,
+    } as any)
+    expect({ ...Field.Blob() }).toEqual({
+      type: 'buffer',
+      default: null,
+      nullable: true,
+    } as any)
+    // `Date` is an integer column; `Date.now()` is the same column with the
+    // marker default each adapter renders in its own dialect.
+    expect({ ...Field.Date(0) }).toEqual({ ...Field.Int(0) })
+    expect({ ...Field.Date.now() }).toEqual({
+      type: 'integer',
+      default: '%dateNow%',
+    } as any)
+    // `String()` and `Text()` are the same unbounded column; the names differ
+    // only in what they tell the reader about intent.
+    expect({ ...Field.String() }).toEqual({ ...Field.Text() })
   })
 
-  test('null means nullable, matching value()', () => {
+  test('null means nullable', () => {
     // Cast on the *expectation*, not the builder: `TableDef` omits `default`
     // from its type when the default is null (the column is nullable instead),
     // so the literal is wider than the computed type even though the runtime

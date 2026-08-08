@@ -140,9 +140,17 @@ A column is optional on insert when it is nullable, has a default, or
 auto-increments. That is what `InferOptionals` computes, and it is why
 `Insert.into('posts').values({ … })` does not demand an `id`.
 
-`value(type, default?, nullable?, autoIncrement?, primary?)` is the primitive
-underneath all of these and stays exported for anything `Field` does not spell.
-Every builder is a thin wrapper over it, so the two cannot disagree.
+`Field` is the whole vocabulary — there is no lower-level `value()` to drop down
+to, because a column descriptor is just an object. The one shape `Field` does
+not spell is **nullable *and* defaulted to something other than null**, since a
+null default is how you say nullable. Write that one literally:
+
+```ts
+export const qty = { type: 'integer', default: 0, nullable: true }
+```
+
+That is also exactly what `db:sync --choose=db` emits when it meets such a
+column, rather than inventing a helper for it.
 
 ## Indexes and unique constraints
 
@@ -229,11 +237,13 @@ Two dialect details worth knowing, both handled for you:
 
 ### Composite keys
 
-A key spanning more than one column uses `foreign()`, which is variadic on both
-sides — there is no single column for it to hang off:
+A key spanning more than one column uses `Field.Foreign.composite()`, which is
+variadic on both sides. It is separate from `Field.Foreign()` because the two
+return different kinds of thing — a column definition that goes *inside* a
+table, versus a table-level constraint that goes *beside* one:
 
 ```ts
-import { Field, foreign, table } from '@bakery/orm'
+import { Field, table } from '@bakery/orm'
 
 const orders = table('orders', {
   id: Field.Primary(),
@@ -246,11 +256,10 @@ export const items = table('items', {
   sku: Field.Varchar(32),
 })
 
-export const itemsOrderFk = foreign(items.orderId, items.sku).references(
-  orders.id,
-  orders.sku,
-  { onDelete: 'CASCADE' },
-)
+export const itemsOrderFk = Field.Foreign.composite(
+  items.orderId,
+  items.sku,
+).references(orders.id, orders.sku, { onDelete: 'CASCADE' })
 ```
 
 Both sides must name the same number of columns in the same order, and all of one

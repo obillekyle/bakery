@@ -1,11 +1,11 @@
-import { Field, table } from '@bakery/orm'
+import { Field, table } from '@bakery/orm';
 
 export const users = table('users', {
   id: Field.Primary(),
   username: Field.Varchar(64, null),
   email: Field.Varchar(255, null),
   createdAt: Field.Date.now(),
-})
+});
 
 export const posts = table('posts', {
   id: Field.Primary(),
@@ -20,4 +20,4 @@ export const posts = table('posts', {
   body: Field.Varchar(8192, ''),
   published: Field.Int(0),
   createdAt: Field.Date.now(),
-})
+});

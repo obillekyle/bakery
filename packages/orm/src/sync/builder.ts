@@ -93,24 +93,26 @@ export class SchemaBuilder {
     const named = SchemaBuilder.asFieldCall(cons, d, n)
     if (named) return `${indent}${colName}: ${named},\n`
 
-    // Nothing in the `Field` vocabulary spells this column — an explicit
-    // `primary` that is not auto-increment, for instance. `value()` remains the
-    // primitive precisely so the generator always has something to emit rather
-    // than dropping a column it cannot name.
-    const args = [
-      t,
-      d,
-      n === false ? undefined : n,
-      a === false ? undefined : a,
-      p === false ? undefined : p,
-    ]
-
-    while (args.length > 1 && args[args.length - 1] === undefined) {
-      args.pop()
+    // Nothing in the `Field` vocabulary spells this column — nullable *and*
+    // defaulted to something other than null, or an explicit `primary` that is
+    // not auto-increment.
+    //
+    // A plain object literal, not a helper call. Constraints *are* plain
+    // objects, so this needs nothing imported and reads honestly as "this shape
+    // has no name". It also keeps the generator total: it can always emit a
+    // column, rather than dropping one it cannot spell.
+    const parts = [`type: '${cons.type}'`]
+    if (typeof cons.length === 'number') parts.push(`length: ${cons.length}`)
+    // `d` is already source text from `getDefaultValue` — a quoted literal, a
+    // bare number, `null`, or the identifier `dateNow`. The marker is spelled
+    // out here instead so the emitted file needs no import for it.
+    if (d !== undefined) {
+      parts.push(`default: ${d === 'dateNow' ? "'%dateNow%'" : d}`)
     }
-
-    const finalArgs = args.map(arg => (arg === undefined ? 'undefined' : arg))
-    return `${indent}${colName}: value(${finalArgs.join(', ')}),\n`
+    if (n) parts.push('nullable: true')
+    if (a) parts.push('autoIncrement: true')
+    if (p) parts.push('primary: true')
+    return `${indent}${colName}: { ${parts.join(', ')} },\n`
   }
 
   /**
@@ -212,7 +214,13 @@ export class SchemaBuilder {
           ? `'${idx.cols[0]}'`
           : `[${idx.cols.map((c: string) => `'${c}'`).join(', ')}]`
 
-      result += `    ${idxName}: ${idx.type}('${idx.table}', ${colsStr}),\n`
+      // `Field.Index` / `Field.Unique`, capitalised from the stored `index` /
+      // `unique` type. This emitted the bare `index(…)` / `unique(…)` names
+      // until they were removed, at which point the generated file referenced
+      // two identifiers it did not import — invisible here because the *tables*
+      // are what the round-trip test imports, not the index block.
+      const fn = idx.type === 'unique' ? 'Field.Unique' : 'Field.Index'
+      result += `    ${idxName}: ${fn}('${idx.table}', ${colsStr}),\n`
     }
     return `${result}  } as const;\n`
   }
@@ -259,13 +267,11 @@ export class SchemaBuilder {
     // Imported from what was actually emitted. An import list fixed up front
     // would either miss a helper or leave an unused one in a file the app
     // typechecks.
+    // `table`, plus `Field` when the body uses one. Nothing else: a column
+    // `Field` cannot spell is emitted as a plain object literal, which imports
+    // nothing at all.
     const helpers = ['table']
     if (/\bField\./.test(body)) helpers.push('Field')
-    // Still possible: `asFieldCall` returns null for a shape `Field` cannot
-    // spell, and the fallback emits `value()`.
-    if (/\bvalue\(/.test(body)) helpers.push('value')
-    if (/\bprimary\(/.test(body)) helpers.push('primary')
-    if (/\bdateNow\b/.test(body)) helpers.push('dateNow')
 
     return `/**
  * Generated from the database by \`db:sync\`.
@@ -349,7 +355,13 @@ declare module '@bakery/orm/schema-registry' {
   ): Promise<void> {
     messages.GEN_TYPES()
 
-    const constraints = await adapter.getConstraints()
+    // Stripped, or `--choose=db` writes `__bakery_schema` into the app's own
+    // schema as an ordinary table — after which sync manages the ledger, the
+    // ledger records itself, and the shape check never matches again. The diff
+    // path strips it in `resolveCurrentState`; this path reads the adapter
+    // directly and was missing it.
+    const { stripLedger } = await import('./ledger')
+    const constraints = stripLedger(await adapter.getConstraints())
 
     SchemaBuilder.syncNullableConstraints(constraints, existingConstraints)
 

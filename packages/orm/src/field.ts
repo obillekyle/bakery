@@ -1,6 +1,72 @@
 import { throws } from '@bakery/core/utils/common'
-import { index, primary, type TableDef, unique, value } from './schema-util'
+import type { DataTypes, Defs, TableDef } from './schema-util'
 import type * as SyncTypes from './sync/types'
+
+/**
+ * Build a column descriptor.
+ *
+ * The former `value()` primitive, now private and two arguments shorter.
+ * `autoIncrement` and `primary` were positional booleans that only
+ * `Field.Primary()` ever set, and it can state them directly — which is the
+ * whole reason `value('integer', undefined, false, true, true)` was worth
+ * replacing.
+ *
+ * `n === true`, not `n !== undefined`: treating *any* third argument as
+ * "nullable" is a bug this file has already had, where an explicit
+ * `false` produced a nullable column. `=== true` also matches what `TableDef`
+ * computes from `N extends true`, so the emitted DDL and the inferred row type
+ * cannot disagree.
+ */
+function column<
+  T extends DataTypes,
+  D extends Defs<T> | null | undefined = undefined,
+  N extends boolean = false,
+>(t: T, d?: D, n?: N): TableDef<T, D, N, false, false> {
+  const result: Record<string, unknown> = { type: t }
+  if (d !== undefined) result.default = d
+  if (n === true || d === null) result.nullable = true
+  return result as TableDef<T, D, N, false, false>
+}
+
+const isColumnValue = (v: unknown): v is ColumnValue =>
+  Boolean(v) &&
+  typeof v === 'object' &&
+  '__table' in (v as any) &&
+  '__column' in (v as any)
+
+/**
+ * Resolve either calling convention to `{ table, cols }`.
+ *
+ * The string form — `Field.Index('posts', ['authorId'])` — cannot catch a typo
+ * in either argument until sync time, if then. The column form —
+ * `Field.Index(posts.authorId)` — carries its own table, so that argument
+ * disappears and a mistake becomes a compile error.
+ */
+function resolveTarget(
+  first: string | ColumnValue,
+  rest: (string | ColumnValue | string[])[],
+): { table: string; cols: string[] } {
+  if (isColumnValue(first)) {
+    const columns = [first, ...rest.filter(isColumnValue)]
+    const tables = new Set(columns.map(c => c.__table))
+    if (tables.size > 1) {
+      throws(`Constraint spans more than one table: ${[...tables].join(', ')}`)
+    }
+    return { table: first.__table, cols: columns.map(c => c.__column) }
+  }
+
+  const cols = rest[0]
+  return {
+    table: first,
+    cols: Array.isArray(cols) ? cols : [cols as string],
+  }
+}
+
+/** Referential actions. Both default to `NO ACTION`, as SQL does. */
+export interface ForeignKeyActions {
+  onDelete?: SyncTypes.ForeignKeyAction
+  onUpdate?: SyncTypes.ForeignKeyAction
+}
 
 /**
  * The shape `Field.Foreign()` contributes to a row type.
@@ -50,20 +116,25 @@ type EnumValues<V> = V extends readonly (infer U extends string)[]
 /**
  * `Field` — the column vocabulary, namespaced so it is discoverable.
  *
- * `value('string', null, true, false, false)` requires remembering both a type
- * string and the meaning of four positional booleans; `Field.String(null)` does
- * not, and typing `Field.` lists everything a column can be.
+ * This replaced `value('string', null, true, false, false)`, which required
+ * remembering a type string *and* the meaning of four positional booleans.
+ * `Field.String(null)` needs neither, and typing `Field.` lists everything a
+ * column can be.
  *
- * **Every builder is a thin wrapper over `value()`, and that is the design.**
- * The generics pass straight through, so `InferSchema`, `InferOptionals` and
- * the sync engine receive exactly the objects they receive today — this adds a
- * vocabulary, not a second code path, so it cannot drift from `value()` or
- * regress inference. `value()` remains the primitive and stays exported for
- * anything `Field` does not spell.
+ * **`Field` is now the whole vocabulary, not sugar over one.** `value`,
+ * `primary`, `index`, `unique` and `foreign` are gone; the construction they
+ * did lives in `column()` and `resolveTarget()` above, private to this file.
+ * What the sync engine and the type inference consume is unchanged — plain
+ * descriptor objects — so this moved the API without moving the contract.
  *
- * Two conventions carried over rather than invented:
+ * The one shape deliberately left unspellable is **nullable *and* defaulted to
+ * something other than null**, because a null default is how you say nullable.
+ * Write that one as a literal (`{ type: 'integer', default: 0, nullable: true }`),
+ * which is what the schema generator emits for it too.
  *
- * - **`null` as the default means nullable**, exactly as `value('string', null)`
+ * Two conventions worth stating:
+ *
+ * - **`null` as the default means nullable**, as in `Field.String(null)`.
  *   does. `Field.String()` is NOT NULL with no default; `Field.String('')` is
  *   NOT NULL defaulting to empty; `Field.String(null)` is nullable.
  * - **Modifiers are not chained.** A fluent `.nullable().primary()` has to
@@ -85,11 +156,18 @@ export const Field = {
    * exactly one meaning is what lets `Field.Foreign()` state its own type
    * instead of inferring it.
    */
-  Primary: () => primary(),
+  Primary: () =>
+    ({ type: 'integer', autoIncrement: true, primary: true }) as TableDef<
+      'integer',
+      undefined,
+      false,
+      true,
+      true
+    >,
 
   /** A whole number. */
   Int: <D extends number | null | undefined = undefined>(d?: D) =>
-    value('integer', d),
+    column('integer', d),
 
   /**
    * A fractional number — `DOUBLE` on MySQL, `DOUBLE PRECISION` on Postgres,
@@ -100,11 +178,11 @@ export const Field = {
    * next to `Int`.
    */
   Float: <D extends number | null | undefined = undefined>(d?: D) =>
-    value('number', d),
+    column('number', d),
 
   /** Text. `Text()` and `Varchar()` say which kind; this stays the plain one. */
   String: <D extends string | null | undefined = undefined>(d?: D) =>
-    value('string', d),
+    column('string', d),
 
   /**
    * Unbounded text — `TEXT` on every dialect.
@@ -116,8 +194,14 @@ export const Field = {
    * template could not `db:sync` against MySQL because of exactly this. Use
    * `Varchar` when you need a default.
    */
-  Text: (nullable?: true) =>
-    nullable ? value('string', null) : value('string'),
+  // Overloaded, so each call has one concrete type. A bare ternary infers the
+  // *union* of both branches, and `Field.Text(true).nullable` then fails to
+  // compile because `nullable` is absent from the other member.
+  Text: ((nullable?: true) =>
+    nullable ? column('string', null) : column('string')) as {
+    (): TableDef<'string', undefined, false, false, false>
+    (nullable: true): TableDef<'string', null, true, false, false>
+  },
 
   /**
    * Sized text — `VARCHAR(n)`, and the answer to TEXT's default problem, since
@@ -136,7 +220,7 @@ export const Field = {
   Varchar: <D extends string | null | undefined = undefined>(
     length: number,
     d?: D,
-  ) => Object.assign(value('string', d), { length }),
+  ) => Object.assign(column('string', d), { length }),
 
   /**
    * A 64-bit integer — `BIGINT` everywhere.
@@ -147,7 +231,7 @@ export const Field = {
    * large integers on SQLite, store them as `Varchar`.
    */
   BigInt: <D extends number | null | undefined = undefined>(d?: D) =>
-    value('bigint' as any, d as any),
+    column('bigint' as any, d as any),
 
   /**
    * A JSON document — `JSON` on MySQL, `JSONB` on Postgres, a `JSON`-declared
@@ -160,15 +244,19 @@ export const Field = {
    * Takes no default, for the same reason `Text` does not: MySQL refuses a
    * literal default on a JSON column.
    */
-  Json: (nullable?: true) =>
-    nullable ? value('json' as any, null) : value('json' as any),
+  // Overloaded for the same reason as `Text` above.
+  Json: ((nullable?: true) =>
+    nullable ? column('json' as any, null) : column('json' as any)) as {
+    (): TableDef<any, undefined, false, false, false>
+    (nullable: true): TableDef<any, null, true, false, false>
+  },
 
   /** True/false — `BOOLEAN` on Postgres, `TINYINT(1)` on MySQL. */
   Bool: <D extends boolean | null | undefined = undefined>(d?: D) =>
-    value('boolean', d),
+    column('boolean', d),
 
   /** Binary. Always nullable: no dialect here takes a binary literal default. */
-  Blob: () => value('buffer', null),
+  Blob: () => column('buffer', null),
 
   /**
    * A column that references another table's column.
@@ -194,7 +282,8 @@ export const Field = {
    * Composite keys still use `foreign()`: a multi-column reference has no
    * single column to hang off.
    */
-  Foreign: <N extends true | undefined = undefined>(
+  Foreign: Object.assign(
+    <N extends true | undefined = undefined>(
     target: ColumnValue,
     options: {
       nullable?: N
@@ -219,6 +308,75 @@ export const Field = {
         onUpdate: options.onUpdate,
       },
     }) as unknown as ForeignDef<N>,
+    {
+      /**
+       * A key spanning more than one column.
+       *
+       *     Field.Foreign.composite(items.orderId, items.sku)
+       *       .references(orders.id, orders.sku, { onDelete: 'CASCADE' })
+       *
+       * Separate from `Field.Foreign()` rather than an overload of it, because
+       * the two return different *kinds* of thing: `Field.Foreign(users.id)` is
+       * a column definition that goes inside a table, and this is a table-level
+       * constraint that goes beside one. Distinguishing them by argument count
+       * would make two calls that look alike mean different things.
+       *
+       * Variadic on both sides. `cols`/`refCols` have always been arrays and
+       * every adapter already emits a multi-column
+       * `FOREIGN KEY (a, b) REFERENCES t (x, y)`.
+       */
+      composite: (...columns: ColumnValue[]) => {
+        // Validated here rather than in `references`, so a mistake is caught on
+        // the side that made it.
+        if (!columns.length) throws('Field.Foreign.composite() needs a column')
+        const table = columns[0]!.__table
+        if (columns.some(c => c.__table !== table))
+          throws(
+            `Field.Foreign.composite() columns must all belong to one table; got ${[
+              ...new Set(columns.map(c => c.__table)),
+            ].join(', ')}.`,
+          )
+
+        return {
+          references(...args: (ColumnValue | ForeignKeyActions)[]): any {
+            const targets = args.filter(isColumnValue) as ColumnValue[]
+            // The options object, when present, is the only non-column argument.
+            const actions =
+              (args.find(a => a && !isColumnValue(a)) as
+                | ForeignKeyActions
+                | undefined) ?? {}
+
+            if (!targets.length)
+              throws('Field.Foreign.composite().references() needs a target column')
+            if (targets.length !== columns.length)
+              throws(
+                `Field.Foreign.composite() references the wrong number of columns: ` +
+                  `${columns.length} on ${table}, ${targets.length} on the target. ` +
+                  'A composite key must name the same count on both sides, in the ' +
+                  'same order.',
+              )
+            const refTable = targets[0]!.__table
+            if (targets.some(t => t.__table !== refTable))
+              throws(
+                `Field.Foreign.composite().references() targets must all belong to one table; got ${[
+                  ...new Set(targets.map(t => t.__table)),
+                ].join(', ')}.`,
+              )
+
+            return {
+              table,
+              type: 'foreign',
+              cols: columns.map(c => c.__column),
+              refTable,
+              refCols: targets.map(t => t.__column),
+              onDelete: actions.onDelete,
+              onUpdate: actions.onUpdate,
+            }
+          },
+        }
+      },
+    },
+  ),
 
   /**
    * A non-unique index.
@@ -236,7 +394,13 @@ export const Field = {
    * A direct alias of `index()` rather than a wrapper, so the two cannot drift
    * and both call signatures come along for free.
    */
-  Index: index,
+  Index: ((first: any, ...rest: any[]) => ({
+    type: 'index',
+    ...resolveTarget(first, rest),
+  })) as {
+    (table: string, cols: string | string[]): any
+    (...cols: ColumnValue[]): any
+  },
 
   /**
    * A uniqueness constraint. Same call shapes as {@link Field.Index}.
@@ -246,7 +410,13 @@ export const Field = {
    * one MySQL and Postgres refuse the CREATE while SQLite accepts it and then
    * fails every insert with "foreign key mismatch".
    */
-  Unique: unique,
+  Unique: ((first: any, ...rest: any[]) => ({
+    type: 'unique',
+    ...resolveTarget(first, rest),
+  })) as {
+    (table: string, cols: string | string[]): any
+    (...cols: ColumnValue[]): any
+  },
 
   /**
    * A UUID, generated by the database — `CHAR(36)` sized text with a
@@ -267,7 +437,7 @@ export const Field = {
    */
   Uuid: (nullable?: true) =>
     Object.assign(
-      nullable ? value('string', null) : value('string', '%uuid%' as const),
+      nullable ? column('string', null) : column('string', '%uuid%' as const),
       { length: 36 },
     ),
 
@@ -311,7 +481,7 @@ export const Field = {
           'the enum string values.',
       )
     }
-    return Object.assign(value('string', d as any), {
+    return Object.assign(column('string', d as any), {
       // Sized to the longest member so the column cannot be too small to hold
       // a value the CHECK permits.
       length: Math.max(1, ...members.map(m => m.length)),
@@ -319,7 +489,7 @@ export const Field = {
       // element type out of here to build the row type, so widening it would
       // silently turn the column back into plain text.
       _enum: members,
-    }) as unknown as ReturnType<typeof value<'string', D>> & {
+    }) as unknown as ReturnType<typeof column<'string', D>> & {
       length: number
       _enum: readonly EnumValues<V>[]
     }
@@ -345,8 +515,8 @@ export const Field = {
    *     DB.Update('users').set({ name, updatedAt: Field.now() }).where(...)
    */
   Timestamps: () => ({
-    createdAt: value('integer', '%dateNow%' as const),
-    updatedAt: value('integer', '%dateNow%' as const),
+    createdAt: column('integer', '%dateNow%' as const),
+    updatedAt: column('integer', '%dateNow%' as const),
   }),
 
   /**
@@ -367,7 +537,7 @@ export const Field = {
    */
   Date: Object.assign(
     <D extends number | null | undefined = undefined>(d?: D) =>
-      value('integer', d),
-    { now: () => value('integer', '%dateNow%' as const) },
+      column('integer', d),
+    { now: () => column('integer', '%dateNow%' as const) },
   ),
 }

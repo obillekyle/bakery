@@ -252,9 +252,11 @@ Two things exit 1 before any diffing:
   deliberately not a fallback to auto-detection: a typo would otherwise have the
   generator write a fresh schema at the wrong path while your real model sat
   untouched.
-- Any `foreign()` declaration. No adapter emits `FOREIGN KEY` DDL, so it would
-  be created as a plain index and then re-diffed forever. Use `index()` and
-  enforce the reference in application code.
+- A foreign key whose target is neither a primary key nor uniquely indexed. SQL
+  requires one, and the dialects disagree about how they object: MySQL and
+  Postgres refuse the `CREATE`, while SQLite accepts it and then fails every
+  insert with "foreign key mismatch". Checking first turns that into one
+  message naming the reference.
 
 ## Environment variables
 

@@ -11,15 +11,8 @@ const mockDb = { quoteChar: '"' }
 beforeAll(() => __setTestDb(mockDb))
 afterAll(() => __resetTestDb())
 
-import {
-  evalOperands,
-  isSafeIdentifier,
-  primary,
-  index,
-  SQLFunctionRef,
-  unique,
-  value,
-} from './schema-util'
+import { evalOperands, isSafeIdentifier, SQLFunctionRef } from './schema-util'
+import { Field } from './field'
 
 describe('evalOperands', () => {
   test('pushes scalar values as params', () => {
@@ -126,42 +119,44 @@ describe('evalOperands SQL injection guards', () => {
 
 describe('value', () => {
   test('creates type definition', () => {
-    const def = value('string')
+    const def = Field.Text()
     expect(def.type).toBe('string')
   })
 
   test('includes default when provided', () => {
-    const def = value('integer', 0)
+    const def = Field.Int(0)
     expect(def.default).toBe(0)
   })
 
   test('marks nullable', () => {
-    const def = value('string', undefined, true)
-    expect(def.nullable).toBe(true)
+    expect(Field.Text(true).nullable).toBe(true)
+    expect(Field.Int(null).nullable).toBe(true)
   })
 
-  test('marks autoIncrement', () => {
-    const def = value('integer', undefined, false, true)
+  test('marks autoIncrement and primary together', () => {
+    // Only `Field.Primary()` sets either, and it sets both. They were separate
+    // positional booleans on the old `value()`, which is how a column could be
+    // auto-increment without being a key — a shape no dialect wants.
+    const def: any = Field.Primary()
     expect(def.autoIncrement).toBe(true)
-  })
-
-  test('marks primary', () => {
-    const def = value('integer', undefined, false, false, true)
     expect(def.primary).toBe(true)
   })
 })
 
 /**
- * The nullability check was `n !== undefined`, so *any* third argument made the
- * column nullable — including an explicit `false`, which reads as the opposite.
- * `primary()` passes `false` there and so carried a stray `nullable: true`.
+ * A defaulted column is NOT NULL unless the default *is* null.
  *
- * It is not cosmetic: `nullable` is what `colDef` reads to decide whether to
- * emit `NOT NULL`, so a column declared not-null was created nullable on every
- * dialect. The runtime object also disagreed with its own `TableDef` type,
- * which computes `nullable` from `N extends true`.
+ * This began as a regression guard for `value(type, default, false)`: the check
+ * was `n !== undefined`, so *any* third argument made the column nullable,
+ * including an explicit `false` that reads as the opposite. That spelling no
+ * longer exists — `Field` has no positional booleans — so the bug is now
+ * unreachable rather than merely fixed.
+ *
+ * The invariant it protected is still live and still worth pinning, because
+ * `nullable` is what `colDef` reads to decide whether to emit `NOT NULL`: a
+ * column declared not-null being created nullable is silent on every dialect.
  */
-describe('an explicit `false` third argument means NOT NULL', () => {
+describe('a default does not make a column nullable', () => {
   const open: SQLiteAdapter[] = []
   afterAll(async () => {
     for (const db of open) await db.close()
@@ -173,37 +168,37 @@ describe('an explicit `false` third argument means NOT NULL', () => {
     return [lite, new MySQLAdapter(), new PGAdapter()] as const
   }
 
-  test('value(type, default, false) is not nullable', () => {
-    const def = value('integer', 0, false)
+  test('Field.Int(0) carries the default and no nullable flag', () => {
+    const def = Field.Int(0)
     expect(def).toEqual({ type: 'integer', default: 0 } as typeof def)
     expect('nullable' in def).toBe(false)
   })
 
   test('the emitted DDL says NOT NULL on every dialect', () => {
     for (const db of dialects()) {
-      expect(db.colDef(value('integer', 0, false))).toContain('NOT NULL')
+      expect(db.colDef(Field.Int(0))).toContain('NOT NULL')
     }
   })
 
   test('omitting the argument is still not nullable', () => {
     for (const db of dialects()) {
-      expect(db.colDef(value('string'))).toContain('NOT NULL')
+      expect(db.colDef(Field.Text())).toContain('NOT NULL')
     }
   })
 
-  test('`true` and a null default both still make it nullable', () => {
-    expect(value('string', undefined, true).nullable).toBe(true)
-    expect(value('string', null).nullable).toBe(true)
+  test('a null default makes it nullable', () => {
+    expect(Field.Text(true).nullable).toBe(true)
+    expect(Field.String(null).nullable).toBe(true)
     for (const db of dialects()) {
-      expect(db.colDef(value('string', undefined, true))).not.toContain('NOT NULL')
-      expect(db.colDef(value('string', null))).not.toContain('NOT NULL')
+      expect(db.colDef(Field.Text(true))).not.toContain('NOT NULL')
+      expect(db.colDef(Field.String(null))).not.toContain('NOT NULL')
     }
   })
 })
 
 describe('primary', () => {
   test('creates integer auto-increment primary key', () => {
-    const def = primary()
+    const def = Field.Primary()
     expect(def.type).toBe('integer')
     expect(def.autoIncrement).toBe(true)
     expect(def.primary).toBe(true)
@@ -213,34 +208,34 @@ describe('primary', () => {
     // Harmless in practice — `colDef` and `diffColumnMismatch` both short-circuit
     // on `primary` — but it made the runtime value contradict the type, and it
     // was the same defect as above with a different argument.
-    expect('nullable' in primary()).toBe(false)
+    expect('nullable' in Field.Primary()).toBe(false)
   })
 })
 
 describe('index', () => {
   test('creates index definition', () => {
-    const def = index('users', 'email')
+    const def = Field.Index('users', 'email')
     expect(def.table).toBe('users')
     expect(def.type).toBe('index')
     expect(def.cols).toEqual(['email'])
   })
 
   test('accepts array of columns', () => {
-    const def = index('users', ['first_name', 'last_name'])
+    const def = Field.Index('users', ['first_name', 'last_name'])
     expect(def.cols).toEqual(['first_name', 'last_name'])
   })
 })
 
 describe('unique', () => {
   test('creates unique constraint', () => {
-    const def = unique('users', 'email')
+    const def = Field.Unique('users', 'email')
     expect(def.table).toBe('users')
     expect(def.type).toBe('unique')
     expect(def.cols).toEqual(['email'])
   })
 
   test('accepts array of columns', () => {
-    const def = unique('users', ['a', 'b'])
+    const def = Field.Unique('users', ['a', 'b'])
     expect(def.cols).toEqual(['a', 'b'])
   })
 })

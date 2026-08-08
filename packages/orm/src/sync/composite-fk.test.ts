@@ -4,7 +4,6 @@ import { MySQLAdapter } from '../adapters/mysql'
 import { PGAdapter } from '../adapters/pgsql'
 import { SQLiteAdapter } from '../adapters/sqlite'
 import { Field } from '../field'
-import { foreign } from '../schema-util'
 
 const MYSQL_URL = process.env.MYSQL_TEST_URL
 const PGSQL_URL = process.env.PGSQL_TEST_URL
@@ -26,9 +25,9 @@ const col = (table: string, column: string) =>
  * to *declare* one, so "works by construction" was the strongest claim anyone
  * could make. These tests replace construction with a live server.
  */
-describe('foreign() composite declaration', () => {
+describe('Field.Foreign.composite() composite declaration', () => {
   test('single column still produces a single-column key', () => {
-    const fk: any = foreign(col('posts', 'authorId')).references(
+    const fk: any = Field.Foreign.composite(col('posts', 'authorId')).references(
       col('users', 'id'),
     )
     expect(fk.cols).toEqual(['authorId'])
@@ -38,7 +37,7 @@ describe('foreign() composite declaration', () => {
   })
 
   test('actions still reach a single-column key', () => {
-    const fk: any = foreign(col('posts', 'authorId')).references(
+    const fk: any = Field.Foreign.composite(col('posts', 'authorId')).references(
       col('users', 'id'),
       { onDelete: 'CASCADE' },
     )
@@ -46,7 +45,7 @@ describe('foreign() composite declaration', () => {
   })
 
   test('two columns produce a two-column key, in order', () => {
-    const fk: any = foreign(
+    const fk: any = Field.Foreign.composite(
       col('items', 'orderId'),
       col('items', 'sku'),
     ).references(col('orders', 'id'), col('orders', 'sku'))
@@ -55,7 +54,7 @@ describe('foreign() composite declaration', () => {
   })
 
   test('actions reach a composite key too', () => {
-    const fk: any = foreign(
+    const fk: any = Field.Foreign.composite(
       col('items', 'orderId'),
       col('items', 'sku'),
     ).references(col('orders', 'id'), col('orders', 'sku'), {
@@ -71,7 +70,7 @@ describe('foreign() composite declaration', () => {
     // Silently emitting FOREIGN KEY (a, b) REFERENCES t (x) is a server error
     // much later, with nothing pointing at the schema line that caused it.
     expect(() =>
-      foreign(col('items', 'orderId'), col('items', 'sku')).references(
+      Field.Foreign.composite(col('items', 'orderId'), col('items', 'sku')).references(
         col('orders', 'id'),
       ),
     ).toThrow(/same count on both sides/)
@@ -79,13 +78,13 @@ describe('foreign() composite declaration', () => {
 
   test('columns from two different tables are refused', () => {
     expect(() =>
-      foreign(col('items', 'orderId'), col('other', 'sku')).references(
+      Field.Foreign.composite(col('items', 'orderId'), col('other', 'sku')).references(
         col('orders', 'id'),
         col('orders', 'sku'),
       ),
     ).toThrow(/one table/)
     expect(() =>
-      foreign(col('items', 'a'), col('items', 'b')).references(
+      Field.Foreign.composite(col('items', 'a'), col('items', 'b')).references(
         col('orders', 'id'),
         col('elsewhere', 'sku'),
       ),
@@ -93,7 +92,7 @@ describe('foreign() composite declaration', () => {
   })
 
   test('no target at all is refused', () => {
-    expect(() => foreign(col('items', 'orderId')).references()).toThrow(
+    expect(() => Field.Foreign.composite(col('items', 'orderId')).references()).toThrow(
       /needs a target/,
     )
   })
@@ -137,7 +136,7 @@ describe('composite foreign keys against a live server', () => {
           .run(),
       )
 
-      const fk: any = foreign(
+      const fk: any = Field.Foreign.composite(
         col(child, 'orderId'),
         col(child, 'sku'),
       ).references(col(parent, 'id'), col(parent, 'sku'), {
@@ -202,7 +201,7 @@ describe('composite foreign keys against a live server', () => {
           )
           .run(),
       )
-      const fk: any = foreign(col(child, 'orderId'), col(child, 'sku')).references(
+      const fk: any = Field.Foreign.composite(col(child, 'orderId'), col(child, 'sku')).references(
         col(parent, 'id'),
         col(parent, 'sku'),
       )

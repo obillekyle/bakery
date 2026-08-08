@@ -101,10 +101,13 @@ describe('the generated shape follows the layout it is written into', () => {
     expect(source).not.toContain('namespace DBInfo')
 
     // `qty` is nullable *and* defaults to 0, which `Field` cannot spell: its one
-    // convention is that a null default means nullable. So it falls through to
-    // `value()`, which has a separate argument for it — emitting `Field.Int(0)`
-    // here would quietly turn a nullable column into NOT NULL.
-    expect(source).toContain("qty: value('integer', 0, true),")
+    // convention is that a null default means nullable. Emitting `Field.Int(0)`
+    // would quietly turn a nullable column NOT NULL, so it falls through to a
+    // plain object literal — constraints *are* objects, so this needs no helper
+    // and imports nothing.
+    expect(source).toContain(
+      "qty: { type: 'integer', default: 0, nullable: true },",
+    )
 
     // `label` is NOT NULL with no default and comes back as nullable. That is
     // the column formatter's long-standing round-trip loss, shared with the
@@ -130,11 +133,13 @@ describe('the generated shape follows the layout it is written into', () => {
 
   test('the folder module imports exactly the helpers it used', async () => {
     const source = await generate('folder')
-    // Exactly the helpers used, sorted: `Field` for the columns it can name,
-    // `value` for the one it cannot, and no `dateNow` — `Field.Date.now()` needs
-    // no marker import.
-    expect(source).toContain("import { Field, table, value } from '@bakery/orm'")
+    // Exactly the helpers used, and no more: `Field` and `table`. The column
+    // `Field` cannot name is an object literal, and `Field.Date.now()` replaces
+    // the old `dateNow` marker import — so neither `value` nor `dateNow`
+    // appears, and there is no longer a `value` to import.
+    expect(source).toContain("import { Field, table } from '@bakery/orm'")
     expect(source).not.toContain('dateNow')
+    expect(source).not.toContain('value(')
   })
 
   test('the emitted module really is importable, and round-trips', async () => {
@@ -239,5 +244,68 @@ describe('the previous schema is preserved before it is overwritten', () => {
 
     expect(after.length).toBe(before.length)
     await Bun.file(schemaPath).delete()
+  })
+})
+
+/**
+ * What the single-file `DBInfo` layout emits.
+ *
+ * Both cases below were live bugs found by generating against a real database
+ * rather than by the suite — the round-trip test imports the *tables*, so
+ * neither the index block nor an extra table it wrote was ever exercised.
+ */
+describe('the DBInfo layout emits an importable file', () => {
+  async function generateFile(): Promise<string> {
+    const db = new SQLiteAdapter(':memory:')
+    await db.query('CREATE TABLE widgets (id INTEGER PRIMARY KEY, slug TEXT)').run()
+    await db.createIndex('widgets_slug_uniq', 'widgets', ['slug'], true)
+    await db.createIndex('widgets_slug_idx', 'widgets', ['slug'], false)
+    // A ledger, exactly as a synced database has.
+    const { writeLedger } = await import('./ledger')
+    await writeLedger(db as any, await db.getConstraints(), {})
+
+    const path = `${Bakery.cacheDir}/__gen-dbinfo-test.ts`
+    await SchemaBuilder.generate(db as any, path, silentMessages, {}, 'file')
+    const source = await Bun.file(path).text()
+    await Bun.file(path).delete()
+    await db.close()
+    return source
+  }
+
+  test('indexes use Field.Index / Field.Unique, not the removed helpers', async () => {
+    const source = await generateFile()
+    expect(source).toContain("Field.Unique('widgets', 'slug')")
+    expect(source).toContain("Field.Index('widgets', 'slug')")
+    // `index(` / `unique(` were emitted after those exports were deleted, so
+    // the generated file referenced two identifiers it did not import.
+    expect(source).not.toMatch(/[^.\w]index\(/)
+    expect(source).not.toMatch(/[^.\w]unique\(/)
+  })
+
+  test('the ledger table is not written into the app schema', async () => {
+    // `--choose=db` reads the adapter directly, so it has to strip the ledger
+    // itself. Without it sync starts managing `__bakery_schema`, the ledger
+    // records itself, and the shape check never matches again.
+    const source = await generateFile()
+    expect(source).not.toContain('bakerySchema')
+    expect(source).not.toContain('__bakery_schema')
+    expect(source).toContain('widgets:')
+  })
+
+  test('every identifier it references, it imports', async () => {
+    const source = await generateFile()
+    const imported = new Set(
+      [...source.matchAll(/import \{([^}]*)\} from/g)]
+        .flatMap(m => m[1]!.split(','))
+        .map(s => s.replace(/\btype\b/, '').trim())
+        .filter(Boolean),
+    )
+    // Every `Foo(` call at the head of a property value must be imported.
+    for (const [, name] of source.matchAll(/:\s*([A-Za-z_][\w]*)\(/g)) {
+      expect({ name, imported: imported.has(name!) }).toEqual({
+        name,
+        imported: true,
+      })
+    }
   })
 })

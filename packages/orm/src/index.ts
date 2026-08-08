@@ -24,12 +24,7 @@ export type {
 export {
   col,
   dateNow,
-  foreign,
-  index,
   old,
-  primary,
-  unique,
-  value,
 } from './schema-util'
 export type {
   ExtractOptionals,
