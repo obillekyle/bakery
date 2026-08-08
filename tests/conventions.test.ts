@@ -485,4 +485,34 @@ describe('conventions (CLAUDE.md)', () => {
 
     expect(offenders).toEqual([])
   })
+  test('a dialect difference lives in its own adapter', () => {
+    // Every difference between the three databases is expressed as something
+    // the base adapter declares and one adapter overrides — `quoteChar`,
+    // `maxQueryParams`, `dateNowExpression`, `foreignKeyClause`,
+    // `supportsAlterForeignKey`, `upsertClause`, `batchInsertIdPosition`. The
+    // query builder and the sync engine then never ask which database they are
+    // talking to.
+    //
+    // Two had escaped into `orm/mutation.ts` as `driver === 'mysql'`: the
+    // upsert clause, and which end of a batched insert carries
+    // `lastInsertRowid`. Both read as small conditionals and both are the
+    // beginning of a second dialect layer in code that has no business having
+    // one.
+    //
+    // `adapters.ts` is exempt by name: it is the factory whose whole job is to
+    // choose an adapter from a URL.
+    const FACTORY = 'packages/orm/src/adapters.ts'
+    const shared = packageSources.filter(
+      f =>
+        !isTest(f) &&
+        f.path.startsWith('packages/orm/') &&
+        !f.path.includes('/adapters/') &&
+        f.path !== FACTORY,
+    )
+
+    // `.driver` is the adapter's own name for itself; reading it to branch is
+    // the tell. Matching the property access rather than the dialect names
+    // keeps documentation and error text out of it.
+    expect(find(shared, /\.driver\s*(===|!==|==|!=)/)).toEqual([])
+  })
 })

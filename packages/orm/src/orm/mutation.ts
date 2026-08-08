@@ -339,23 +339,11 @@ export namespace Mutation {
         update ?? insertedKeys.filter(k => !cols.includes(k))
       ).filter(k => insertedKeys.includes(k))
 
-      const isMySQL = getActiveDb().driver === 'mysql'
-
-      if (isMySQL) {
-        if (!targets.length) {
-          // MySQL has no DO NOTHING. Assigning a column to itself is the
-          // documented idiom for it and leaves the row untouched.
-          const self = qId(cols[0]!)
-          return ` ON DUPLICATE KEY UPDATE ${self} = ${self}`
-        }
-        const sets = targets.map(k => `${qId(k)} = VALUES(${qId(k)})`)
-        return ` ON DUPLICATE KEY UPDATE ${sets.join(', ')}`
-      }
-
-      const target = cols.map(k => qId(k)).join(', ')
-      if (!targets.length) return ` ON CONFLICT (${target}) DO NOTHING`
-      const sets = targets.map(k => `${qId(k)} = excluded.${qId(k)}`)
-      return ` ON CONFLICT (${target}) DO UPDATE SET ${sets.join(', ')}`
+      // The adapter spells it. This used to branch on `driver === 'mysql'`
+      // here, which put one dialect's syntax in the shared query builder — the
+      // thing every other difference (quote character, placeholder ceiling,
+      // date expression, foreign-key clause) is kept out of it for.
+      return getActiveDb().upsertClause(cols, targets)
     }
 
     async array<R = any>(): Promise<R[]> {
@@ -386,13 +374,11 @@ export namespace Mutation {
 
       const changes = results.reduce((n, r) => n + Number(r?.changes ?? 0), 0)
       // `changes` sums, because it answers "how many rows did this insert
-      // write". `lastInsertRowid` cannot sum, and the dialects do not even
-      // agree what it means for a multi-row insert: SQLite and Postgres report
-      // the *last* row's id, MySQL's `insertId` reports the *first* of the
-      // block. Taking the matching end of the batched run keeps each dialect's
-      // own answer true instead of inventing a third one.
+      // write". `lastInsertRowid` cannot sum, and the dialects do not agree
+      // what it means for a multi-row insert — so the adapter says which end of
+      // the batched run carries its answer, rather than this file knowing.
       const pick =
-        getActiveDb().driver === 'mysql'
+        getActiveDb().batchInsertIdPosition === 'first'
           ? results[0]!
           : results[results.length - 1]!
       return { lastInsertRowid: pick?.lastInsertRowid ?? null, changes }

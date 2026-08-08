@@ -384,6 +384,40 @@ export abstract class SQLAdapter {
    * way to add one is to rebuild the table. The planner uses this to choose
    * between an ALTER and a rebuild rather than emitting DDL that fails.
    */
+  /**
+   * The upsert clause of an `INSERT`: `ON CONFLICT (...) DO UPDATE SET ...`.
+   *
+   * The SQL-standard spelling, which SQLite and Postgres both take. MySQL uses
+   * a different construct entirely and overrides this.
+   *
+   * `cols` names the unique columns that decide "already there"; `targets` are
+   * the columns to overwrite, empty meaning "insert if absent". Both arrive as
+   * declared — snake-casing and quoting happen here, so the caller never has to
+   * know which dialect it is talking to.
+   */
+  upsertClause(cols: string[], targets: string[]): string {
+    const target = cols.map(c => this.quote(Case.snake(c))).join(', ')
+    if (!targets.length) return ` ON CONFLICT (${target}) DO NOTHING`
+    const sets = targets.map(k => {
+      const q = this.quote(Case.snake(k))
+      return `${q} = excluded.${q}`
+    })
+    return ` ON CONFLICT (${target}) DO UPDATE SET ${sets.join(', ')}`
+  }
+
+  /**
+   * Which end of a batched multi-row insert `lastInsertRowid` refers to.
+   *
+   * A large insert is split into batches, so the id has to be taken from one of
+   * them — and the dialects do not agree which. SQLite and Postgres report the
+   * *last* row written; MySQL's `insertId` reports the *first* of the block.
+   * Taking the matching end keeps each dialect's own answer true rather than
+   * inventing a third one.
+   */
+  get batchInsertIdPosition(): 'first' | 'last' {
+    return 'last'
+  }
+
   get supportsAlterForeignKey(): boolean {
     return true
   }

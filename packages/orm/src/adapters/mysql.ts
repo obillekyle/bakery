@@ -194,6 +194,37 @@ export class MySQLAdapter extends SQLAdapter {
     )
   }
 
+  /**
+   * `ON DUPLICATE KEY UPDATE`, MySQL's upsert.
+   *
+   * It takes **no conflict target**: it fires on any unique key that collides,
+   * so `cols` is unused here. They are still required of the caller, because
+   * Postgres and SQLite cannot express the statement without them and a schema
+   * that works on one dialect should work on all three.
+   *
+   * There is no `DO NOTHING` either. Assigning a column to itself is the
+   * documented idiom for it and leaves the row untouched.
+   */
+  override upsertClause(cols: string[], targets: string[]): string {
+    if (!targets.length) {
+      const self = this.quote(Case.snake(cols[0]!))
+      return ` ON DUPLICATE KEY UPDATE ${self} = ${self}`
+    }
+    const sets = targets.map(k => {
+      const q = this.quote(Case.snake(k))
+      return `${q} = VALUES(${q})`
+    })
+    return ` ON DUPLICATE KEY UPDATE ${sets.join(', ')}`
+  }
+
+  /**
+   * MySQL's `insertId` for a multi-row insert is the id of the **first** row of
+   * the block, where SQLite and Postgres report the last.
+   */
+  override get batchInsertIdPosition(): 'first' | 'last' {
+    return 'first'
+  }
+
   protected withConnection(sql: unknown): SQLAdapter {
     return new MySQLAdapter(sql as SQL)
   }
