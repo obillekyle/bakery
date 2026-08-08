@@ -612,6 +612,34 @@ export abstract class SQLAdapter {
    * DDL — so they are quoted the same way `formatDefault` quotes a string
    * default, by doubling the single quote.
    */
+  /**
+   * The declared width of a **sized** text column, or `undefined`.
+   *
+   * The guard is the entire point, and it is not defensive coding — it is a
+   * measured result. MySQL reports `character_maximum_length = 65535` for an
+   * unsized `TEXT` column, where Postgres reports `null`. Take the number
+   * unconditionally and every `Field.Text()` column reads back as
+   * `length: 65535`, the schema says nothing, the two never agree, and MySQL
+   * rebuilds the table on every sync forever — the exact failure that kept
+   * `length` out of the diff until it could be checked against real servers.
+   *
+   * So: a width counts only when the dialect also calls the column a *sized*
+   * text type. `varchar` and `char`, not `text`.
+   */
+  protected sizedTextLength(
+    declaredType: string,
+    reported: unknown,
+  ): number | undefined {
+    const type = declaredType.toLowerCase()
+    const sized =
+      type.includes('varchar') ||
+      type.includes('character varying') ||
+      /(^|\W)char(\W|\(|$)/.test(type)
+    if (!sized) return undefined
+    const n = Number(reported)
+    return Number.isInteger(n) && n > 0 ? n : undefined
+  }
+
   protected enumClause(column: string, values: string[]): string {
     const list = values
       .map(v => `'${String(v).replaceAll("'", "''")}'`)

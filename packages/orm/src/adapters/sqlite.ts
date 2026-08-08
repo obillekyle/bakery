@@ -524,6 +524,15 @@ export class SQLiteAdapter extends SQLAdapter {
       type: SQLiteAdapter.mapSqlToTsType(col.type),
     }
 
+    // SQLite has no catalog column for width; it stores the *declared* type
+    // verbatim and hands it back through `pragma table_info`, so the number is
+    // in the type string — 'VARCHAR(64)'. That is also why emitting the width
+    // is worth doing on a dialect with no real VARCHAR: it is what lets one
+    // schema round-trip on all three.
+    const declared = String(col.type || '')
+    const length = this.sizedTextLength(declared, /\((\d+)\)/.exec(declared)?.[1])
+    if (length !== undefined) cons.length = length
+
     if (primary) cons.primary = true
     if (
       primary &&

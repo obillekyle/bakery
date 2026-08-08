@@ -383,7 +383,7 @@ export class PGAdapter extends SQLAdapter {
       // — what colDef() emits — carries a NULL column_default; only the legacy
       // serial style leaves a nextval(...) marker there.
       const cols = (await this.query(
-        'SELECT column_name, data_type, is_nullable, column_default, udt_name, is_identity, identity_generation FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ? ORDER BY ordinal_position',
+        'SELECT column_name, data_type, is_nullable, column_default, udt_name, is_identity, identity_generation, character_maximum_length FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ? ORDER BY ordinal_position',
       ).all(t.table_name)) as any[]
 
       for (const col of cols) {
@@ -453,6 +453,13 @@ export class PGAdapter extends SQLAdapter {
     const cons: SyncTypes.ColumnConstraint = {
       type: PGAdapter.mapPgTypeToTsType(String(col.data_type || col.udt_name || '')),
     }
+    // Postgres calls it 'character varying' and reports null for TEXT, so the
+    // guard has less to do here than on MySQL — but it is the same guard.
+    const length = this.sizedTextLength(
+      String(col.data_type || col.udt_name || ''),
+      col.character_maximum_length,
+    )
+    if (length !== undefined) cons.length = length
     if (primary) cons.primary = true
     if (PGAdapter.isAutoIncrement(col)) cons.autoIncrement = true
     if (col.is_nullable === 'YES' && !primary) cons.nullable = true

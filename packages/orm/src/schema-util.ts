@@ -120,37 +120,100 @@ export function index(first: any, ...rest: any[]) {
   return { type: 'index', ...resolveTarget(first, rest) }
 }
 
+/** Referential actions. Both default to `NO ACTION`, as SQL does. */
+export interface ForeignKeyActions {
+  onDelete?: ForeignKeyAction
+  onUpdate?: ForeignKeyAction
+}
+
 export function foreign(
   t: string,
   col: string,
   refTable: string,
   refCol: string,
 ): any
-export function foreign(column: ColumnValue): {
+/**
+ * One or more columns referencing one or more columns of another table.
+ *
+ *     foreign(posts.authorId).references(users.id)
+ *     foreign(items.orderId, items.sku).references(orders.id, orders.sku)
+ *
+ * The composite form is variadic on both sides — `cols` and `refCols` have
+ * always been arrays and every adapter already emits a multi-column
+ * `FOREIGN KEY (a, b) REFERENCES t (x, y)`, so this exposes plumbing that
+ * existed rather than adding a mechanism. It was previously undeclarable,
+ * which is why "works by construction" was as much as anyone could say about
+ * it.
+ */
+export function foreign(...columns: ColumnValue[]): {
+  /**
+   * Overloads rather than one rest tuple: `[...ColumnValue[], Actions?]` is
+   * illegal (TS1266, an optional element cannot follow a rest), and the single
+   * column plus actions case is the common one worth typing precisely.
+   */
   references(
     target: ColumnValue,
     /** Referential actions. Both default to `NO ACTION`, as SQL does. */
-    actions?: { onDelete?: ForeignKeyAction; onUpdate?: ForeignKeyAction },
+    actions?: ForeignKeyActions,
   ): any
+  references(...targets: ColumnValue[]): any
+  references(...targetsThenActions: (ColumnValue | ForeignKeyActions)[]): any
 }
 export function foreign(first: any, col?: any, refTable?: any, refCol?: any) {
   if (isColumnValue(first)) {
+    // Every argument up to the first non-column is part of the key. Collected
+    // here rather than in `references` so a mistake is caught on the side that
+    // made it.
+    const cols: ColumnValue[] = [first]
+    for (const extra of [col, refTable, refCol]) {
+      if (extra === undefined) break
+      if (!isColumnValue(extra))
+        throws(
+          'foreign() takes columns: foreign(t.a) or foreign(t.a, t.b). ' +
+            'Mixing the column form with the four-string form is not supported.',
+        )
+      cols.push(extra)
+    }
+    const table = first.__table
+    if (cols.some(c => c.__table !== table))
+      throws(
+        `foreign() columns must all belong to one table; got ${[
+          ...new Set(cols.map(c => c.__table)),
+        ].join(', ')}.`,
+      )
+
     // Deferred so the call reads as a sentence and both sides are named,
     // rather than four positional strings that can be silently transposed.
     return {
-      references(
-        target: ColumnValue,
-        actions: {
-          onDelete?: ForeignKeyAction
-          onUpdate?: ForeignKeyAction
-        } = {},
-      ) {
+      references(...args: any[]) {
+        const targets = args.filter(isColumnValue) as ColumnValue[]
+        // The options object, when present, is the only non-column argument.
+        const actions =
+          (args.find(a => a && !isColumnValue(a)) as
+            | ForeignKeyActions
+            | undefined) ?? {}
+
+        if (!targets.length) throws('foreign().references() needs a target column')
+        if (targets.length !== cols.length)
+          throws(
+            `foreign() references the wrong number of columns: ${cols.length} ` +
+              `on ${table}, ${targets.length} on the target. A composite key ` +
+              'must name the same count on both sides, in the same order.',
+          )
+        const refTableName = targets[0]!.__table
+        if (targets.some(t => t.__table !== refTableName))
+          throws(
+            `foreign().references() targets must all belong to one table; got ${[
+              ...new Set(targets.map(t => t.__table)),
+            ].join(', ')}.`,
+          )
+
         return {
-          table: first.__table,
+          table,
           type: 'foreign',
-          cols: [first.__column],
-          refTable: target.__table,
-          refCols: [target.__column],
+          cols: cols.map(c => c.__column),
+          refTable: refTableName,
+          refCols: targets.map(t => t.__column),
           onDelete: actions.onDelete,
           onUpdate: actions.onUpdate,
         }

@@ -362,7 +362,7 @@ export class MySQLAdapter extends SQLAdapter {
       }
 
       const cols = (await this.query(
-        'SELECT column_name AS column_name, column_type AS column_type, data_type AS data_type, is_nullable AS is_nullable, column_key AS column_key, column_default AS column_default, extra AS extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ordinal_position',
+        'SELECT column_name AS column_name, column_type AS column_type, data_type AS data_type, is_nullable AS is_nullable, column_key AS column_key, column_default AS column_default, extra AS extra, character_maximum_length AS character_maximum_length FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ordinal_position',
       ).all(t.table_name)) as any[]
 
       for (const col of cols) {
@@ -429,6 +429,14 @@ export class MySQLAdapter extends SQLAdapter {
         String(col.column_type || col.data_type || ''),
       ),
     }
+    // `column_type` ('varchar(64)'), not `data_type` ('varchar'), so the guard
+    // sees the same string a human would read — and so TEXT, whose
+    // character_maximum_length MySQL reports as 65535, is excluded.
+    const length = this.sizedTextLength(
+      String(col.column_type || col.data_type || ''),
+      col.character_maximum_length,
+    )
+    if (length !== undefined) cons.length = length
     if (primary) cons.primary = true
     if (
       String(col.extra || '')
