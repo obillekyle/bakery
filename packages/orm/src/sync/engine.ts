@@ -69,6 +69,8 @@ export const syncMsgs = {
     'I %yschema.ts contains _oldTable/_transform wrappers. Overriding file to match DB.%*',
   FATAL_ERROR:
     'E %rFATAL ERROR: Sync failed! All changes have been safely rolled back. Detail: {error}%*',
+  LEDGER_DRIFT:
+    'W %yDatabase has drifted from the last schema Bakery applied%*: {reason}. Diffing against live introspection instead of the ledger. Something changed this database outside Bakery — if that was not deliberate, check it before syncing.',
 } as const
 
 const logger = new Logger('db-sync')
@@ -189,7 +191,10 @@ export class SyncEngine {
     const force = argv.includes('--force-sync')
 
     if (!force)
-      logger.log("I Tip: use '--choose=db', '--choose=ts', or '--dry-run'.")
+      logger.log(
+        "Tip: use '--choose=db', '--choose=ts', or '--dry-run'.",
+        'info',
+      )
 
     if (isProd && !force) {
       MESSAGES.PROD_FORCE_REQUIRED()
@@ -213,6 +218,7 @@ export class SyncEngine {
     tsFks: SyncTypes.DBForeignKeys = {},
     fksToAdd: Map<string, SyncTypes.ForeignKeyInfo> = new Map(),
     fksToDrop: Map<string, SyncTypes.ForeignKeyInfo> = new Map(),
+    tsIndexes: SyncTypes.DBIndexes = {},
   ): Promise<void> {
     const { backupDatabase } = await import('../backup')
     const backedUp = await backupDatabase(adapter)
@@ -247,7 +253,11 @@ export class SyncEngine {
     // writing the ledger first would claim a migration that had not happened.
     // Best-effort by design — a sync that succeeded still succeeded, and a
     // missing ledger only costs the next run its fast path.
-    await writeLedger(adapter, constraints)
+    // `tsIndexes`, not `adapter.getIndexes()`: the ledger records what was
+    // *applied*, and re-reading the database here would record whatever the
+    // dialect reports back — the exact normalisation problem the ledger exists
+    // to route around.
+    await writeLedger(adapter, constraints, tsIndexes)
 
     MESSAGES.CATCH_UP_SUCCESS()
 
@@ -286,6 +296,15 @@ export class SyncEngine {
       logger,
       MESSAGES,
     )
+
+    // `buildSyncPlan` has always recorded which state it diffed against and
+    // nothing ever read it. Falling back to introspection is *correct* — see
+    // sync/ledger.ts — but doing it silently means a column somebody added by
+    // hand in production looks exactly like an ordinary run. "No ledger yet" is
+    // the normal state of a fresh database and is not drift.
+    if (plan.ledgerSource === 'introspection' && plan.ledgerReason && plan.ledgerReason !== 'no ledger yet') {
+      MESSAGES.LEDGER_DRIFT({ reason: plan.ledgerReason })
+    }
 
     const dbIndexes = await adapter.getIndexes()
     const { indexesToDrop, indexesToAdd } = calculateIndexDiff(
@@ -340,8 +359,17 @@ export class SyncEngine {
       MESSAGES,
     )
     if (argv.includes('--dry-run')) {
+      // `logger.log` takes the level as its second argument. A leading 'D ' is
+      // `messageLogger` table syntax, and this is not a table — so the letter
+      // was printed verbatim and the level defaulted.
+      //
+      // `info`, not the `debug` the stray 'D' was reaching for: this line is
+      // the confirmation that nothing was written. Routing it to a level that
+      // is filtered by default would mean `--dry-run` could print a page of
+      // destructive-looking changes and never say it did not apply them.
       logger.log(
-        'D Dry-run enabled: planned changes shown above, not applying.',
+        'Dry-run enabled: planned changes shown above, not applying.',
+        'info',
       )
       return
     }
@@ -358,6 +386,7 @@ export class SyncEngine {
       tsFks,
       fksToAdd,
       fksToDrop,
+      tsIndexes,
     )
   }
 }
