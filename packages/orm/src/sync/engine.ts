@@ -69,6 +69,10 @@ export const syncMsgs = {
     'I %yschema.ts contains _oldTable/_transform wrappers. Overriding file to match DB.%*',
   FATAL_ERROR:
     'E %rFATAL ERROR: Sync failed! All changes have been safely rolled back. Detail: {error}%*',
+  VIEWS_SEEDED:
+    'I Seeded %y{file}%* from the database. It is yours from now on — the generator will not overwrite it.',
+  VIEWS_KEPT:
+    'I Left %y{file}%* alone: view interfaces are hand-owned. Delete it and re-run to reseed.',
   LEDGER_DRIFT:
     'W %yDatabase has drifted from the last schema Bakery applied%*: {reason}. Diffing against live introspection instead of the ledger. Something changed this database outside Bakery — if that was not deliberate, check it before syncing.',
 } as const

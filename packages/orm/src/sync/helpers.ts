@@ -2,6 +2,7 @@ import { Case } from '@bakery/core/utils'
 import { SQLAdapter } from '../adapters/base'
 import type * as SyncTypes from './types'
 import { resolveCurrentState } from './ledger'
+import { normalizeViewBody } from './view-sql'
 
 export namespace SyncPlan {
   export interface TableRename {
@@ -420,13 +421,23 @@ function diffViewStrings(
   camelTable: string,
   dbName: string,
   constraints: any,
+  database?: string,
 ): boolean {
-  const tsViewStr = String(constraints[camelTable]._view || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-  const dbViewStr = String(plan.dbConstraintsForDiff[camelTable]?._view || '')
-    .replace(/\s+/g, ' ')
-    .trim()
+  // Both sides through the same canonicaliser, which is the only thing that
+  // makes a text comparison viable: you write `SELECT id FROM users` and MySQL
+  // returns it fully qualified, fully quoted and aliased column by column.
+  //
+  // Symmetry is the whole requirement. Normalising the *generated file* while
+  // comparing raw — or stripping the schema on one side only — recreates the
+  // view on every sync, which is the same churn the column diff has hit twice.
+  const tsViewStr = normalizeViewBody(
+    String(constraints[camelTable]._view || ''),
+    database,
+  )
+  const dbViewStr = normalizeViewBody(
+    String(plan.dbConstraintsForDiff[camelTable]?._view || ''),
+    database,
+  )
   if (tsViewStr || dbViewStr) {
     if (tsViewStr !== dbViewStr) plan.viewsToUpdate.push(dbName)
     if (tsViewStr && !dbViewStr) plan.tablesToDrop.push(dbName)
@@ -441,6 +452,7 @@ function diffTableViewsAndColumns(
   constraints: any,
   logger: any,
   MESSAGES: any,
+  database?: string,
 ) {
   for (const camelTable of Object.keys(dbTables)) {
     if (!constraints[camelTable]) continue
@@ -450,7 +462,7 @@ function diffTableViewsAndColumns(
       plan.tablesToRebuild.has(Case.snake(camelTable))
     )
       continue
-    if (diffViewStrings(plan, camelTable, dbName, constraints)) continue
+    if (diffViewStrings(plan, camelTable, dbName, constraints, database)) continue
     diffTableColumns(plan, camelTable, dbName, constraints, logger, MESSAGES)
   }
 }
@@ -487,7 +499,14 @@ export async function buildSyncPlan(
   const unmappedDbTables = handleTableRenames(plan, constraints, dbTables)
 
   promptAndRenameTables(plan, dbTables, unmappedDbTables, logger)
-  diffTableViewsAndColumns(plan, dbTables, constraints, logger, MESSAGES)
+  diffTableViewsAndColumns(
+    plan,
+    dbTables,
+    constraints,
+    logger,
+    MESSAGES,
+    adapter.databaseName,
+  )
 
   plan.tablesToRename = plan.tablesToRename.filter(
     t =>

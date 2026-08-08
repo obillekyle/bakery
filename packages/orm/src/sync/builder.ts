@@ -1,6 +1,7 @@
 import { Bakery } from '@bakery/core/core/bakery'
 import { Case } from '@bakery/core/utils'
 import { isSafeIdentifier } from '../schema-util'
+import { formatViewBody } from './view-sql'
 import type { SQLAdapter } from '../adapters/base'
 import type { SchemaLayout } from './load'
 import type * as SyncTypes from './types'
@@ -40,7 +41,15 @@ export class SchemaBuilder {
       for (const [colName, cons] of Object.entries<any>(cols)) {
         if (colName === '_view') continue
         const existingCol = existingConstraints[tableName]?.[colName]
-        cons.nullable = existingCol ? existingCol.nullable === true : false
+        // Fall back to what introspection reported, not to `false`.
+        //
+        // The old `: false` flattened every view column to NOT NULL whenever
+        // there was no previous schema to copy from — which is exactly the
+        // seeding path, the one a project with an existing database takes. On
+        // a real view that made `category` and `images` non-nullable in the
+        // generated interface while the database reports both nullable, so the
+        // first thing the file said about the data was wrong.
+        cons.nullable = existingCol ? existingCol.nullable === true : cons.nullable === true
       }
     }
   }
@@ -225,13 +234,18 @@ export class SchemaBuilder {
    */
   private static buildViewModule(
     constraints: Record<string, any>,
+    database?: string,
   ): string | null {
     const views = Object.entries(constraints).filter(([, c]) => c?._view)
     if (!views.length) return null
 
     let body = ''
     for (const [name, cols] of views) {
-      const iface = `${Case.pascal(name)}View`
+      // `productView` would otherwise become `ProductViewView`. Naming a view
+      // `*_view` is common enough that the stutter is the normal case, not the
+      // edge one.
+      const pascal = Case.pascal(name)
+      const iface = /view$/i.test(pascal) ? pascal : `${pascal}View`
       let fields = ''
       for (const [colName, cons] of Object.entries<any>(cols)) {
         if (colName === '_view') continue
@@ -241,19 +255,27 @@ export class SchemaBuilder {
         `export interface ${iface} {\n${fields}}\n\n` +
         `export const ${exportNameFor(name)} = view<'${name}', ${iface}>(\n` +
         `  '${name}',\n` +
-        `  \`${String(cols._view).replace(/`/g, '\\`')}\`,\n` +
+        `  \`${formatViewBody(String(cols._view), database).replace(/`/g, '\\`')}\`,\n` +
         `)\n\n`
     }
 
     return `/**
- * Views, generated from the database by \`db:sync\`.
+ * Views, seeded from the database by \`db:sync --choose=db\`.
  *
  * A view is a stored SELECT; it has no column DDL, so each one is described by
  * an interface rather than by column builders. Edit the SELECT here and the
  * next sync recreates the view — views hold no data, so there is nothing to
  * migrate.
  *
- * This file is rewritten wholesale on every regeneration.
+ * **This file is yours from now on. The generator writes it once and never
+ * overwrites it**, because the interfaces are the part worth editing by hand:
+ * introspection can only report a JSON column as \`unknown\`, and the shape it
+ * actually holds — \`{ id: number; name: string }[]\` for a
+ * \`json_arrayagg(json_object(...))\` — is knowledge only you have. Regenerating
+ * over that would throw away the reason for writing it down.
+ *
+ * A view added to the database later will not appear here on its own; add it,
+ * or delete this file and re-run to reseed the lot.
  */
 import { view } from '@bakery/orm'
 
@@ -475,11 +497,27 @@ declare module '@bakery/orm/schema-registry' {
     // then an `export * from './views'` that resolves to nothing, would be
     // noise in every project that has none.
     if (layout === 'folder') {
-      const viewsSource = SchemaBuilder.buildViewModule(constraints)
+      const viewsSource = SchemaBuilder.buildViewModule(
+        constraints,
+        adapter.databaseName,
+      )
       if (viewsSource) {
         const viewsPath = `${schemaPath.replace(/[^/\\]+$/, '')}views.ts`
-        await SchemaBuilder.preserveExisting(viewsPath)
-        await Bun.write(viewsPath, viewsSource)
+        // Seeded once, then never overwritten — unlike `tables.ts`, which the
+        // generator owns outright.
+        //
+        // The interfaces are the part worth editing by hand. Introspection can
+        // only ever report a JSON column as `unknown`; that a
+        // `json_arrayagg(json_object(...))` column holds
+        // `{ id: number; name: string }[]` is knowledge the schema does not
+        // carry and the database cannot state. Overwriting would delete exactly
+        // the work the interface form exists to make possible.
+        if (await Bun.file(viewsPath).exists()) {
+          messages.VIEWS_KEPT?.({ file: viewsPath })
+        } else {
+          await Bun.write(viewsPath, viewsSource)
+          messages.VIEWS_SEEDED?.({ file: viewsPath })
+        }
       }
     }
 

@@ -212,6 +212,27 @@ export abstract class SQLAdapter {
   }
 
   /**
+   * The database this connection is pointed at, or `undefined`.
+   *
+   * Parsed from the URL rather than asked of the server, because the one caller
+   * — normalising a stored view body — runs inside the diff and must not add a
+   * round trip to it. SQLite has no such name and needs none: it does not
+   * qualify a view's tables in the first place.
+   *
+   * MySQL writes the schema into every table reference of a stored view, so the
+   * body carries a hard-coded database name. Left in, the same schema deployed
+   * against a differently-named database compares unequal and the view is
+   * recreated on every sync.
+   */
+  get databaseName(): string | undefined {
+    if (!this.url) return undefined
+    return Try.return(() => {
+      const path = new URL(this.url!).pathname.replace(/^\//, '')
+      return path || undefined
+    }, undefined)
+  }
+
+  /**
    * Placeholder ceiling for a single statement — see
    * {@link DEFAULT_MAX_QUERY_PARAMS} for why it is one number and not three.
    *
