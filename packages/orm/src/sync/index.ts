@@ -15,6 +15,8 @@ const logger = new Logger('db-sync')
 const syncMsgs = {
   INVALID_SCHEMA: 'W %yschema.ts is invalid or corrupt. Treating as new.%*',
   NO_DBINFO: 'W %yDBInfo namespace not found in schema.ts!%*',
+  FOREIGN_TARGET:
+    'E %rForeign key target is not a primary key or unique%*: {refs}. SQL requires the referenced column to be a PRIMARY KEY or carry a UNIQUE index. MySQL and Postgres refuse the CREATE; SQLite accepts it and then fails every insert with "foreign key mismatch". Add unique() on the target column.',
   FOREIGN_UNSUPPORTED:
     'E %rforeign() is declared but not implemented%*: {names}. No adapter emits FOREIGN KEY DDL, so it would be created as a plain index and then re-diffed on every sync. Use index() on the column and enforce the reference in your application.',
   SCHEMA_NOT_FOUND:
@@ -76,6 +78,12 @@ Flags:
     // where the typo missed it.
     if (loaded.missing) {
       MESSAGES.SCHEMA_NOT_FOUND({ path: loaded.missing })
+      await closeDB()
+      return process.exit(1)
+    }
+
+    if (loaded.unreferenceable?.length) {
+      MESSAGES.FOREIGN_TARGET({ refs: loaded.unreferenceable.join(', ') })
       await closeDB()
       return process.exit(1)
     }

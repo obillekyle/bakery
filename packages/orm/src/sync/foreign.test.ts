@@ -118,3 +118,65 @@ describe('SQLite enforcement', () => {
     expect(new SQLiteAdapter(':memory:').supportsAlterForeignKey).toBe(false)
   })
 })
+
+describe('Field.Foreign', () => {
+  const users: any = { id: { type: 'integer', primary: true, autoIncrement: true }, handle: { type: 'string', length: 40 } }
+
+  test('copies the target column type onto the child', async () => {
+    // The reason to prefer the column-level form. MySQL refuses a foreign key
+    // whose types differ from the referenced key *exactly* — an INT child
+    // against a BIGINT parent is rejected — and the two declarations usually
+    // sit pages apart. Copying makes the mismatch unrepresentable.
+    const { resolveColumnForeignKeys } = await import('./load')
+    const out = resolveColumnForeignKeys(
+      {
+        users,
+        posts: {
+          id: { type: 'integer', primary: true },
+          authorId: { type: 'integer', _references: { table: 'users', column: 'id' } },
+          editor: { type: 'integer', _references: { table: 'users', column: 'handle' } },
+        },
+      } as any,
+      { handleUniq: { type: 'unique', table: 'users', cols: ['handle'] } } as any,
+    )
+    const posts = out.constraints.posts as any
+    expect(posts.authorId.type).toBe('integer')
+    // Copied from Varchar(40), width included — introspection cannot be relied
+    // on to report the width, so this has to come from the schema.
+    expect(posts.editor.type).toBe('string')
+    expect(posts.editor.length).toBe(40)
+  })
+
+  test('derives a foreign key declaration per referencing column', async () => {
+    const { resolveColumnForeignKeys } = await import('./load')
+    const out = resolveColumnForeignKeys(
+      { users, posts: { authorId: { type: 'integer', _references: { table: 'users', column: 'id' } } } } as any,
+      {} as any,
+    )
+    expect(Object.keys(out.indexes)).toEqual(['fk_posts_author_id'])
+    expect((out.indexes as any).fk_posts_author_id).toMatchObject({
+      type: 'foreign', table: 'posts', cols: ['authorId'], refTable: 'users', refCols: ['id'],
+    })
+  })
+
+  test('reports a target that is neither primary nor unique', async () => {
+    // SQL forbids it. MySQL and Postgres refuse the CREATE; SQLite accepts the
+    // DDL and fails every insert with `foreign key mismatch`, naming two tables
+    // and nothing else — so this is caught against the schema instead.
+    const { resolveColumnForeignKeys } = await import('./load')
+    const out = resolveColumnForeignKeys(
+      { users, posts: { editor: { type: 'string', _references: { table: 'users', column: 'handle' } } } } as any,
+      {} as any, // no unique() on users.handle
+    )
+    expect(out.unreferenceable).toEqual(['posts.editor -> users.handle'])
+  })
+
+  test('a primary-key target needs no unique index', async () => {
+    const { resolveColumnForeignKeys } = await import('./load')
+    const out = resolveColumnForeignKeys(
+      { users, posts: { authorId: { type: 'integer', _references: { table: 'users', column: 'id' } } } } as any,
+      {} as any,
+    )
+    expect(out.unreferenceable).toEqual([])
+  })
+})

@@ -1,6 +1,7 @@
 import { Try } from '@bakery/core/utils/common'
 import { fs } from '@bakery/core/utils'
 import { collectConstraints } from '../define'
+import { Case } from '@bakery/core/utils'
 import type * as SyncTypes from './types'
 
 /**
@@ -46,6 +47,16 @@ export type SchemaLayout = 'folder' | 'file' | 'none'
 export interface LoadedSchema {
   constraints: SyncTypes.DBConstraints
   indexes: SyncTypes.DBIndexes
+  /**
+   * `Field.Foreign()` references whose target is neither a primary key nor
+   * uniquely indexed, as `child.col -> parent.col`.
+   *
+   * SQL forbids those. MySQL and Postgres refuse the CREATE outright; SQLite
+   * accepts the DDL and then fails *every insert* with `foreign key mismatch`,
+   * naming two tables and nothing else — so the caller aborts on this rather
+   * than letting it surface at runtime.
+   */
+  unreferenceable?: string[]
   /** The file the generator should write tables back to. */
   targetPath: string
   layout: SchemaLayout
@@ -139,12 +150,11 @@ async function readSchema(
   if (error || !module) return emptyAt(targetPath)
 
   if (layout === 'folder') {
-    return {
-      constraints: collectConstraints(module) as SyncTypes.DBConstraints,
-      indexes: collectIndexes(module) as SyncTypes.DBIndexes,
-      targetPath,
-      layout: 'folder',
-    }
+    const resolved = resolveColumnForeignKeys(
+      collectConstraints(module) as SyncTypes.DBConstraints,
+      collectIndexes(module) as SyncTypes.DBIndexes,
+    )
+    return { ...resolved, targetPath, layout: 'folder' }
   }
 
   // The single-file layout may declare tables either way: the original
@@ -154,9 +164,12 @@ async function readSchema(
   const indexes =
     module.DBInfo?.indexes ?? module.indexes ?? collectIndexes(module)
 
+  const resolved = resolveColumnForeignKeys(
+    constraints as SyncTypes.DBConstraints,
+    indexes as SyncTypes.DBIndexes,
+  )
   return {
-    constraints: constraints as SyncTypes.DBConstraints,
-    indexes: indexes as SyncTypes.DBIndexes,
+    ...resolved,
     targetPath,
     layout: Object.keys(constraints).length ? 'file' : 'none',
   }
@@ -237,4 +250,91 @@ export async function loadSchema(
   if (!(await Bun.file(filePath).exists())) return empty
 
   return readSchema(filePath, 'file', filePath)
+}
+
+/**
+ * Turn `Field.Foreign(users.id)` columns into real foreign key declarations.
+ *
+ * Runs once, where the whole schema is in scope, and does two things a column
+ * cannot do on its own:
+ *
+ * 1. **Copies the referenced column's type onto the child.** MySQL rejects a
+ *    foreign key whose types do not match exactly — an `INT` child against a
+ *    `BIGINT` parent is refused — and the two declarations are usually pages
+ *    apart. Copying makes the mismatch unrepresentable rather than merely
+ *    unlikely. `length` comes along for a `Varchar` key, for the same reason.
+ * 2. **Emits the key into the index map**, which is where `collectForeignKeys`
+ *    and the diff already look. `foreign()` still exists and is unchanged; this
+ *    is a second way to declare the same thing, for the single-column case.
+ *
+ * A reference to a table or column that does not exist is left alone rather
+ * than guessed at: the column keeps its placeholder type and no key is emitted,
+ * so the failure surfaces as a missing constraint rather than a silently wrong
+ * one.
+ */
+function isUnique(
+  indexes: SyncTypes.DBIndexes,
+  table: string,
+  column: string,
+): boolean {
+  return Object.values(indexes).some(
+    (i: any) =>
+      i?.type === 'unique' &&
+      Case.snake(i.table) === Case.snake(table) &&
+      i.cols?.length === 1 &&
+      Case.snake(i.cols[0]) === Case.snake(column),
+  )
+}
+
+export function resolveColumnForeignKeys(
+  constraints: SyncTypes.DBConstraints,
+  indexes: SyncTypes.DBIndexes,
+): {
+  constraints: SyncTypes.DBConstraints
+  indexes: SyncTypes.DBIndexes
+  /** References whose target is neither a primary key nor uniquely indexed. */
+  unreferenceable: string[]
+} {
+  const out = { ...indexes } as Record<string, unknown>
+  const unreferenceable: string[] = []
+
+  for (const [tableName, cols] of Object.entries(constraints)) {
+    for (const [colName, col] of Object.entries(cols as Record<string, any>)) {
+      const ref = col?._references
+      if (!ref) continue
+
+      const target = (constraints as any)[ref.table]?.[ref.column]
+      if (target) {
+        col.type = target.type
+        if (typeof target.length === 'number') col.length = target.length
+        // Never the parent's primary/autoIncrement: the child is a plain
+        // column that happens to point at one.
+
+        // SQL requires a foreign key's target to be a primary key or carry a
+        // unique index. MySQL and Postgres refuse the CREATE outright; SQLite
+        // *accepts the DDL* and then fails every insert with
+        // `foreign key mismatch`, naming the two tables and nothing else.
+        // Saying so here, against the schema, beats debugging that at runtime.
+        if (!target.primary && !isUnique(indexes, ref.table, ref.column)) {
+          unreferenceable.push(
+            `${tableName}.${colName} -> ${ref.table}.${ref.column}`,
+          )
+        }
+      }
+
+      out[`fk_${Case.snake(tableName)}_${Case.snake(colName)}`] = {
+        type: 'foreign',
+        table: tableName,
+        cols: [colName],
+        refTable: ref.table,
+        refCols: [ref.column],
+      }
+    }
+  }
+
+  return {
+    constraints,
+    indexes: out as SyncTypes.DBIndexes,
+    unreferenceable,
+  }
 }
