@@ -26,15 +26,19 @@ function getDriver(val?: string | null): 'sqlite' | 'postgres' | 'mysql' {
 export async function createDbAdapter() {
   const url = process.env.DB_URL || process.env.DATABASE_URL || ''
   const driver = getDriver(url)
+  const { poolOptionsFromEnv } = await import('./pool')
+  // Read once and shared by both pooled drivers. SQLite takes none — it is a
+  // single file handle with no pool to size.
+  const pool = poolOptionsFromEnv()
 
   switch (driver) {
     case 'mysql': {
       const { MySQLAdapter } = await import('./adapters/mysql')
-      return new MySQLAdapter(url || undefined)
+      return new MySQLAdapter(url || undefined, pool)
     }
     case 'postgres': {
       const { PGAdapter } = await import('./adapters/pgsql')
-      return new PGAdapter(url || undefined)
+      return new PGAdapter(url || undefined, pool)
     }
     default: {
       const { SQLiteAdapter } = await import('./adapters/sqlite')

@@ -233,10 +233,10 @@ export abstract class SQLAdapter {
   abstract hasCol(table: string, column: string): Promise<boolean>
   async addCol(table: string, column: string, def: unknown): Promise<void> {
     await this.query(
-      `ALTER TABLE ${this.quote(table)} ADD COLUMN ${this.quote(column)} ${this.colDef(def)}`,
+      `ALTER TABLE ${this.quote(table)} ADD COLUMN ${this.quote(column)} ${this.colDef(def, column)}`,
     ).run()
   }
-  abstract colDef(def: unknown): string
+  abstract colDef(def: unknown, column?: string): string
   abstract backup(keepCount?: number): Promise<SQLAdapter.BackupResult | null>
 
   /**
@@ -566,13 +566,57 @@ export abstract class SQLAdapter {
    */
   readonly dateNowExpression: string = ''
 
+  /**
+   * The same pair as `dateNowDefaults` / `dateNowExpression`, for `%uuid%`.
+   *
+   * Both halves are required, and the read-back half is the one that matters:
+   * without it the database reports `gen_random_uuid()` where the schema says
+   * `%uuid%`, the two never compare equal, and the column is rebuilt on every
+   * sync forever. That failure has happened twice in this codebase already,
+   * which is why these are separate fields rather than one clever pattern.
+   */
+  readonly uuidDefaults: string[] = []
+  readonly uuidExpression: string = ''
+
   isDateNowDefault(def: string): boolean {
-    if (def === '%dateNow%') return true
+    return this.matchesMarker(def, '%dateNow%', this.dateNowDefaults)
+  }
+
+  isUuidDefault(def: string): boolean {
+    return this.matchesMarker(def, '%uuid%', this.uuidDefaults)
+  }
+
+  /**
+   * Loose match: parens stripped, uppercased, substring. A prefix fragment is a
+   * perfectly good entry in the pattern lists — and is fatal to *emit*, which
+   * is the whole reason the emitted expression is a separate field.
+   */
+  private matchesMarker(
+    def: string,
+    marker: string,
+    patterns: string[],
+  ): boolean {
+    if (def === marker) return true
     const norm = def.replace(/[()]/g, '').trim().toUpperCase()
-    return this.dateNowDefaults.some(dVal => {
-      const normD = dVal.replace(/[()]/g, '').trim().toUpperCase()
-      return norm === normD || norm.includes(normD)
+    return patterns.some(pattern => {
+      const normPattern = pattern.replace(/[()]/g, '').trim().toUpperCase()
+      return norm === normPattern || norm.includes(normPattern)
     })
+  }
+
+  /**
+   * A `CHECK (col IN (…))` clause restricting a column to a set of values.
+   *
+   * Takes the column name because a CHECK has to name it, which is why
+   * `colDef` grew an optional `column` argument. Values bind nowhere — this is
+   * DDL — so they are quoted the same way `formatDefault` quotes a string
+   * default, by doubling the single quote.
+   */
+  protected enumClause(column: string, values: string[]): string {
+    const list = values
+      .map(v => `'${String(v).replaceAll("'", "''")}'`)
+      .join(', ')
+    return ` CHECK (${this.quote(column)} IN (${list}))`
   }
 
   protected parseDefault(def: any): any {
@@ -590,6 +634,7 @@ export abstract class SQLAdapter {
     if (isStr && def.trim() !== '' && !Number.isNaN(Number(def)))
       return Number(def)
     if (isStr && this.isDateNowDefault(def)) return '%dateNow%'
+    if (isStr && this.isUuidDefault(def)) return '%uuid%'
     return def
   }
 
@@ -658,6 +703,15 @@ export abstract class SQLAdapter {
         throws(`${this.driver} adapter defines no dateNowExpression`)
       }
       return ` DEFAULT (${this.dateNowExpression})`
+    }
+    if (typeof def === 'string' && def === '%uuid%') {
+      // Same reasoning as `%dateNow%` above, and the same failure if silent:
+      // a UUID primary key with no default is a NOT NULL violation on the
+      // first insert rather than at sync time.
+      if (!this.uuidExpression) {
+        throws(`${this.driver} adapter defines no uuidExpression`)
+      }
+      return ` DEFAULT (${this.uuidExpression})`
     }
     return ` DEFAULT '${String(def).replaceAll("'", "''")}'`
   }

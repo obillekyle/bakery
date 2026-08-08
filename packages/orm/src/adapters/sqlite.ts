@@ -225,7 +225,7 @@ export class SQLiteAdapter extends SQLAdapter {
     return cols.some(c => c.name === column)
   }
 
-  colDef(def: unknown): string {
+  colDef(def: unknown, column?: string): string {
     const d = def as any
     const typeStr =
       {
@@ -251,7 +251,14 @@ export class SQLiteAdapter extends SQLAdapter {
     // for tidiness is load-bearing here.
     if (d.autoIncrement && d.type === 'integer') out += ' AUTOINCREMENT'
     if (!d.nullable && !d.primary) out += ' NOT NULL'
-    return out + this.formatDefault(d.default, '1', '0')
+    // The CHECK names the column, which is why colDef takes it. Emitted only
+    // when both are known: an ALTER path that has no name yet gets a plain
+    // sized column rather than a syntax error.
+    const check =
+      Array.isArray(d._enum) && d._enum.length && column
+        ? this.enumClause(column, d._enum)
+        : ''
+    return out + this.formatDefault(d.default, '1', '0') + check
   }
 
   async backup(keepCount = 10): Promise<SQLAdapter.BackupResult | null> {
@@ -493,6 +500,20 @@ export class SQLiteAdapter extends SQLAdapter {
   ]
   override readonly dateNowExpression: string =
     "CAST(strftime('%s', 'now') AS INTEGER)"
+
+  /**
+   * SQLite has no UUID function, so the canonical 8-4-4-4-12 form is assembled
+   * from `randomblob(16)`. Version and variant nibbles are **not** forced, so
+   * this is a random 128-bit value in UUID shape rather than a conforming v4 —
+   * unique, but do not hand it to something that validates the version field.
+   *
+   * SQLite stores the default expression verbatim and hands it back the same
+   * way, so the emitted form and the match pattern are the same string.
+   */
+  override readonly uuidExpression: string =
+    "lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || " +
+    "hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6)))"
+  override readonly uuidDefaults: string[] = [this.uuidExpression]
 
   protected override parseConstraints(
     col: any,

@@ -562,7 +562,7 @@ async function processTableRebuild(
     ([n]) => !['_oldTable', '_transform'].includes(n),
   )
   const colDefs = validCols.map(
-    ([name, cons]) => `  ${tx.quote(Case.snake(name))} ${tx.colDef(cons)}`,
+    ([name, cons]) => `  ${tx.quote(Case.snake(name))} ${tx.colDef(cons, Case.snake(name))}`,
   )
 
   await tx.createTable(tempName, colDefs)
@@ -749,7 +749,7 @@ async function syncViewsAndTablesPhase(
         .filter(([name]) => !['_oldTable', '_transform'].includes(name))
         .map(
           ([name, cons]) =>
-            `  ${tx.quote(Case.snake(name))} ${tx.colDef(cons)}`,
+            `  ${tx.quote(Case.snake(name))} ${tx.colDef(cons, Case.snake(name))}`,
         )
       // Inline, not a later ALTER: SQLite has no
       // `ALTER TABLE ADD FOREIGN KEY`, so this is the only spelling that works

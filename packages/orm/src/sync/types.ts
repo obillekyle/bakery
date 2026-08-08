@@ -19,6 +19,17 @@ export interface ColumnConstraint {
    * Consequence to know: widening a `Varchar` does not migrate on its own.
    */
   length?: number
+  /**
+   * The permitted values of an enum column — `Field.Enum([...])`.
+   *
+   * Not part of the column diff, for exactly the reason `length` is not:
+   * MySQL reports an ENUM's members back in its own spelling, Postgres reports
+   * a CHECK constraint from a different catalog altogether, and any adapter
+   * that reported them even slightly differently would rebuild the table on
+   * every sync. Consequence to know, and it is the same one: **changing an
+   * enum's members does not migrate on its own.**
+   */
+  _enum?: string[]
   primary?: boolean
   autoIncrement?: boolean
   nullable?: boolean

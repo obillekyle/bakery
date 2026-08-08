@@ -2,11 +2,12 @@ import { Case, Try } from '@bakery/core/utils'
 import { SQL } from 'bun'
 import type * as SyncTypes from '../sync/types'
 import { createExecutor, isOpenConnection, SQLAdapter } from './base'
+import { type PoolOptions, withPoolOptions } from '../pool'
 
 export class MySQLAdapter extends SQLAdapter {
   protected readonly sql: SQL
 
-  constructor(connectionTarget?: string | URL | SQL) {
+  constructor(connectionTarget?: string | URL | SQL, pool: PoolOptions = {}) {
     const target =
       typeof connectionTarget === 'string' || connectionTarget instanceof URL
         ? connectionTarget.toString().replace(/^(mysqli?s?:\/\/)/, 'mysql://')
@@ -14,11 +15,15 @@ export class MySQLAdapter extends SQLAdapter {
     super('mysql', undefined, target)
     // `isOpenConnection`, not `instanceof SQL` — see the helper for why the
     // latter throws rather than answering.
+    //
+    // Pool options apply only when this opens its own connection. A handle
+    // handed in is already someone else's pool — notably a transaction's, where
+    // re-sizing anything would be meaningless.
     this.sql = isOpenConnection(connectionTarget)
       ? (connectionTarget as SQL)
       : target
-        ? new SQL(target)
-        : new SQL()
+        ? new SQL(target, withPoolOptions({}, pool) as any)
+        : new SQL(withPoolOptions({}, pool) as any)
   }
 
   readonly execute: SQLAdapter.Executor = createExecutor(
@@ -53,7 +58,7 @@ export class MySQLAdapter extends SQLAdapter {
     return res.some(r => r.column_name === column)
   }
 
-  colDef(def: unknown): string {
+  colDef(def: unknown, column?: string): string {
     const d = def as any
     const typeStr =
       {
@@ -75,7 +80,14 @@ export class MySQLAdapter extends SQLAdapter {
     if (d.autoIncrement && d.type === 'integer') sql += ' AUTO_INCREMENT'
     if (d.primary) sql += ' PRIMARY KEY'
     if (!d.nullable && !d.primary) sql += ' NOT NULL'
-    return sql + this.formatDefault(d.default, '1', '0')
+    // The CHECK names the column, which is why colDef takes it. Emitted only
+    // when both are known: an ALTER path that has no name yet gets a plain
+    // sized column rather than a syntax error.
+    const check =
+      Array.isArray(d._enum) && d._enum.length && column
+        ? this.enumClause(column, d._enum)
+        : ''
+    return sql + this.formatDefault(d.default, '1', '0') + check
   }
 
   override async rename(
@@ -400,6 +412,12 @@ export class MySQLAdapter extends SQLAdapter {
   // parses as a reference to a column named UNIX_TIMESTAMP (ERROR 3109), and the
   // outer parens formatDefault adds are required for an expression default.
   override readonly dateNowExpression: string = 'UNIX_TIMESTAMP()'
+
+  // MySQL reports an expression default back with the call parens intact, so
+  // the bare name matches either spelling. Expression defaults need 8.0.13 or
+  // newer; below that MySQL rejects everything except CURRENT_TIMESTAMP.
+  override readonly uuidDefaults: string[] = ['UUID']
+  override readonly uuidExpression: string = 'UUID()'
 
   protected override parseConstraints(col: any): SyncTypes.ColumnConstraint {
     const primary = col.column_key === 'PRI'

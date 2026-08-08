@@ -2,6 +2,7 @@ import { Case, Try } from '@bakery/core/utils'
 import { SQL } from 'bun'
 import type * as SyncTypes from '../sync/types'
 import { createExecutor, isOpenConnection, SQLAdapter } from './base'
+import { type PoolOptions, withPoolOptions } from '../pool'
 
 interface PGSQLParserState {
   inSingleQuote: boolean
@@ -15,7 +16,7 @@ export class PGAdapter extends SQLAdapter {
   protected readonly sql: SQL
   override readonly quoteChar: string = '"'
 
-  constructor(connectionTarget?: string | URL | SQL) {
+  constructor(connectionTarget?: string | URL | SQL, pool: PoolOptions = {}) {
     const target =
       typeof connectionTarget === 'string' || connectionTarget instanceof URL
         ? connectionTarget.toString()
@@ -23,11 +24,15 @@ export class PGAdapter extends SQLAdapter {
     super('postgres', undefined, target)
     // `isOpenConnection`, not `instanceof SQL` — see the helper for why the
     // latter throws rather than answering.
+    //
+    // Pool options apply only when this opens its own connection. A handle
+    // handed in is already someone else's pool — notably a transaction's, where
+    // re-sizing anything would be meaningless.
     this.sql = isOpenConnection(connectionTarget)
       ? (connectionTarget as SQL)
       : target
-        ? new SQL(target)
-        : new SQL()
+        ? new SQL(target, withPoolOptions({}, pool) as any)
+        : new SQL(withPoolOptions({}, pool) as any)
   }
 
   private static handleQuote(
@@ -168,7 +173,7 @@ export class PGAdapter extends SQLAdapter {
     return res.length > 0
   }
 
-  colDef(def: unknown): string {
+  colDef(def: unknown, column?: string): string {
     const d = def as any
     let typeStr =
       {
@@ -188,7 +193,14 @@ export class PGAdapter extends SQLAdapter {
     let sql = `${typeStr}`
     if (d.primary) sql += ' PRIMARY KEY'
     if (!d.nullable && !d.primary) sql += ' NOT NULL'
-    return sql + this.formatDefault(d.default, 'TRUE', 'FALSE')
+    // The CHECK names the column, which is why colDef takes it. Emitted only
+    // when both are known: an ALTER path that has no name yet gets a plain
+    // sized column rather than a syntax error.
+    const check =
+      Array.isArray(d._enum) && d._enum.length && column
+        ? this.enumClause(column, d._enum)
+        : ''
+    return sql + this.formatDefault(d.default, 'TRUE', 'FALSE') + check
   }
 
   async backup(keepCount = 10): Promise<SQLAdapter.BackupResult | null> {
@@ -425,6 +437,14 @@ export class PGAdapter extends SQLAdapter {
   // `(EXTRACT(epoch FROM now()))::integer`, which isDateNowDefault() strips
   // parens from and matches against the prefix above.
   override readonly dateNowExpression: string = 'EXTRACT(EPOCH FROM NOW())'
+
+  // `gen_random_uuid()` is built in from Postgres 13; before that it lived in
+  // the pgcrypto extension. Postgres reports it back as
+  // `gen_random_uuid()`, so unlike the epoch expression the emitted form and
+  // the match pattern coincide — stated rather than assumed, because the two
+  // being equal here is a coincidence of this expression, not a rule.
+  override readonly uuidDefaults: string[] = ['GEN_RANDOM_UUID']
+  override readonly uuidExpression: string = 'gen_random_uuid()'
 
   protected override parseConstraints(
     col: any,
