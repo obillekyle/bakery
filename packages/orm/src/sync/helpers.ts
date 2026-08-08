@@ -230,9 +230,24 @@ function diffColumnMismatch(
           .replace(/^\(+|\)+$/g, '')
           .trim()
 
+  // Width joins the diff, so widening a Varchar migrates instead of silently
+  // doing nothing. It stayed out until all three adapters could be *measured*
+  // reporting it back exactly; see `SQLAdapter.sizedTextLength` for the MySQL
+  // TEXT trap that made this dangerous to add blind.
+  //
+  // Compared only when both sides declare one. A column the schema leaves
+  // unsized is not a request to shrink whatever is there — `Field.Text()`
+  // against an existing VARCHAR should not rebuild the table — and a database
+  // that reports no width for a sized column would otherwise rebuild forever,
+  // which is the failure this guard is bought to avoid.
+  const bothSized =
+    typeof tsCol.length === 'number' && typeof dbCol.length === 'number'
+  const lengthDiffers = bothSized && tsCol.length !== dbCol.length
+
   if (
     !isTypeMatch ||
     tsNullable !== dbNullable ||
+    lengthDiffers ||
     norm(tsDefault) !== norm(dbDefault)
   ) {
     MESSAGES.COL_MISMATCH({ table: dbName, column: camelCol })
@@ -562,7 +577,7 @@ async function processTableRebuild(
     ([n]) => !['_oldTable', '_transform'].includes(n),
   )
   const colDefs = validCols.map(
-    ([name, cons]) => `  ${tx.quote(Case.snake(name))} ${tx.colDef(cons)}`,
+    ([name, cons]) => `  ${tx.quote(Case.snake(name))} ${tx.colDef(cons, Case.snake(name))}`,
   )
 
   await tx.createTable(tempName, colDefs)
@@ -749,7 +764,7 @@ async function syncViewsAndTablesPhase(
         .filter(([name]) => !['_oldTable', '_transform'].includes(name))
         .map(
           ([name, cons]) =>
-            `  ${tx.quote(Case.snake(name))} ${tx.colDef(cons)}`,
+            `  ${tx.quote(Case.snake(name))} ${tx.colDef(cons, Case.snake(name))}`,
         )
       // Inline, not a later ALTER: SQLite has no
       // `ALTER TABLE ADD FOREIGN KEY`, so this is the only spelling that works

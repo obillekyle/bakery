@@ -209,6 +209,7 @@ export class SQLiteAdapter extends SQLAdapter {
     },
     (sqlText: string, params: unknown[] = []) =>
       this.sql.unsafe(sqlText, params) as any,
+    this.driver,
   )
 
   // `PRAGMA table_info('${table}')` interpolated the table name into a
@@ -224,7 +225,7 @@ export class SQLiteAdapter extends SQLAdapter {
     return cols.some(c => c.name === column)
   }
 
-  colDef(def: unknown): string {
+  colDef(def: unknown, column?: string): string {
     const d = def as any
     const typeStr =
       {
@@ -250,7 +251,14 @@ export class SQLiteAdapter extends SQLAdapter {
     // for tidiness is load-bearing here.
     if (d.autoIncrement && d.type === 'integer') out += ' AUTOINCREMENT'
     if (!d.nullable && !d.primary) out += ' NOT NULL'
-    return out + this.formatDefault(d.default, '1', '0')
+    // The CHECK names the column, which is why colDef takes it. Emitted only
+    // when both are known: an ALTER path that has no name yet gets a plain
+    // sized column rather than a syntax error.
+    const check =
+      Array.isArray(d._enum) && d._enum.length && column
+        ? this.enumClause(column, d._enum)
+        : ''
+    return out + this.formatDefault(d.default, '1', '0') + check
   }
 
   async backup(keepCount = 10): Promise<SQLAdapter.BackupResult | null> {
@@ -271,10 +279,8 @@ export class SQLiteAdapter extends SQLAdapter {
     }
   }
 
-  transaction<T>(callback: (tx: SQLAdapter) => T | Promise<T>): Promise<T> {
-    return this.sql.transaction(async txSql =>
-      callback(new SQLiteAdapter(this.filename, txSql)),
-    )
+  protected withConnection(sql: unknown): SQLAdapter {
+    return new SQLiteAdapter(this.filename, sql as SQL)
   }
 
   async getSchema(): Promise<SQLAdapter.TableDetails[]> {
@@ -495,6 +501,20 @@ export class SQLiteAdapter extends SQLAdapter {
   override readonly dateNowExpression: string =
     "CAST(strftime('%s', 'now') AS INTEGER)"
 
+  /**
+   * SQLite has no UUID function, so the canonical 8-4-4-4-12 form is assembled
+   * from `randomblob(16)`. Version and variant nibbles are **not** forced, so
+   * this is a random 128-bit value in UUID shape rather than a conforming v4 —
+   * unique, but do not hand it to something that validates the version field.
+   *
+   * SQLite stores the default expression verbatim and hands it back the same
+   * way, so the emitted form and the match pattern are the same string.
+   */
+  override readonly uuidExpression: string =
+    "lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || " +
+    "hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6)))"
+  override readonly uuidDefaults: string[] = [this.uuidExpression]
+
   protected override parseConstraints(
     col: any,
     tableSql = '',
@@ -503,6 +523,15 @@ export class SQLiteAdapter extends SQLAdapter {
     const cons: SyncTypes.ColumnConstraint = {
       type: SQLiteAdapter.mapSqlToTsType(col.type),
     }
+
+    // SQLite has no catalog column for width; it stores the *declared* type
+    // verbatim and hands it back through `pragma table_info`, so the number is
+    // in the type string — 'VARCHAR(64)'. That is also why emitting the width
+    // is worth doing on a dialect with no real VARCHAR: it is what lets one
+    // schema round-trip on all three.
+    const declared = String(col.type || '')
+    const length = this.sizedTextLength(declared, /\((\d+)\)/.exec(declared)?.[1])
+    if (length !== undefined) cons.length = length
 
     if (primary) cons.primary = true
     if (

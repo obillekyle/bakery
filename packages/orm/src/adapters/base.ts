@@ -4,6 +4,7 @@ import type { MapOf } from '@bakery/core/types'
 import { Case, Try } from '@bakery/core/utils'
 import { throws } from '@bakery/core/utils/common'
 import type * as SyncTypes from '../sync/types'
+import { observe, observeIterate } from './observe'
 
 export namespace SQLAdapter {
   export type Driver = 'sqlite' | 'postgres' | 'mysql'
@@ -88,6 +89,20 @@ export namespace SQLAdapter {
     params: unknown[]
   }
 
+  /**
+   * The slice of a Bun `SQL` handle that transaction nesting needs.
+   *
+   * Structural rather than `SQL`, because the base class holds `sql` as
+   * `unknown` — each adapter narrows it — and because both members are
+   * verified by probe rather than by the type: `savepoint` is present on the
+   * root connection and on every transaction and savepoint handle in Bun
+   * 1.3.14, on all three dialects.
+   */
+  export interface TxHandle {
+    transaction<T>(callback: (tx: unknown) => Promise<T>): Promise<T>
+    savepoint<T>(callback: (sp: unknown) => Promise<T>): Promise<T>
+  }
+
   export interface Executor {
     all(sqlText: string, params?: unknown[]): Promise<RowRecord[]> | RowRecord[]
     run(sqlText: string, params?: unknown[]): Promise<RunResult> | RunResult
@@ -98,6 +113,49 @@ export namespace SQLAdapter {
     get(sqlText: string, params?: unknown[]): Promise<RowRecord | undefined>
     values(sqlText: string, params?: unknown[]): Promise<unknown[][]>
   }
+}
+
+/**
+ * The most bound parameters one statement is allowed to carry.
+ *
+ * A wire-format limit, not a tuning knob. Postgres sends the parameter count as
+ * an Int16 and MySQL's prepared-statement protocol does the same, so 65,535 is
+ * the hard ceiling on both; SQLite's `SQLITE_MAX_VARIABLE_NUMBER` has been
+ * 32,766 since 3.32 and 999 before that.
+ *
+ * 32,766 for every dialect, deliberately below the two that could go higher.
+ * The counter that overflows is 16 bits and it does not *fail* on overflow, it
+ * wraps: a 120,000-parameter insert reported `expected 54464 values, received
+ * 120000` — 120000 − 65536 — which reads like memory corruption rather than a
+ * limit being hit. Half the 16-bit ceiling leaves room for whatever bookkeeping
+ * a driver adds on top of the parameters we counted, and the cost of the extra
+ * round trips is nothing next to the bytes those parameters weigh.
+ */
+export const DEFAULT_MAX_QUERY_PARAMS = 32766
+
+/**
+ * Is this argument an already-open Bun `SQL` handle rather than a target to
+ * open one from?
+ *
+ * A duck check, because `value instanceof SQL` is unusable: Bun's `SQL` export
+ * has no `prototype` property at all — it is `undefined` as of 1.3.14 — and
+ * `instanceof` against it does not return false, it **throws**
+ * `instanceof called on an object with an invalid prototype property` for every
+ * object operand. The MySQL and Postgres constructors read as if they tested
+ * this and did not: `instanceof` short-circuits to false for a primitive
+ * *before* it touches the right operand, so the string form never reached the
+ * throw and the only caller that passes a real handle — `transaction()`,
+ * wrapping the connection Bun hands its callback — failed every time it ran.
+ *
+ * `typeof` covers `function` as well as `object` because a Bun connection is
+ * callable: it is the tagged-template entry point, with `unsafe` hung off it.
+ */
+export function isOpenConnection(value: unknown): boolean {
+  return (
+    (typeof value === 'function' || typeof value === 'object') &&
+    value !== null &&
+    typeof (value as { unsafe?: unknown }).unsafe === 'function'
+  )
 }
 
 export function quoteIdentifier(name: string, quoteChar: string): string {
@@ -113,17 +171,34 @@ export function createExecutor(
   all: SQLAdapter.Executor['all'],
   run: SQLAdapter.Executor['run'],
   iterate: SQLAdapter.Executor['iterate'],
+  driver: SQLAdapter.Driver,
 ): SQLAdapter.Executor {
-  const exec: SQLAdapter.Executor = {
-    all,
-    run,
-    iterate,
-    get: async (sqlText: string, params: unknown[] = []) =>
-      (await exec.all(sqlText, params))[0],
-    values: async (sqlText: string, params: unknown[] = []) =>
-      (await exec.all(sqlText, params)).map(Object.values),
+  // `get` and `values` call the raw `all` rather than `exec.all`, which is a
+  // behavioural detail worth stating: it is what keeps one executed statement
+  // to exactly one observer event. Routing them through the observed `exec.all`
+  // would report every `.get()` twice — once as `get`, once as `all` — and a
+  // "slowest queries" panel built on double-counted rows is worse than none.
+  return {
+    all: observe(driver, 'all', all, rows =>
+      Array.isArray(rows) ? rows.length : null,
+    ),
+    run: observe(driver, 'run', run, result => Number(result?.changes ?? 0)),
+    iterate: observeIterate(driver, iterate),
+    get: observe(
+      driver,
+      'get',
+      async (sqlText: string, params: unknown[] = []) =>
+        (await all(sqlText, params))[0],
+      row => (row === undefined ? 0 : 1),
+    ),
+    values: observe(
+      driver,
+      'values',
+      async (sqlText: string, params: unknown[] = []) =>
+        (await all(sqlText, params)).map(Object.values),
+      rows => (Array.isArray(rows) ? rows.length : null),
+    ),
   }
-  return exec
 }
 
 export abstract class SQLAdapter {
@@ -136,6 +211,18 @@ export abstract class SQLAdapter {
     return quoteIdentifier(name, this.quoteChar)
   }
 
+  /**
+   * Placeholder ceiling for a single statement — see
+   * {@link DEFAULT_MAX_QUERY_PARAMS} for why it is one number and not three.
+   *
+   * A getter rather than a field so a dialect that genuinely differs can
+   * override it, and so a future adapter can read it off the live server
+   * (Postgres exposes nothing for it; SQLite has `sqlite3_limit`).
+   */
+  get maxQueryParams(): number {
+    return DEFAULT_MAX_QUERY_PARAMS
+  }
+
   constructor(
     public readonly driver: SQLAdapter.Driver,
     public readonly filename?: string,
@@ -146,14 +233,58 @@ export abstract class SQLAdapter {
   abstract hasCol(table: string, column: string): Promise<boolean>
   async addCol(table: string, column: string, def: unknown): Promise<void> {
     await this.query(
-      `ALTER TABLE ${this.quote(table)} ADD COLUMN ${this.quote(column)} ${this.colDef(def)}`,
+      `ALTER TABLE ${this.quote(table)} ADD COLUMN ${this.quote(column)} ${this.colDef(def, column)}`,
     ).run()
   }
-  abstract colDef(def: unknown): string
+  abstract colDef(def: unknown, column?: string): string
   abstract backup(keepCount?: number): Promise<SQLAdapter.BackupResult | null>
-  abstract transaction<T>(
+
+  /**
+   * How deep in `BEGIN` this adapter's handle already is. 0 is a root
+   * connection; every level below is a savepoint.
+   *
+   * Set by {@link transaction} on the child it just built, never by a
+   * constructor. Inferring it from "was I handed an open connection?" would be
+   * a guess — a pooled handle is open too, and issuing `SAVEPOINT` outside a
+   * transaction block is an error on Postgres and a silent no-op on MySQL.
+   * Only `transaction` knows for certain, because it is what opened the thing.
+   */
+  protected transactionDepth = 0
+
+  /**
+   * Wrap an already-open connection in a sibling adapter, so a transaction body
+   * gets the same API as the connection it came from.
+   */
+  protected abstract withConnection(sql: unknown): SQLAdapter
+
+  /**
+   * Run `callback` atomically — `BEGIN` at the top level, `SAVEPOINT` within an
+   * enclosing transaction.
+   *
+   * The dispatch is the whole point. Bun refuses a nested `BEGIN` outright
+   * (`cannot call begin inside a transaction use savepoint() instead`, verbatim
+   * on all three dialects), so before this, any two transactional functions
+   * that composed — `createUser()` called from `importUsers()`, both perfectly
+   * reasonable alone — crashed the moment they met.
+   *
+   * A failed inner block rolls back to its own savepoint and nothing more, so
+   * an outer transaction that catches the error keeps its own work. It only
+   * gets the whole thing if it lets the error propagate — which is the same
+   * rule a single transaction already follows.
+   */
+  async transaction<T>(
     callback: (tx: SQLAdapter) => T | Promise<T>,
-  ): Promise<T>
+  ): Promise<T> {
+    const handle = this.sql as SQLAdapter.TxHandle
+    const run = async (child: unknown): Promise<T> => {
+      const tx = this.withConnection(child)
+      tx.transactionDepth = this.transactionDepth + 1
+      return await callback(tx)
+    }
+    return this.transactionDepth > 0
+      ? await handle.savepoint(run)
+      : await handle.transaction(run)
+  }
   protected abstract parseConstraints(
     col: unknown,
     ...params: unknown[]
@@ -435,13 +566,85 @@ export abstract class SQLAdapter {
    */
   readonly dateNowExpression: string = ''
 
+  /**
+   * The same pair as `dateNowDefaults` / `dateNowExpression`, for `%uuid%`.
+   *
+   * Both halves are required, and the read-back half is the one that matters:
+   * without it the database reports `gen_random_uuid()` where the schema says
+   * `%uuid%`, the two never compare equal, and the column is rebuilt on every
+   * sync forever. That failure has happened twice in this codebase already,
+   * which is why these are separate fields rather than one clever pattern.
+   */
+  readonly uuidDefaults: string[] = []
+  readonly uuidExpression: string = ''
+
   isDateNowDefault(def: string): boolean {
-    if (def === '%dateNow%') return true
+    return this.matchesMarker(def, '%dateNow%', this.dateNowDefaults)
+  }
+
+  isUuidDefault(def: string): boolean {
+    return this.matchesMarker(def, '%uuid%', this.uuidDefaults)
+  }
+
+  /**
+   * Loose match: parens stripped, uppercased, substring. A prefix fragment is a
+   * perfectly good entry in the pattern lists — and is fatal to *emit*, which
+   * is the whole reason the emitted expression is a separate field.
+   */
+  private matchesMarker(
+    def: string,
+    marker: string,
+    patterns: string[],
+  ): boolean {
+    if (def === marker) return true
     const norm = def.replace(/[()]/g, '').trim().toUpperCase()
-    return this.dateNowDefaults.some(dVal => {
-      const normD = dVal.replace(/[()]/g, '').trim().toUpperCase()
-      return norm === normD || norm.includes(normD)
+    return patterns.some(pattern => {
+      const normPattern = pattern.replace(/[()]/g, '').trim().toUpperCase()
+      return norm === normPattern || norm.includes(normPattern)
     })
+  }
+
+  /**
+   * A `CHECK (col IN (…))` clause restricting a column to a set of values.
+   *
+   * Takes the column name because a CHECK has to name it, which is why
+   * `colDef` grew an optional `column` argument. Values bind nowhere — this is
+   * DDL — so they are quoted the same way `formatDefault` quotes a string
+   * default, by doubling the single quote.
+   */
+  /**
+   * The declared width of a **sized** text column, or `undefined`.
+   *
+   * The guard is the entire point, and it is not defensive coding — it is a
+   * measured result. MySQL reports `character_maximum_length = 65535` for an
+   * unsized `TEXT` column, where Postgres reports `null`. Take the number
+   * unconditionally and every `Field.Text()` column reads back as
+   * `length: 65535`, the schema says nothing, the two never agree, and MySQL
+   * rebuilds the table on every sync forever — the exact failure that kept
+   * `length` out of the diff until it could be checked against real servers.
+   *
+   * So: a width counts only when the dialect also calls the column a *sized*
+   * text type. `varchar` and `char`, not `text`.
+   */
+  protected sizedTextLength(
+    declaredType: string,
+    reported: unknown,
+  ): number | undefined {
+    const type = declaredType.toLowerCase()
+    const sized =
+      type.includes('varchar') ||
+      type.includes('character varying') ||
+      /(^|\W)char(\W|\(|$)/.test(type)
+    if (!sized) return undefined
+    const n = Number(reported)
+    return Number.isInteger(n) && n > 0 ? n : undefined
+  }
+
+  protected enumClause(column: string, values: string[]): string {
+    const list = values
+      .map(v => `'${String(v).replaceAll("'", "''")}'`)
+      .join(', ')
+    return ` CHECK (${this.quote(column)} IN (${list}))`
   }
 
   protected parseDefault(def: any): any {
@@ -459,6 +662,7 @@ export abstract class SQLAdapter {
     if (isStr && def.trim() !== '' && !Number.isNaN(Number(def)))
       return Number(def)
     if (isStr && this.isDateNowDefault(def)) return '%dateNow%'
+    if (isStr && this.isUuidDefault(def)) return '%uuid%'
     return def
   }
 
@@ -527,6 +731,15 @@ export abstract class SQLAdapter {
         throws(`${this.driver} adapter defines no dateNowExpression`)
       }
       return ` DEFAULT (${this.dateNowExpression})`
+    }
+    if (typeof def === 'string' && def === '%uuid%') {
+      // Same reasoning as `%dateNow%` above, and the same failure if silent:
+      // a UUID primary key with no default is a NOT NULL violation on the
+      // first insert rather than at sync time.
+      if (!this.uuidExpression) {
+        throws(`${this.driver} adapter defines no uuidExpression`)
+      }
+      return ` DEFAULT (${this.uuidExpression})`
     }
     return ` DEFAULT '${String(def).replaceAll("'", "''")}'`
   }

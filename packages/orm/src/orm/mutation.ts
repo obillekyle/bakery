@@ -1,10 +1,12 @@
+import { Try } from '@bakery/core/utils'
 import { throws } from '@bakery/core/utils/common'
 import type {
   AppDBOptionals as DBOptionals,
   AppDBSchema as DBSchema,
   AppViews,
 } from '../schema-registry'
-import { getActiveDb } from '../connection'
+import { DEFAULT_MAX_QUERY_PARAMS, type SQLAdapter } from '../adapters'
+import { getActiveDb, txStorage } from '../connection'
 import { evalOperands, qId } from '../schema-util'
 import { DB } from './query'
 
@@ -67,7 +69,39 @@ export namespace Mutation {
       return new Insert(table as string)
     }
 
-    values(...records: InsertSchema<T>[]): InsertExecutable {
+    /**
+     * The rows to insert — as a spread, or as one array.
+     *
+     * Both forms exist because the variadic signature alone made the obvious
+     * call wrong in a way nothing announced: `values(rows)` bound the *array*
+     * as a single record, and the only symptom was
+     * `table big has no column named 0`. An array is never a record, so the two
+     * forms cannot be confused, and anything that is neither — a mixed
+     * `values(rows, extra)`, a primitive — is rejected by name rather than
+     * turned into columns called `0` and `1`.
+     */
+    values(records: InsertSchema<T>[]): InsertExecutable
+    values(...records: InsertSchema<T>[]): InsertExecutable
+    values(
+      ...args: (InsertSchema<T> | InsertSchema<T>[])[]
+    ): InsertExecutable {
+      const records =
+        args.length === 1 && Array.isArray(args[0])
+          ? (args[0] as InsertSchema<T>[])
+          : (args as InsertSchema<T>[])
+
+      for (const record of records) {
+        if (record === null || typeof record !== 'object' || Array.isArray(record)) {
+          throws(
+            'values() takes records: values(row), values(rowA, rowB) or ' +
+              'values(rows). Got a ' +
+              (Array.isArray(record) ? 'nested array' : typeof record) +
+              ' — if you meant to pass an array of rows, pass it as the only ' +
+              'argument.',
+          )
+        }
+      }
+
       return new InsertExecutable(this._table, records as MapOf<unknown>[])
     }
   }
@@ -112,33 +146,162 @@ export namespace Mutation {
       return this
     }
 
-    parse(): { sql: string; params: any[] } {
-      if (this._records.length === 0) throws('Empty insert')
+    /** The column list: every record's keys, unioned, in first-seen order. */
+    private columnKeys(): string[] {
       const keySet = new Set<string>()
       for (const record of this._records) {
         for (const key of Object.keys(record)) {
           keySet.add(key)
         }
       }
+      return Array.from(keySet)
+    }
 
-      const keys = Array.from(keySet)
+    /**
+     * How many records fit in one statement, under the adapter's ceiling.
+     *
+     * The ceiling comes from the adapter because only it knows its dialect, but
+     * a statement can be *rendered* without a connection — `parse()` is how the
+     * tests read the SQL, and the stub adapter in `orm.test.ts` implements two
+     * members. An unreachable or silent adapter falls back to the same default
+     * the base class publishes rather than making `parse()` require a database.
+     */
+    private batchSize(columnCount: number): number {
+      const declared = Try.return(
+        () => Number(getActiveDb().maxQueryParams),
+        Number.NaN,
+      )
+      const ceiling =
+        Number.isFinite(declared) && declared > 0
+          ? declared
+          : DEFAULT_MAX_QUERY_PARAMS
+      return Math.max(1, Math.floor(ceiling / Math.max(1, columnCount)))
+    }
+
+    private statement(
+      records: MapOf<unknown>[],
+      keys: string[],
+    ): { sql: string; params: any[] } {
       const columns = keys.map(k => qId(k)).join(', ')
       const placeholderGroup = `(${Array(keys.length).fill('?').join(', ')})`
-      const placeholders = Array(this._records.length)
+      const placeholders = Array(records.length)
         .fill(placeholderGroup)
         .join(', ')
 
-      const params = this._records.flatMap(record =>
-        keys.map(k => record[k] ?? null),
-      )
+      const params = records.flatMap(record => keys.map(k => record[k] ?? null))
 
       const retSql = this._returning ? ` RETURNING ${this._returning}` : ''
+      // Rebuilt per batch, not hoisted: each batch is a whole statement, so an
+      // upsert whose conflict clause only rode on the first one would upsert
+      // 10,922 rows and then raise a unique violation on the next batch.
       const conflictSql = this.conflictClause(keys)
 
       return {
         sql: `INSERT INTO ${qId(this._table)} (${columns}) VALUES ${placeholders}${conflictSql}${retSql}`,
         params,
       }
+    }
+
+    /**
+     * The insert as one statement per batch — the form the executors run.
+     *
+     * A single `INSERT … VALUES (…),(…),…` carries three parameters per row, so
+     * it stops being a legal statement somewhere around eleven thousand rows.
+     * Past that the drivers do not report a limit, they report a *wrapped*
+     * count (`expected 54464 values, received 120000`) or `too many SQL
+     * variables`, neither of which names the actual problem. Batching under the
+     * adapter's ceiling is the only way `values(rows)` can mean what it reads
+     * like for an arbitrary `rows`.
+     *
+     * The column list is computed once, across every record, so every batch
+     * inserts the same columns in the same order — a per-batch union would
+     * change the shape of the statement halfway through the insert.
+     *
+     * **`RETURNING` is accumulated, not refused.** Refusing is the
+     * safe-looking option and the wrong one: the batches run sequentially
+     * inside one transaction, so concatenating each batch's rows in batch order
+     * reproduces the sequence a single statement would have produced. Ordering
+     * *within* a batch is whatever the dialect gives — Postgres does not
+     * promise `RETURNING` follows `VALUES` order — but that is equally true
+     * unchunked, so batching neither adds nor removes a guarantee. Refusing
+     * would have cost the main reason to write `.values(rows).returning('id')`
+     * at all: getting the generated ids of a bulk import back.
+     */
+    parseAll(): { sql: string; params: any[] }[] {
+      if (this._records.length === 0) throws('Empty insert')
+      const keys = this.columnKeys()
+      const size = this.batchSize(keys.length)
+
+      if (this._records.length <= size) {
+        return [this.statement(this._records, keys)]
+      }
+
+      const batches: { sql: string; params: any[] }[] = []
+      for (let i = 0; i < this._records.length; i += size) {
+        batches.push(this.statement(this._records.slice(i, i + size), keys))
+      }
+      return batches
+    }
+
+    /**
+     * The insert as one statement.
+     *
+     * Throws rather than returning the first batch when the records do not fit
+     * in one: a caller holding `{sql, params}` executes it themselves, and
+     * quietly handing back a third of their rows is the failure mode this whole
+     * change exists to remove. `parseAll()` is the honest answer for that case.
+     */
+    parse(): { sql: string; params: any[] } {
+      const batches = this.parseAll()
+      if (batches.length > 1) {
+        throws(
+          `Insert of ${this._records.length} records needs ${batches.length} ` +
+            `statements to stay under the parameter ceiling; parse() returns ` +
+            `one. Use run()/array()/fetch(), which batch inside a single ` +
+            `transaction, or parseAll() for the statements themselves.`,
+        )
+      }
+      return batches[0]!
+    }
+
+    /**
+     * Run every batch, in one transaction when there is more than one.
+     *
+     * The transaction is what keeps a batched insert meaning what the unbatched
+     * one meant: all rows or none. It is opened only when a batch boundary
+     * exists — one statement is already atomic — and only when the caller is
+     * not already inside `DB.transaction`, where the outer transaction is
+     * already the atomic unit.
+     *
+     * That second condition is now an economy rather than a requirement: since
+     * `SQLAdapter.transaction` nests through `SAVEPOINT`, wrapping anyway would
+     * work. It would just buy a savepoint per bulk insert that can never roll
+     * back independently of the transaction enclosing it.
+     */
+    private async runBatches<R>(
+      batches: { sql: string; params: any[] }[],
+      each: (db: SQLAdapter, sql: string, params: any[]) => Promise<R>,
+    ): Promise<R[]> {
+      const exec = async (db: SQLAdapter) => {
+        const results: R[] = []
+        // Sequential on purpose: they share one connection, and a batch that
+        // fails has to leave the ones after it unattempted.
+        for (const batch of batches) {
+          results.push(await each(db, batch.sql, batch.params))
+        }
+        return results
+      }
+
+      const db = getActiveDb()
+      if (batches.length === 1 || txStorage.getStore()) return exec(db)
+      return db.transaction(tx => exec(tx))
+    }
+
+    // `execute` directly rather than `query(sql).run(...params)`: the
+    // statement-level API spreads its parameters as arguments, and a batch
+    // carries tens of thousands of them.
+    private static all(db: SQLAdapter, sql: string, params: any[]) {
+      return Promise.resolve(db.execute.all(sql, params))
     }
 
     /**
@@ -182,28 +345,43 @@ export namespace Mutation {
     }
 
     async array<R = any>(): Promise<R[]> {
-      const { sql, params } = this.parse()
-      const results = (await getActiveDb()
-        .query(sql)
-        .all(...params)) as R[]
-      return results || []
+      const perBatch = await this.runBatches(
+        this.parseAll(),
+        InsertExecutable.all,
+      )
+      // Batch order is insertion order, so the concatenation is the sequence a
+      // single statement would have returned.
+      return perBatch.flatMap(rows => (rows || []) as R[])
     }
 
     async fetch<R = any>(): Promise<R | undefined> {
-      const { sql, params } = this.parse()
-      const result = await getActiveDb()
-        .query(sql)
-        .get(...params)
-      return (result as R) || undefined
+      // Every batch still runs — `fetch()` means "insert, and hand me a row
+      // back", not "insert the first batch". `Executor.get` is defined as
+      // `all(…)[0]`, so this is the same row it would have produced.
+      const rows = await this.array<R>()
+      return (rows[0] as R) || undefined
     }
 
     first = this.fetch
 
     async run(): Promise<RunResult> {
-      const { sql, params } = this.parse()
-      return await getActiveDb()
-        .query(sql)
-        .run(...params)
+      const results = await this.runBatches(this.parseAll(), (db, sql, params) =>
+        Promise.resolve(db.execute.run(sql, params)),
+      )
+      if (results.length === 1) return results[0]!
+
+      const changes = results.reduce((n, r) => n + Number(r?.changes ?? 0), 0)
+      // `changes` sums, because it answers "how many rows did this insert
+      // write". `lastInsertRowid` cannot sum, and the dialects do not even
+      // agree what it means for a multi-row insert: SQLite and Postgres report
+      // the *last* row's id, MySQL's `insertId` reports the *first* of the
+      // block. Taking the matching end of the batched run keeps each dialect's
+      // own answer true instead of inventing a third one.
+      const pick =
+        getActiveDb().driver === 'mysql'
+          ? results[0]!
+          : results[results.length - 1]!
+      return { lastInsertRowid: pick?.lastInsertRowid ?? null, changes }
     }
 
     then<TR1 = RunResult, TR2 = never>(

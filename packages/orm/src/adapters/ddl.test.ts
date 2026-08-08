@@ -654,7 +654,7 @@ describe('MySQL introspection queries', () => {
     })
     expect(texts(calls)).toEqual([
       "SELECT table_name AS table_name, table_type AS table_type FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type IN ('BASE TABLE','VIEW')",
-      'SELECT column_name AS column_name, column_type AS column_type, data_type AS data_type, is_nullable AS is_nullable, column_key AS column_key, column_default AS column_default, extra AS extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ordinal_position',
+      'SELECT column_name AS column_name, column_type AS column_type, data_type AS data_type, is_nullable AS is_nullable, column_key AS column_key, column_default AS column_default, extra AS extra, character_maximum_length AS character_maximum_length FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ordinal_position',
     ])
   })
 
@@ -864,8 +864,9 @@ describe('Postgres introspection queries', () => {
     // is_identity/identity_generation are load-bearing, not incidental: an
     // identity column's sequence appears nowhere in column_default, so without
     // them a Bakery-created table reports its own primary key as ordinary.
+    // character_maximum_length is what puts VARCHAR width in the column diff.
     expect(texts(calls)[2]).toBe(
-      'SELECT column_name, data_type, is_nullable, column_default, udt_name, is_identity, identity_generation FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 ORDER BY ordinal_position',
+      'SELECT column_name, data_type, is_nullable, column_default, udt_name, is_identity, identity_generation, character_maximum_length FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 ORDER BY ordinal_position',
     )
   })
 

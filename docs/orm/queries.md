@@ -235,6 +235,70 @@ as a column name or a direction** — the `'ASC' | 'DESC'` union is erased at
 runtime, and the column allow-list is the only thing standing between a query
 string and your SQL.
 
+### Cursor paging with `seek()`
+
+`paginate()` uses `OFFSET`, and an offset is not free: `LIMIT 20 OFFSET 200000`
+makes the server walk and discard 200,000 rows, so page 10,000 costs far more
+than page 1. Past a few hundred thousand rows, `seek()` is the answer:
+
+```ts
+import DB from '@bakery/orm'
+
+const first = await DB.from('posts').selectAll().seek('id', null, 20).array()
+const next = await DB.from('posts')
+  .selectAll()
+  .seek('id', first.at(-1)!.id, 20)
+  .array()
+```
+
+`null` (or `undefined`) means the first page, so one call site handles both
+without a branch. `seek()` sets the ordering itself — a cursor is a position in
+an order — and prepends it, so an explicit `orderBy()` still breaks ties after
+it. Pass `'DESC'` as the fourth argument to walk backwards.
+
+It also does not skip or repeat rows when the table is written to mid-scan,
+which offset paging does by construction: delete one row from page 1 and every
+later page shifts by one, so a row is never seen.
+
+The trade-offs are real, and both are consequences of how it works rather than
+gaps to be filled later. Pages are reachable **only in order** — there is no
+"jump to page 500" — and the cursor column must be **unique and ordered**, in
+practice a primary key or something monotonic. A non-unique column silently
+drops rows that tie on the boundary value, which is why `seek()` takes one
+column rather than appearing to sort by several.
+
+## Relations: there aren't any, on purpose
+
+Bakery's ORM has no `hasMany`, no `include`, no eager loading. That is a
+decision, not a missing feature, and it is worth stating plainly so you can
+judge whether it suits you rather than waiting for something that is not
+coming.
+
+Write the join:
+
+```ts
+import DB from '@bakery/orm'
+
+const rows = await DB.from('posts')
+  .join('posts.authorId', 'users.id')
+  .select({ title: 'posts.title', author: 'users.name' })
+  .array()
+```
+
+The reasoning: a relation API's whole value is deciding *for* you how related
+rows are fetched — one query with a join, or two queries stitched in memory,
+or N+1 without telling you which. Getting that wrong is the most common
+performance problem in every ORM that has one, and it is invisible at the call
+site. An explicit join is longer to type and there is never a question about
+what ran.
+
+The cost is honest too: **loading children per parent in a loop is N+1 queries,
+and nothing will warn you.** Fetch them in one query with a join, or with a
+single `inList()` over the parent ids, and group in JavaScript.
+
+If you want relations, this is the wrong library — that is a fair conclusion to
+reach from this page, and a better outcome than discovering it three months in.
+
 ## Subqueries
 
 Any builder can be a subquery. Pass one to `DB.inList()`:

@@ -48,6 +48,91 @@ async function ensureTable(adapter: SQLAdapter): Promise<void> {
     .run()
 }
 
+/** One applied schema, as stored. */
+export interface LedgerEntry {
+  id: number
+  appliedAt: number
+  constraints: SyncTypes.DBConstraints
+  /**
+   * Absent on rows written before the payload carried indexes — see
+   * {@link parsePayload}. `undefined` means "not recorded", which is not the
+   * same as `{}` ("recorded, and there were none"), and `db:rollback` refuses
+   * the difference rather than guessing.
+   */
+  indexes?: SyncTypes.DBIndexes
+}
+
+/**
+ * A stored payload, in either shape it can have.
+ *
+ * v1 rows are a bare `DBConstraints` object; v2 wraps constraints alongside the
+ * indexes that were applied with them. The version is detected by the `v` key
+ * rather than by a column, so existing rows keep working with no migration of
+ * the migration table — which would be a fine joke and a bad idea.
+ *
+ * Indexes were missing from v1 because the ledger only ever fed the *diff*,
+ * which reads constraints. `db:rollback` replays a stored schema as a target,
+ * and a target with no indexes means "drop every index" — so the payload had to
+ * grow before rollback could be honest.
+ */
+function parsePayload(raw: unknown): Omit<LedgerEntry, 'id' | 'appliedAt'> | null {
+  if (typeof raw !== 'string') return null
+  let parsed: any
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object') return null
+  if (parsed.v === 2 && parsed.constraints && typeof parsed.constraints === 'object') {
+    return {
+      constraints: parsed.constraints,
+      indexes:
+        parsed.indexes && typeof parsed.indexes === 'object'
+          ? parsed.indexes
+          : undefined,
+    }
+  }
+  // v1: the object *is* the constraints. No `indexes` key to report.
+  return 'v' in parsed ? null : { constraints: parsed }
+}
+
+/**
+ * Every applied schema, newest first.
+ *
+ * Never throws, for the same reason {@link readLedger} does not: an absent
+ * table is the normal state of a database Bakery has not synced, and a row that
+ * will not parse must not take a read-only command down. Unparseable rows are
+ * skipped rather than nulled into the list, so a caller counting entries counts
+ * usable ones.
+ */
+export async function readLedgerEntries(
+  adapter: SQLAdapter,
+): Promise<LedgerEntry[]> {
+  try {
+    const q = (s: string) => adapter.quote(s)
+    const rows = (await adapter
+      .query(
+        `SELECT ${q('id')}, ${q('applied_at')}, ${q('payload')} ` +
+          `FROM ${q(LEDGER_TABLE)} ORDER BY ${q('id')} DESC`,
+      )
+      .all()) as any[]
+    const out: LedgerEntry[] = []
+    for (const row of rows ?? []) {
+      const payload = parsePayload(row?.payload)
+      if (!payload) continue
+      out.push({
+        id: Number(row.id),
+        appliedAt: Number(row.applied_at ?? row.appliedAt ?? 0),
+        ...payload,
+      })
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
 /**
  * The most recently applied schema, or `null` when there is none.
  *
@@ -58,36 +143,29 @@ async function ensureTable(adapter: SQLAdapter): Promise<void> {
 export async function readLedger(
   adapter: SQLAdapter,
 ): Promise<SyncTypes.DBConstraints | null> {
-  try {
-    const q = (s: string) => adapter.quote(s)
-    const rows = (await adapter
-      .query(
-        `SELECT ${q('payload')} FROM ${q(LEDGER_TABLE)} ORDER BY ${q('id')} DESC`,
-      )
-      .all()) as any[]
-    const raw = rows?.[0]?.payload
-    if (typeof raw !== 'string') return null
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' ? parsed : null
-  } catch {
-    // No table yet, or a row we cannot parse. Both mean "no usable ledger".
-    return null
-  }
+  const entries = await readLedgerEntries(adapter)
+  return entries[0]?.constraints ?? null
 }
 
 /** Record what was just applied. Best-effort: a sync that worked still worked. */
 export async function writeLedger(
   adapter: SQLAdapter,
   constraints: SyncTypes.DBConstraints,
+  indexes: SyncTypes.DBIndexes = {},
 ): Promise<boolean> {
   try {
     await ensureTable(adapter)
     const q = (s: string) => adapter.quote(s)
+    const payload = JSON.stringify({
+      v: 2,
+      constraints: stripLedger(constraints),
+      indexes,
+    })
     await adapter
       .query(
         `INSERT INTO ${q(LEDGER_TABLE)} (${q('applied_at')}, ${q('payload')}) VALUES (?, ?)`,
       )
-      .run(Math.floor(Date.now() / 1000), JSON.stringify(stripLedger(constraints)))
+      .run(Math.floor(Date.now() / 1000), payload)
     return true
   } catch {
     return false
@@ -185,4 +263,34 @@ export async function resolveCurrentState(
     return { constraints: live, source: 'introspection', reason: match.reason }
   }
   return { constraints: ledger, source: 'ledger' }
+}
+
+/**
+ * Has the database stopped matching what Bakery last applied?
+ *
+ * The same comparison {@link resolveCurrentState} makes, exposed on its own so
+ * a caller can *report* it. Sync already handles drift correctly — it quietly
+ * falls back to introspection — but quietly is the problem: a column added by
+ * hand in production is indistinguishable, from the outside, from a normal run.
+ * This is how you find out.
+ *
+ * `null` when there is nothing to say: no ledger yet (a database Bakery has not
+ * synced is not "drifted"), or the shape still matches.
+ *
+ * Never throws. It runs at boot, and a database that cannot answer must not be
+ * the reason a server fails to start — the sync path will raise anything that
+ * genuinely matters.
+ */
+export async function detectDrift(
+  adapter: SQLAdapter,
+): Promise<{ reason: string } | null> {
+  try {
+    const ledger = await readLedger(adapter)
+    if (!ledger) return null
+    const live = stripLedger(await adapter.getConstraints())
+    const match = shapesMatch(ledger, live)
+    return match.ok ? null : { reason: match.reason }
+  } catch {
+    return null
+  }
 }

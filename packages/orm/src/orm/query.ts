@@ -494,6 +494,13 @@ export namespace DB {
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
+    /** Cursor pagination — see the implementation for why it is not paginate(). */
+    seek(
+      column: ColumnString<S, J>,
+      cursor: unknown,
+      pageSize: number,
+      direction?: 'ASC' | 'DESC',
+    ): IQBLimit<S, J, P>
   }
 
   export interface IQBWhere<
@@ -532,6 +539,13 @@ export namespace DB {
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
+    /** Cursor pagination — see the implementation for why it is not paginate(). */
+    seek(
+      column: ColumnString<S, J>,
+      cursor: unknown,
+      pageSize: number,
+      direction?: 'ASC' | 'DESC',
+    ): IQBLimit<S, J, P>
   }
 
   export interface IQBGroupBy<
@@ -588,6 +602,13 @@ export namespace DB {
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
+    /** Cursor pagination — see the implementation for why it is not paginate(). */
+    seek(
+      column: ColumnString<S, J>,
+      cursor: unknown,
+      pageSize: number,
+      direction?: 'ASC' | 'DESC',
+    ): IQBLimit<S, J, P>
   }
 
   export interface IQBSelect<
@@ -647,6 +668,13 @@ export namespace DB {
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
+    /** Cursor pagination — see the implementation for why it is not paginate(). */
+    seek(
+      column: ColumnString<S, J>,
+      cursor: unknown,
+      pageSize: number,
+      direction?: 'ASC' | 'DESC',
+    ): IQBLimit<S, J, P>
   }
 
   export interface IQBOrderBy<
@@ -662,6 +690,13 @@ export namespace DB {
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
+    /** Cursor pagination — see the implementation for why it is not paginate(). */
+    seek(
+      column: ColumnString<S, J>,
+      cursor: unknown,
+      pageSize: number,
+      direction?: 'ASC' | 'DESC',
+    ): IQBLimit<S, J, P>
   }
 
   export interface IQBLimit<
@@ -673,6 +708,13 @@ export namespace DB {
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
+    /** Cursor pagination — see the implementation for why it is not paginate(). */
+    seek(
+      column: ColumnString<S, J>,
+      cursor: unknown,
+      pageSize: number,
+      direction?: 'ASC' | 'DESC',
+    ): IQBLimit<S, J, P>
   }
 
   export class QBRaw<T = any> extends QBObject<T> {
@@ -1041,6 +1083,60 @@ export namespace DB {
       const p = Math.max(1, page)
       const ps = Math.max(1, pageSize)
       return this.limit(ps, (p - 1) * ps)
+    }
+
+    /**
+     * Cursor (keyset) pagination — the next `pageSize` rows *after* `cursor`.
+     *
+     *     const first = await DB.from('posts').seek('id', null, 20).all()
+     *     const next  = await DB.from('posts')
+     *       .seek('id', first.at(-1)!.id, 20).all()
+     *
+     * `paginate()` is offset-based, and an offset is not free: `LIMIT 20 OFFSET
+     * 200000` makes the server walk and discard 200,000 rows, so page 10,000
+     * costs far more than page 1. This walks nothing — it seeks straight into
+     * the index — so every page costs the same.
+     *
+     * It also does not skip or repeat rows when the table is written to
+     * mid-scan, which offset paging does by construction: delete one row on
+     * page 1 and every later page shifts by one.
+     *
+     * The trade is that pages are only reachable in order — there is no "jump
+     * to page 500" — and the column must be **unique and ordered**, which in
+     * practice means a primary key or something monotonic. A non-unique cursor
+     * column silently drops the rows that tie on the boundary value, which is
+     * why this takes one column rather than pretending to sort by several.
+     *
+     * `null` or `undefined` means the first page, so the same call site works
+     * for both without a branch.
+     */
+    seek(
+      column: string,
+      cursor: unknown,
+      pageSize: number,
+      direction: 'ASC' | 'DESC' = 'ASC',
+    ): any {
+      const dir = String(direction).toUpperCase()
+      if (dir !== 'ASC' && dir !== 'DESC') {
+        throws(`Invalid seek direction: ${direction}`)
+      }
+      // Only after a first page. `seek(col, null, n)` is the opening call and
+      // must not become `WHERE col > NULL`, which matches nothing at all.
+      if (cursor !== null && cursor !== undefined) {
+        // `gt`/`lt`, not a `'id >'` string: the operator belongs in an operand
+        // ref, and folding it into the column name puts `id >` through
+        // `safeColumn`, which rejects it — correctly, since that is the guard
+        // stopping an operator from being smuggled into an identifier.
+        this._where.push({
+          connector: this._where.length === 0 ? 'WHERE' : 'AND',
+          ...parseWhereArgs(column, dir === 'ASC' ? gt(cursor) : lt(cursor)),
+        })
+      }
+      // Ordering is not optional here the way it is for `paginate` — a cursor
+      // is meaningless without the order it is a position in. Prepended so an
+      // explicit `.orderBy()` still breaks ties after it.
+      this._orderBy.unshift(`${safeColumn(column)} ${dir}`)
+      return this.limit(pageSize)
     }
 
     parse(): { sql: string; params: any[] } {

@@ -12,13 +12,29 @@ export interface ColumnConstraint {
   /**
    * Character length, for a sized text column (`VARCHAR(n)`).
    *
-   * Deliberately **not** part of the column diff, which compares type,
-   * nullability and default only. Adding it there would require every adapter
-   * to report the length back exactly, and any that did not would rebuild the
-   * table on every sync — the failure this codebase has already hit twice.
-   * Consequence to know: widening a `Varchar` does not migrate on its own.
+   * **Now part of the column diff**, so widening a `Varchar` migrates. This
+   * used to say the opposite, and the reason was sound at the time: it needed
+   * every adapter to report the width back exactly, and any that did not would
+   * rebuild the table on every sync. That is no longer a guess — all three
+   * were measured against live servers, and the one real trap (MySQL reporting
+   * `character_maximum_length = 65535` for an unsized `TEXT`) is handled in
+   * `SQLAdapter.sizedTextLength`.
+   *
+   * Compared only when both the schema and the database declare a width. An
+   * unsized column in the schema is not a request to shrink whatever is there.
    */
   length?: number
+  /**
+   * The permitted values of an enum column — `Field.Enum([...])`.
+   *
+   * Not part of the column diff, for exactly the reason `length` is not:
+   * MySQL reports an ENUM's members back in its own spelling, Postgres reports
+   * a CHECK constraint from a different catalog altogether, and any adapter
+   * that reported them even slightly differently would rebuild the table on
+   * every sync. Consequence to know, and it is the same one: **changing an
+   * enum's members does not migrate on its own.**
+   */
+  _enum?: string[]
   primary?: boolean
   autoIncrement?: boolean
   nullable?: boolean

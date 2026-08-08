@@ -31,11 +31,16 @@
     ".": "./src/index.ts",
     "./orm": "./src/orm/index.ts",
     "./sync": "./src/sync/index.ts",
+    "./sync/load": "./src/sync/load.ts",
+    "./sync/ledger": "./src/sync/ledger.ts",
+    "./sync/history": "./src/sync/history.ts",
+    "./sync/rollback": "./src/sync/rollback.ts",
     "./templates/*": "./templates/*",
     "./package.json": "./package.json",
     "./schema-registry": "./src/schema-registry.ts",
     "./schema-util": "./src/schema-util.ts",
     "./connection": "./src/connection.ts",
+    "./pool": "./src/pool.ts",
     "./backup": "./src/backup.ts"
   },
   "files": [

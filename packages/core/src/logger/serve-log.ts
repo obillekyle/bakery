@@ -11,6 +11,12 @@ const serveMsgs = {
   // sync is skipped. `--sync` bypasses the skip.
   SCHEMA_SYNC_SKIP:
     'I Schema unchanged since last sync — %yskipping schema sync%* (%c--sync%* forces it)',
+  // The skip above is precisely when drift goes unnoticed: schema.ts has not
+  // changed, so no sync runs, so nothing looks at the database. Something else
+  // altered it — a hand-run ALTER, another environment pointed at the same URL,
+  // a restore from an older dump.
+  SCHEMA_DRIFT:
+    'W %yDatabase no longer matches the last schema Bakery applied%*: {reason}. Run %cdb:history%* to see what was applied, or %cdb:sync --dry-run%* to see what the difference means.',
   UNHANDLED_ERR: 'E Unhandled Server Error: %r{error}%*',
   SHUTTING_DOWN: 'W %yShutting down server...%*',
   BACKEND_CHANGE: 'I Backend change detected: %y{file}%*',

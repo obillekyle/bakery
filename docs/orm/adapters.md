@@ -174,6 +174,90 @@ The boolean return exists because a thrown error, an in-memory database and a
 missing `pg_dump` all used to look exactly like success. The sync engine checks
 it and refuses to run a destructive migration when it is `false`.
 
+## Observing queries
+
+`setQueryObserver` installs one callback that runs after every statement any
+adapter executes, on every dialect. It is the seam a slow-query panel, a
+tracing exporter or a test that asserts "this endpoint made three queries"
+hangs off.
+
+```ts
+import { setQueryObserver } from '@bakery/orm'
+
+const slowest: { sql: string; ms: number; driver: string }[] = []
+
+setQueryObserver(event => {
+  if (event.ms > 100) {
+    slowest.push({ sql: event.sql, ms: event.ms, driver: event.driver })
+  }
+})
+```
+
+The call returns a disposer, and passing `null` removes the observer:
+
+```ts
+import { setQueryObserver } from '@bakery/orm'
+
+const off = setQueryObserver(event => {
+  if (event.error) throw new Error(`query failed: ${event.sql}`)
+})
+
+// later
+off()
+```
+
+There is exactly one observer, process-wide, not a list of listeners. Two
+reasons. It sits in the hot path of every statement, so the cost when nobody is
+watching has to be a single null read — measured at **under 10ns per query,
+which is inside the noise floor of the measurement** and around 0.03% of an
+in-memory SQLite `SELECT`. And every adapter builds a *fresh* adapter instance
+per transaction, so an observer attached to an instance would go silent for
+exactly the statements you most want to see.
+
+An observer that throws — or returns a promise that rejects — is swallowed. A
+bug in your instrumentation must not become a failed write.
+
+### The event
+
+| field | meaning |
+| --- | --- |
+| `sql` | the statement as handed to the driver, before dialect normalisation |
+| `ms` | wall-clock duration, fractional |
+| `rows` | rows returned, or for `run` rows *affected*; `null` when unknowable |
+| `driver` | `'sqlite' \| 'postgres' \| 'mysql'` |
+| `method` | `'all' \| 'run' \| 'get' \| 'values' \| 'iterate'` |
+| `error` | `null` on success, the thrown value otherwise |
+| `params` | bound values — **absent unless you opt in**, see below |
+
+`get` and `values` are built on `all` internally but report as themselves, once.
+One executed statement is one event.
+
+`iterate` is a stream, so its `ms` means something different and must not be
+averaged into the same number as the rest: it spans from the call until
+iteration *ends* — exhausted, thrown, or the consumer breaking out of the loop —
+so it includes whatever the consumer did between rows. `rows` there counts rows
+actually consumed, not rows the query matched.
+
+### Parameters are off by default
+
+`event.params` is absent unless the observer asked for it. This is a security
+default, not an oversight: bound parameters are user data, and a query's
+bindings routinely carry passwords, session tokens and personal information.
+Anything an observer receives is one log call away from a log file or a
+dashboard panel, so exposing them has to be a decision someone made on purpose.
+
+```ts
+import { setQueryObserver } from '@bakery/orm'
+
+const captured: (readonly unknown[] | undefined)[] = []
+
+// Opt in only where the output stays local — a dev profiler, a test.
+setQueryObserver(event => captured.push(event.params), { params: true })
+```
+
+The option is per registration: a later `setQueryObserver` without it goes back
+to withholding them.
+
 ## How much to trust each one
 
 Not equally.

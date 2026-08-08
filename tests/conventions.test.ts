@@ -160,6 +160,10 @@ describe('conventions (CLAUDE.md)', () => {
       'packages/cli/src/index.ts',
       'packages/orm/src/sync/index.ts',
       'packages/create/src/index.ts',
+      // Same exception as sync/index.ts and for the same reason: `--help` is
+      // program output. Both files use the logger for everything else they say.
+      'packages/orm/src/sync/history.ts',
+      'packages/orm/src/sync/rollback.ts',
     ])
 
     const serverCode = packageSources.filter(
@@ -458,7 +462,16 @@ describe('conventions (CLAUDE.md)', () => {
     // Built with `new RegExp` rather than a literal: an escaped slash in a
     // regex literal is exactly the character that has been silently eaten
     // rewriting this tree before.
-    const IMPORT = new RegExp("from '(@bakery/[^']+)'", 'g')
+    //
+    // **Both spellings.** This matched only `from '…'` until it was found to be
+    // missing four live offenders, all of them `await import('…')` — the form
+    // the CLI uses for nearly everything it pulls out of core, because it is
+    // lazy-loading on purpose. `@bakery/core/cache/tiered`,
+    // `core/compiler/tsconfig-sync`, `core/core/plugins` and `orm/sync/load`
+    // were all absent from their export maps and all resolved fine in-repo
+    // through the workspace symlink. A rule that cannot see the import style a
+    // package actually uses is not a rule.
+    const IMPORT = new RegExp("(?:from|import\\()\\s*'(@bakery/[^']+)'", 'g')
     const offenders: string[] = []
     for (const file of allSources) {
       for (const [, spec] of file.text.matchAll(IMPORT)) {

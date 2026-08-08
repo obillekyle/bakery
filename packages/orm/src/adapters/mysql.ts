@@ -1,23 +1,29 @@
 import { Case, Try } from '@bakery/core/utils'
 import { SQL } from 'bun'
 import type * as SyncTypes from '../sync/types'
-import { createExecutor, SQLAdapter } from './base'
+import { createExecutor, isOpenConnection, SQLAdapter } from './base'
+import { type PoolOptions, withPoolOptions } from '../pool'
 
 export class MySQLAdapter extends SQLAdapter {
   protected readonly sql: SQL
 
-  constructor(connectionTarget?: string | URL | SQL) {
+  constructor(connectionTarget?: string | URL | SQL, pool: PoolOptions = {}) {
     const target =
       typeof connectionTarget === 'string' || connectionTarget instanceof URL
         ? connectionTarget.toString().replace(/^(mysqli?s?:\/\/)/, 'mysql://')
         : undefined
     super('mysql', undefined, target)
-    this.sql =
-      connectionTarget instanceof SQL
-        ? connectionTarget
-        : target
-          ? new SQL(target)
-          : new SQL()
+    // `isOpenConnection`, not `instanceof SQL` — see the helper for why the
+    // latter throws rather than answering.
+    //
+    // Pool options apply only when this opens its own connection. A handle
+    // handed in is already someone else's pool — notably a transaction's, where
+    // re-sizing anything would be meaningless.
+    this.sql = isOpenConnection(connectionTarget)
+      ? (connectionTarget as SQL)
+      : target
+        ? new SQL(target, withPoolOptions({}, pool) as any)
+        : new SQL(withPoolOptions({}, pool) as any)
   }
 
   readonly execute: SQLAdapter.Executor = createExecutor(
@@ -42,6 +48,7 @@ export class MySQLAdapter extends SQLAdapter {
     },
     (sqlText: string, params: unknown[] = []) =>
       this.sql.unsafe(sqlText, params) as any,
+    this.driver,
   )
 
   async hasCol(table: string, column: string): Promise<boolean> {
@@ -51,7 +58,7 @@ export class MySQLAdapter extends SQLAdapter {
     return res.some(r => r.column_name === column)
   }
 
-  colDef(def: unknown): string {
+  colDef(def: unknown, column?: string): string {
     const d = def as any
     const typeStr =
       {
@@ -73,7 +80,14 @@ export class MySQLAdapter extends SQLAdapter {
     if (d.autoIncrement && d.type === 'integer') sql += ' AUTO_INCREMENT'
     if (d.primary) sql += ' PRIMARY KEY'
     if (!d.nullable && !d.primary) sql += ' NOT NULL'
-    return sql + this.formatDefault(d.default, '1', '0')
+    // The CHECK names the column, which is why colDef takes it. Emitted only
+    // when both are known: an ALTER path that has no name yet gets a plain
+    // sized column rather than a syntax error.
+    const check =
+      Array.isArray(d._enum) && d._enum.length && column
+        ? this.enumClause(column, d._enum)
+        : ''
+    return sql + this.formatDefault(d.default, '1', '0') + check
   }
 
   override async rename(
@@ -180,12 +194,8 @@ export class MySQLAdapter extends SQLAdapter {
     )
   }
 
-  async transaction<T>(
-    callback: (tx: SQLAdapter) => T | Promise<T>,
-  ): Promise<T> {
-    return await this.sql.transaction(async txSql =>
-      callback(new MySQLAdapter(txSql)),
-    )
+  protected withConnection(sql: unknown): SQLAdapter {
+    return new MySQLAdapter(sql as SQL)
   }
 
   async getSchema(): Promise<SQLAdapter.TableDetails[]> {
@@ -352,7 +362,7 @@ export class MySQLAdapter extends SQLAdapter {
       }
 
       const cols = (await this.query(
-        'SELECT column_name AS column_name, column_type AS column_type, data_type AS data_type, is_nullable AS is_nullable, column_key AS column_key, column_default AS column_default, extra AS extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ordinal_position',
+        'SELECT column_name AS column_name, column_type AS column_type, data_type AS data_type, is_nullable AS is_nullable, column_key AS column_key, column_default AS column_default, extra AS extra, character_maximum_length AS character_maximum_length FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ordinal_position',
       ).all(t.table_name)) as any[]
 
       for (const col of cols) {
@@ -403,6 +413,12 @@ export class MySQLAdapter extends SQLAdapter {
   // outer parens formatDefault adds are required for an expression default.
   override readonly dateNowExpression: string = 'UNIX_TIMESTAMP()'
 
+  // MySQL reports an expression default back with the call parens intact, so
+  // the bare name matches either spelling. Expression defaults need 8.0.13 or
+  // newer; below that MySQL rejects everything except CURRENT_TIMESTAMP.
+  override readonly uuidDefaults: string[] = ['UUID']
+  override readonly uuidExpression: string = 'UUID()'
+
   protected override parseConstraints(col: any): SyncTypes.ColumnConstraint {
     const primary = col.column_key === 'PRI'
     const cons: SyncTypes.ColumnConstraint = {
@@ -413,6 +429,14 @@ export class MySQLAdapter extends SQLAdapter {
         String(col.column_type || col.data_type || ''),
       ),
     }
+    // `column_type` ('varchar(64)'), not `data_type` ('varchar'), so the guard
+    // sees the same string a human would read — and so TEXT, whose
+    // character_maximum_length MySQL reports as 65535, is excluded.
+    const length = this.sizedTextLength(
+      String(col.column_type || col.data_type || ''),
+      col.character_maximum_length,
+    )
+    if (length !== undefined) cons.length = length
     if (primary) cons.primary = true
     if (
       String(col.extra || '')
