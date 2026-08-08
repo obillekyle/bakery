@@ -16,50 +16,52 @@
  * typechecks without it; the ORM is simply untyped (permissive `any`
  * columns) until a schema registers itself.
  */
+import { Field } from '@bakery/orm'
 import {
-  dateNow,
   type ExtractOptionals,
   type ExtractTableTypes,
   type ExtractViews,
-  index,
-  primary,
-  unique,
-  value,
 } from '@bakery/orm/schema-util'
 
 export namespace DBInfo {
   export const constraints = {
     users: {
-      id: primary(),
-      username: value('string', null),
-      email: value('string', null),
-      password: value('string', null),
-      createdAt: value('integer', dateNow),
+      id: Field.Primary(),
+      // `Varchar` rather than `Text` wherever a length is known: it is the only
+      // text form that can carry a default on MySQL, and the width is part of
+      // the column diff, so widening one migrates.
+      username: Field.Varchar(64, null),
+      email: Field.Varchar(255, null),
+      password: Field.Varchar(255, null),
+      createdAt: Field.Date.now(),
     },
     posts: {
-      id: primary(),
-      authorId: value('integer', null),
-      title: value('string', null),
-      slug: value('string', null),
-      body: value('string', ''),
-      published: value('integer', 0),
-      createdAt: value('integer', dateNow),
+      id: Field.Primary(),
+      authorId: Field.Int(null),
+      title: Field.Varchar(255, null),
+      slug: Field.Varchar(255, null),
+      // Sized, not `Text`, because it has a default: MySQL refuses a literal
+      // DEFAULT on a TEXT column, so `Field.String('')` here is what previously
+      // stopped this template syncing against MySQL at all. Use `Field.Text()`
+      // for unbounded text with no default.
+      body: Field.Varchar(8192, ''),
+      published: Field.Int(0),
+      createdAt: Field.Date.now(),
     },
     comments: {
-      id: primary(),
-      postId: value('integer', null),
-      // Third argument marks the column optional on insert.
-      authorId: value('integer', null, true),
-      body: value('string', null),
-      createdAt: value('integer', dateNow),
+      id: Field.Primary(),
+      postId: Field.Int(null),
+      authorId: Field.Int(null),
+      body: Field.Varchar(8192, ''),
+      createdAt: Field.Date.now(),
     },
   } as const
 
   export const indexes = {
-    usersUsernameUniq: unique('users', ['username']),
-    postsSlugUniq: unique('posts', ['slug']),
-    postsAuthorIdx: index('posts', ['authorId']),
-    commentsPostIdx: index('comments', ['postId']),
+    usersUsernameUniq: Field.Unique('users', ['username']),
+    postsSlugUniq: Field.Unique('posts', ['slug']),
+    postsAuthorIdx: Field.Index('posts', ['authorId']),
+    commentsPostIdx: Field.Index('comments', ['postId']),
   } as const
 
   type C = typeof constraints

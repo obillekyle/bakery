@@ -24,234 +24,99 @@ export type Defs<T extends keyof TypeMap> =
   | '%dateNow%'
   | TypeMap[T]
 
+/**
+ * A column, described by what it *is* rather than by how it is spelled.
+ *
+ *     TableDef<number>              // NOT NULL, required on insert
+ *     TableDef<string | null, true> // nullable
+ *     TableDef<Status, false, true> // an enum, optional on insert
+ *
+ * Three parameters, where there were five (`type, default, nullable,
+ * autoIncrement, primary`). The two that went were positional booleans nothing
+ * outside `Field.Primary()` ever set, and `default` was carried only so
+ * nullability and optionality could be *derived* from it — which is why
+ * "defaulted but not nullable" and "nullable" were indistinguishable to
+ * anything downstream.
+ *
+ * **`T` is the row type, not a dialect name.** `number`, `string | null`, or an
+ * enum's own union — so `ExtractTableTypes` is a lookup rather than a mapping
+ * through `TypeMap`, and a type `TypeMap` cannot express (an enum, a branded
+ * id) needs no special case.
+ *
+ * At runtime this key holds the dialect discriminator (`'integer'`, `'string'`)
+ * that the adapters switch on. The two never meet: every adapter takes
+ * `def: unknown` and casts, and the sync engine has its own `ColumnConstraint`,
+ * bridged by the cast in `sync/load.ts`. That separation already existed and is
+ * what lets this change the schema-facing type without touching a single
+ * adapter, generated file, or stored ledger payload.
+ */
 export type TableDef<
-  T extends DataTypes,
-  D extends Defs<T> | null | undefined,
-  N extends boolean,
-  A extends boolean,
-  P extends boolean,
-> = OmitNever<{
-  type: T
-  default: D extends undefined ? never : D extends null ? never : D
-  nullable: N extends true ? true : D extends null ? true : never
-  autoIncrement: A extends true ? true : never
-  primary: P extends true ? true : never
-}>
-
-export function value<
-  T extends DataTypes,
-  D extends Defs<T> | null | undefined = undefined,
+  T,
   N extends boolean = false,
-  A extends boolean = false,
-  P extends boolean = false,
->(t: T, d?: D, n?: N, a?: A, p?: P): TableDef<T, D, N, A, P> {
-  const result: Record<string, unknown> = { type: t }
-
-  if (d !== undefined) result.default = d
-
-  // `n === true`, not `n !== undefined`: the old test made *any* third argument
-  // mean "nullable", so `value('integer', 0, false)` — which reads as an
-  // explicit NOT NULL — emitted a nullable column, and `primary()` (which
-  // passes `false` here) carried a stray `nullable: true`. `=== true` is also
-  // exactly what the `TableDef` type computes from `N extends true`, so the
-  // emitted DDL and the inferred row type now agree.
-  const isNullable = n === true || d === null
-  if (isNullable) result.nullable = true
-
-  const isAuto = a !== undefined ? a : false
-  if (isAuto) result.autoIncrement = true
-
-  const isPrimary = p !== undefined ? p : false
-  if (isPrimary) result.primary = true
-
-  return result as TableDef<T, D, N, A, P>
-}
-
-export function primary() {
-  return value('integer', undefined, false, true, true)
-}
-
-/** A column value produced by `table()` — see `define.ts`. */
-type ColumnValue = { __table: string; __column: string }
-
-const isColumnValue = (v: unknown): v is ColumnValue =>
-  Boolean(v) &&
-  typeof v === 'object' &&
-  '__table' in (v as any) &&
-  '__column' in (v as any)
-
-/**
- * Resolve either calling convention to `{ table, cols }`.
- *
- * The string form — `index('posts', ['authorId'])` — cannot catch a typo in
- * either argument until sync time, if then. The column form —
- * `index(posts.authorId)` — carries its own table, so that argument
- * disappears and a mistake becomes a compile error.
- */
-function resolveTarget(
-  first: string | ColumnValue,
-  rest: (string | ColumnValue | string[])[],
-): { table: string; cols: string[] } {
-  if (isColumnValue(first)) {
-    const columns = [first, ...rest.filter(isColumnValue)]
-    const tables = new Set(columns.map(c => c.__table))
-    if (tables.size > 1) {
-      throws(`Constraint spans more than one table: ${[...tables].join(', ')}`)
-    }
-    return { table: first.__table, cols: columns.map(c => c.__column) }
-  }
-
-  const cols = rest[0]
-  return {
-    table: first,
-    cols: Array.isArray(cols) ? cols : [cols as string],
-  }
-}
-
-export function unique(table: string, cols: string | string[]): any
-export function unique(...cols: ColumnValue[]): any
-export function unique(first: any, ...rest: any[]) {
-  return { type: 'unique', ...resolveTarget(first, rest) }
-}
-
-export function index(table: string, cols: string | string[]): any
-export function index(...cols: ColumnValue[]): any
-export function index(first: any, ...rest: any[]) {
-  return { type: 'index', ...resolveTarget(first, rest) }
-}
-
-/** Referential actions. Both default to `NO ACTION`, as SQL does. */
-export interface ForeignKeyActions {
-  onDelete?: ForeignKeyAction
-  onUpdate?: ForeignKeyAction
-}
-
-export function foreign(
-  t: string,
-  col: string,
-  refTable: string,
-  refCol: string,
-): any
-/**
- * One or more columns referencing one or more columns of another table.
- *
- *     foreign(posts.authorId).references(users.id)
- *     foreign(items.orderId, items.sku).references(orders.id, orders.sku)
- *
- * The composite form is variadic on both sides — `cols` and `refCols` have
- * always been arrays and every adapter already emits a multi-column
- * `FOREIGN KEY (a, b) REFERENCES t (x, y)`, so this exposes plumbing that
- * existed rather than adding a mechanism. It was previously undeclarable,
- * which is why "works by construction" was as much as anyone could say about
- * it.
- */
-export function foreign(...columns: ColumnValue[]): {
-  /**
-   * Overloads rather than one rest tuple: `[...ColumnValue[], Actions?]` is
-   * illegal (TS1266, an optional element cannot follow a rest), and the single
-   * column plus actions case is the common one worth typing precisely.
-   */
-  references(
-    target: ColumnValue,
-    /** Referential actions. Both default to `NO ACTION`, as SQL does. */
-    actions?: ForeignKeyActions,
-  ): any
-  references(...targets: ColumnValue[]): any
-  references(...targetsThenActions: (ColumnValue | ForeignKeyActions)[]): any
-}
-export function foreign(first: any, col?: any, refTable?: any, refCol?: any) {
-  if (isColumnValue(first)) {
-    // Every argument up to the first non-column is part of the key. Collected
-    // here rather than in `references` so a mistake is caught on the side that
-    // made it.
-    const cols: ColumnValue[] = [first]
-    for (const extra of [col, refTable, refCol]) {
-      if (extra === undefined) break
-      if (!isColumnValue(extra))
-        throws(
-          'foreign() takes columns: foreign(t.a) or foreign(t.a, t.b). ' +
-            'Mixing the column form with the four-string form is not supported.',
-        )
-      cols.push(extra)
-    }
-    const table = first.__table
-    if (cols.some(c => c.__table !== table))
-      throws(
-        `foreign() columns must all belong to one table; got ${[
-          ...new Set(cols.map(c => c.__table)),
-        ].join(', ')}.`,
-      )
-
-    // Deferred so the call reads as a sentence and both sides are named,
-    // rather than four positional strings that can be silently transposed.
-    return {
-      references(...args: any[]) {
-        const targets = args.filter(isColumnValue) as ColumnValue[]
-        // The options object, when present, is the only non-column argument.
-        const actions =
-          (args.find(a => a && !isColumnValue(a)) as
-            | ForeignKeyActions
-            | undefined) ?? {}
-
-        if (!targets.length) throws('foreign().references() needs a target column')
-        if (targets.length !== cols.length)
-          throws(
-            `foreign() references the wrong number of columns: ${cols.length} ` +
-              `on ${table}, ${targets.length} on the target. A composite key ` +
-              'must name the same count on both sides, in the same order.',
-          )
-        const refTableName = targets[0]!.__table
-        if (targets.some(t => t.__table !== refTableName))
-          throws(
-            `foreign().references() targets must all belong to one table; got ${[
-              ...new Set(targets.map(t => t.__table)),
-            ].join(', ')}.`,
-          )
-
-        return {
-          table,
-          type: 'foreign',
-          cols: cols.map(c => c.__column),
-          refTable: refTableName,
-          refCols: targets.map(t => t.__column),
-          onDelete: actions.onDelete,
-          onUpdate: actions.onUpdate,
-        }
-      },
-    }
-  }
-
-  return {
-    table: first,
-    type: 'foreign',
-    cols: [col],
-    refTable,
-    refCols: [refCol],
-  }
+  O extends boolean = false,
+> = {
+  type: T
+  nullable: N
+  optional: O
+  default?: unknown
+  length?: number
+  autoIncrement?: boolean
+  primary?: boolean
+  _enum?: readonly string[]
 }
 
 export const dateNow = '%dateNow%'
 
+/**
+ * The row type of a column descriptor.
+ *
+ * Two forms reach here. A `Field.*` builder returns `TableDef<T, …>`, whose
+ * `type` **is** the row type, so this is a lookup. A hand-written literal —
+ * `{ type: 'integer', default: 0, nullable: true }`, the one shape `Field`
+ * does not spell — carries a dialect name there instead, which still goes
+ * through `TypeMap`.
+ *
+ * Distinguished by whether `type` is one of `TypeMap`'s keys. That is
+ * unambiguous because those keys are string *literals* and no row type is one:
+ * a column of literal type `'integer'` would be `Field.Enum(['integer'])`,
+ * whose `type` is the union, not the key.
+ */
+type RowTypeOf<Col> = Col extends { type: infer T }
+  ? T extends keyof TypeMap
+    ? TypeMap[T] | (Col extends { nullable: true } ? null : never)
+    : T
+  : any
+
 export type ExtractTableTypes<C, K extends keyof C> = {
-  [P in keyof C[K] as P extends '_view' ? never : P]: C[K][P] extends {
-    type: infer Type
-  }
-    ? Type extends keyof TypeMap
-      ? TypeMap[Type] | (C[K][P] extends { nullable: true } ? null : never)
-      : any
-    : any
+  [P in keyof C[K] as P extends '_view' ? never : P]: RowTypeOf<C[K][P]>
 }
 
+/**
+ * Which columns may be omitted from an `INSERT`.
+ *
+ * `optional: true` when a `Field.*` builder said so, which is the whole check
+ * for anything `Field` produces — it states optionality rather than leaving it
+ * to be reconstructed. The three derived conditions below it are the fallback
+ * for a hand-written literal, which has no `optional` key.
+ *
+ * Stating it also makes a shape expressible that derivation could not:
+ * **optional but neither nullable nor defaulted** — a column the database fills
+ * in, such as a generated key.
+ */
 export type ExtractOptionals<C, T extends keyof C> = {
   [K in keyof C[T]]: K extends '_view'
     ? never
-    : C[T][K] extends { nullable: true }
+    : C[T][K] extends { optional: true }
       ? K
-      : C[T][K] extends { default: string | number | boolean | null }
-        ? K
-        : C[T][K] extends { autoIncrement: true }
+      : C[T][K] extends { optional: false }
+        ? never
+        : C[T][K] extends { nullable: true }
           ? K
-          : never
+          : C[T][K] extends { default: string | number | boolean | null }
+            ? K
+            : C[T][K] extends { autoIncrement: true }
+              ? K
+              : never
 }[keyof C[T]]
 
 export type ExtractViews<C> = {
@@ -500,7 +365,20 @@ export function old<TSchema extends SyncTypes.DBConstraints>(
   transform?: (oldRow: Record<string, unknown>) => unknown,
 ): TSchema
 
-export function old<T extends SyncTypes.ColumnConstraint>(
+/**
+ * Constrained on `{ type: unknown }`, not on `ColumnConstraint`.
+ *
+ * This is the one function that takes a column descriptor in a *typed*
+ * position, so it is where the two vocabularies meet: `ColumnConstraint.type`
+ * is the dialect name the sync engine reads, while a `Field.*` builder declares
+ * `type` as the **row type**. Requiring the sync-side shape here rejected every
+ * `Field` value — `old('title', Field.Varchar(255))` stopped compiling.
+ *
+ * `old()` only copies the object and adds two keys, so it needs no more than
+ * "something with a `type`", and returning `T` unchanged means the row type and
+ * optionality survive the wrapper.
+ */
+export function old<T extends { type: unknown }>(
   oldColumnName: string,
   columnDef: T,
   transform?: (oldValue: unknown, oldRow: Record<string, unknown>) => unknown,

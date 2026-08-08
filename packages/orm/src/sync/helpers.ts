@@ -235,14 +235,21 @@ function diffColumnMismatch(
   // reporting it back exactly; see `SQLAdapter.sizedTextLength` for the MySQL
   // TEXT trap that made this dangerous to add blind.
   //
-  // Compared only when both sides declare one. A column the schema leaves
-  // unsized is not a request to shrink whatever is there — `Field.Text()`
-  // against an existing VARCHAR should not rebuild the table — and a database
-  // that reports no width for a sized column would otherwise rebuild forever,
-  // which is the failure this guard is bought to avoid.
-  const bothSized =
-    typeof tsCol.length === 'number' && typeof dbCol.length === 'number'
-  const lengthDiffers = bothSized && tsCol.length !== dbCol.length
+  // Driven by the *schema* side only. When the schema declares a width, any
+  // other answer from the database differs — including no width at all, which
+  // is a real `TEXT` column that should become `VARCHAR(n)`. Requiring both
+  // sides to be sized meant sizing an existing TEXT column silently did
+  // nothing, and `db:sync` then reported a perfectly synced database whose
+  // columns did not match the schema it had just read.
+  //
+  // Converges because all three dialects report a `VARCHAR` width back exactly
+  // (measured, see `SQLAdapter.sizedTextLength`): after one rebuild the two
+  // agree. A column that reports *no* width really is unsized.
+  //
+  // When the schema declares no width, nothing differs — `Field.Text()` against
+  // an existing `VARCHAR` is not a request to shrink it.
+  const lengthDiffers =
+    typeof tsCol.length === 'number' && tsCol.length !== dbCol.length
 
   if (
     !isTypeMatch ||
@@ -462,7 +469,9 @@ export async function buildSyncPlan(
   // what Bakery last applied — and falls back to introspection whenever the
   // ledger no longer describes the same tables and columns. See sync/ledger.ts
   // for why that fallback is the whole safety argument.
-  const current = await resolveCurrentState(adapter)
+  const current = await resolveCurrentState(adapter, {
+    ignoreLedger: process.argv.includes('--no-ledger'),
+  })
   plan.ledgerSource = current.source
   plan.ledgerReason = current.reason
   plan.dbConstraintsForDiff = current.constraints

@@ -32,7 +32,7 @@ describe('schema.example.ts stays valid', () => {
     expect(DBInfo.constraints).toHaveProperty('users')
   })
 
-  test('primary() still produces an auto-increment integer key', () => {
+  test('Field.Primary() still produces an auto-increment integer key', () => {
     expect(DBInfo.constraints.users.id).toMatchObject({
       type: 'integer',
       primary: true,
@@ -40,18 +40,22 @@ describe('schema.example.ts stays valid', () => {
     })
   })
 
-  test('value() still carries type, default and optionality', () => {
-    // Third argument marks a column optional on insert.
+  test('Field builders still carry type, default and optionality', () => {
+    // A nullable integer is optional on insert.
     expect(DBInfo.constraints.comments.authorId).toMatchObject({
       type: 'integer',
+      nullable: true,
     })
+    // Sized rather than TEXT because it has a default -- MySQL refuses a
+    // literal DEFAULT on TEXT, which is what used to break this template.
     expect(DBInfo.constraints.posts.body).toMatchObject({
       type: 'string',
       default: '',
+      length: 8192,
     })
   })
 
-  test('index() and unique() still emit table/type descriptors', () => {
+  test('Field.Index/Unique still emit table/type descriptors', () => {
     expect(DBInfo.indexes.postsAuthorIdx).toMatchObject({
       table: 'posts',
       type: 'index',

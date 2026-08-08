@@ -86,25 +86,97 @@ export class SchemaBuilder {
     const n = p ? false : (cons.nullable ?? false)
 
     if (p && cons.type === 'integer' && a) {
-      return `${indent}${colName}: primary(),\n`
+      return `${indent}${colName}: Field.Primary(),\n`
     }
 
     const d = SchemaBuilder.getDefaultValue(cons, isView, adapter)
+    const named = SchemaBuilder.asFieldCall(cons, d, n)
+    if (named) return `${indent}${colName}: ${named},\n`
 
-    const args = [
-      t,
-      d,
-      n === false ? undefined : n,
-      a === false ? undefined : a,
-      p === false ? undefined : p,
-    ]
-
-    while (args.length > 1 && args[args.length - 1] === undefined) {
-      args.pop()
+    // Nothing in the `Field` vocabulary spells this column — nullable *and*
+    // defaulted to something other than null, or an explicit `primary` that is
+    // not auto-increment.
+    //
+    // A plain object literal, not a helper call. Constraints *are* plain
+    // objects, so this needs nothing imported and reads honestly as "this shape
+    // has no name". It also keeps the generator total: it can always emit a
+    // column, rather than dropping one it cannot spell.
+    const parts = [`type: '${cons.type}'`]
+    if (typeof cons.length === 'number') parts.push(`length: ${cons.length}`)
+    // `d` is already source text from `getDefaultValue` — a quoted literal, a
+    // bare number, `null`, or the identifier `dateNow`. The marker is spelled
+    // out here instead so the emitted file needs no import for it.
+    if (d !== undefined) {
+      parts.push(`default: ${d === 'dateNow' ? "'%dateNow%'" : d}`)
     }
+    if (n) parts.push('nullable: true')
+    if (a) parts.push('autoIncrement: true')
+    if (p) parts.push('primary: true')
+    return `${indent}${colName}: { ${parts.join(', ')} },\n`
+  }
 
-    const finalArgs = args.map(arg => (arg === undefined ? 'undefined' : arg))
-    return `${indent}${colName}: value(${finalArgs.join(', ')}),\n`
+  /**
+   * The `Field` call for a column, or `null` when none fits.
+   *
+   * Generated schemas are the first thing most people read, and `value('string',
+   * undefined, true)` teaches three positional booleans where
+   * `Field.Text(true)` teaches a name. Only shapes that round-trip are emitted:
+   * anything else falls through to `value()` above rather than being
+   * approximated into a column that means something slightly different.
+   *
+   * `_enum` is deliberately absent — the members are not part of the column diff
+   * and are not introspected, so the database cannot tell us an enum from a
+   * `VARCHAR`, and guessing would silently invent a constraint.
+   */
+  private static asFieldCall(
+    cons: any,
+    def: string | undefined,
+    nullable: boolean,
+  ): string | null {
+    if (cons.primary || cons.autoIncrement) return null
+    const hasLen = typeof cons.length === 'number'
+    // `undefined` from getDefaultValue means "no default", which is a different
+    // column from one defaulting to null.
+    const arg = def === undefined ? '' : def
+
+    // `Field`'s one convention is that a **null default means nullable**, which
+    // makes "nullable *and* defaulted to something else" unspellable: emitting
+    // `Field.Int(0)` for `value('integer', 0, true)` would quietly turn a
+    // nullable column into NOT NULL. That shape falls through to `value()`,
+    // which has a separate argument for it.
+    if (nullable && def !== undefined && def !== 'null') return null
+
+    // Markers are matched on the *raw* default, not on `def`, which is already
+    // source text: `getDefaultValue` turns `%dateNow%` into the identifier
+    // `dateNow` and `%uuid%` into a quoted literal, so comparing against either
+    // spelling is a guess about formatting rather than about the column.
+    //
+    // Emitting `Field.Uuid()` / `Field.Date.now()` also removes the need for the
+    // `dateNow` import, which is added only when the body still mentions it.
+    if (cons.type === 'string' && cons.default === '%uuid%') return 'Field.Uuid()'
+    switch (cons.type) {
+      case 'integer':
+        if (cons.default === '%dateNow%') return 'Field.Date.now()'
+        return nullable && def === undefined ? null : `Field.Int(${arg})`
+      case 'number':
+        return nullable && def === undefined ? null : `Field.Float(${arg})`
+      case 'boolean':
+        return nullable && def === undefined ? null : `Field.Bool(${arg})`
+      case 'bigint':
+        return nullable && def === undefined ? null : `Field.BigInt(${arg})`
+      case 'buffer':
+        // `Field.Blob()` is always nullable, so it can only stand in for one.
+        return nullable && def === 'null' ? 'Field.Blob()' : null
+      case 'json':
+        if (def === undefined) return 'Field.Json()'
+        return nullable && def === 'null' ? 'Field.Json(true)' : null
+      case 'string':
+        if (hasLen) return `Field.Varchar(${cons.length}${arg ? `, ${arg}` : ''})`
+        if (def === undefined) return nullable ? 'Field.Text(true)' : 'Field.Text()'
+        return `Field.String(${arg})`
+      default:
+        return null
+    }
   }
 
   private static buildConstraintsString(
@@ -142,7 +214,13 @@ export class SchemaBuilder {
           ? `'${idx.cols[0]}'`
           : `[${idx.cols.map((c: string) => `'${c}'`).join(', ')}]`
 
-      result += `    ${idxName}: ${idx.type}('${idx.table}', ${colsStr}),\n`
+      // `Field.Index` / `Field.Unique`, capitalised from the stored `index` /
+      // `unique` type. This emitted the bare `index(…)` / `unique(…)` names
+      // until they were removed, at which point the generated file referenced
+      // two identifiers it did not import — invisible here because the *tables*
+      // are what the round-trip test imports, not the index block.
+      const fn = idx.type === 'unique' ? 'Field.Unique' : 'Field.Index'
+      result += `    ${idxName}: ${fn}('${idx.table}', ${colsStr}),\n`
     }
     return `${result}  } as const;\n`
   }
@@ -189,10 +267,11 @@ export class SchemaBuilder {
     // Imported from what was actually emitted. An import list fixed up front
     // would either miss a helper or leave an unused one in a file the app
     // typechecks.
+    // `table`, plus `Field` when the body uses one. Nothing else: a column
+    // `Field` cannot spell is emitted as a plain object literal, which imports
+    // nothing at all.
     const helpers = ['table']
-    if (/\bprimary\(/.test(body)) helpers.push('primary')
-    if (/\bvalue\(/.test(body)) helpers.push('value')
-    if (/\bdateNow\b/.test(body)) helpers.push('dateNow')
+    if (/\bField\./.test(body)) helpers.push('Field')
 
     return `/**
  * Generated from the database by \`db:sync\`.
@@ -211,21 +290,26 @@ import { ${helpers.sort().join(', ')} } from '@bakery/orm'
 ${body}`
   }
 
+  /**
+   * The standalone `schema.ts`: constraints, indexes and the registration block.
+   *
+   * `Field` is imported from the package root and the types from
+   * `schema-util`, in two statements rather than one, because `schema-util`
+   * cannot re-export `Field` without closing a cycle — `field.ts` calls
+   * `value`/`primary`/`index`/`unique`, and this repo has already paid once for
+   * a cycle that typechecked and then failed at runtime.
+   */
   private static buildDbInfoBlock(
     stringifiedConstraints: string,
     stringifiedIndexes: string,
   ): string {
     return `
+import { Field } from '@bakery/orm';
 import {
-  dateNow,
   type ExtractOptionals,
   type ExtractTableTypes,
   type ExtractViews,
-  index,
   old,
-  primary,
-  unique,
-  value,
 } from '@bakery/orm/schema-util';
 
 export namespace DBInfo {
@@ -271,7 +355,13 @@ declare module '@bakery/orm/schema-registry' {
   ): Promise<void> {
     messages.GEN_TYPES()
 
-    const constraints = await adapter.getConstraints()
+    // Stripped, or `--choose=db` writes `__bakery_schema` into the app's own
+    // schema as an ordinary table — after which sync manages the ledger, the
+    // ledger records itself, and the shape check never matches again. The diff
+    // path strips it in `resolveCurrentState`; this path reads the adapter
+    // directly and was missing it.
+    const { stripLedger } = await import('./ledger')
+    const constraints = stripLedger(await adapter.getConstraints())
 
     SchemaBuilder.syncNullableConstraints(constraints, existingConstraints)
 

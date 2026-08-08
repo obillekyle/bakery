@@ -110,32 +110,35 @@ const el = document.getElementById('count')
 if (el) el.textContent = \`\${json.data?.length ?? 0} posts\`
 `
 
-const ORM_SCHEMA = `import { dateNow, primary, table, value } from '@bakery/orm'
+const ORM_SCHEMA = `import { Field, table } from '@bakery/orm'
 
 export const users = table('users', {
-  id: primary(),
-  username: value('string', null),
-  email: value('string', null, true),
-  createdAt: value('integer', dateNow),
+  id: Field.Primary(),
+  username: Field.Varchar(64, null),
+  email: Field.Varchar(255, null),
+  createdAt: Field.Date.now(),
 })
 
 export const posts = table('posts', {
-  id: primary(),
-  authorId: value('integer', null),
-  title: value('string', null),
-  slug: value('string', null),
-  body: value('string', ''),
-  published: value('integer', 0),
-  createdAt: value('integer', dateNow),
+  // The reference lives on the column it constrains, and is always an integer
+  // because Field.Primary() always is.
+  id: Field.Primary(),
+  authorId: Field.Foreign(users.id, { onDelete: 'CASCADE' }),
+  title: Field.Varchar(255, null),
+  slug: Field.Varchar(255, null),
+  // Sized because it has a default: MySQL refuses a literal DEFAULT on TEXT.
+  body: Field.Varchar(8192, ''),
+  published: Field.Int(0),
+  createdAt: Field.Date.now(),
 })
 `
 
-const ORM_INDEXES = `import { index, unique } from '@bakery/orm'
+const ORM_INDEXES = `import { Field } from '@bakery/orm'
 import { posts, users } from './schema'
 
-export const usernameUniq = unique(users.username)
-export const slugUniq = unique(posts.slug)
-export const postsByAuthor = index(posts.authorId)
+export const usernameUniq = Field.Unique(users.username)
+export const slugUniq = Field.Unique(posts.slug)
+export const postsByAuthor = Field.Index(posts.authorId)
 `
 
 /**

@@ -13,13 +13,13 @@ bun add @bakery/orm
 
 ```ts
 // orm/schema.ts
-import { dateNow, primary, table, value } from '@bakery/orm'
+import { Field, table } from '@bakery/orm'
 
 export const posts = table('posts', {
-  id: primary(),
-  title: value('string', null),
-  body: value('string', ''),
-  createdAt: value('integer', dateNow),
+  id: Field.Primary(),
+  title: Field.Varchar(255, null),
+  body: Field.Varchar(8192, ''),
+  createdAt: Field.Date.now(),
 })
 ```
 

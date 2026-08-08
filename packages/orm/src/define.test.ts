@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { alias, collectConstraints, type InferOptionals, type InferSchema, table } from './define'
-import { dateNow, type ExtractOptionals, type ExtractTableTypes, primary, value } from './schema-util'
+import type { ExtractOptionals, ExtractTableTypes } from './schema-util'
+import { Field } from './field'
 
 /**
  * The prototype is only worth building if the derived types are
@@ -17,17 +18,17 @@ const exact = <T extends true>(_ok: T) => true
 
 // ── the object form ────────────────────────────────────────────────────────
 const users = table('users', {
-  id: primary(),
-  username: value('string', null),
-  email: value('string', null, true),
-  createdAt: value('integer', dateNow),
+  id: Field.Primary(),
+  username: Field.Text(true),
+  email: Field.Text(true),
+  createdAt: Field.Date.now(),
 })
 
 const posts = table('posts', {
-  id: primary(),
-  authorId: value('integer', null),
-  title: value('string', null),
-  body: value('string', ''),
+  id: Field.Primary(),
+  authorId: Field.Int(null),
+  title: Field.Text(true),
+  body: Field.String(''),
 })
 
 const objectModule = { users, posts }
@@ -35,16 +36,16 @@ const objectModule = { users, posts }
 // ── the hand-written form it must reproduce ────────────────────────────────
 const constraints = {
   users: {
-    id: primary(),
-    username: value('string', null),
-    email: value('string', null, true),
-    createdAt: value('integer', dateNow),
+    id: Field.Primary(),
+    username: Field.Text(true),
+    email: Field.Text(true),
+    createdAt: Field.Date.now(),
   },
   posts: {
-    id: primary(),
-    authorId: value('integer', null),
-    title: value('string', null),
-    body: value('string', ''),
+    id: Field.Primary(),
+    authorId: Field.Int(null),
+    title: Field.Text(true),
+    body: Field.String(''),
   },
 } as const
 

@@ -105,11 +105,11 @@ The reliable way is to say so in the schema with `old()`, which the engine
 resolves before anything is dropped:
 
 ```ts
-import { old, primary, table, value } from '@bakery/orm'
+import { Field, old, table } from '@bakery/orm'
 
 export const posts = table('posts', {
-  id: primary(),
-  headline: old('title', value('string')),
+  id: Field.Primary(),
+  headline: old('title', Field.Varchar(255)),
 })
 ```
 
@@ -176,19 +176,20 @@ so commit first and read the diff.
 During `bun run dev`, a schema generated this way exits with code 42, which the
 dev watcher treats as "restart me" so the new types load.
 
-## `foreign()` aborts the sync
+## Foreign keys are checked before planning
 
-If any constraint in the schema is a `foreign()`, `db:sync` prints its name and
-exits 1 before planning anything. See
-[Schema](schema.md#foreign-is-exported-and-rejected-at-load) for why, and for
-the workaround.
+`db:sync` verifies that every reference targets a primary key or a uniquely
+indexed column, and exits 1 naming the offending one if not. SQL requires it,
+and the dialects disagree about how they complain: MySQL and Postgres refuse the
+`CREATE`, while SQLite accepts it and then fails every insert with "foreign key
+mismatch". See [Schema](schema.md#foreign-keys).
 
 ## Exit codes
 
 | Code | Meaning |
 | --- | --- |
 | 0 | Synced, nothing to do, `--dry-run`, `--help`, or you declined the prompt |
-| 1 | Configured schema path missing, a `foreign()` declaration, production without `--force-sync`, or a destructive plan with no backup |
+| 1 | Configured schema path missing, a reference to a non-unique target, production without `--force-sync`, or a destructive plan with no backup |
 | 42 | Schema regenerated during `bun run dev` — the watcher restarts the worker |
 
 ## Next

@@ -1,7 +1,7 @@
-import { index, unique } from '@bakery/orm'
+import { Field } from '@bakery/orm'
 import { posts, users } from './schema'
 
-export const usernameUniq = unique(users.username)
-export const slugUniq = unique(posts.slug)
-export const postsByAuthor = index(posts.authorId)
-export const postsByAuthorDate = index(posts.authorId, posts.createdAt)
+export const usernameUniq = Field.Unique(users.username)
+export const slugUniq = Field.Unique(posts.slug)
+export const postsByAuthor = Field.Index(posts.authorId)
+export const postsByAuthorDate = Field.Index(posts.authorId, posts.createdAt)

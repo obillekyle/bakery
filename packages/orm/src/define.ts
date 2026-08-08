@@ -16,14 +16,14 @@ import type {
  * identifier reaching SQL is one the framework constructed rather than one a
  * caller typed.
  *
- * The column descriptors are unchanged — `value()`, `primary()` and the
+ * The column descriptors are unchanged — the `Field` builders and the
  * `ExtractTableTypes` mapping are reused as-is, so this is a restructuring of
  * how tables are *declared*, not of how their types are computed. That is what
  * keeps `DB.table('users')` autocompleting exactly as it does now: the derived
  * `DBSchema` has the same shape the hand-written one had.
  */
 
-/** Columns as declared: `{ id: primary(), name: value('string', null) }`. */
+/** Columns as declared: `{ id: Field.Primary(), name: Field.Text(true) }`. */
 export type ColumnMap = Record<string, unknown>
 
 export interface TableDef<N extends string = string, C extends ColumnMap = ColumnMap> {
