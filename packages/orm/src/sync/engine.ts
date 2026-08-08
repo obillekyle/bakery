@@ -2,6 +2,7 @@ import { Logger, messageLogger } from '@bakery/core/logger'
 import type { SQLAdapter } from '../adapters/base'
 import { SchemaBuilder } from './builder'
 import type { SchemaLayout } from './load'
+import { writeLedger } from './ledger'
 import {
   buildSyncPlan,
   calculateIndexDiff,
@@ -231,6 +232,13 @@ export class SyncEngine {
         ),
       )
     }
+
+    // After the transaction commits, never inside it: MySQL commits DDL
+    // implicitly, so there is no unit of work these two could share anyway, and
+    // writing the ledger first would claim a migration that had not happened.
+    // Best-effort by design — a sync that succeeded still succeeded, and a
+    // missing ledger only costs the next run its fast path.
+    await writeLedger(adapter, constraints)
 
     MESSAGES.CATCH_UP_SUCCESS()
 

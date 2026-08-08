@@ -159,15 +159,28 @@ export namespace DB {
   export type SQLFunctionRef<C extends string = string> = schemaSQLFunctionRef<C>
 
 
-  export function count<C extends string = string>(col: C): SQLFunctionRef<C> {
-    return new SQLFunctionRef('COUNT', col)
-  }
-  export function sum<C extends string = string>(col: C): SQLFunctionRef<C> {
-    return new SQLFunctionRef('SUM', col)
-  }
-  export function avg<C extends string = string>(col: C): SQLFunctionRef<C> {
-    return new SQLFunctionRef('AVG', col)
-  }
+  /**
+   * `COUNT`, `SUM` and `AVG` also come in a `.distinct` form —
+   * `DB.count.distinct('users.city')` emits `COUNT(DISTINCT "users"."city")`.
+   *
+   * Only these three. `DISTINCT` is legal inside `MIN`/`MAX` on every dialect
+   * and cannot change their result, so offering it there would imply an effect
+   * that does not exist — the same reason the builder has no per-column
+   * `distinct('col')`.
+   */
+  const aggregate = <N extends string>(fnName: N) =>
+    Object.assign(
+      <C extends string = string>(col: C): SQLFunctionRef<C> =>
+        new SQLFunctionRef(fnName, col),
+      {
+        distinct: <C extends string = string>(col: C): SQLFunctionRef<C> =>
+          new SQLFunctionRef(fnName, col, [], true),
+      },
+    )
+
+  export const count = aggregate('COUNT')
+  export const sum = aggregate('SUM')
+  export const avg = aggregate('AVG')
   export function min<C extends string = string>(col: C): SQLFunctionRef<C> {
     return new SQLFunctionRef('MIN', col)
   }
@@ -477,6 +490,8 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
+    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
   }
@@ -513,6 +528,8 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
+    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
   }
@@ -539,6 +556,15 @@ export namespace DB {
       column: WhereColumn<S, J>,
       valueOrRef?: WhereValue<ColumnString<S, J>>,
     ): IQBHaving<S, J, P>
+    /**
+     * `SELECT DISTINCT` — see the runtime method for the semantics.
+     *
+     * Declared here too, unlike the sibling stages, because this one has no
+     * `limit`: `distinct()` was added everywhere `limit` already appeared, and
+     * that heuristic silently skipped `groupBy`. It ran fine and stopped
+     * typechecking, which is precisely what `fluent.test.ts` exists to catch.
+     */
+    distinct(): this
   }
 
   export interface IQBHaving<
@@ -558,6 +584,8 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
+    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
   }
@@ -567,6 +595,14 @@ export namespace DB {
     J extends string,
     P = any,
   > extends QBObject<P> {
+    /**
+     * Grouping after selecting, which always worked at runtime — clauses are
+     * assembled at `parse()`, so call order is irrelevant — and was simply
+     * missing from this stage of the chain. The same gap `IQBTable` had for
+     * `orderBy`/`limit`, found by writing the query that motivates it:
+     * `.select({ n: DB.count.distinct(c) }).groupBy(x).having(…)`.
+     */
+    groupBy(groupCol: ColumnString<S, J>): IQBGroupBy<S, J, P>
     select<
       C extends SelectColumns<S, J>,
       P2 extends TakeSelectValues<S, C> = TakeSelectValues<S, C>,
@@ -607,6 +643,8 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
+    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
   }
@@ -620,6 +658,8 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
+    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
   }
@@ -629,6 +669,8 @@ export namespace DB {
     J extends string,
     P = any,
   > extends QBObject<P> {
+    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
   }
@@ -747,6 +789,7 @@ export namespace DB {
       right: any
       isRightColumn?: boolean
     }> = []
+    private _distinct = false
     private _select: Record<string, any> = {}
     private _selectAllAlias?: string
     private _orderBy: string[] = []
@@ -766,6 +809,7 @@ export namespace DB {
       qb._where = this._where.map(w => ({ ...w }))
       qb._groupBy = [...this._groupBy]
       qb._having = this._having.map(h => ({ ...h }))
+      qb._distinct = this._distinct
       qb._select = { ...this._select }
       qb._selectAllAlias = this._selectAllAlias
       qb._orderBy = [...this._orderBy]
@@ -974,6 +1018,17 @@ export namespace DB {
       return this as any
     }
 
+    /**
+     * `SELECT DISTINCT`. Applies to the whole select list, not one column —
+     * SQL has no per-column distinct, and offering one would imply otherwise.
+     *
+     * Idempotent, so `.distinct().distinct()` is one keyword rather than two.
+     */
+    distinct(): any {
+      this._distinct = true
+      return this as any
+    }
+
     limit(count: number, offset?: number): any {
       // Coerced here rather than at parse time so a bad value fails at the
       // call site instead of emitting `LIMIT NaN`.
@@ -1012,24 +1067,18 @@ export namespace DB {
       if (Object.keys(this._select).length > 0) {
         for (const [alias, colRef] of Object.entries(this._select)) {
           if (colRef instanceof SQLFunctionRef) {
-            // Interpolated, not bound — same allow-list as the WHERE path.
-            const funcName = String(colRef.fnName).toUpperCase()
-            if (!SQL_FUNCTIONS.has(funcName)) {
-              throws(`Unsupported SQL function: ${colRef.fnName}`)
-            }
-            const arg = colRef.col
-            if (arg === '*') {
-              selectParts.push(`${funcName}(*) AS ${qRaw(alias)}`)
-            } else if (typeof arg === 'string' && arg.includes('.')) {
-              const [tbl, colName] = arg.split('.')
-              selectParts.push(
-                `${funcName}(${qId(tbl!)}.${qId(colName!)}) AS ${qRaw(alias)}`,
-              )
-            } else {
-              selectParts.push(
-                `${funcName}(${qId(arg as string)}) AS ${qRaw(alias)}`,
-              )
-            }
+            // `evalOperands` is the single writer for a function call — the
+            // same one WHERE and HAVING go through, allow-list included.
+            //
+            // This used to re-implement it, and the copies had drifted: the
+            // select branch never read `extraArgs`, so `COALESCE(col, 'n/a')`
+            // emitted `COALESCE("col")` and quietly returned NULL instead of
+            // the fallback, while the identical call inside a WHERE was
+            // correct. `CONCAT` lost its arguments the same way, and
+            // `COUNT(DISTINCT …)` would have been the third.
+            selectParts.push(
+              `${evalOperands(colRef, params, true)} AS ${qRaw(alias)}`,
+            )
           } else if (colRef instanceof QBRaw) {
             const parsedRaw = colRef.parse()
             selectParts.push(`(${parsedRaw.sql}) AS ${qRaw(alias)}`)
@@ -1116,7 +1165,8 @@ export namespace DB {
           ? ` LIMIT ${this._limit}${this._offset !== undefined ? ` OFFSET ${this._offset}` : ''}`
           : ''
 
-      const sql = `${withSql}SELECT ${selectSql} ${fromSql}${joinSql}${whereSql}${groupSql}${havingSql}${orderSql}${limitSql}`
+      const distinctSql = this._distinct ? 'DISTINCT ' : ''
+      const sql = `${withSql}SELECT ${distinctSql}${selectSql} ${fromSql}${joinSql}${whereSql}${groupSql}${havingSql}${orderSql}${limitSql}`
       return { sql, params }
     }
   }

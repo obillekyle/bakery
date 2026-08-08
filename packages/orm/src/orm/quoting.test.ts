@@ -293,3 +293,120 @@ describe('orderBy and limit validation', () => {
     expect(sql).toContain('LIMIT 10 OFFSET 5')
   })
 })
+
+describe('SELECT DISTINCT', () => {
+  test('is emitted straight after SELECT, before the column list', () => {
+    expect(
+      DB.from('teachers').select({ surname: 'teachers.surname' }).distinct().parse().sql,
+    ).toBe('SELECT DISTINCT "teachers"."surname" AS "surname" FROM "teachers"')
+  })
+
+  test('applies with selectAll and with no select at all', () => {
+    expect(DB.from('teachers').selectAll('teachers').distinct().parse().sql).toBe(
+      'SELECT DISTINCT "teachers".* FROM "teachers"',
+    )
+    expect(DB.from('teachers').distinct().parse().sql).toBe(
+      'SELECT DISTINCT * FROM "teachers"',
+    )
+  })
+
+  test('order in the chain does not matter, and it is idempotent', () => {
+    // `distinct()` sets a flag rather than appending, so the stage it is called
+    // at is irrelevant — the alternative would make `.distinct()` before a
+    // `.where()` mean something different from after it.
+    const before = DB.from('teachers').distinct().where('teachers.id', 1).parse()
+    const after = DB.from('teachers').where('teachers.id', 1).distinct().parse()
+    expect(before.sql).toBe(after.sql)
+    expect(DB.from('teachers').distinct().distinct().parse().sql).toBe(
+      DB.from('teachers').distinct().parse().sql,
+    )
+  })
+
+  test('clone() does not leak it back to the original', () => {
+    // Every other builder field is copied in clone(); a missed one shows up as
+    // a query that changes because something *else* was derived from it.
+    const base = DB.from('teachers').selectAll('teachers')
+    const distinct = base.clone().distinct()
+    expect(base.parse().sql).not.toContain('DISTINCT')
+    expect(distinct.parse().sql).toContain('DISTINCT')
+  })
+
+  test('actually de-duplicates against a real database', async () => {
+    await db.query('DROP TABLE IF EXISTS d_test').run()
+    await db.query('CREATE TABLE d_test (city TEXT NOT NULL)').run()
+    await db.query("INSERT INTO d_test (city) VALUES ('a'), ('a'), ('b')").run()
+
+    const all = await db.query('SELECT city FROM d_test').all()
+    const distinct = await db.query('SELECT DISTINCT city FROM d_test').all()
+    expect(all.length).toBe(3)
+    expect(distinct.length).toBe(2)
+    await db.query('DROP TABLE IF EXISTS d_test').run()
+  })
+})
+
+describe('DISTINCT inside an aggregate', () => {
+  test('count/sum/avg have a .distinct form', () => {
+    const sql = (fn: any) =>
+      DB.from('teachers').select({ n: fn }).parse().sql
+    expect(sql(DB.count.distinct('teachers.surname'))).toBe(
+      'SELECT COUNT(DISTINCT "teachers"."surname") AS "n" FROM "teachers"',
+    )
+    expect(sql(DB.sum.distinct('teachers.id'))).toContain('SUM(DISTINCT')
+    expect(sql(DB.avg.distinct('teachers.id'))).toContain('AVG(DISTINCT')
+    // …and the plain form is untouched.
+    expect(sql(DB.count('teachers.id'))).toBe(
+      'SELECT COUNT("teachers"."id") AS "n" FROM "teachers"',
+    )
+  })
+
+  test('composes with, and is distinct from, SELECT DISTINCT', () => {
+    // Two different things: one de-duplicates the rows, the other the values
+    // fed to the aggregate. Both can appear in one query.
+    expect(
+      DB.from('teachers')
+        .select({ n: DB.count.distinct('teachers.surname') })
+        .distinct()
+        .parse().sql,
+    ).toBe(
+      'SELECT DISTINCT COUNT(DISTINCT "teachers"."surname") AS "n" FROM "teachers"',
+    )
+  })
+
+  test('works in HAVING as well as the select list', () => {
+    const { sql } = DB.from('teachers')
+      .select({ n: DB.count.distinct('teachers.surname') })
+      .groupBy('teachers.id')
+      .having(DB.count.distinct('teachers.surname'), 2)
+      .parse()
+    expect(sql).toContain('HAVING COUNT(DISTINCT "teachers"."surname")')
+  })
+
+  test('a function in the select list keeps its extra arguments', () => {
+    // Regression: the select clause re-implemented function rendering and never
+    // read `extraArgs`, so COALESCE lost its fallback and returned NULL — while
+    // the identical call inside a WHERE was correct. Both go through
+    // `evalOperands` now, which is also what binds the argument rather than
+    // interpolating it.
+    const { sql, params } = DB.from('teachers')
+      .select({ v: DB.coalesce('teachers.surname', 'n/a') })
+      .parse()
+    expect(sql).toBe(
+      'SELECT COALESCE("teachers"."surname", ?) AS "v" FROM "teachers"',
+    )
+    expect(params).toEqual(['n/a'])
+  })
+
+  test('counts distinct values against a real database', async () => {
+    await db.query('DROP TABLE IF EXISTS ad_test').run()
+    await db.query('CREATE TABLE ad_test (city TEXT NOT NULL)').run()
+    await db.query("INSERT INTO ad_test (city) VALUES ('a'), ('a'), ('b')").run()
+
+    const plain: any = await db.query('SELECT COUNT(city) AS n FROM ad_test').get()
+    const dist: any = await db
+      .query('SELECT COUNT(DISTINCT city) AS n FROM ad_test')
+      .get()
+    expect(Number(plain.n)).toBe(3)
+    expect(Number(dist.n)).toBe(2)
+    await db.query('DROP TABLE IF EXISTS ad_test').run()
+  })
+})

@@ -279,6 +279,14 @@ export class SQLFunctionRef<C extends string = string> {
     public fnName: string,
     public col: C,
     public extraArgs: any[] = [],
+    /**
+     * `COUNT(DISTINCT col)` rather than `COUNT(col)`.
+     *
+     * A property of the call, not of the query: the builder-level `.distinct()`
+     * is `SELECT DISTINCT` over the whole row, which is a different thing and
+     * composes independently of this one.
+     */
+    public distinct = false,
   ) {}
 }
 
@@ -357,7 +365,7 @@ export function evalOperands(
           .join(', ')
         return `${fnName}(${evalCol}, ${evalExtras})`
       }
-      return `${fnName}(${evalCol})`
+      return `${fnName}(${where.distinct ? 'DISTINCT ' : ''}${evalCol})`
     }
 
     if (typeof (where as any).parse === 'function') {

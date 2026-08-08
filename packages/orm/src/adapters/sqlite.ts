@@ -15,6 +15,8 @@ export class SQLiteAdapter extends SQLAdapter {
     string,
     SyncTypes.ColumnConstraint['type'],
   ][] = [
+    ['BIGINT', 'bigint'],
+    ['JSON', 'json'],
     ['INTEGER', 'integer'],
     ['TEXT', 'string'],
     ['REAL', 'number'],
@@ -206,8 +208,17 @@ export class SQLiteAdapter extends SQLAdapter {
         number: 'REAL',
         boolean: 'INTEGER',
         buffer: 'BLOB',
+        bigint: 'BIGINT',
+        json: 'JSON',
       }[d.type as string] || 'TEXT'
-    let out = typeStr
+    // SQLite has no VARCHAR of its own — every text column is TEXT affinity —
+    // but it stores the *declared* type verbatim and hands it back through
+    // `pragma table_info`. Emitting the width is therefore free here and is
+    // what lets one schema round-trip on all three dialects.
+    let out =
+      d.type === 'string' && typeof d.length === 'number'
+        ? `VARCHAR(${d.length})`
+        : typeStr
     if (d.primary) out += ' PRIMARY KEY'
     // SQLite accepts AUTOINCREMENT only on an INTEGER PRIMARY KEY and rejects
     // the whole CREATE TABLE otherwise, so the guard MySQL and Postgres apply
