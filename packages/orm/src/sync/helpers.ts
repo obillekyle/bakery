@@ -446,6 +446,60 @@ function diffViewStrings(
   return false
 }
 
+/**
+ * The view lifecycle: create, recreate, drop.
+ *
+ * Views were invisible to the planner. `initDbTablesMap` skips `_view` entries,
+ * and every existing comparison iterates that map — so a declared view never
+ * reached `diffViewStrings`, and nothing about a view ever reached
+ * `hasChanges`. The consequences, all three measured:
+ *
+ * - a **new** view was never planned,
+ * - an **edited** `SELECT` was never detected, so a view could not be changed,
+ * - a view the schema no longer declares was never dropped.
+ *
+ * They were invisible rather than broken: `syncViewsAndTablesPhase` recreates
+ * every declared view whenever a sync happens to run, so a view kept up to date
+ * as a side effect of unrelated work. With nothing else to do, `db:sync`
+ * reported a perfectly synced database and left the view alone.
+ *
+ * Bodies are compared through `normalizeViewBody` on both sides. That converges
+ * on SQLite, which stores the text verbatim, and via the ledger everywhere —
+ * the ledger records what was *applied*, so it holds the authored SELECT.
+ * Diffing against live introspection on MySQL or Postgres will still see a
+ * difference, because both re-render the body (MySQL re-qualifies every column,
+ * Postgres adds parentheses), and no amount of text normalisation short of a
+ * parser fixes that. It costs a recreate, and a view holds no data.
+ */
+function diffViews(
+  plan: SyncPlan,
+  constraints: SyncTypes.DBConstraints,
+  database?: string,
+) {
+  const dbSide = plan.dbConstraintsForDiff
+  const declared = new Set<string>()
+
+  for (const [name, cols] of Object.entries(constraints)) {
+    const body = (cols as SyncTypes.TableConstraints)?._view
+    if (!body) continue
+    const camel = Case.camel(name)
+    declared.add(camel)
+
+    const dbBody = (dbSide[camel] as SyncTypes.TableConstraints | undefined)?._view
+    const want = normalizeViewBody(String(body), database)
+    const have = dbBody ? normalizeViewBody(String(dbBody), database) : null
+    if (have !== want) plan.viewsToUpdate.push(Case.snake(name))
+  }
+
+  for (const [name, cols] of Object.entries(dbSide)) {
+    if (!(cols as SyncTypes.TableConstraints)?._view) continue
+    if (declared.has(Case.camel(name))) continue
+    // Same rule tables follow: what the schema does not declare, the database
+    // does not keep. Dropping is announced before it happens.
+    plan.tablesToDrop.push(Case.snake(name))
+  }
+}
+
 function diffTableViewsAndColumns(
   plan: SyncPlan,
   dbTables: any,
@@ -507,6 +561,9 @@ export async function buildSyncPlan(
     MESSAGES,
     adapter.databaseName,
   )
+  // Separately, because every comparison above walks `dbTables`, which by
+  // construction contains no views.
+  diffViews(plan, constraints, adapter.databaseName)
 
   plan.tablesToRename = plan.tablesToRename.filter(
     t =>
