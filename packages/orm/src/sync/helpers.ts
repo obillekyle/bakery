@@ -1,6 +1,7 @@
 import { Case } from '@bakery/core/utils'
 import type { SQLAdapter } from '../adapters/base'
 import type * as SyncTypes from './types'
+import { resolveCurrentState } from './ledger'
 
 export namespace SyncPlan {
   export interface TableRename {
@@ -30,6 +31,9 @@ export interface SyncPlan {
   columnsToAdd: SyncPlan.ColumnAdd[]
   columnsToRename: SyncPlan.ColumnRename[]
   tablesToRebuild: Set<string>
+  /** Which source `dbConstraintsForDiff` came from, so the run can say so. */
+  ledgerSource?: 'ledger' | 'introspection'
+  ledgerReason?: string
   viewsToUpdate: string[]
   unmappedTsTables: Set<string>
   dbConstraintsForDiff: SyncTypes.DBConstraints
@@ -439,7 +443,14 @@ export async function buildSyncPlan(
     dbConstraintsForDiff: {},
   }
 
-  plan.dbConstraintsForDiff = await adapter.getConstraints()
+  // The one place sync decides what "currently" means. Prefers the ledger —
+  // what Bakery last applied — and falls back to introspection whenever the
+  // ledger no longer describes the same tables and columns. See sync/ledger.ts
+  // for why that fallback is the whole safety argument.
+  const current = await resolveCurrentState(adapter)
+  plan.ledgerSource = current.source
+  plan.ledgerReason = current.reason
+  plan.dbConstraintsForDiff = current.constraints
   const dbTables = initDbTablesMap(plan.dbConstraintsForDiff)
   const unmappedDbTables = handleTableRenames(plan, constraints, dbTables)
 
