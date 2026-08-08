@@ -312,8 +312,12 @@ export class MySQLAdapter extends SQLAdapter {
   override async getForeignKeys(): Promise<SyncTypes.DBForeignKeys> {
     const rows = (await this.query(
       'SELECT kcu.constraint_name AS name, kcu.table_name AS child, kcu.column_name AS child_col,' +
-        ' kcu.referenced_table_name AS parent, kcu.referenced_column_name AS parent_col' +
+        ' kcu.referenced_table_name AS parent, kcu.referenced_column_name AS parent_col,' +
+        ' rc.delete_rule AS on_delete, rc.update_rule AS on_update' +
         ' FROM information_schema.key_column_usage kcu' +
+        ' JOIN information_schema.referential_constraints rc' +
+        '   ON rc.constraint_name = kcu.constraint_name' +
+        '  AND rc.constraint_schema = kcu.table_schema' +
         ' WHERE kcu.table_schema = DATABASE() AND kcu.referenced_table_name IS NOT NULL' +
         ' ORDER BY kcu.constraint_name, kcu.ordinal_position',
     ).all()) as any[]

@@ -370,16 +370,38 @@ export class SQLiteAdapter extends SQLAdapter {
         `PRAGMA foreign_key_list(${this.quote(t.name)})`,
       ).all()) as any[]
       // One row per column, grouped by `id` for a composite key.
-      const byId = new Map<number, { cols: string[]; refCols: string[]; refTable: string }>()
+      const byId = new Map<
+        number,
+        {
+          cols: string[]
+          refCols: string[]
+          refTable: string
+          onDelete: SyncTypes.ForeignKeyAction
+          onUpdate: SyncTypes.ForeignKeyAction
+        }
+      >()
       for (const r of rows) {
         const id = Number(r.id ?? 0)
-        const g = byId.get(id) ?? { cols: [], refCols: [], refTable: String(r.table) }
+        const g = byId.get(id) ?? {
+          cols: [] as string[],
+          refCols: [] as string[],
+          refTable: String(r.table),
+          onDelete: SQLAdapter.normalizeForeignKeyAction(r.on_delete),
+          onUpdate: SQLAdapter.normalizeForeignKeyAction(r.on_update),
+        }
         g.cols.push(String(r.from))
         g.refCols.push(String(r.to))
         byId.set(id, g)
       }
       for (const g of byId.values()) {
-        const fk = { table: t.name, cols: g.cols, refTable: g.refTable, refCols: g.refCols }
+        const fk = {
+          table: t.name,
+          cols: g.cols,
+          refTable: g.refTable,
+          refCols: g.refCols,
+          onDelete: g.onDelete,
+          onUpdate: g.onUpdate,
+        }
         out[SQLAdapter.foreignKeyId(fk)] = fk
       }
     }

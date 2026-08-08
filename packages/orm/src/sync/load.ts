@@ -328,6 +328,8 @@ export function resolveColumnForeignKeys(
         cols: [colName],
         refTable: ref.table,
         refCols: [ref.column],
+        onDelete: ref.onDelete,
+        onUpdate: ref.onUpdate,
       }
     }
   }

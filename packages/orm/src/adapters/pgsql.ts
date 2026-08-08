@@ -324,7 +324,8 @@ export class PGAdapter extends SQLAdapter {
   override async getForeignKeys(): Promise<SyncTypes.DBForeignKeys> {
     const rows = (await this.query(
       "SELECT con.conname AS name, c.relname AS child, att.attname AS child_col," +
-        " pc.relname AS parent, patt.attname AS parent_col" +
+        " pc.relname AS parent, patt.attname AS parent_col," +
+        " con.confdeltype AS on_delete, con.confupdtype AS on_update" +
         " FROM pg_constraint con" +
         " JOIN pg_class c ON c.oid = con.conrelid" +
         " JOIN pg_class pc ON pc.oid = con.confrelid" +

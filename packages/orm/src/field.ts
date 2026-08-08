@@ -1,4 +1,5 @@
 import { primary, value } from './schema-util'
+import type * as SyncTypes from './sync/types'
 
 /**
  * `Field` — the column vocabulary, namespaced so it is discoverable.
@@ -143,7 +144,12 @@ export const Field = {
    */
   Foreign: (
     target: { __table: string; __column: string },
-    options: { nullable?: true } = {},
+    options: {
+      nullable?: true
+      /** Defaults to NO ACTION, as SQL does. */
+      onDelete?: SyncTypes.ForeignKeyAction
+      onUpdate?: SyncTypes.ForeignKeyAction
+    } = {},
   ) =>
     ({
       // Filled in from the referenced column at load time. `integer` is the
@@ -152,7 +158,12 @@ export const Field = {
       // column with no type at all.
       type: 'integer',
       ...(options.nullable ? { nullable: true, default: null } : {}),
-      _references: { table: target.__table, column: target.__column },
+      _references: {
+        table: target.__table,
+        column: target.__column,
+        onDelete: options.onDelete,
+        onUpdate: options.onUpdate,
+      },
     }) as any,
 
   /**

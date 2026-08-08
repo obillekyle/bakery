@@ -180,3 +180,54 @@ describe('Field.Foreign', () => {
     expect(out.unreferenceable).toEqual([])
   })
 })
+
+describe('referential actions', () => {
+  test('one vocabulary, whatever the dialect calls it', () => {
+    // Postgres reports a single character; MySQL and SQLite report the word.
+    // Without one normal form the diff compares `CASCADE` against `c` and
+    // replaces the constraint on every sync.
+    expect(SQLAdapter.normalizeForeignKeyAction('c')).toBe('CASCADE')
+    expect(SQLAdapter.normalizeForeignKeyAction('CASCADE')).toBe('CASCADE')
+    expect(SQLAdapter.normalizeForeignKeyAction('n')).toBe('SET NULL')
+    expect(SQLAdapter.normalizeForeignKeyAction('set null')).toBe('SET NULL')
+    expect(SQLAdapter.normalizeForeignKeyAction('a')).toBe('NO ACTION')
+  })
+
+  test('anything unrecognised is NO ACTION, not a new value', () => {
+    // A dialect growing a code we do not know must not make the diff churn.
+    expect(SQLAdapter.normalizeForeignKeyAction('z')).toBe('NO ACTION')
+    expect(SQLAdapter.normalizeForeignKeyAction(undefined)).toBe('NO ACTION')
+    expect(SQLAdapter.normalizeForeignKeyAction('')).toBe('NO ACTION')
+  })
+
+  test('omitted and explicit NO ACTION are the same key', () => {
+    // Every dialect reports NO ACTION for a key declared without an action, so
+    // treating the two as different would replace the constraint forever.
+    const base = { table: 'posts', cols: ['authorId'], refTable: 'users', refCols: ['id'] }
+    const db = { [SQLAdapter.foreignKeyId(base)]: { ...base, onDelete: 'NO ACTION', onUpdate: 'NO ACTION' } }
+    const ts = { [SQLAdapter.foreignKeyId(base)]: { ...base } }
+    const { fksToAdd, fksToDrop } = calculateForeignKeyDiff(db as any, ts as any, new Set())
+    expect(fksToAdd.size).toBe(0)
+    expect(fksToDrop.size).toBe(0)
+  })
+
+  test('a changed action replaces the constraint', () => {
+    // No dialect alters a referential action in place.
+    const base = { table: 'posts', cols: ['authorId'], refTable: 'users', refCols: ['id'] }
+    const id = SQLAdapter.foreignKeyId(base)
+    const db = { [id]: { ...base, name: 'db_named_it', onDelete: 'NO ACTION' } }
+    const ts = { [id]: { ...base, onDelete: 'CASCADE' } }
+    const { fksToAdd, fksToDrop } = calculateForeignKeyDiff(db as any, ts as any, new Set())
+    expect(fksToAdd.size).toBe(1)
+    // Dropped under the name the *database* gave it, not one we generate.
+    expect([...fksToDrop.values()][0]!.name).toBe('db_named_it')
+  })
+
+  test('the clause omits NO ACTION and emits anything else', () => {
+    const db = new SQLiteAdapter(':memory:')
+    const base = { table: 'posts', cols: ['authorId'], refTable: 'users', refCols: ['id'] }
+    expect(db.foreignKeyClause(base as any)).not.toContain('ON DELETE')
+    expect(db.foreignKeyClause({ ...base, onDelete: 'NO ACTION' } as any)).not.toContain('ON DELETE')
+    expect(db.foreignKeyClause({ ...base, onDelete: 'CASCADE' } as any)).toContain('ON DELETE CASCADE')
+  })
+})

@@ -2,6 +2,7 @@ import { Case } from '@bakery/core/utils'
 import { is, throws } from '@bakery/core/utils/common'
 import { quoteIdentifier } from './adapters/base'
 import { getActiveDb } from './connection'
+import type { ForeignKeyAction } from './sync/types'
 import type * as SyncTypes from './sync/types'
 
 export type OmitNever<T> = Pick<
@@ -126,20 +127,32 @@ export function foreign(
   refCol: string,
 ): any
 export function foreign(column: ColumnValue): {
-  references(target: ColumnValue): any
+  references(
+    target: ColumnValue,
+    /** Referential actions. Both default to `NO ACTION`, as SQL does. */
+    actions?: { onDelete?: ForeignKeyAction; onUpdate?: ForeignKeyAction },
+  ): any
 }
 export function foreign(first: any, col?: any, refTable?: any, refCol?: any) {
   if (isColumnValue(first)) {
     // Deferred so the call reads as a sentence and both sides are named,
     // rather than four positional strings that can be silently transposed.
     return {
-      references(target: ColumnValue) {
+      references(
+        target: ColumnValue,
+        actions: {
+          onDelete?: ForeignKeyAction
+          onUpdate?: ForeignKeyAction
+        } = {},
+      ) {
         return {
           table: first.__table,
           type: 'foreign',
           cols: [first.__column],
           refTable: target.__table,
           refCols: [target.__column],
+          onDelete: actions.onDelete,
+          onUpdate: actions.onUpdate,
         }
       },
     }

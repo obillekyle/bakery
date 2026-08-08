@@ -856,6 +856,8 @@ export function collectForeignKeys(
       refTable: fk.refTable,
       refCols: fk.refCols,
       name,
+      onDelete: fk.onDelete,
+      onUpdate: fk.onUpdate,
     }
     out[SQLAdapter.foreignKeyId(info)] = info
   }
@@ -892,11 +894,33 @@ export function calculateForeignKeyDiff(
   const fksToAdd = new Map<string, SyncTypes.ForeignKeyInfo>()
   const fksToDrop = new Map<string, SyncTypes.ForeignKeyInfo>()
 
+  // `NO ACTION` on both sides of the comparison, because that is what every
+  // dialect reports for a key declared without one — so an omitted action and
+  // an explicit `NO ACTION` must not read as a difference.
+  const act = (a?: string) => a ?? 'NO ACTION'
+  const sameActions = (
+    a: SyncTypes.ForeignKeyInfo,
+    b: SyncTypes.ForeignKeyInfo,
+  ) => act(a.onDelete) === act(b.onDelete) && act(a.onUpdate) === act(b.onUpdate)
+
   for (const [id, fk] of Object.entries(tsFks)) {
     // A rebuilt table is recreated from the constraints, foreign keys included,
     // so adding one separately would duplicate it.
-    if (dbFks[id] || tablesToRebuild.has(Case.snake(fk.table))) continue
+    if (tablesToRebuild.has(Case.snake(fk.table))) continue
     if (tablesBeingCreated.has(Case.snake(fk.table))) continue
+
+    const existing = dbFks[id]
+    if (existing) {
+      // Same columns, different behaviour. No dialect alters a referential
+      // action in place, so the constraint is replaced — and the drop carries
+      // the name the *database* gave it, which is not necessarily the one we
+      // would generate for it.
+      if (!sameActions(existing, fk)) {
+        fksToDrop.set(id, existing)
+        fksToAdd.set(id, fk)
+      }
+      continue
+    }
     fksToAdd.set(id, fk)
   }
   for (const [id, fk] of Object.entries(dbFks)) {
