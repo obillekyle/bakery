@@ -74,6 +74,7 @@ export namespace Mutation {
 
   export class InsertExecutable {
     private _returning?: string
+    private _conflict?: { cols: string[]; update: string[] | null }
 
     constructor(
       private _table: string,
@@ -82,6 +83,32 @@ export namespace Mutation {
 
     returning(cols: string = '*'): this {
       this._returning = safeReturning(cols)
+      return this
+    }
+
+    /**
+     * Insert, or update the row that is already there.
+     *
+     * `cols` names the unique columns that decide "already there" — a primary
+     * key or a unique index. Without an upsert the only way to express this is
+     * to check and then branch, which is a **race**: two requests both see no
+     * row and both insert.
+     *
+     *     DB.Insert.into('users').values({ email, name }).upsert(['email'])
+     *
+     * By default every inserted column except the conflict columns is
+     * overwritten. Pass a second argument to narrow that — `upsert(['email'],
+     * ['name'])` leaves everything else as it was — or an empty array for
+     * insert-if-absent, which becomes `DO NOTHING`.
+     *
+     * MySQL ignores `cols` because `ON DUPLICATE KEY UPDATE` fires on *any*
+     * unique key and takes no conflict target. They are still required, since
+     * Postgres and SQLite cannot express the statement without them and a
+     * schema that works on one dialect should work on all three.
+     */
+    upsert(cols: string[], update?: string[]): this {
+      if (!cols.length) throws('upsert() needs at least one conflict column')
+      this._conflict = { cols, update: update ?? null }
       return this
     }
 
@@ -106,11 +133,52 @@ export namespace Mutation {
       )
 
       const retSql = this._returning ? ` RETURNING ${this._returning}` : ''
+      const conflictSql = this.conflictClause(keys)
 
       return {
-        sql: `INSERT INTO ${qId(this._table)} (${columns}) VALUES ${placeholders}${retSql}`,
+        sql: `INSERT INTO ${qId(this._table)} (${columns}) VALUES ${placeholders}${conflictSql}${retSql}`,
         params,
       }
+    }
+
+    /**
+     * The upsert clause, in the dialect of the active connection.
+     *
+     * Two shapes, not three: Postgres and SQLite share
+     * `ON CONFLICT (…) DO UPDATE SET col = excluded.col`, while MySQL spells it
+     * `ON DUPLICATE KEY UPDATE col = VALUES(col)` and takes no conflict target
+     * at all — it fires on whichever unique key was violated.
+     *
+     * Every identifier goes through `qId`, and no value is interpolated: the
+     * new row's values are already bound as the INSERT's parameters, and both
+     * dialects refer back to them by name rather than repeating them.
+     */
+    private conflictClause(insertedKeys: string[]): string {
+      if (!this._conflict) return ''
+      const { cols, update } = this._conflict
+
+      // Default: everything inserted except the columns that identify the row.
+      const targets = (
+        update ?? insertedKeys.filter(k => !cols.includes(k))
+      ).filter(k => insertedKeys.includes(k))
+
+      const isMySQL = getActiveDb().driver === 'mysql'
+
+      if (isMySQL) {
+        if (!targets.length) {
+          // MySQL has no DO NOTHING. Assigning a column to itself is the
+          // documented idiom for it and leaves the row untouched.
+          const self = qId(cols[0]!)
+          return ` ON DUPLICATE KEY UPDATE ${self} = ${self}`
+        }
+        const sets = targets.map(k => `${qId(k)} = VALUES(${qId(k)})`)
+        return ` ON DUPLICATE KEY UPDATE ${sets.join(', ')}`
+      }
+
+      const target = cols.map(k => qId(k)).join(', ')
+      if (!targets.length) return ` ON CONFLICT (${target}) DO NOTHING`
+      const sets = targets.map(k => `${qId(k)} = excluded.${qId(k)}`)
+      return ` ON CONFLICT (${target}) DO UPDATE SET ${sets.join(', ')}`
     }
 
     async array<R = any>(): Promise<R[]> {
