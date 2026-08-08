@@ -320,6 +320,12 @@ export function resolveColumnForeignKeys(
   const unreferenceable: string[] = []
 
   for (const [tableName, cols] of Object.entries(constraints)) {
+    // A view cannot carry a foreign key, and `view(name, sourceTable, body)`
+    // borrows the source table's columns — `_references` included. Without this
+    // the view gets a key of its own, which no dialect will create, so every
+    // sync plans to add it again: an empty printed plan and a run that never
+    // reports a perfectly synced database.
+    if ((cols as any)?._view) continue
     for (const [colName, col] of Object.entries(cols as Record<string, any>)) {
       const ref = col?._references
       if (!ref) continue

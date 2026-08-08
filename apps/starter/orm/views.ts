@@ -9,7 +9,7 @@ import { posts } from './tables'
  * surface at query time.
  */
 export const publishedPosts = view(
-  'published_posts',
+  'publishedPosts',
   posts,
   'SELECT * FROM posts WHERE published = 1',
 )

@@ -184,3 +184,107 @@ describe('RowOf / InsertOf name a declaration without copying it', () => {
     expect(true).toBe(true)
   })
 })
+
+/**
+ * A schema containing a view must reach a steady state.
+ *
+ * Three separate defects made that impossible, and none was visible until
+ * `apps/example` moved to the folder layout and grew a real view — all three
+ * need a view *and* a live sync to appear:
+ *
+ * 1. A view was counted as an unmapped TS table forever. `initDbTablesMap`
+ *    skips `_view` entries, so a view is never on the database side of the
+ *    comparison, and `evaluateChanges` counts `unmappedTsTables` — so the run
+ *    reported changes on every sync while printing an empty plan.
+ * 2. `view(name, sourceTable, body)` borrows the source's columns, `_references`
+ *    included, so the view was given a foreign key of its own. No dialect will
+ *    create one on a view, so it was re-planned every sync.
+ * 3. Rebuilding a table dropped its foreign keys. A constraint is part of the
+ *    table definition and `processTableRebuild` emitted columns only — while
+ *    the planner deliberately turns a foreign-key change into a rebuild on
+ *    SQLite, which cannot ALTER one in. The plan could never add a key.
+ */
+describe('a schema with a view settles', () => {
+  async function fixture() {
+    const db = new SQLiteAdapter(':memory:')
+    const users = table('users', { id: Field.Primary(), name: Field.Varchar(64) })
+    const posts = table('posts', {
+      id: Field.Primary(),
+      authorId: Field.Foreign(users.id, { onDelete: 'CASCADE' }),
+    })
+    const published = view('publishedPosts', posts, 'SELECT * FROM posts')
+    const { resolveColumnForeignKeys } = await import('./sync/load')
+    const resolved = resolveColumnForeignKeys(
+      collectConstraints({ users, posts, published }) as any,
+      {} as any,
+    )
+    return { db, ...resolved }
+  }
+
+  test('the view is not counted as a table waiting to be created', async () => {
+    const { db, constraints } = await fixture()
+    const { buildSyncPlan } = await import('./sync/helpers')
+    const quiet: any = { log() {}, confirm: () => false, selectIndex: () => 0 }
+    const msgs: any = new Proxy({}, { get: () => () => {} })
+    const plan = await buildSyncPlan(db as any, constraints, quiet, msgs)
+    expect([...plan.unmappedTsTables]).not.toContain('publishedPosts')
+    await db.close()
+  })
+
+  test('a view is never given a foreign key of its own', async () => {
+    const { db, indexes } = await fixture()
+    // `posts.authorId` carries `_references`, and the view borrowed it.
+    const forView = Object.values(indexes as any).filter(
+      (i: any) => i.type === 'foreign' && /published/i.test(i.table),
+    )
+    expect(forView).toEqual([])
+    // …while the real table still gets one.
+    const forPosts = Object.values(indexes as any).filter(
+      (i: any) => i.type === 'foreign' && i.table === 'posts',
+    )
+    expect(forPosts).toHaveLength(1)
+    await db.close()
+  })
+
+  test('rebuilding a table keeps its foreign keys', async () => {
+    const db = new SQLiteAdapter(':memory:')
+    await db.query('CREATE TABLE users (id INTEGER PRIMARY KEY)').run()
+    // Built without the key, exactly as a pre-foreign-key database would be.
+    await db
+      .query('CREATE TABLE posts (id INTEGER PRIMARY KEY, author_id INTEGER NOT NULL)')
+      .run()
+
+    const users = table('users', { id: Field.Primary() })
+    const posts = table('posts', {
+      id: Field.Primary(),
+      authorId: Field.Foreign(users.id, { onDelete: 'CASCADE' }),
+    })
+    const { resolveColumnForeignKeys } = await import('./sync/load')
+    const { constraints, indexes } = resolveColumnForeignKeys(
+      collectConstraints({ users, posts }) as any,
+      {} as any,
+    )
+
+    // `executeSyncPlan` rather than `syncSchema`: the plan is the unit under
+    // test, and the full path additionally wants a backup, which wants config.
+    const { collectForeignKeys, executeSyncPlan } = await import('./sync/helpers')
+    const msgs: any = new Proxy({}, { get: () => () => {} })
+    const plan: any = {
+      tablesToDrop: [], tablesToRename: [], columnsToDrop: [], columnsToAdd: [],
+      columnsToRename: [], tablesToRebuild: new Set(['posts']), viewsToUpdate: [],
+      unmappedTsTables: new Set(), dbConstraintsForDiff: {},
+    }
+    await db.transaction(tx =>
+      executeSyncPlan(
+        tx, plan, constraints, new Set(), new Map(), msgs,
+        collectForeignKeys(indexes as any), new Map(), new Map(),
+      ),
+    )
+
+    const fks = (await db.query('PRAGMA foreign_key_list(posts)').all()) as any[]
+    expect(fks.map(f => `${f.from}->${f.table}.${f.to}`)).toEqual([
+      'author_id->users.id',
+    ])
+    await db.close()
+  })
+})
