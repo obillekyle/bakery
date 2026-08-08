@@ -152,8 +152,16 @@ function handleTableRenames(
   const unmappedDbTables = new Set(
     Object.keys(dbTables).filter(camel => !normalizedConstraints[camel]),
   )
+  // Views are excluded, not merely absent. `initDbTablesMap` skips `_view`
+  // entries, so a view is never in `dbTables` and would look like a table that
+  // still needs creating — on every run, forever. `evaluateChanges` counts
+  // `unmappedTsTables`, so a schema with a view could never report a perfectly
+  // synced database. The view phase creates them; this set is about tables.
   plan.unmappedTsTables = new Set(
-    Object.keys(normalizedConstraints).filter(camel => !dbTables[camel]),
+    Object.keys(normalizedConstraints).filter(
+      camel =>
+        !dbTables[camel] && !(normalizedConstraints[camel] as any)?._view,
+    ),
   )
 
   for (const [newRaw, tsTableObj] of Object.entries(constraints)) {
@@ -576,6 +584,7 @@ async function processTableRebuild(
   tx: SQLAdapter,
   table: string,
   constraints: SyncTypes.DBConstraints,
+  tsFks: SyncTypes.DBForeignKeys = {},
 ) {
   const camelTable = Case.camel(table)
   const tsTableObj = constraints[camelTable]
@@ -588,6 +597,18 @@ async function processTableRebuild(
   const colDefs = validCols.map(
     ([name, cons]) => `  ${tx.quote(Case.snake(name))} ${tx.colDef(cons, Case.snake(name))}`,
   )
+
+  // Inline, or the rebuild silently drops every foreign key the table had.
+  //
+  // A constraint is part of the table definition, so recreating the table
+  // without it removes it — and on SQLite there is no `ALTER` to put one back,
+  // which is precisely why the planner turns a foreign-key change into a
+  // rebuild. Without this, that plan could never *add* a key: the rebuild it
+  // scheduled was the thing dropping them.
+  for (const fk of Object.values(tsFks)) {
+    if (Case.snake(fk.table) !== Case.snake(table)) continue
+    colDefs.push(`  ${tx.foreignKeyClause(fk)}`)
+  }
 
   await tx.createTable(tempName, colDefs)
 
@@ -740,10 +761,39 @@ async function rebuildTablesPhase(
   plan: SyncPlan,
   constraints: SyncTypes.DBConstraints,
   MESSAGES: any,
+  tsFks: SyncTypes.DBForeignKeys = {},
 ) {
   for (const table of plan.tablesToRebuild) {
     MESSAGES.EXEC_REBUILD({ table })
-    await processTableRebuild(tx, table, constraints)
+    await processTableRebuild(tx, table, constraints, tsFks)
+  }
+}
+
+/**
+ * Drop declared views before any table is rebuilt.
+ *
+ * A rebuild swaps the table out and back, and SQLite refuses the swap while a
+ * view still references the old name:
+ *
+ *     error in view published_posts: no such table: main.posts
+ *
+ * Views hold no data and `syncViewsAndTablesPhase` recreates every declared one
+ * a moment later, so dropping them first costs nothing — it is the same "drop
+ * and recreate" the engine already does when a view's body changes.
+ *
+ * Only when something is actually being rebuilt: a sync with no rebuilds should
+ * not churn views, and `CREATE VIEW` has no `IF NOT EXISTS`, so a needless drop
+ * would be a needless recreate.
+ */
+async function dropViewsForRebuildPhase(
+  tx: SQLAdapter,
+  plan: SyncPlan,
+  constraints: SyncTypes.DBConstraints,
+) {
+  if (!plan.tablesToRebuild.size) return
+  for (const [name, cols] of Object.entries(constraints)) {
+    if (!(cols as SyncTypes.TableConstraints)._view) continue
+    await tx.drop('VIEW', Case.snake(name))
   }
 }
 
@@ -845,7 +895,8 @@ export async function executeSyncPlan(
   await dropTablesPhase(tx, plan, MESSAGES)
   await dropColumnsPhase(tx, plan, MESSAGES)
   await addColumnsPhase(tx, plan, MESSAGES)
-  await rebuildTablesPhase(tx, plan, constraints, MESSAGES)
+  await dropViewsForRebuildPhase(tx, plan, constraints)
+  await rebuildTablesPhase(tx, plan, constraints, MESSAGES, tsFks)
   await syncViewsAndTablesPhase(tx, constraints, MESSAGES, tsFks)
   await addIndexesPhase(tx, indexesToAdd, MESSAGES)
   // Last, so every table a key could reference already exists.

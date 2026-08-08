@@ -189,6 +189,27 @@ type Resolved =
  * which is the same folder addressed by its entry file; pointing the
  * generator at that file would have it overwrite the re-exports.
  */
+
+/**
+ * Where the folder layout's table declarations live.
+ *
+ * `tables.ts`, beside `views.ts` and `indexes.ts` — one file per kind of
+ * declaration, which is the separation the folder layout exists for. It was
+ * `schema.ts`, which read oddly next to its siblings and collided with the
+ * single-file layout's `schema.ts` in conversation.
+ *
+ * The old name is still honoured when it is the one on disk. Loading never
+ * cared — that goes through `index.ts`'s re-exports, so any filename works —
+ * but *generation* writes here, and writing `tables.ts` beside someone's
+ * existing `schema.ts` would leave two files declaring the same tables.
+ */
+async function folderTarget(dir: string): Promise<string> {
+  const tables = `${dir}/tables.ts`
+  if (await Bun.file(tables).exists()) return tables
+  const legacy = `${dir}/schema.ts`
+  return (await Bun.file(legacy).exists()) ? legacy : tables
+}
+
 async function resolveConfigured(
   cwd: string,
   configured: string,
@@ -197,7 +218,7 @@ async function resolveConfigured(
 
   if (await fs.isDir(path)) {
     const entry = `${path}/index.ts`
-    const target = `${path}/schema.ts`
+    const target = await folderTarget(path)
     if (!(await Bun.file(entry).exists())) {
       return { missing: entry, targetPath: target }
     }
@@ -211,7 +232,7 @@ async function resolveConfigured(
     return {
       entry: path,
       layout: 'folder',
-      targetPath: `${fs.dirname(path)}/schema.ts`,
+      targetPath: await folderTarget(fs.dirname(path)),
     }
   }
 
@@ -237,7 +258,7 @@ export async function loadSchema(
     const loaded = await readSchema(
       folderEntry,
       'folder',
-      `${cwd}/orm/schema.ts`,
+      await folderTarget(`${cwd}/orm`),
     )
     // Unchanged from before this file learned about `config.schema`: when the
     // folder entry exists but cannot be imported, the generator stays pointed
@@ -299,6 +320,12 @@ export function resolveColumnForeignKeys(
   const unreferenceable: string[] = []
 
   for (const [tableName, cols] of Object.entries(constraints)) {
+    // A view cannot carry a foreign key, and `view(name, sourceTable, body)`
+    // borrows the source table's columns — `_references` included. Without this
+    // the view gets a key of its own, which no dialect will create, so every
+    // sync plans to add it again: an empty printed plan and a run that never
+    // reports a perfectly synced database.
+    if ((cols as any)?._view) continue
     for (const [colName, col] of Object.entries(cols as Record<string, any>)) {
       const ref = col?._references
       if (!ref) continue

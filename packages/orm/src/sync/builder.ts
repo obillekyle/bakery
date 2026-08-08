@@ -1,4 +1,5 @@
 import { Bakery } from '@bakery/core/core/bakery'
+import { Case } from '@bakery/core/utils'
 import { isSafeIdentifier } from '../schema-util'
 import type { SQLAdapter } from '../adapters/base'
 import type { SchemaLayout } from './load'
@@ -179,6 +180,86 @@ export class SchemaBuilder {
     }
   }
 
+  /**
+   * The TypeScript type of a column, for a generated view interface.
+   *
+   * A view has no column DDL, so this is the only place its columns appear.
+   * Straight through `TypeMap`'s mapping, with `| null` for a nullable column —
+   * introspection reports that faithfully for a view's projected columns.
+   */
+  private static tsTypeFor(cons: any): string {
+    const base =
+      {
+        integer: 'number',
+        number: 'number',
+        bigint: 'number',
+        string: 'string',
+        boolean: 'boolean',
+        buffer: 'Buffer',
+        json: 'unknown',
+      }[cons.type as string] || 'unknown'
+    return cons.nullable ? `${base} | null` : base
+  }
+
+  /**
+   * `orm/views.ts`: one interface plus one `view()` per view in the database.
+   *
+   *     export interface ActiveUsersView {
+   *       id: number
+   *       name: string
+   *     }
+   *
+   *     export const activeUsers = view<'active_users', ActiveUsersView>(
+   *       'active_users',
+   *       `SELECT ...`,
+   *     )
+   *
+   * The interface is what a view *is* — `CREATE VIEW` declares no column types,
+   * so emitting `Field.Varchar(64)` here would state a width the database
+   * neither stores nor enforces. It is also the thing worth exporting: the row
+   * type gets a name you can use in a signature.
+   *
+   * Both type arguments are written out because TypeScript stops inferring the
+   * rest once one is supplied, and the *name* has to stay a literal — it is
+   * what the schema map is keyed on. Generated code, so the repetition is free.
+   */
+  private static buildViewModule(
+    constraints: Record<string, any>,
+  ): string | null {
+    const views = Object.entries(constraints).filter(([, c]) => c?._view)
+    if (!views.length) return null
+
+    let body = ''
+    for (const [name, cols] of views) {
+      const iface = `${Case.pascal(name)}View`
+      let fields = ''
+      for (const [colName, cons] of Object.entries<any>(cols)) {
+        if (colName === '_view') continue
+        fields += `  ${colName}: ${SchemaBuilder.tsTypeFor(cons)}\n`
+      }
+      body +=
+        `export interface ${iface} {\n${fields}}\n\n` +
+        `export const ${exportNameFor(name)} = view<'${name}', ${iface}>(\n` +
+        `  '${name}',\n` +
+        `  \`${String(cols._view).replace(/`/g, '\\`')}\`,\n` +
+        `)\n\n`
+    }
+
+    return `/**
+ * Views, generated from the database by \`db:sync\`.
+ *
+ * A view is a stored SELECT; it has no column DDL, so each one is described by
+ * an interface rather than by column builders. Edit the SELECT here and the
+ * next sync recreates the view — views hold no data, so there is nothing to
+ * migrate.
+ *
+ * This file is rewritten wholesale on every regeneration.
+ */
+import { view } from '@bakery/orm'
+
+${body}`
+  }
+
   private static buildConstraintsString(
     constraints: Record<string, any>,
     adapter: SQLAdapter,
@@ -246,10 +327,13 @@ export class SchemaBuilder {
   ): string {
     let body = ''
     for (const [tableName, cols] of Object.entries(constraints)) {
+      // Views are left to `views.ts`, exactly as indexes are left to
+      // `indexes.ts`. This file is the only one the generator owns; emitting a
+      // view here as well would leave the same declaration in two files after
+      // a single `--choose=db`, and `collectConstraints` would silently keep
+      // whichever was exported last.
+      if (cols._view) continue
       let colsStr = ''
-      if (cols._view) {
-        colsStr += `  _view: \`${cols._view.replace(/`/g, '\\`')}\`,\n`
-      }
       for (const [colName, cons] of Object.entries(
         cols as Record<string, SQLAdapter.ColumnConstraint>,
       )) {
@@ -257,7 +341,8 @@ export class SchemaBuilder {
           colName,
           cons,
           adapter,
-          !!cols._view,
+          // Never a view here — those were skipped above.
+          false,
           '  ',
         )
       }
@@ -277,10 +362,12 @@ export class SchemaBuilder {
  * Generated from the database by \`db:sync\`.
  *
  * Tables only. In the orm/ folder layout \`index.ts\` owns the re-exports and
- * the schema registration and \`indexes.ts\` owns the index and unique
- * declarations, so neither is written here — but note that an index the
- * database has and \`indexes.ts\` does not declare is dropped by the next
- * TS-wins sync, which will say so before it does it.
+ * the schema registration, \`indexes.ts\` owns the index and unique
+ * declarations, and \`views.ts\` owns the views — none of which is written here.
+ *
+ * The cost of that separation, worth knowing: an index or a view the database
+ * has and its file does not declare is dropped by the next TS-wins sync. It
+ * says so before it does it.
  *
  * This file is rewritten wholesale on every regeneration; the previous copy is
  * kept under \`bakery/backups/\`.
@@ -380,6 +467,22 @@ declare module '@bakery/orm/schema-registry' {
     if (preserved) messages.SCHEMA_PRESERVED({ file: preserved })
 
     await Bun.write(schemaPath, source)
+
+    // `views.ts` beside `tables.ts`, and only in the folder layout — the
+    // single-file layout already carries views inside its `DBInfo` namespace.
+    //
+    // Written only when the database *has* views: creating an empty file, and
+    // then an `export * from './views'` that resolves to nothing, would be
+    // noise in every project that has none.
+    if (layout === 'folder') {
+      const viewsSource = SchemaBuilder.buildViewModule(constraints)
+      if (viewsSource) {
+        const viewsPath = `${schemaPath.replace(/[^/\\]+$/, '')}views.ts`
+        await SchemaBuilder.preserveExisting(viewsPath)
+        await Bun.write(viewsPath, viewsSource)
+      }
+    }
+
     messages.SYNC_SUCCESS()
   }
 

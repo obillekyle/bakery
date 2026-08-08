@@ -11,7 +11,21 @@ import { evalOperands, qId } from '../schema-util'
 import { DB } from './query'
 
 export namespace Mutation {
-  export type Tables = Exclude<keyof DBSchema, AppViews> | (string & {})
+  /**
+   * What may be written to: a declared table that is not a view.
+   *
+   * There used to be a `| (string & {})` member here, for autocomplete on the
+   * literals while still accepting any string. It also made the rest of the
+   * type decorative — `Exclude<…, AppViews>` never rejected anything, so a
+   * `DB.Insert.into('some_view')` compiled and failed at the database instead,
+   * and so did a typo'd table name.
+   *
+   * Strict now, and it costs nothing when no schema is registered: `DBSchema`
+   * falls back to `MapOf<MapOf<any>>` there, whose `keyof` is `string`, so an
+   * unregistered app is exactly as permissive as before. Registering a schema
+   * is what opts you in.
+   */
+  export type Tables = Exclude<keyof DBSchema, AppViews>
   export type MapOf<T> = Record<string, T>
 
   export type ValidOptionals<T extends keyof DBSchema> =

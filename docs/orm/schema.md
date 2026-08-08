@@ -13,13 +13,25 @@ typechecks without one; the ORM is simply untyped until you
 Two layouts, probed in this order from the app's working directory
 ([`sync/load.ts`](../../packages/orm/src/sync/load.ts)):
 
-1. **`orm/`** — `orm/index.ts` is the entry. Tables go in `orm/schema.ts`,
-   indexes in `orm/indexes.ts`, and `index.ts` re-exports both.
+1. **`orm/`** — one file per kind of declaration:
+
+   | File | Holds |
+   | --- | --- |
+   | `orm/tables.ts` | `table()` declarations |
+   | `orm/views.ts` | `view()` declarations |
+   | `orm/indexes.ts` | `Field.Index()` / `Field.Unique()` |
+   | `orm/index.ts` | re-exports the three, and registers the schema |
+
 2. **`schema.ts`** at the root — a single file holding everything.
 
 The folder is preferred because `db:sync --choose=db` regenerates *tables* by
-overwriting `schema.ts`. With the folder, your hand-written `indexes.ts` and the
-`index.ts` re-exports are never touched. With one file, they are collateral.
+overwriting one file. With the folder that file is `tables.ts`, and your
+hand-written views, indexes and re-exports are never touched. With one file,
+they are collateral.
+
+`tables.ts` was called `schema.ts`; the old name is still honoured when it is
+the one on disk, so an existing project keeps working and the generator will not
+write a second file beside it.
 
 To keep the model somewhere else, set `schema` in `server.config.ts`:
 
@@ -308,11 +320,93 @@ it regenerates the schema file from the database
 
 ## Views
 
-A table entry carrying a `_view` key — whose value is the `SELECT` body — is
-created with `CREATE VIEW` instead of `CREATE TABLE`, and `db:sync` diffs that
-body as normalised text, recreating the view when it changes. `InferViews`
-collects those names so mutations cannot target them. There is no dedicated
-helper; `--choose=db` writes views in the `DBInfo` form shown below.
+```ts
+import { Field, view } from '@bakery/orm'
+
+export const activeUsers = view(
+  'active_users',
+  'SELECT id, name FROM users WHERE active = 1',
+  { id: Field.Primary(), name: Field.Varchar(64) },
+)
+```
+
+The columns are the shape the `SELECT` returns. They are declared rather than
+inferred because nothing here parses SQL, and they are what gives the view a row
+type — reading from it is typed exactly like reading a table.
+
+`db:sync` emits `CREATE VIEW` instead of `CREATE TABLE`, diffs the body as
+normalised text, and drops and recreates the view when it changes. Views hold no
+data, so there is no migration to plan.
+
+**Writes are rejected at compile time.** `InferViews` collects the names and
+`Mutation.Tables` excludes them, so `DB.Insert.into('active_users')` does not
+typecheck — nor does `Update.table` or `Delete.from`. The database would refuse
+the write anyway; refusing it earlier is strictly better.
+
+### The interface form, and what `--choose=db` writes
+
+A view has **no column DDL** — `CREATE VIEW x AS SELECT …` declares no types,
+and the sync engine only ever reads the body. So a view can be described by an
+interface instead of by column builders, which is what the generator emits into
+`orm/views.ts`:
+
+```ts no-check — generated output, shown as it is written to disk
+import { view } from '@bakery/orm'
+
+export interface ActiveUsersView {
+  id: number
+  name: string
+  email: string
+}
+
+export const activeUsers = view<'activeUsers', ActiveUsersView>(
+  'activeUsers',
+  `SELECT id, name, email FROM users WHERE active = 1`,
+)
+```
+
+Writing `Field.Varchar(64)` for a view column would state a width the database
+neither stores nor enforces. The interface is the honest description, and it
+gives the row type a name you can use in a signature.
+
+**Both type arguments are written out**, and that is forced rather than
+stylistic: TypeScript stops inferring the remaining type parameters as soon as
+one is supplied, so `view<ActiveUsersView>(name, body)` would leave the name as
+`string` — and the name is what the schema map is keyed on, so the map would
+collapse to an index signature and every mutation would stop compiling.
+
+Column references still work (`activeUsers.id`) even though the keys are known
+only to the type.
+
+In the older single-file `DBInfo` layout a view is a table entry carrying a
+`_view` key, which is what `--choose=db` writes there and what `view()` builds.
+
+### Naming a row type
+
+```ts
+import { Field, type InsertOf, type RowOf, table, view } from '@bakery/orm'
+
+const users = table('users', {
+  id: Field.Primary(),
+  name: Field.Varchar(64),
+  createdAt: Field.Date.now(),
+})
+const activeUsers = view('active_users', users, 'SELECT * FROM users WHERE 1')
+
+export type ActiveUsersView = RowOf<typeof activeUsers>
+//          ^ { id: number; name: string; createdAt: number }
+
+export type NewUser = InsertOf<typeof users>
+//          ^ { name: string; id?: number; createdAt?: number }
+```
+
+TypeScript cannot mint a *named* interface from a value — the name has to be
+written somewhere — so this is the one line that does it. Derived rather than
+copied, which is the point: a hand-written `interface ActiveUsersView { … }`
+would be a second source of truth that nothing checks against the first.
+
+`RowOf` is what you read, `InsertOf` is what you write — the difference being
+the optional columns.
 
 ## Making the schema typed
 

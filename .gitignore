@@ -5,11 +5,18 @@
 
 # An app's schema is app-owned and often generated, so it is not tracked.
 # The bare pattern matches at any depth, which silently swallowed the starter
-# app's schema too: `apps/starter/orm/index.ts` imports `./schema`, so a fresh
-# clone failed `bun run typecheck` with TS2307 and CI would have failed on its
-# very first run. The starter is a first-party fixture, not a user's app.
+# app's schema too: `orm/index.ts` imports its tables, so a fresh clone failed
+# `bun run typecheck` with TS2307 and CI would have failed on its very first
+# run. The two in-repo apps are first-party fixtures, not users' apps.
+#
+# The folder layout renamed `orm/schema.ts` to `orm/tables.ts`, which this
+# pattern does not match — so both reference apps are now tracked by virtue of
+# the filename, and a fresh clone can run either without generating one first.
+# Recorded because it is easy to read as an oversight: the negation below is
+# what used to do that job, and it is kept for a project still on the old name.
 schema.ts
 !apps/starter/orm/schema.ts
+!apps/example/orm/schema.ts
 
 *.db
 *.sqlite

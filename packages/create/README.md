@@ -40,3 +40,10 @@ is not undoable. A bare `.git` directory is ignored, so
 ## License
 
 MIT with the Commons Clause v1.0 — see [LICENSE](./LICENSE).
+
+**Not an OSI-approved licence.** The Commons Clause removes the right to *sell*
+the software — meaning to charge for a product or service whose value derives
+substantially from it, hosting and support included. Everything else the MIT
+licence grants is unchanged: use it, modify it, ship it inside your own product.
+If your organisation only permits OSI-approved dependencies, this will not pass
+that check.

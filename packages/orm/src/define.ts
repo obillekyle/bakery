@@ -68,6 +68,185 @@ export function table<N extends string, C extends ColumnMap>(
 }
 
 /**
+ * Declare a view — a stored `SELECT` the database treats as a table.
+ *
+ *     export const activeUsers = view(
+ *       'active_users',
+ *       'SELECT id, name FROM users WHERE active = 1',
+ *       { id: Field.Primary(), name: Field.Varchar(64) },
+ *     )
+ *
+ * The columns are the shape the `SELECT` returns. They are declared rather than
+ * inferred because nothing here parses SQL, and they are what gives the view a
+ * row type — reading from it is typed exactly like reading a table.
+ *
+ * **Writes are rejected at compile time.** `InferViews` collects these names and
+ * `Mutation.Tables` excludes them, so `DB.Insert.into('active_users')` does not
+ * typecheck. A view is a `SELECT`; the database would refuse the write anyway,
+ * and refusing it earlier is strictly better.
+ *
+ * `db:sync` emits `CREATE VIEW`, diffs the body as normalised text, and drops
+ * and recreates the view when it changes — views hold no data, so recreating is
+ * free and there is no migration to plan.
+ *
+ * Previously declarable only in the older `DBInfo` layout, or here by writing
+ * `_view` into a `table()` call and casting. The key is the same; this just
+ * types it.
+ */
+export function view<N extends string, C extends ColumnMap>(
+  name: N,
+  body: string,
+  columns: C,
+): TableDef<N, C & { _view: string }> & {
+  readonly [K in keyof C]: TableColumn<N, K & string>
+}
+/**
+ * A view over one table, borrowing its columns.
+ *
+ *     export const activeUsers = view('active_users', users, 'SELECT * FROM users WHERE active = 1')
+ *
+ * The filtered-view case, which is the common one: the shape is the source
+ * table's, so restating it is duplication that nothing checks — declare a
+ * column the `SELECT` does not return and you find out at query time.
+ *
+ * The source is a **value**, not a type argument, and that is forced rather
+ * than chosen. `view<typeof users>(name, body)` cannot work: TypeScript stops
+ * inferring the *remaining* type parameters as soon as one is supplied
+ * explicitly, so `N` would fall back to `string` and the view's name would stop
+ * being a literal. `__table` is what `InferConstraints` keys the schema map on,
+ * so that name degrading takes `InferViews` with it — and since
+ * `Mutation.Tables` now excludes views, `Exclude<…, string>` is `never` and
+ * *every* mutation stops compiling. Passing the table keeps both inferred.
+ *
+ * Projecting a subset? Use the three-argument form and name the columns.
+ */
+export function view<N extends string, C extends ColumnMap>(
+  name: N,
+  source: TableDef<string, C>,
+  body: string,
+): TableDef<N, C & { _view: string }> & {
+  readonly [K in keyof C]: TableColumn<N, K & string>
+}
+/**
+ * A view described by an interface rather than by column builders.
+ *
+ *     export interface ActiveUsersView {
+ *       id: number
+ *       name: string
+ *     }
+ *
+ *     export const activeUsers = view<'active_users', ActiveUsersView>(
+ *       'active_users',
+ *       'SELECT id, name FROM users WHERE active = 1',
+ *     )
+ *
+ * This is what `db:sync --choose=db` writes into `orm/views.ts`, and it is the
+ * honest shape for a view: **a view has no column DDL.** `CREATE VIEW x AS
+ * SELECT …` declares no types, and the sync engine only ever reads the body —
+ * `createView(name, sql)` takes nothing else, and the diff compares the two
+ * bodies as text. So a view's columns exist purely to give it a row type, and
+ * writing `Field.Varchar(64)` there would imply a width the database neither
+ * stores nor enforces.
+ *
+ * **Both type arguments are given, and that is forced.** TypeScript stops
+ * inferring the remaining type parameters as soon as one is supplied, so
+ * `view<ActiveUsersView>(name, body)` would leave `N` as `string` — and `N` is
+ * what `TablesOf` re-keys the schema map on, so the whole map collapses to an
+ * index signature and every mutation stops compiling. Naming both keeps it a
+ * literal. In generated code the repetition costs nothing.
+ *
+ * Column references still work — `activeUsers.id` — even though the keys are
+ * known only to the type. See the implementation.
+ */
+export function view<N extends string, T>(
+  name: N,
+  body: string,
+): TableDef<N, ViewColumns<T>> & {
+  readonly [K in keyof T]: TableColumn<N, K & string>
+}
+export function view(
+  name: string,
+  bodyOrSource: string | TableDef,
+  columnsOrBody?: ColumnMap | string,
+): unknown {
+  // Two arguments means the interface form: the columns are type-only, so the
+  // runtime object carries the body and nothing else.
+  if (columnsOrBody === undefined && typeof bodyOrSource === 'string') {
+    return viewFromType(name, bodyOrSource)
+  }
+  // The second argument tells the two forms apart: a `SELECT` string, or the
+  // table to borrow columns from.
+  const derived = typeof bodyOrSource !== 'string'
+  const body = derived ? (columnsOrBody as string) : bodyOrSource
+  const columns = derived
+    ? (bodyOrSource as TableDef).__columns
+    : (columnsOrBody as ColumnMap)
+  return viewImpl(name, body, columns)
+}
+
+/**
+ * A row interface, as the descriptor map `ExtractTableTypes` reads.
+ *
+ * One `{ type: T[K] }` per property — which is all a descriptor needs now that
+ * `type` carries the row type — plus the `_view` marker that makes
+ * `ExtractViews` classify it as a view.
+ */
+type ViewColumns<T> = { [K in keyof T]-?: { type: T[K] } } & { _view: string }
+
+/**
+ * The interface form's runtime value.
+ *
+ * The column keys live only in the type, so the refs cannot be enumerated the
+ * way `table()` enumerates them. A `Proxy` answers for any property instead,
+ * which is exactly as correct here: a ref is `{ __table, __column }` computed
+ * from the key, and the key is whatever was asked for. The type is what
+ * restricts *which* keys are askable.
+ *
+ * `__table`, `__source` and `__columns` are answered from the real object so
+ * `collectConstraints` and the sync engine see what they expect.
+ */
+function viewFromType(name: string, body: string): unknown {
+  const base: Record<string, unknown> = {
+    __table: name,
+    __source: name,
+    __columns: { _view: body },
+  }
+  return new Proxy(base, {
+    get(target, prop) {
+      if (typeof prop !== 'string' || prop in target) {
+        return Reflect.get(target, prop)
+      }
+      return { __table: name, __column: prop }
+    },
+    // Without this the sync engine's `Object.keys`/spread would see the three
+    // internals as ordinary columns.
+    ownKeys: target => Reflect.ownKeys(target),
+  })
+}
+
+function viewImpl<N extends string, C extends ColumnMap>(
+  name: N,
+  body: string,
+  columns: C,
+): TableDef<N, C & { _view: string }> & {
+  readonly [K in keyof C]: TableColumn<N, K & string>
+} {
+  // `_view` rides inside `__columns` because that is the object the sync engine
+  // receives, and it is where `ExtractViews` and the adapters already look for
+  // it. Adding a sibling field would mean teaching `collectConstraints`, the
+  // diff and three adapters about a second place to check.
+  //
+  // It has to be in `__columns`'s *declared type* too, not only at runtime:
+  // `ExtractViews` is what `InferViews` reads and what `Mutation.Tables`
+  // excludes, so erasing `_view` from the type left writes to a view
+  // compiling — the exact thing declaring one is supposed to prevent.
+  // `ExtractTableTypes` filters the key out of the row type separately.
+  return Object.assign(table(name, columns), {
+    __columns: { _view: body, ...columns },
+  }) as any
+}
+
+/**
  * Alias a table for a join, so the same table can appear twice in one query.
  *
  * This is the object-form answer to `join('users.id', ..., 'author')` followed
@@ -145,3 +324,41 @@ export function collectConstraints(module: Record<string, unknown>) {
 
   return constraints
 }
+
+/**
+ * The row type of a `table()` or `view()`, for naming.
+ *
+ *     export type ActiveUsersView = RowOf<typeof activeUsers>
+ *     //     ^ { id: number; name: string }
+ *
+ * TypeScript cannot mint a *named* interface from a value — a name has to be
+ * written somewhere — so this is the one line that does it, and it stays
+ * correct when the declaration changes because it is derived rather than
+ * copied. A hand-written `interface ActiveUsersView` would be a second source
+ * of truth that nothing checks against the first.
+ *
+ * `_view` is filtered out by `ExtractTableTypes`, so a view's row type is its
+ * columns and nothing else.
+ */
+export type RowOf<T extends TableDef> = ExtractTableTypes<
+  { t: T['__columns'] },
+  't'
+>
+
+/**
+ * What an `INSERT` into it accepts: {@link RowOf} with the optional columns
+ * made optional.
+ *
+ *     export type NewUser = InsertOf<typeof users>
+ *     //     ^ { name: string; id?: number; createdAt?: number }
+ */
+export type InsertOf<T extends TableDef> = Omit<
+  RowOf<T>,
+  ExtractOptionals<{ t: T['__columns'] }, 't'> & keyof RowOf<T>
+> &
+  Partial<
+    Pick<
+      RowOf<T>,
+      ExtractOptionals<{ t: T['__columns'] }, 't'> & keyof RowOf<T>
+    >
+  >
