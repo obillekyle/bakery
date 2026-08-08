@@ -4,6 +4,7 @@ import type { MapOf } from '@bakery/core/types'
 import { Case, Try } from '@bakery/core/utils'
 import { throws } from '@bakery/core/utils/common'
 import type * as SyncTypes from '../sync/types'
+import { observe, observeIterate } from './observe'
 
 export namespace SQLAdapter {
   export type Driver = 'sqlite' | 'postgres' | 'mysql'
@@ -100,6 +101,49 @@ export namespace SQLAdapter {
   }
 }
 
+/**
+ * The most bound parameters one statement is allowed to carry.
+ *
+ * A wire-format limit, not a tuning knob. Postgres sends the parameter count as
+ * an Int16 and MySQL's prepared-statement protocol does the same, so 65,535 is
+ * the hard ceiling on both; SQLite's `SQLITE_MAX_VARIABLE_NUMBER` has been
+ * 32,766 since 3.32 and 999 before that.
+ *
+ * 32,766 for every dialect, deliberately below the two that could go higher.
+ * The counter that overflows is 16 bits and it does not *fail* on overflow, it
+ * wraps: a 120,000-parameter insert reported `expected 54464 values, received
+ * 120000` — 120000 − 65536 — which reads like memory corruption rather than a
+ * limit being hit. Half the 16-bit ceiling leaves room for whatever bookkeeping
+ * a driver adds on top of the parameters we counted, and the cost of the extra
+ * round trips is nothing next to the bytes those parameters weigh.
+ */
+export const DEFAULT_MAX_QUERY_PARAMS = 32766
+
+/**
+ * Is this argument an already-open Bun `SQL` handle rather than a target to
+ * open one from?
+ *
+ * A duck check, because `value instanceof SQL` is unusable: Bun's `SQL` export
+ * has no `prototype` property at all — it is `undefined` as of 1.3.14 — and
+ * `instanceof` against it does not return false, it **throws**
+ * `instanceof called on an object with an invalid prototype property` for every
+ * object operand. The MySQL and Postgres constructors read as if they tested
+ * this and did not: `instanceof` short-circuits to false for a primitive
+ * *before* it touches the right operand, so the string form never reached the
+ * throw and the only caller that passes a real handle — `transaction()`,
+ * wrapping the connection Bun hands its callback — failed every time it ran.
+ *
+ * `typeof` covers `function` as well as `object` because a Bun connection is
+ * callable: it is the tagged-template entry point, with `unsafe` hung off it.
+ */
+export function isOpenConnection(value: unknown): boolean {
+  return (
+    (typeof value === 'function' || typeof value === 'object') &&
+    value !== null &&
+    typeof (value as { unsafe?: unknown }).unsafe === 'function'
+  )
+}
+
 export function quoteIdentifier(name: string, quoteChar: string): string {
   // The `includes` guard is not redundant: `replaceAll` walks and rebuilds the
   // string even when there is nothing to replace, and an identifier containing
@@ -113,17 +157,34 @@ export function createExecutor(
   all: SQLAdapter.Executor['all'],
   run: SQLAdapter.Executor['run'],
   iterate: SQLAdapter.Executor['iterate'],
+  driver: SQLAdapter.Driver,
 ): SQLAdapter.Executor {
-  const exec: SQLAdapter.Executor = {
-    all,
-    run,
-    iterate,
-    get: async (sqlText: string, params: unknown[] = []) =>
-      (await exec.all(sqlText, params))[0],
-    values: async (sqlText: string, params: unknown[] = []) =>
-      (await exec.all(sqlText, params)).map(Object.values),
+  // `get` and `values` call the raw `all` rather than `exec.all`, which is a
+  // behavioural detail worth stating: it is what keeps one executed statement
+  // to exactly one observer event. Routing them through the observed `exec.all`
+  // would report every `.get()` twice — once as `get`, once as `all` — and a
+  // "slowest queries" panel built on double-counted rows is worse than none.
+  return {
+    all: observe(driver, 'all', all, rows =>
+      Array.isArray(rows) ? rows.length : null,
+    ),
+    run: observe(driver, 'run', run, result => Number(result?.changes ?? 0)),
+    iterate: observeIterate(driver, iterate),
+    get: observe(
+      driver,
+      'get',
+      async (sqlText: string, params: unknown[] = []) =>
+        (await all(sqlText, params))[0],
+      row => (row === undefined ? 0 : 1),
+    ),
+    values: observe(
+      driver,
+      'values',
+      async (sqlText: string, params: unknown[] = []) =>
+        (await all(sqlText, params)).map(Object.values),
+      rows => (Array.isArray(rows) ? rows.length : null),
+    ),
   }
-  return exec
 }
 
 export abstract class SQLAdapter {
@@ -134,6 +195,18 @@ export abstract class SQLAdapter {
 
   quote(name: string): string {
     return quoteIdentifier(name, this.quoteChar)
+  }
+
+  /**
+   * Placeholder ceiling for a single statement — see
+   * {@link DEFAULT_MAX_QUERY_PARAMS} for why it is one number and not three.
+   *
+   * A getter rather than a field so a dialect that genuinely differs can
+   * override it, and so a future adapter can read it off the live server
+   * (Postgres exposes nothing for it; SQLite has `sqlite3_limit`).
+   */
+  get maxQueryParams(): number {
+    return DEFAULT_MAX_QUERY_PARAMS
   }
 
   constructor(

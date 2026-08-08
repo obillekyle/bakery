@@ -1,7 +1,7 @@
 import { Case, Try } from '@bakery/core/utils'
 import { SQL } from 'bun'
 import type * as SyncTypes from '../sync/types'
-import { createExecutor, SQLAdapter } from './base'
+import { createExecutor, isOpenConnection, SQLAdapter } from './base'
 
 interface PGSQLParserState {
   inSingleQuote: boolean
@@ -21,12 +21,13 @@ export class PGAdapter extends SQLAdapter {
         ? connectionTarget.toString()
         : undefined
     super('postgres', undefined, target)
-    this.sql =
-      connectionTarget instanceof SQL
-        ? connectionTarget
-        : target
-          ? new SQL(target)
-          : new SQL()
+    // `isOpenConnection`, not `instanceof SQL` — see the helper for why the
+    // latter throws rather than answering.
+    this.sql = isOpenConnection(connectionTarget)
+      ? (connectionTarget as SQL)
+      : target
+        ? new SQL(target)
+        : new SQL()
   }
 
   private static handleQuote(
@@ -157,6 +158,7 @@ export class PGAdapter extends SQLAdapter {
         PGAdapter.normalizePostgresSQL(sqlText, params),
         params,
       ) as any,
+    this.driver,
   )
 
   async hasCol(table: string, column: string): Promise<boolean> {

@@ -209,6 +209,7 @@ export class SQLiteAdapter extends SQLAdapter {
     },
     (sqlText: string, params: unknown[] = []) =>
       this.sql.unsafe(sqlText, params) as any,
+    this.driver,
   )
 
   // `PRAGMA table_info('${table}')` interpolated the table name into a

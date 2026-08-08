@@ -1,7 +1,7 @@
 import { Case, Try } from '@bakery/core/utils'
 import { SQL } from 'bun'
 import type * as SyncTypes from '../sync/types'
-import { createExecutor, SQLAdapter } from './base'
+import { createExecutor, isOpenConnection, SQLAdapter } from './base'
 
 export class MySQLAdapter extends SQLAdapter {
   protected readonly sql: SQL
@@ -12,12 +12,13 @@ export class MySQLAdapter extends SQLAdapter {
         ? connectionTarget.toString().replace(/^(mysqli?s?:\/\/)/, 'mysql://')
         : undefined
     super('mysql', undefined, target)
-    this.sql =
-      connectionTarget instanceof SQL
-        ? connectionTarget
-        : target
-          ? new SQL(target)
-          : new SQL()
+    // `isOpenConnection`, not `instanceof SQL` — see the helper for why the
+    // latter throws rather than answering.
+    this.sql = isOpenConnection(connectionTarget)
+      ? (connectionTarget as SQL)
+      : target
+        ? new SQL(target)
+        : new SQL()
   }
 
   readonly execute: SQLAdapter.Executor = createExecutor(
@@ -42,6 +43,7 @@ export class MySQLAdapter extends SQLAdapter {
     },
     (sqlText: string, params: unknown[] = []) =>
       this.sql.unsafe(sqlText, params) as any,
+    this.driver,
   )
 
   async hasCol(table: string, column: string): Promise<boolean> {

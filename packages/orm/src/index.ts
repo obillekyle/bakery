@@ -36,3 +36,21 @@ export type {
   ExtractTableTypes,
   ExtractViews,
 } from './schema-util'
+
+/**
+ * Query observability.
+ *
+ * Re-exported from the root rather than given a `./observe` subpath. The
+ * export map is closed and every entry in it is public API from the moment it
+ * ships, so a new subpath needs a reason — and there is none here: this is one
+ * function and three types, the observer is process-wide, and an app sets it
+ * once at boot next to where it already imports `DB`. `./adapters` is not
+ * public and is not being opened up to make this reachable.
+ */
+export { getQueryObserver, setQueryObserver } from './adapters/observe'
+export type {
+  QueryEvent,
+  QueryMethod,
+  QueryObserver,
+  QueryObserverOptions,
+} from './adapters/observe'
