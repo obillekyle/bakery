@@ -223,12 +223,8 @@ export class PGAdapter extends SQLAdapter {
     )
   }
 
-  async transaction<T>(
-    callback: (tx: SQLAdapter) => T | Promise<T>,
-  ): Promise<T> {
-    return await this.sql.transaction(async txSql =>
-      callback(new PGAdapter(txSql)),
-    )
+  protected withConnection(sql: unknown): SQLAdapter {
+    return new PGAdapter(sql as SQL)
   }
 
   async getSchema(): Promise<SQLAdapter.TableDetails[]> {

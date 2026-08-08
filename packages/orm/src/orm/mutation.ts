@@ -271,8 +271,12 @@ export namespace Mutation {
      * one meant: all rows or none. It is opened only when a batch boundary
      * exists — one statement is already atomic — and only when the caller is
      * not already inside `DB.transaction`, where the outer transaction is
-     * already the atomic unit and a nested `BEGIN` is an error rather than
-     * extra safety.
+     * already the atomic unit.
+     *
+     * That second condition is now an economy rather than a requirement: since
+     * `SQLAdapter.transaction` nests through `SAVEPOINT`, wrapping anyway would
+     * work. It would just buy a savepoint per bulk insert that can never roll
+     * back independently of the transaction enclosing it.
      */
     private async runBatches<R>(
       batches: { sql: string; params: any[] }[],

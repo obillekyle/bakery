@@ -272,10 +272,8 @@ export class SQLiteAdapter extends SQLAdapter {
     }
   }
 
-  transaction<T>(callback: (tx: SQLAdapter) => T | Promise<T>): Promise<T> {
-    return this.sql.transaction(async txSql =>
-      callback(new SQLiteAdapter(this.filename, txSql)),
-    )
+  protected withConnection(sql: unknown): SQLAdapter {
+    return new SQLiteAdapter(this.filename, sql as SQL)
   }
 
   async getSchema(): Promise<SQLAdapter.TableDetails[]> {

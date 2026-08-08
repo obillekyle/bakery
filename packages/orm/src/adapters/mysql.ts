@@ -182,12 +182,8 @@ export class MySQLAdapter extends SQLAdapter {
     )
   }
 
-  async transaction<T>(
-    callback: (tx: SQLAdapter) => T | Promise<T>,
-  ): Promise<T> {
-    return await this.sql.transaction(async txSql =>
-      callback(new MySQLAdapter(txSql)),
-    )
+  protected withConnection(sql: unknown): SQLAdapter {
+    return new MySQLAdapter(sql as SQL)
   }
 
   async getSchema(): Promise<SQLAdapter.TableDetails[]> {

@@ -89,6 +89,20 @@ export namespace SQLAdapter {
     params: unknown[]
   }
 
+  /**
+   * The slice of a Bun `SQL` handle that transaction nesting needs.
+   *
+   * Structural rather than `SQL`, because the base class holds `sql` as
+   * `unknown` — each adapter narrows it — and because both members are
+   * verified by probe rather than by the type: `savepoint` is present on the
+   * root connection and on every transaction and savepoint handle in Bun
+   * 1.3.14, on all three dialects.
+   */
+  export interface TxHandle {
+    transaction<T>(callback: (tx: unknown) => Promise<T>): Promise<T>
+    savepoint<T>(callback: (sp: unknown) => Promise<T>): Promise<T>
+  }
+
   export interface Executor {
     all(sqlText: string, params?: unknown[]): Promise<RowRecord[]> | RowRecord[]
     run(sqlText: string, params?: unknown[]): Promise<RunResult> | RunResult
@@ -224,9 +238,53 @@ export abstract class SQLAdapter {
   }
   abstract colDef(def: unknown): string
   abstract backup(keepCount?: number): Promise<SQLAdapter.BackupResult | null>
-  abstract transaction<T>(
+
+  /**
+   * How deep in `BEGIN` this adapter's handle already is. 0 is a root
+   * connection; every level below is a savepoint.
+   *
+   * Set by {@link transaction} on the child it just built, never by a
+   * constructor. Inferring it from "was I handed an open connection?" would be
+   * a guess — a pooled handle is open too, and issuing `SAVEPOINT` outside a
+   * transaction block is an error on Postgres and a silent no-op on MySQL.
+   * Only `transaction` knows for certain, because it is what opened the thing.
+   */
+  protected transactionDepth = 0
+
+  /**
+   * Wrap an already-open connection in a sibling adapter, so a transaction body
+   * gets the same API as the connection it came from.
+   */
+  protected abstract withConnection(sql: unknown): SQLAdapter
+
+  /**
+   * Run `callback` atomically — `BEGIN` at the top level, `SAVEPOINT` within an
+   * enclosing transaction.
+   *
+   * The dispatch is the whole point. Bun refuses a nested `BEGIN` outright
+   * (`cannot call begin inside a transaction use savepoint() instead`, verbatim
+   * on all three dialects), so before this, any two transactional functions
+   * that composed — `createUser()` called from `importUsers()`, both perfectly
+   * reasonable alone — crashed the moment they met.
+   *
+   * A failed inner block rolls back to its own savepoint and nothing more, so
+   * an outer transaction that catches the error keeps its own work. It only
+   * gets the whole thing if it lets the error propagate — which is the same
+   * rule a single transaction already follows.
+   */
+  async transaction<T>(
     callback: (tx: SQLAdapter) => T | Promise<T>,
-  ): Promise<T>
+  ): Promise<T> {
+    const handle = this.sql as SQLAdapter.TxHandle
+    const run = async (child: unknown): Promise<T> => {
+      const tx = this.withConnection(child)
+      tx.transactionDepth = this.transactionDepth + 1
+      return await callback(tx)
+    }
+    return this.transactionDepth > 0
+      ? await handle.savepoint(run)
+      : await handle.transaction(run)
+  }
   protected abstract parseConstraints(
     col: unknown,
     ...params: unknown[]
