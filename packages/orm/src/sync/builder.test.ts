@@ -309,3 +309,69 @@ describe('the DBInfo layout emits an importable file', () => {
     }
   })
 })
+
+/**
+ * `orm/views.ts`, generated.
+ *
+ * A view has no column DDL — `CREATE VIEW x AS SELECT …` declares no types, and
+ * `createView(name, sql)` takes nothing else — so each one is emitted as an
+ * interface plus a `view()` call, not as column builders. Emitting
+ * `Field.Varchar(64)` for a view column would state a width the database
+ * neither stores nor enforces.
+ */
+describe('views are generated into their own module', () => {
+  async function generateInto(dir: string) {
+    const db = new SQLiteAdapter(':memory:')
+    await db.query('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, active INTEGER)').run()
+    await db.query('CREATE VIEW active_users AS SELECT id, name FROM users WHERE active = 1').run()
+
+    const tablesPath = `${dir}/tables.ts`
+    await SchemaBuilder.generate(db as any, tablesPath, silentMessages, {}, 'folder')
+    const tables = await Bun.file(tablesPath).text()
+    const viewsFile = Bun.file(`${dir}/views.ts`)
+    const views = (await viewsFile.exists()) ? await viewsFile.text() : null
+    await Bun.file(tablesPath).delete()
+    if (views !== null) await viewsFile.delete()
+    await db.close()
+    return { tables, views }
+  }
+
+  test('the view goes to views.ts, not tables.ts', async () => {
+    const { tables, views } = await generateInto(Bakery.cacheDir)
+    expect(tables).toContain("table('users'")
+    // Emitting it in both files would leave two declarations of one view, and
+    // collectConstraints silently keeps whichever was exported last.
+    expect(tables).not.toContain('activeUsers')
+    expect(views).not.toBeNull()
+    // camelCase in the schema, snake_case on the way to SQL — the same
+    // convention the table generator uses, so a view reads like a table.
+    expect(views).toContain("view<'activeUsers', ActiveUsersView>")
+  })
+
+  test('the interface is PascalCase and typed from the columns', async () => {
+    const { views } = await generateInto(Bakery.cacheDir)
+    expect(views).toContain('export interface ActiveUsersView {')
+    expect(views).toContain('id: number')
+    expect(views).toContain('name: string')
+    // No column builders: a view has no column DDL to describe.
+    expect(views).not.toContain('Field.')
+  })
+
+  test('it imports exactly what it uses', async () => {
+    const { views } = await generateInto(Bakery.cacheDir)
+    expect(views).toContain("import { view } from '@bakery/orm'")
+    expect(views).not.toContain('table(')
+  })
+
+  test('no views means no file', async () => {
+    // An empty views.ts plus an `export * from './views'` that resolves to
+    // nothing is noise in every project that has none.
+    const db = new SQLiteAdapter(':memory:')
+    await db.query('CREATE TABLE only_a_table (id INTEGER PRIMARY KEY)').run()
+    const tablesPath = `${Bakery.cacheDir}/tables.ts`
+    await SchemaBuilder.generate(db as any, tablesPath, silentMessages, {}, 'folder')
+    expect(await Bun.file(`${Bakery.cacheDir}/views.ts`).exists()).toBe(false)
+    await Bun.file(tablesPath).delete()
+    await db.close()
+  })
+})

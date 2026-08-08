@@ -343,8 +343,43 @@ data, so there is no migration to plan.
 typecheck — nor does `Update.table` or `Delete.from`. The database would refuse
 the write anyway; refusing it earlier is strictly better.
 
+### The interface form, and what `--choose=db` writes
+
+A view has **no column DDL** — `CREATE VIEW x AS SELECT …` declares no types,
+and the sync engine only ever reads the body. So a view can be described by an
+interface instead of by column builders, which is what the generator emits into
+`orm/views.ts`:
+
+```ts no-check — generated output, shown as it is written to disk
+import { view } from '@bakery/orm'
+
+export interface ActiveUsersView {
+  id: number
+  name: string
+  email: string
+}
+
+export const activeUsers = view<'activeUsers', ActiveUsersView>(
+  'activeUsers',
+  `SELECT id, name, email FROM users WHERE active = 1`,
+)
+```
+
+Writing `Field.Varchar(64)` for a view column would state a width the database
+neither stores nor enforces. The interface is the honest description, and it
+gives the row type a name you can use in a signature.
+
+**Both type arguments are written out**, and that is forced rather than
+stylistic: TypeScript stops inferring the remaining type parameters as soon as
+one is supplied, so `view<ActiveUsersView>(name, body)` would leave the name as
+`string` — and the name is what the schema map is keyed on, so the map would
+collapse to an index signature and every mutation would stop compiling.
+
+Column references still work (`activeUsers.id`) even though the keys are known
+only to the type.
+
 In the older single-file `DBInfo` layout a view is a table entry carrying a
-`_view` key, which is what `--choose=db` writes and what `view()` builds.
+`_view` key, which is what `--choose=db` writes there and what `view()` builds.
 
 ### Naming a row type
 

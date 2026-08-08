@@ -127,11 +127,53 @@ export function view<N extends string, C extends ColumnMap>(
 ): TableDef<N, C & { _view: string }> & {
   readonly [K in keyof C]: TableColumn<N, K & string>
 }
+/**
+ * A view described by an interface rather than by column builders.
+ *
+ *     export interface ActiveUsersView {
+ *       id: number
+ *       name: string
+ *     }
+ *
+ *     export const activeUsers = view<'active_users', ActiveUsersView>(
+ *       'active_users',
+ *       'SELECT id, name FROM users WHERE active = 1',
+ *     )
+ *
+ * This is what `db:sync --choose=db` writes into `orm/views.ts`, and it is the
+ * honest shape for a view: **a view has no column DDL.** `CREATE VIEW x AS
+ * SELECT …` declares no types, and the sync engine only ever reads the body —
+ * `createView(name, sql)` takes nothing else, and the diff compares the two
+ * bodies as text. So a view's columns exist purely to give it a row type, and
+ * writing `Field.Varchar(64)` there would imply a width the database neither
+ * stores nor enforces.
+ *
+ * **Both type arguments are given, and that is forced.** TypeScript stops
+ * inferring the remaining type parameters as soon as one is supplied, so
+ * `view<ActiveUsersView>(name, body)` would leave `N` as `string` — and `N` is
+ * what `TablesOf` re-keys the schema map on, so the whole map collapses to an
+ * index signature and every mutation stops compiling. Naming both keeps it a
+ * literal. In generated code the repetition costs nothing.
+ *
+ * Column references still work — `activeUsers.id` — even though the keys are
+ * known only to the type. See the implementation.
+ */
+export function view<N extends string, T>(
+  name: N,
+  body: string,
+): TableDef<N, ViewColumns<T>> & {
+  readonly [K in keyof T]: TableColumn<N, K & string>
+}
 export function view(
   name: string,
   bodyOrSource: string | TableDef,
   columnsOrBody?: ColumnMap | string,
 ): unknown {
+  // Two arguments means the interface form: the columns are type-only, so the
+  // runtime object carries the body and nothing else.
+  if (columnsOrBody === undefined && typeof bodyOrSource === 'string') {
+    return viewFromType(name, bodyOrSource)
+  }
   // The second argument tells the two forms apart: a `SELECT` string, or the
   // table to borrow columns from.
   const derived = typeof bodyOrSource !== 'string'
@@ -140,6 +182,46 @@ export function view(
     ? (bodyOrSource as TableDef).__columns
     : (columnsOrBody as ColumnMap)
   return viewImpl(name, body, columns)
+}
+
+/**
+ * A row interface, as the descriptor map `ExtractTableTypes` reads.
+ *
+ * One `{ type: T[K] }` per property — which is all a descriptor needs now that
+ * `type` carries the row type — plus the `_view` marker that makes
+ * `ExtractViews` classify it as a view.
+ */
+type ViewColumns<T> = { [K in keyof T]-?: { type: T[K] } } & { _view: string }
+
+/**
+ * The interface form's runtime value.
+ *
+ * The column keys live only in the type, so the refs cannot be enumerated the
+ * way `table()` enumerates them. A `Proxy` answers for any property instead,
+ * which is exactly as correct here: a ref is `{ __table, __column }` computed
+ * from the key, and the key is whatever was asked for. The type is what
+ * restricts *which* keys are askable.
+ *
+ * `__table`, `__source` and `__columns` are answered from the real object so
+ * `collectConstraints` and the sync engine see what they expect.
+ */
+function viewFromType(name: string, body: string): unknown {
+  const base: Record<string, unknown> = {
+    __table: name,
+    __source: name,
+    __columns: { _view: body },
+  }
+  return new Proxy(base, {
+    get(target, prop) {
+      if (typeof prop !== 'string' || prop in target) {
+        return Reflect.get(target, prop)
+      }
+      return { __table: name, __column: prop }
+    },
+    // Without this the sync engine's `Object.keys`/spread would see the three
+    // internals as ordinary columns.
+    ownKeys: target => Reflect.ownKeys(target),
+  })
 }
 
 function viewImpl<N extends string, C extends ColumnMap>(
