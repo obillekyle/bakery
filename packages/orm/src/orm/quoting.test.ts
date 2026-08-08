@@ -343,3 +343,70 @@ describe('SELECT DISTINCT', () => {
     await db.query('DROP TABLE IF EXISTS d_test').run()
   })
 })
+
+describe('DISTINCT inside an aggregate', () => {
+  test('count/sum/avg have a .distinct form', () => {
+    const sql = (fn: any) =>
+      DB.from('teachers').select({ n: fn }).parse().sql
+    expect(sql(DB.count.distinct('teachers.surname'))).toBe(
+      'SELECT COUNT(DISTINCT "teachers"."surname") AS "n" FROM "teachers"',
+    )
+    expect(sql(DB.sum.distinct('teachers.id'))).toContain('SUM(DISTINCT')
+    expect(sql(DB.avg.distinct('teachers.id'))).toContain('AVG(DISTINCT')
+    // …and the plain form is untouched.
+    expect(sql(DB.count('teachers.id'))).toBe(
+      'SELECT COUNT("teachers"."id") AS "n" FROM "teachers"',
+    )
+  })
+
+  test('composes with, and is distinct from, SELECT DISTINCT', () => {
+    // Two different things: one de-duplicates the rows, the other the values
+    // fed to the aggregate. Both can appear in one query.
+    expect(
+      DB.from('teachers')
+        .select({ n: DB.count.distinct('teachers.surname') })
+        .distinct()
+        .parse().sql,
+    ).toBe(
+      'SELECT DISTINCT COUNT(DISTINCT "teachers"."surname") AS "n" FROM "teachers"',
+    )
+  })
+
+  test('works in HAVING as well as the select list', () => {
+    const { sql } = DB.from('teachers')
+      .select({ n: DB.count.distinct('teachers.surname') })
+      .groupBy('teachers.id')
+      .having(DB.count.distinct('teachers.surname'), 2)
+      .parse()
+    expect(sql).toContain('HAVING COUNT(DISTINCT "teachers"."surname")')
+  })
+
+  test('a function in the select list keeps its extra arguments', () => {
+    // Regression: the select clause re-implemented function rendering and never
+    // read `extraArgs`, so COALESCE lost its fallback and returned NULL — while
+    // the identical call inside a WHERE was correct. Both go through
+    // `evalOperands` now, which is also what binds the argument rather than
+    // interpolating it.
+    const { sql, params } = DB.from('teachers')
+      .select({ v: DB.coalesce('teachers.surname', 'n/a') })
+      .parse()
+    expect(sql).toBe(
+      'SELECT COALESCE("teachers"."surname", ?) AS "v" FROM "teachers"',
+    )
+    expect(params).toEqual(['n/a'])
+  })
+
+  test('counts distinct values against a real database', async () => {
+    await db.query('DROP TABLE IF EXISTS ad_test').run()
+    await db.query('CREATE TABLE ad_test (city TEXT NOT NULL)').run()
+    await db.query("INSERT INTO ad_test (city) VALUES ('a'), ('a'), ('b')").run()
+
+    const plain: any = await db.query('SELECT COUNT(city) AS n FROM ad_test').get()
+    const dist: any = await db
+      .query('SELECT COUNT(DISTINCT city) AS n FROM ad_test')
+      .get()
+    expect(Number(plain.n)).toBe(3)
+    expect(Number(dist.n)).toBe(2)
+    await db.query('DROP TABLE IF EXISTS ad_test').run()
+  })
+})
