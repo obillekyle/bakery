@@ -308,11 +308,31 @@ it regenerates the schema file from the database
 
 ## Views
 
-A table entry carrying a `_view` key — whose value is the `SELECT` body — is
-created with `CREATE VIEW` instead of `CREATE TABLE`, and `db:sync` diffs that
-body as normalised text, recreating the view when it changes. `InferViews`
-collects those names so mutations cannot target them. There is no dedicated
-helper; `--choose=db` writes views in the `DBInfo` form shown below.
+```ts
+import { Field, view } from '@bakery/orm'
+
+export const activeUsers = view(
+  'active_users',
+  'SELECT id, name FROM users WHERE active = 1',
+  { id: Field.Primary(), name: Field.Varchar(64) },
+)
+```
+
+The columns are the shape the `SELECT` returns. They are declared rather than
+inferred because nothing here parses SQL, and they are what gives the view a row
+type — reading from it is typed exactly like reading a table.
+
+`db:sync` emits `CREATE VIEW` instead of `CREATE TABLE`, diffs the body as
+normalised text, and drops and recreates the view when it changes. Views hold no
+data, so there is no migration to plan.
+
+**Writes are rejected at compile time.** `InferViews` collects the names and
+`Mutation.Tables` excludes them, so `DB.Insert.into('active_users')` does not
+typecheck — nor does `Update.table` or `Delete.from`. The database would refuse
+the write anyway; refusing it earlier is strictly better.
+
+In the older single-file `DBInfo` layout a view is a table entry carrying a
+`_view` key, which is what `--choose=db` writes and what `view()` builds.
 
 ## Making the schema typed
 

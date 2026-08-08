@@ -68,6 +68,54 @@ export function table<N extends string, C extends ColumnMap>(
 }
 
 /**
+ * Declare a view — a stored `SELECT` the database treats as a table.
+ *
+ *     export const activeUsers = view(
+ *       'active_users',
+ *       'SELECT id, name FROM users WHERE active = 1',
+ *       { id: Field.Primary(), name: Field.Varchar(64) },
+ *     )
+ *
+ * The columns are the shape the `SELECT` returns. They are declared rather than
+ * inferred because nothing here parses SQL, and they are what gives the view a
+ * row type — reading from it is typed exactly like reading a table.
+ *
+ * **Writes are rejected at compile time.** `InferViews` collects these names and
+ * `Mutation.Tables` excludes them, so `DB.Insert.into('active_users')` does not
+ * typecheck. A view is a `SELECT`; the database would refuse the write anyway,
+ * and refusing it earlier is strictly better.
+ *
+ * `db:sync` emits `CREATE VIEW`, diffs the body as normalised text, and drops
+ * and recreates the view when it changes — views hold no data, so recreating is
+ * free and there is no migration to plan.
+ *
+ * Previously declarable only in the older `DBInfo` layout, or here by writing
+ * `_view` into a `table()` call and casting. The key is the same; this just
+ * types it.
+ */
+export function view<N extends string, C extends ColumnMap>(
+  name: N,
+  body: string,
+  columns: C,
+): TableDef<N, C & { _view: string }> & {
+  readonly [K in keyof C]: TableColumn<N, K & string>
+} {
+  // `_view` rides inside `__columns` because that is the object the sync engine
+  // receives, and it is where `ExtractViews` and the adapters already look for
+  // it. Adding a sibling field would mean teaching `collectConstraints`, the
+  // diff and three adapters about a second place to check.
+  //
+  // It has to be in `__columns`'s *declared type* too, not only at runtime:
+  // `ExtractViews` is what `InferViews` reads and what `Mutation.Tables`
+  // excludes, so erasing `_view` from the type left writes to a view
+  // compiling — the exact thing declaring one is supposed to prevent.
+  // `ExtractTableTypes` filters the key out of the row type separately.
+  return Object.assign(table(name, columns), {
+    __columns: { _view: body, ...columns },
+  }) as any
+}
+
+/**
  * Alias a table for a join, so the same table can appear twice in one query.
  *
  * This is the object-form answer to `join('users.id', ..., 'author')` followed

@@ -11,7 +11,7 @@ export { DB, Mutation }
  * writing `orm/schema.ts` should import from `@bakery/orm` without having to
  * know which file a helper happens to sit in.
  */
-export { alias, table } from './define'
+export { alias, table, view } from './define'
 export { Field } from './field'
 export type {
   InferOptionals,
