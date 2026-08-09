@@ -14,7 +14,10 @@
  * `tests/conventions.test.ts` for the check that keeps it true between
  * releases.
  */
-const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+const ROOT = new URL('..', import.meta.url).pathname.replace(
+  /^\/([A-Za-z]:)/,
+  '$1',
+)
 
 const PACKAGES = [
   'packages/core',
@@ -46,7 +49,11 @@ if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)) {
 }
 
 async function sh(cmd: string[], label: string) {
-  const proc = Bun.spawn(cmd, { cwd: ROOT, stdout: 'inherit', stderr: 'inherit' })
+  const proc = Bun.spawn(cmd, {
+    cwd: ROOT,
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
   if ((await proc.exited) !== 0) die(`${label} failed`)
 }
 
