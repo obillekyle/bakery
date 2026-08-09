@@ -17,11 +17,14 @@
  * releases.
  */
 import {
+  applyBump,
   CHANNELS,
   type Channel,
   classify,
   highestBump,
   nextVersion,
+  versionFromBranch,
+  withChannel,
 } from './version-from-commits'
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(
@@ -54,6 +57,11 @@ if (channels.length > 1) {
   die(`pick one channel, not ${channels.map(c => `--${c}`).join(' and ')}`)
 }
 const channel: Channel | null = channels[0] ?? null
+
+// CI often checks out a detached HEAD, where `git rev-parse --abbrev-ref HEAD`
+// answers the literal string 'HEAD' and the real branch exists only in the
+// event payload — so the branch has to be passable rather than only detected.
+const branchArg = args.find(a => a.startsWith('--branch='))?.slice(9)
 
 async function sh(cmd: string[], label: string) {
   const proc = Bun.spawn(cmd, {
@@ -107,7 +115,10 @@ async function lastStableTag(): Promise<string | null> {
  * number is mechanical and worth automating. The prose is the actual work, and
  * it stays hand-written; the script only opens the heading for it.
  */
-async function computeVersion(current: string): Promise<string> {
+async function computeVersion(
+  current: string,
+  branch: string,
+): Promise<string> {
   const lastTag = await lastStableTag()
   const range = lastTag ? `${lastTag}..HEAD` : 'HEAD'
 
@@ -152,10 +163,39 @@ async function computeVersion(current: string): Promise<string> {
     }
   }
 
+  const lastStable = lastTag ? lastTag.slice(1) : '0.0.0'
+
+  // A branch named `1.2.0-beta` declares its own base and channel. Where that
+  // happens the commits still get a vote — not on the number, but on whether
+  // the number is *allowed*.
+  const declared = versionFromBranch(branch)
+  if (declared) {
+    const implied = applyBump(lastStable, bump)
+
+    // **Refuse rather than warn.** If the commits imply a higher base than the
+    // branch declares — a `release:` landed on a `1.2.0-beta` branch — then
+    // publishing 1.2.0 would ship a breaking change as a minor. A warning here
+    // would scroll past in a CI log and the wrong version would go out anyway.
+    if (Bun.semver.order(implied, declared.base) > 0) {
+      die(
+        `branch '${branch}' declares ${declared.base}, but the commits since ` +
+          `${lastTag ?? 'the first commit'} imply ${implied} (${bump}).\n` +
+          `        Rename the branch to ${implied}-${declared.channel}, or pass ` +
+          'the version explicitly if the branch is right.',
+      )
+    }
+
+    const next = withChannel(declared.base, declared.channel, current)
+    console.log(
+      `release: ${current} -> ${next} (declared by branch '${branch}')`,
+    )
+    return next
+  }
+
   // The base is measured from the last stable release, not from `current` and
   // not from the last tag. `nextVersion` documents why both of those are wrong.
   const next = nextVersion({
-    lastStable: lastTag ? lastTag.slice(1) : '0.0.0',
+    lastStable,
     bump,
     channel,
     current,
@@ -168,7 +208,10 @@ async function computeVersion(current: string): Promise<string> {
 }
 
 const rootPkg = JSON.parse(await Bun.file(`${ROOT}/package.json`).text())
-const version = explicitVersion ?? (await computeVersion(rootPkg.version))
+const branch =
+  branchArg ?? (await capture(['git', 'rev-parse', '--abbrev-ref', 'HEAD']))
+const version =
+  explicitVersion ?? (await computeVersion(rootPkg.version, branch))
 
 // A release number is interpolated into seven manifests and a git tag, so it is
 // validated rather than trusted — including the computed one, which is cheap

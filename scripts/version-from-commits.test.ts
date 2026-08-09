@@ -4,6 +4,7 @@ import {
   classify,
   highestBump,
   nextVersion,
+  versionFromBranch,
 } from './version-from-commits'
 
 const c = (subject: string, body = '') => ({ subject, body })
@@ -72,6 +73,75 @@ describe('classify', () => {
     expect(classify(c('WIP'))).toBeNull()
     expect(classify(c('Feat: capitalised'))).toBeNull()
     expect(classify(c('feat:no space after colon'))).toBeNull()
+  })
+})
+
+describe('release: as the major marker', () => {
+  test('release is a major, with or without a scope', () => {
+    expect(classify(c('release: 2.0'))).toBe('major')
+    expect(classify(c('release(orm): drop the legacy adapter'))).toBe('major')
+  })
+
+  test('the bang still works — it was not replaced', () => {
+    // Five commits in this history already use `!`. Retiring it in favour of
+    // `release:` would silently reclassify every one of them as non-breaking.
+    expect(classify(c('feat!: x'))).toBe('major')
+    expect(classify(c('feat: x', 'BREAKING CHANGE: y'))).toBe('major')
+  })
+
+  test('"released" and "releases" are not it', () => {
+    // The type is matched whole. A prefix match would make `released: notes`
+    // cut a major by accident.
+    expect(classify(c('released: notes'))).toBeNull()
+    expect(classify(c('releases: tidy'))).toBeNull()
+  })
+})
+
+describe('versionFromBranch', () => {
+  test('reads base and channel off the branch name', () => {
+    expect(versionFromBranch('1.2.0-beta')).toEqual({
+      base: '1.2.0',
+      channel: 'beta',
+    })
+    expect(versionFromBranch('2.0.0-alpha')).toEqual({
+      base: '2.0.0',
+      channel: 'alpha',
+    })
+    expect(versionFromBranch('1.0.1-rc')).toEqual({
+      base: '1.0.1',
+      channel: 'rc',
+    })
+  })
+
+  test('tolerates the v and release/ prefixes', () => {
+    expect(versionFromBranch('v1.2.0-beta')?.base).toBe('1.2.0')
+    expect(versionFromBranch('release/1.2.0-beta')?.base).toBe('1.2.0')
+    expect(versionFromBranch('release/v1.2.0-beta')?.base).toBe('1.2.0')
+  })
+
+  test('declares nothing for ordinary branch names', () => {
+    // The important half. Anything unrecognised must fall through to the
+    // computed version rather than guess — a feature branch called `1.2.0-fix`
+    // is not a release channel.
+    for (const name of [
+      'main',
+      'master',
+      'framework/reorganized',
+      'feat/window-functions',
+      '1.2.0',
+      '1.2.0-fix',
+      '1.2-beta',
+      'beta',
+      '',
+    ]) {
+      expect(versionFromBranch(name)).toBeNull()
+    }
+  })
+
+  test('carries no counter — only the channel', () => {
+    // `1.2.0-beta` says which channel, never which beta. If it carried the
+    // number, every cut from the branch would be beta.0 forever.
+    expect(versionFromBranch('1.2.0-beta.3')).toBeNull()
   })
 })
 
