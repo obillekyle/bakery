@@ -50,6 +50,11 @@ than what changed.
   there is no wildcard export, so anything unnamed is private from day one.
 - **`bun create bakery`** — a scaffolder that declares no dependencies at all
   and emits a working app, pinned to the framework version that generated it.
+  It asks what to include — the ORM, and any of the three plugins — and every
+  answer is also a flag (`--orm` / `--no-orm`, `--plugins vue,dashboard`,
+  `--yes`), so it drives from a Dockerfile as well as from a terminal. The
+  prompts are written from scratch rather than pulled in, for the same reason
+  the package has no dependencies at all.
 - **ORM**: three adapters behind one abstract class, a typed query builder,
   schema sync with a migration ledger, `db:rollback` and `db:history`, cursor
   pagination, composite foreign keys, views, set operations and window
