@@ -148,7 +148,7 @@ describe('ETag.sendFile variant negotiation memo', () => {
     const before = negotiate('zstd, gzip')
     // lastModified is millisecond-resolution; make sure the rewrite ticks it.
     await Bun.sleep(20)
-    await writeTrio(CONTENT + '!')
+    await writeTrio(`${CONTENT}!`)
 
     probes = []
     const after = negotiate('zstd, gzip')
@@ -162,14 +162,14 @@ describe('ETag.sendFile variant negotiation memo', () => {
     await Bun.sleep(20)
     await fs.rm(`${base}.zst`, { force: true })
     await fs.rm(`${base}.gz`, { force: true })
-    await Bun.write(base, CONTENT + '?')
+    await Bun.write(base, `${CONTENT}?`)
 
     probes = []
     const res = negotiate('zstd, gzip')
     expect(res.headers.get('Content-Encoding')).toBeNull()
     expect(probes.length).toBe(2)
     // Identity fallback serves the base file itself.
-    expect(await res.text()).toBe(CONTENT + '?')
+    expect(await res.text()).toBe(`${CONTENT}?`)
   })
 
   test('a wiped cache dir does not serve a remembered variant', async () => {

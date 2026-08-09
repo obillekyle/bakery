@@ -341,7 +341,7 @@ describe('injectIfHtml streaming path', () => {
   })
 
   test('unknown-size stream over the threshold streams, with parity', async () => {
-    const pad = '<p>' + 'x'.repeat(1024) + '</p>'
+    const pad = `<p>${'x'.repeat(1024)}</p>`
     const html =
       '<html><head><title>big</title></head><body>' +
       pad.repeat(80) + // ~82KB body, comfortably over 64KB
@@ -361,7 +361,7 @@ describe('injectIfHtml streaming path', () => {
         feed = c
       },
     })
-    const head = '<html><head><title>t</title></head><body>' + 'y'.repeat(2048)
+    const head = `<html><head><title>t</title></head><body>${'y'.repeat(2048)}`
     const tail = '<p>tail</p></body></html>'
 
     feed.enqueue(enc.encode(head))
@@ -421,7 +421,7 @@ describe('injectIfHtml streaming path', () => {
   })
 
   test('document with no head tag falls back to buffered prepend', async () => {
-    const html = '<div>no head here</div>' + '<p>' + 'z'.repeat(256) + '</p>'
+    const html = `<div>no head here</div><p>${'z'.repeat(256)}</p>`
     const res = await injectIfHtml(largeStreamResponseOf(html))
     expect(res).not.toBeNull()
     expect(res!.headers.get('ETag')).not.toBeNull()

@@ -51,7 +51,7 @@ export function computeStats(
     uptime: `${uptime}s`,
     uptimeSeconds: uptime,
     pid: process.pid,
-    memoryUsed: Math.round(mem.rss / 1024 / 1024) + ' MB',
+    memoryUsed: `${Math.round(mem.rss / 1024 / 1024)} MB`,
     memoryExternal: `${Math.round(mem.external / 1024 / 1024)} MB`,
     bunVersion: Bun.version,
     platform: process.platform,
