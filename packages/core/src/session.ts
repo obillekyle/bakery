@@ -148,9 +148,7 @@ export class Session<
     const forwardedHttps =
       trustProxy && req.headers.get('x-forwarded-proto') === 'https'
     const isHttps = Boolean(
-      req.url?.startsWith('https:') ||
-        forwardedHttps ||
-        import.meta.env.PROD,
+      req.url?.startsWith('https:') || forwardedHttps || import.meta.env.PROD,
     )
     const secureFlag = isHttps ? '; Secure' : ''
     return `sId=${session.id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secureFlag}`
