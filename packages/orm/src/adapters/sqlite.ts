@@ -126,7 +126,8 @@ export class SQLiteAdapter extends SQLAdapter {
     )
     // `sql` is supplied when wrapping an existing connection — notably once per
     // transaction. Setup below belongs only to a connection we open ourselves;
-    // re-running it per transaction meant a mkdirSync plus six unawaited PRAGMAs
+    // re-running it per transaction meant a mkdirSync plus six unawaited
+    // PRAGMAs
     // racing against the transaction body on the same handle.
     const ownsConnection = sql === undefined
 
@@ -331,7 +332,8 @@ export class SQLiteAdapter extends SQLAdapter {
         ...whereParams,
       ),
       this.query(
-        `SELECT rowid AS rowid, * FROM ${tname}${whereSql}${orderSql} LIMIT ? OFFSET ?`,
+        `SELECT rowid AS rowid, * FROM ${tname}` +
+          `${whereSql}${orderSql} LIMIT ? OFFSET ?`,
       ).all(...whereParams, pageSize, (page - 1) * pageSize),
     ])) as [SQLAdapter.CountRow, any[]]
 
@@ -521,7 +523,8 @@ export class SQLiteAdapter extends SQLAdapter {
    */
   override readonly uuidExpression: string =
     "lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || " +
-    "hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6)))"
+    "hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || " +
+    'hex(randomblob(6)))'
   override readonly uuidDefaults: string[] = [this.uuidExpression]
 
   protected override parseConstraints(

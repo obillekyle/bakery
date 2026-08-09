@@ -7,10 +7,10 @@ import { registerAdapter, resolveAdapter } from './adapters/registry'
  * Does this target name a SQLite file rather than a server?
  *
  * Deliberately greedy — anything with a path separator lands here — because it
- * is consulted only *after* every registered scheme has had its say. Before the
- * registry that ordering was implicit and this heuristic ran second by luck; now
- * `protocols` is checked first by contract, so an adapter that declares
- * `mssql://` gets it even though this would happily have claimed it.
+ * is consulted only *after* every registered scheme has had its say. Before
+ * the registry that ordering was implicit and this heuristic ran second by
+ * luck; now `protocols` is checked first by contract, so an adapter that
+ * declares `mssql://` gets it even though this would happily have claimed it.
  */
 function isSQLite(val: string) {
   return (

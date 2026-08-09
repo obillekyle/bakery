@@ -197,7 +197,8 @@ export function pagedIterate(
   chunkSize: number = DEFAULT_STREAM_CHUNK,
 ): SQLAdapter.Executor['iterate'] {
   return async function* iterate(sqlText: string, params: unknown[] = []) {
-    const windowed = `SELECT * FROM (${sqlText}) AS bakery_stream LIMIT ? OFFSET ?`
+    const windowed =
+      `SELECT * FROM (${sqlText}) AS bakery_stream` + ' LIMIT ? OFFSET ?'
     for (let offset = 0; ; offset += chunkSize) {
       const rows = await all(windowed, [...params, chunkSize, offset])
       for (const row of rows) yield row
@@ -473,7 +474,8 @@ export abstract class SQLAdapter {
   /**
    * Does a view standing on a table prevent that table from being rebuilt?
    *
-   * A rebuild is `CREATE t_temp` → copy → `DROP TABLE t` → `RENAME t_temp TO t`,
+   * A rebuild is `CREATE t_temp` → copy → `DROP TABLE t` →
+ * `RENAME t_temp TO t`,
    * and two of the three dialects refuse to run it while a view still names `t`
    * — at different steps, and with different messages:
    *
@@ -620,7 +622,8 @@ export abstract class SQLAdapter {
       : records
     const columnsList = [...new Set(formattedRecords.flatMap(Object.keys))]
     const columns = columnsList.map(k => this.quote(k)).join(', ')
-    const placeholderGroup = `(${Array(columnsList.length).fill('?').join(', ')})`
+    const placeholderRow = Array(columnsList.length).fill('?').join(', ')
+    const placeholderGroup = `(${placeholderRow})`
     const placeholders = Array(formattedRecords.length)
       .fill(placeholderGroup)
       .join(', ')
@@ -691,8 +694,8 @@ export abstract class SQLAdapter {
     ifNotExists = false,
   ): Promise<SQLAdapter.RunResult> {
     return await this.query(
-      `CREATE TABLE ${ifNotExists ? 'IF NOT EXISTS ' : ''}${this.quote(table)}` +
-        ` (\n${defs.join(',\n')}\n)`,
+      `CREATE TABLE ${ifNotExists ? 'IF NOT EXISTS ' : ''}` +
+        `${this.quote(table)} (\n${defs.join(',\n')}\n)`,
     ).run()
   }
   async copyTableData(
@@ -865,9 +868,14 @@ export abstract class SQLAdapter {
     const whereSql = whereClauses.length
       ? ` WHERE ${whereClauses.join(' AND ')}`
       : ''
+    // Only DESC or ASC ever reaches the string: `sortOrder` arrives off a
+    // query parameter, so anything else collapses to ASC rather than being
+    // interpolated.
+    const direction =
+      options.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'
     const orderSql =
       options.sortBy && validCols.has(options.sortBy)
-        ? ` ORDER BY ${this.quote(options.sortBy)} ${options.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'}`
+        ? ` ORDER BY ${this.quote(options.sortBy)} ${direction}`
         : ''
 
     return { whereSql, orderSql, whereParams }

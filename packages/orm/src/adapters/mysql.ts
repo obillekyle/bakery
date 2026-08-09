@@ -112,7 +112,9 @@ export class MySQLAdapter extends SQLAdapter {
     const [table, oldColumn, newColumn] = params
     try {
       return await this.query(
-        `ALTER TABLE ${this.quote(table)} RENAME COLUMN ${this.quote(oldColumn)} TO ${this.quote(newColumn)}`,
+        `ALTER TABLE ${this.quote(table)}` +
+          ` RENAME COLUMN ${this.quote(oldColumn)}` +
+          ` TO ${this.quote(newColumn)}`,
       ).run()
     } catch {
       const col = (await this.query(
@@ -129,7 +131,9 @@ export class MySQLAdapter extends SQLAdapter {
         : ''
       const extraSql = col?.extra?.trim() ? ` ${col.extra.trim()}` : ''
       return this.query(
-        `ALTER TABLE ${this.quote(table)} CHANGE ${this.quote(oldColumn)} ${this.quote(newColumn)} ${type}${notNull}${defSql}${extraSql}`,
+        `ALTER TABLE ${this.quote(table)}` +
+          ` CHANGE ${this.quote(oldColumn)} ${this.quote(newColumn)}` +
+          ` ${type}${notNull}${defSql}${extraSql}`,
       ).run()
     }
   }
@@ -140,7 +144,9 @@ export class MySQLAdapter extends SQLAdapter {
     unique = false,
   ): Promise<SQLAdapter.RunResult> {
     return await this.query(
-      `ALTER TABLE ${this.quote(tableName)} ADD ${unique ? 'UNIQUE ' : ''}INDEX ${this.quote(indexName)} (${columns.map(c => this.quote(c)).join(', ')})`,
+      `ALTER TABLE ${this.quote(tableName)}` +
+        ` ADD ${unique ? 'UNIQUE ' : ''}INDEX ${this.quote(indexName)}` +
+        ` (${columns.map(c => this.quote(c)).join(', ')})`,
     ).run()
   }
 
@@ -164,7 +170,8 @@ export class MySQLAdapter extends SQLAdapter {
       ).get(indexName)) as SQLAdapter.TableNameRow | undefined
       if (row?.table_name)
         return await this.query(
-          `DROP INDEX ${this.quote(indexName)} ON ${this.quote(row.table_name)}`,
+          `DROP INDEX ${this.quote(indexName)}` +
+            ` ON ${this.quote(row.table_name)}`,
         ).run()
       try {
         return await this.query(`DROP INDEX ${this.quote(indexName)}`).run()
@@ -172,7 +179,8 @@ export class MySQLAdapter extends SQLAdapter {
         // A silent `changes: 0` is indistinguishable from success, so the sync
         // plan would record the index as dropped while it is still there.
         throw new Error(
-          `Failed to drop index ${indexName}: ${(error as Error)?.message || error}`,
+          `Failed to drop index ${indexName}: ` +
+            `${(error as Error)?.message || error}`,
         )
       }
     }
@@ -402,14 +410,17 @@ export class MySQLAdapter extends SQLAdapter {
 
   override async getForeignKeys(): Promise<SyncTypes.DBForeignKeys> {
     const rows = (await this.query(
-      'SELECT kcu.constraint_name AS name, kcu.table_name AS child, kcu.column_name AS child_col,' +
-        ' kcu.referenced_table_name AS parent, kcu.referenced_column_name AS parent_col,' +
+      'SELECT kcu.constraint_name AS name, kcu.table_name AS child,' +
+        ' kcu.column_name AS child_col,' +
+        ' kcu.referenced_table_name AS parent,' +
+        ' kcu.referenced_column_name AS parent_col,' +
         ' rc.delete_rule AS on_delete, rc.update_rule AS on_update' +
         ' FROM information_schema.key_column_usage kcu' +
         ' JOIN information_schema.referential_constraints rc' +
         '   ON rc.constraint_name = kcu.constraint_name' +
         '  AND rc.constraint_schema = kcu.table_schema' +
-        ' WHERE kcu.table_schema = DATABASE() AND kcu.referenced_table_name IS NOT NULL' +
+        ' WHERE kcu.table_schema = DATABASE()' +
+        ' AND kcu.referenced_table_name IS NOT NULL' +
         ' ORDER BY kcu.constraint_name, kcu.ordinal_position',
     ).all()) as any[]
     return SQLAdapter.groupForeignKeyRows(rows)
@@ -419,7 +430,8 @@ export class MySQLAdapter extends SQLAdapter {
   override async dropForeignKey(fk: SyncTypes.ForeignKeyInfo): Promise<void> {
     const name = fk.name || SQLAdapter.foreignKeyName(fk)
     await this.query(
-      `ALTER TABLE ${this.quote(Case.snake(fk.table))} DROP FOREIGN KEY ${this.quote(name)}`,
+      `ALTER TABLE ${this.quote(Case.snake(fk.table))}` +
+        ` DROP FOREIGN KEY ${this.quote(name)}`,
     ).run()
   }
 
@@ -504,8 +516,9 @@ export class MySQLAdapter extends SQLAdapter {
   // emittable SQL; see below.
   override readonly dateNowDefaults: string[] = ['UNIX_TIMESTAMP']
 
-  // Emitted into DDL. The call parens are load-bearing: `DEFAULT (UNIX_TIMESTAMP)`
-  // parses as a reference to a column named UNIX_TIMESTAMP (ERROR 3109), and the
+  // Emitted into DDL. The call parens are load-bearing:
+  // `DEFAULT (UNIX_TIMESTAMP)` parses as a reference to a column named
+  // UNIX_TIMESTAMP (ERROR 3109), and the
   // outer parens formatDefault adds are required for an expression default.
   override readonly dateNowExpression: string = 'UNIX_TIMESTAMP()'
 

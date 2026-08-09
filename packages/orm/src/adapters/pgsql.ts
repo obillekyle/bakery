@@ -92,12 +92,14 @@ export class PGAdapter extends SQLAdapter {
     // `skipNext` is consumed in exactly one place — the `i++` below — and
     // cleared there.
     //
-    // It used to be consumed twice: a top-of-loop `if (state.skipNext) continue`
+    // It used to be consumed twice: a top-of-loop
+    // `if (state.skipNext) continue`
     // *and* the `i++`. A handler that set the flag therefore ate two characters
     // instead of one, so every doubled quote swallowed whatever followed it:
     // `'a''b'` was rewritten to `'a'''`, which Postgres reads as `a'`. A string
     // default containing an apostrophe silently lost the rest of its value, and
-    // the same applied to a backslash escape. Values bind as parameters, so this
+    // the same applied to a backslash escape. Values bind as parameters, so
+    // this
     // only ever reached literals the framework itself emits — DDL defaults —
     // which is why it survived: `ddl.test.ts` asserts the SQL *before*
     // normalisation, and no live server ran until now.
@@ -317,7 +319,8 @@ export class PGAdapter extends SQLAdapter {
     ).get(...whereParams)) as SQLAdapter.CountRow
     const totalRows = countRes?.count || 0
     const rows = (await this.query(
-      `SELECT ctid::text AS rowid, * FROM ${tName}${whereSql}${orderSql} LIMIT ? OFFSET ?`,
+      `SELECT ctid::text AS rowid, * FROM ${tName}` +
+        `${whereSql}${orderSql} LIMIT ? OFFSET ?`,
     ).all(
       ...whereParams,
       options.pageSize,
