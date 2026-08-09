@@ -1,0 +1,106 @@
+name: Version
+
+# Computes the next version from the commit messages, commits the bump, and
+# pushes a tag. **It does not publish** — `publish.yml` does, and only when a
+# `v*` tag appears. That split is the whole safety model: npm never allows a
+# version number to be reused, so the irreversible step gets its own trigger
+# rather than happening because someone merged a PR.
+on:
+  push:
+    branches:
+      - main
+      # Branch-declared versions: a branch called `1.2.0-beta` publishes betas
+      # towards 1.2.0. `scripts/version-from-commits.ts` parses the name; these
+      # globs only decide which pushes are worth waking the workflow for.
+      - '*-alpha'
+      - '*-beta'
+      - '*-rc'
+
+concurrency:
+  # Never two releases at once on the same ref: both would compute the same
+  # number from the same commits and the second push would be rejected.
+  group: version-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: compute + tag
+    runs-on: ubuntu-latest
+
+    # The bump commit is itself a push to this branch, which would re-trigger
+    # this workflow. It would then find a tag at HEAD, correctly report
+    # "nothing to release", and exit 1 — a red X on every release. Skipped by
+    # its own subject line instead.
+    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history and every tag. The script measures commits since the
+          # last *stable* tag; a shallow clone has neither the tags nor the
+          # range, and would silently compute from the first commit it can see.
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # Runs the gates itself (typecheck + test) before writing anything, so a
+      # release cannot be cut from a tree that does not pass.
+      #
+      # `--if-needed` because most pushes here are docs or chores and warrant no
+      # release. Without it every ordinary merge ends in a red cross, and a
+      # workflow that is usually red is a workflow nobody reads.
+      - name: Compute the version and bump every manifest
+        run: bun run release --if-needed --branch='${{ github.ref_name }}'
+
+      # Whether anything was actually written is the signal — not the exit
+      # code, which is 0 in both cases now.
+      - name: Did it produce a release?
+        id: check
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "value=$(bun -e 'console.log(require("./package.json").version)')" >> "$GITHUB_OUTPUT"
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            echo "no release warranted by these commits"
+          fi
+
+      - name: Commit and tag
+        if: steps.check.outputs.released == 'true'
+        env:
+          VERSION: ${{ steps.check.outputs.value }}
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m "chore(release): v$VERSION"
+          git tag -a "v$VERSION" -m "v$VERSION"
+          # Commit first, tag second. If the push of the commit is rejected
+          # (someone else landed one meanwhile) the tag never goes out, and
+          # publish.yml never fires for a version that is not on the branch.
+          git push origin HEAD
+          git push origin "v$VERSION"
+
+      - name: Summary
+        env:
+          RELEASED: ${{ steps.check.outputs.released }}
+          VERSION: ${{ steps.check.outputs.value }}
+        run: |
+          {
+            if [ "$RELEASED" = true ]; then
+              echo "### v$VERSION tagged"
+              echo
+              echo "\`publish.yml\` takes it from here."
+            else
+              echo "### No release"
+              echo
+              echo "No feat, fix, perf or breaking commit since the last tag."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

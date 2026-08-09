@@ -45,6 +45,8 @@ const PACKAGES = [
 const args = process.argv.slice(2)
 const dryRun = args.includes('--dry-run')
 const skipGates = args.includes('--skip-gates')
+/** Exit 0 rather than 1 when the commits justify no release. For CI. */
+const ifNeeded = args.includes('--if-needed')
 const explicitVersion = args.find(a => !a.startsWith('--'))
 
 function die(message: string): never {
@@ -143,10 +145,19 @@ async function computeVersion(
 
   const driving = commits.filter(c => c.bump)
   if (!driving.length) {
-    die(
-      `nothing to release — no feat/fix/perf or breaking commit since ${lastTag || 'the first commit'}.\n` +
-        '        Pass a version explicitly to override.',
-    )
+    const nothing = `nothing to release — no feat/fix/perf or breaking commit since ${lastTag || 'the first commit'}.`
+
+    // Most pushes to main are docs or chores and warrant no release at all.
+    // Run from CI that is the *expected* outcome, not a failure — without this
+    // every ordinary merge would end in a red cross, and a workflow that is
+    // usually red is a workflow nobody reads.
+    if (ifNeeded) {
+      console.log(`release: ${nothing}`)
+      console.log('release: --if-needed, so this is fine. Nothing written.')
+      process.exit(0)
+    }
+
+    die(`${nothing}\n        Pass a version explicitly to override.`)
   }
 
   const bump = highestBump(commits)

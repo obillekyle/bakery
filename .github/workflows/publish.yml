@@ -1,0 +1,132 @@
+name: Publish
+
+# The only thing in this repository that touches the registry, and the only one
+# that cannot be undone: npm never allows a version number to be reused, by
+# anyone, ever. So it fires on a tag rather than on a push — `version.yml`
+# creates the tag, and a human can also create one by hand.
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  # Two runs publishing the same tag would race, and the loser would fail
+  # halfway through the seven packages. Never cancel a run mid-publish.
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: seven packages
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # A tag can be created by hand, and by hand it can be put on the wrong
+      # commit. Publishing then ships whatever the manifests happen to say
+      # under a tag claiming something else — and both are permanent.
+      - name: Refuse if the tag and the manifests disagree
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          manifest=$(bun -e 'console.log(require("./package.json").version)')
+          if [ "v$manifest" != "$TAG" ]; then
+            echo "tag $TAG does not match the manifest version $manifest" >&2
+            exit 1
+          fi
+          echo "tag and manifests agree on $manifest"
+
+      # The dist-tag is derived from the version, never passed in. A
+      # prerelease published without one becomes `latest`, and then every plain
+      # `bun add @bakery-framework/core` in the world resolves to a beta —
+      # silently, and only fixable by re-tagging after people have installed it.
+      - name: Work out the dist-tag
+        id: disttag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          case "$version" in
+            *-alpha.*) tag=alpha ;;
+            *-beta.*)  tag=beta ;;
+            *-rc.*)    tag=rc ;;
+            *-*)       echo "unrecognised prerelease in $version" >&2; exit 1 ;;
+            *)         tag=latest ;;
+          esac
+          echo "value=$tag" >> "$GITHUB_OUTPUT"
+          echo "publishing $version under dist-tag $tag"
+
+      # The gates run again here rather than being trusted from the tagged
+      # commit's earlier run. A tag can be moved; a branch can be force-pushed.
+      # This is the last point at which anything can still be stopped.
+      - name: Test
+        run: bun run test
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Authenticate
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "NPM_TOKEN secret is not set" >&2
+            exit 1
+          fi
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
+          echo "authenticated as $(bun pm whoami)"
+
+      # Dependency order: core, then everything that depends on it, then the
+      # scaffolder that references all of them. It does not affect whether a
+      # publish succeeds — npm does not check that a dependency exists — but it
+      # decides what a consumer sees if they install while this is half done.
+      - name: Publish
+        env:
+          DIST_TAG: ${{ steps.disttag.outputs.value }}
+        run: |
+          set -e
+          for pkg in \
+            packages/core \
+            packages/orm \
+            packages/cli \
+            packages/plugins/vue \
+            packages/plugins/analytics \
+            packages/plugins/dashboard \
+            packages/create
+          do
+            echo "::group::$pkg"
+            ( cd "$pkg" && bun publish --tag "$DIST_TAG" )
+            echo "::endgroup::"
+          done
+
+      - name: Summary
+        env:
+          TAG: ${{ github.ref_name }}
+          DIST_TAG: ${{ steps.disttag.outputs.value }}
+        run: |
+          {
+            echo "### Published $TAG under \`$DIST_TAG\`"
+            echo
+            if [ "$DIST_TAG" = latest ]; then
+              echo '```'
+              echo 'bun add @bakery-framework/core'
+              echo '```'
+            else
+              echo "Consumers opt in explicitly:"
+              echo '```'
+              echo "bun add @bakery-framework/core@$DIST_TAG"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
