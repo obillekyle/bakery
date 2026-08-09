@@ -1,7 +1,7 @@
 # @bakery-framework/plugin-vue
 
 Vue single-file components for
-[Bakery](https://github.com/obillekyle/bun-server).
+[Bakery](https://github.com/obillekyle/bakery).
 
 ```bash
 bun add @bakery-framework/plugin-vue vue

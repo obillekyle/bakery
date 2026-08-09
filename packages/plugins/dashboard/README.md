@@ -1,7 +1,7 @@
 # @bakery-framework/plugin-dashboard
 
 A built-in admin console for
-[Bakery](https://github.com/obillekyle/bun-server): database browsing, logs and
+[Bakery](https://github.com/obillekyle/bakery): database browsing, logs and
 runtime state.
 
 ```bash

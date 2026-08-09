@@ -1,7 +1,7 @@
 # @bakery-framework/cli
 
 The `bakery` binary: process-mode dispatch, the dev watcher, and clustering for
-[Bakery](https://github.com/obillekyle/bun-server).
+[Bakery](https://github.com/obillekyle/bakery).
 
 **Bun only.** Ships TypeScript source with no build step.
 

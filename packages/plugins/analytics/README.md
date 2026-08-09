@@ -1,7 +1,7 @@
 # @bakery-framework/plugin-analytics
 
 Request, route and error metrics for
-[Bakery](https://github.com/obillekyle/bun-server), with a live WebSocket feed.
+[Bakery](https://github.com/obillekyle/bakery), with a live WebSocket feed.
 
 ```bash
 bun add @bakery-framework/plugin-analytics

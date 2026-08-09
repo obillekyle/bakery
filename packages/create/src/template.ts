@@ -346,7 +346,7 @@ function readme(name: string, orm: boolean, plugins: PluginId[]): string {
 
   return `# ${name}
 
-Built with [Bakery](https://github.com/obillekyle/bun-server).
+Built with [Bakery](https://github.com/obillekyle/bakery).
 
 \`\`\`bash
 bun install

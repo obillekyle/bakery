@@ -101,5 +101,5 @@ Stated here rather than discovered later:
   the disposable `.cache/`, which is cleared whenever the framework version
   changes.
 
-[Unreleased]: https://github.com/obillekyle/bun-server/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/obillekyle/bun-server/releases/tag/v1.0.0
+[Unreleased]: https://github.com/obillekyle/bakery/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/obillekyle/bakery/releases/tag/v1.0.0

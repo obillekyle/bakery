@@ -76,7 +76,7 @@ so any directory you create under `apps/` becomes a linked consumer.
 ## Get it
 
 ```bash
-git clone https://github.com/obillekyle/bun-server bakery
+git clone https://github.com/obillekyle/bakery bakery
 ```
 
 ```bash

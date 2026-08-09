@@ -1,6 +1,6 @@
 # @bakery-framework/orm
 
-The database layer for [Bakery](https://github.com/obillekyle/bun-server):
+The database layer for [Bakery](https://github.com/obillekyle/bakery):
 adapters, query builder, schema sync and backups.
 
 **Bun only.** Ships TypeScript source with no build step.

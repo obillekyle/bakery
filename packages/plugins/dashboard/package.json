@@ -13,11 +13,11 @@
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/obillekyle/bun-server.git",
+    "url": "git+https://github.com/obillekyle/bakery.git",
     "directory": "packages/plugins/dashboard"
   },
-  "homepage": "https://github.com/obillekyle/bun-server#readme",
-  "bugs": "https://github.com/obillekyle/bun-server/issues",
+  "homepage": "https://github.com/obillekyle/bakery#readme",
+  "bugs": "https://github.com/obillekyle/bakery/issues",
   "publishConfig": {
     "access": "public"
   },

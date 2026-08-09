@@ -18,7 +18,7 @@ change, so today you use it by cloning the repo and working inside the Bun
 workspace:
 
 ```bash
-git clone https://github.com/obillekyle/bun-server bakery
+git clone https://github.com/obillekyle/bakery bakery
 cd bakery && bun install
 
 # the example app's schema is gitignored; create it from the template

@@ -6,7 +6,7 @@ The scaffolder behind `bun create bakery`.
 bun create bakery my-app
 ```
 
-Writes a working [Bakery](https://github.com/obillekyle/bun-server) app: a page,
+Writes a working [Bakery](https://github.com/obillekyle/bakery) app: a page,
 an API route that round-trips through SQLite, a registered ORM schema, and a
 `db:sync` script. Then:
 

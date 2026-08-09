@@ -1,6 +1,6 @@
 # @bakery-framework/core
 
-The core of [Bakery](https://github.com/obillekyle/bun-server): request handling,
+The core of [Bakery](https://github.com/obillekyle/bakery): request handling,
 routing, sessions, caching and the server-side JSX runtime.
 
 **Bun only.** This package ships TypeScript source with no build step, and the
@@ -74,7 +74,7 @@ bun create bakery my-app
   issue rather than reaching for a deep path — it will not resolve.
 
 Full documentation lives in the
-[repository](https://github.com/obillekyle/bun-server).
+[repository](https://github.com/obillekyle/bakery).
 
 ## License
 
