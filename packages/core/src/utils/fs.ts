@@ -13,7 +13,7 @@ import { parse as parsedPath } from 'node:path/posix'
 import { promisify } from 'node:util'
 import { gzip as zlibGzip } from 'node:zlib'
 import { LRUCache } from '../cache/lru'
-// A cycle on paper (`core/context` imports this file for `getBakeryVersion`),
+// A cycle on paper (`core/context` imports this file for `getAppVersion`),
 // harmless in practice: neither module touches the other's bindings during
 // evaluation — `hostStore` is only read inside `isForbidden`, at request time.
 import { hostStore } from '../core/context'

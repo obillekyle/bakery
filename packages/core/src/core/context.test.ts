@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { getBakeryVersion, hostStore } from './context'
+import { getAppVersion, hostStore } from './context'
 
 describe('hostStore', () => {
   test('runs callback in AsyncLocalStorage context', async () => {
@@ -44,15 +44,15 @@ describe('hostStore', () => {
   })
 })
 
-describe('getBakeryVersion', () => {
+describe('getAppVersion', () => {
   test('returns semver-like string', () => {
-    const version = getBakeryVersion()
+    const version = getAppVersion()
     expect(version).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
   test('caches result', () => {
-    const v1 = getBakeryVersion()
-    const v2 = getBakeryVersion()
+    const v1 = getAppVersion()
+    const v2 = getAppVersion()
     expect(v1).toBe(v2)
   })
 })

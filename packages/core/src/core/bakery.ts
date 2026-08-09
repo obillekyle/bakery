@@ -2,7 +2,7 @@ import { HandlerMap } from '../handlers/core/$registry'
 import { fs } from '../utils/fs'
 import { SharedMemoryPool } from '../utils/shared-pool'
 import { getConfig, resolveHostname } from './config'
-import { getBakeryVersion, hostStore } from './context'
+import { getAppVersion, hostStore } from './context'
 
 export type { HostContext } from './context'
 export { hostStore } from './context'
@@ -67,7 +67,7 @@ export const Bakery: globalThis.Bakery = {
   },
   root: fs.cwd,
   get version() {
-    return getBakeryVersion()
+    return getAppVersion()
   },
   sharedPool: new SharedMemoryPool(1024 * 1024),
   // The disposable directory is the hidden one, and the precious one is not.

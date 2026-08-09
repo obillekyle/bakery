@@ -10,7 +10,7 @@ import {
 } from '../utils/constants'
 import { fs } from '../utils/fs'
 import { Bakery } from './bakery'
-import { getBakeryVersion, hostStore } from './context'
+import { getAppVersion, getFrameworkVersion, hostStore } from './context'
 
 export const NOOP = () => {}
 
@@ -102,14 +102,26 @@ async function checkCacheVersion(): Promise<void> {
   const cacheDir = Bakery.cacheDir
   const serverJsonPath = `${cacheDir}/server.json`
   const currentMode = import.meta.env.DEV ? 'development' : 'production'
-  const currentVersion = getBakeryVersion()
+  const currentVersion = getAppVersion()
+  // The framework's version, and it is a separate field for a reason: this
+  // check used to read the *app's* version alone, so `bun update @bakery/core`
+  // left a cache full of artifacts compiled by the previous framework version
+  // and nothing invalidated them. Invisible in this repo, because
+  // `apps/example`'s version tracks the framework's — bump both and the app
+  // version alone appears to do the job.
+  //
+  // A marker written before this field existed has `framework: undefined`,
+  // which mismatches and wipes once. That is the correct outcome and costs one
+  // recompile.
+  const currentFramework = getFrameworkVersion()
 
   const [err, prev] = await Try.catch(() => Bun.file(serverJsonPath).json())
   if (
     err ||
     !prev ||
     prev.mode !== currentMode ||
-    prev.version !== currentVersion
+    prev.version !== currentVersion ||
+    prev.framework !== currentFramework
   ) {
     if (fs.exists(cacheDir)) {
       await fs.rm(cacheDir, { recursive: true, force: true })
@@ -119,7 +131,11 @@ async function checkCacheVersion(): Promise<void> {
     }
     await Bun.write(
       serverJsonPath,
-      JSON.stringify({ mode: currentMode, version: currentVersion }, null, 2),
+      JSON.stringify(
+        { mode: currentMode, version: currentVersion, framework: currentFramework },
+        null,
+        2,
+      ),
     )
   }
 }
