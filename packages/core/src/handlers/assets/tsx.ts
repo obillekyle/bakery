@@ -13,13 +13,6 @@ import {
   publicErrorData,
 } from '../core/$error'
 
-type TSXModule = {
-  default: (
-    req: Request,
-    body: MapOf<any>,
-  ) => MixedPromise<string | Response | MapOf<any>>
-}
-
 export class TSXHandler extends DynamicHandler {
   static get config() {
     return {

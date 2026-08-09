@@ -231,12 +231,12 @@ export namespace Glob {
 }
 
 export namespace FileSystem {
+  // Naming, not constraint — `string & {}` is `string`. These document what a
+  // parameter means at its declaration, which earns their keep. Four more
+  // (`RequestPath`, `DirectoryPath`, `FileName`, `FileExtension`) documented
+  // nothing, because nothing ever referenced them.
   export type AbsolutePath = string & {}
   export type RelativePath = string & {}
-  export type RequestPath = string & {}
-  export type DirectoryPath = string & {}
-  export type FileName = string & {}
-  export type FileExtension = string & {}
 
   export async function* glob(pattern: Glob.Pattern, exclude?: Glob.Patterns) {
     const glob = Glob.from(pattern)

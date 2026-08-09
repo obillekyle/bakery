@@ -20,7 +20,7 @@ export type {
   InsertOf,
   RowOf,
   TableColumn,
-  TableDef,
+  TableRef,
 } from './define'
 
 export {
@@ -28,10 +28,20 @@ export {
   dateNow,
   old,
 } from './schema-util'
+/**
+ * `TableDef` is the **column** descriptor — `TableDef<TYPE, nullable, optional>`
+ * — and it now comes from the root barrel, which is where someone writing a
+ * schema would look for it.
+ *
+ * It did not, and that was a defect rather than an omission: the barrel used to
+ * export `define.ts`'s same-named type, which describes a *table*. Two public
+ * types under one name, and nothing errors at the import site.
+ */
 export type {
   ExtractOptionals,
   ExtractTableTypes,
   ExtractViews,
+  TableDef,
 } from './schema-util'
 
 /**

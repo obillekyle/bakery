@@ -55,7 +55,9 @@ declare global {
     array(value: any): value is any[]
     null(value: any): value is null
     undefined(value: any): value is undefined
-    // biome-ignore lint: 2
+    // biome-ignore lint: `Function` again, same reason as the overload above —
+    // a narrowing predicate has to name the type it narrows to, and there is no
+    // narrower spelling of "callable" that `is()` can honestly promise.
     function(value: any): value is Function
   }
 }

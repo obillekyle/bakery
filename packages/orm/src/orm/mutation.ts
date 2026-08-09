@@ -72,10 +72,15 @@ export namespace Mutation {
 
 
 
-  export interface RunResult {
-    lastInsertRowid: number | bigint | null
-    changes: number
-  }
+  /**
+   * What a write returns — the adapter's own result, not a copy of it.
+   *
+   * It *was* a copy: an identical `{lastInsertRowid, changes}` declared here as
+   * well as on `SQLAdapter`. Identical today is the whole problem — that is the
+   * state `SQLAdapter.ColumnConstraint` was in before it fell behind
+   * `sync/types.ts` and started erasing fields at the cast.
+   */
+  export type RunResult = SQLAdapter.RunResult
 
   export class Insert<T extends Tables = any> {
     constructor(private _table: string) {}

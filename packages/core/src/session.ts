@@ -485,12 +485,15 @@ export class Session<
     sortBy: string
     sortOrder: 'ASC' | 'DESC'
   }) {
-    const scope = sessionScope()
-
     // Fast path: with no `hosts` configured every key is already in the default
     // bucket, so the cache's own SQL paging is correctly scoped and there is no
-    // reason to give it up. `hostKey` collapses to '' in that case too, which is
-    // why the scope alone cannot tell the two situations apart.
+    // reason to give it up.
+    //
+    // The check is on `hosts` and not on the scope, deliberately: `hostKey`
+    // collapses to '' in the unconfigured case too, so the scope alone cannot
+    // tell the two situations apart. This method used to compute one anyway and
+    // never read it — scoping lives in `Session.entries()`, which the slow path
+    // below goes through.
     const hosts = Bakery.config.hosts
     if (!hosts || Object.keys(hosts).length === 0) {
       return Session.cache.search(options)
