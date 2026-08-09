@@ -1,14 +1,8 @@
 import '@bakery/core/core/init'
 
 import { Logger, messageLogger } from '@bakery/core/logger'
-import { Try } from '@bakery/core/utils'
 import { closeDB, connection, initDB } from '../connection'
-import {
-  findUnsupportedForeignKeys,
-  loadSchema,
-  schemaFromConfig,
-} from './load'
-import type * as SyncTypes from './types'
+import { loadSchema, schemaFromConfig } from './load'
 
 const logger = new Logger('db-sync')
 
@@ -94,8 +88,10 @@ Flags:
     // integrity in appearance only. All three adapters now emit and read back
     // real foreign keys, so the guard is gone.
     //
-    // `findUnsupportedForeignKeys` is kept and still exported: it is what a
-    // future adapter without support would use to refuse rather than pretend.
+    // `findUnsupportedForeignKeys` is kept and still exported *from
+    // `sync/load`* — it is what a future adapter without support would use to
+    // refuse rather than pretend. It is no longer imported here, which is the
+    // distinction: the function has a reason to exist, the dead import did not.
 
     if (loaded.layout === 'none' && (await Bun.file(schemaPath).exists())) {
       MESSAGES.NO_DBINFO()

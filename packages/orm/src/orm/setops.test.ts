@@ -212,6 +212,20 @@ describe('window functions: emitted SQL', () => {
     expect(sql).toContain('ROW_NUMBER() OVER ()')
   })
 
+  test('all three ranking helpers emit their own function', () => {
+    // `denseRank` had no test at all — it was the one exported symbol in the
+    // package with zero references anywhere, which is how it was found.
+    const one = (ref: unknown) =>
+      DB.from('users')
+        .select({ x: ref as never })
+        .parse().sql
+    expect(one(DB.rowNumber({ orderBy: 'users.id' }))).toContain('ROW_NUMBER()')
+    expect(one(DB.rank({ orderBy: 'users.id' }))).toContain('RANK()')
+    expect(one(DB.denseRank({ orderBy: 'users.id' }))).toContain('DENSE_RANK()')
+    // …and DENSE_RANK is not RANK with a prefix: the two are distinct calls.
+    expect(one(DB.rank({ orderBy: 'users.id' }))).not.toContain('DENSE_RANK')
+  })
+
   test('DB.window binds its arguments as parameters', () => {
     const { sql, params } = DB.from('orders')
       .select({

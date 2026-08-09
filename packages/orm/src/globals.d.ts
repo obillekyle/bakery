@@ -17,4 +17,6 @@ declare global {
   type DBOptionals = AppDBOptionals
 }
 
-export {}
+// No `export {}` needed: the `import type` above already makes this a module,
+// which is what `declare global` requires. Adding one as well is the reflex,
+// and it is what `noUselessEmptyExport` flags.

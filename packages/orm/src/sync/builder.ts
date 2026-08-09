@@ -90,7 +90,6 @@ export class SchemaBuilder {
   ): string {
     if (colName === '_view') return ''
 
-    const t = `'${cons.type}'`
     const p = cons.primary ?? false
     const a = cons.autoIncrement ?? false
     const n = p ? false : (cons.nullable ?? false)
@@ -295,7 +294,7 @@ ${body}`
       }
 
       for (const [colName, cons] of Object.entries(
-        cols as Record<string, SQLAdapter.ColumnConstraint>,
+        cols as Record<string, SyncTypes.ColumnConstraint>,
       )) {
         result += SchemaBuilder.formatColumnConstraint(
           colName,
@@ -357,7 +356,7 @@ ${body}`
       if (cols._view) continue
       let colsStr = ''
       for (const [colName, cons] of Object.entries(
-        cols as Record<string, SQLAdapter.ColumnConstraint>,
+        cols as Record<string, SyncTypes.ColumnConstraint>,
       )) {
         colsStr += SchemaBuilder.formatColumnConstraint(
           colName,

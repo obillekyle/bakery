@@ -2,13 +2,7 @@ import { Case } from '@bakery/core/utils'
 import { is, throws } from '@bakery/core/utils/common'
 import { quoteIdentifier } from './adapters/base'
 import { getActiveDb } from './connection'
-import type { ForeignKeyAction } from './sync/types'
 import type * as SyncTypes from './sync/types'
-
-export type OmitNever<T> = Pick<
-  T,
-  { [K in keyof T]: T[K] extends never ? never : K }[keyof T]
->
 
 export type TypeMap = {
   integer: number
@@ -19,10 +13,6 @@ export type TypeMap = {
 }
 
 export type DataTypes = keyof TypeMap
-export type Defs<T extends keyof TypeMap> =
-  | `(${string})`
-  | '%dateNow%'
-  | TypeMap[T]
 
 /**
  * A column, described by what it *is* rather than by how it is spelled.

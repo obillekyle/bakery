@@ -16,7 +16,7 @@ export namespace SyncPlan {
   export interface ColumnAdd {
     table: string
     column: string
-    def: SQLAdapter.ColumnConstraint
+    def: SyncTypes.ColumnConstraint
   }
   export interface ColumnRename {
     table: string
@@ -895,7 +895,7 @@ async function syncViewsAndTablesPhase(
       )
     } else {
       const colDefs = Object.entries(
-        cols as Record<string, SQLAdapter.ColumnConstraint>,
+        cols as Record<string, SyncTypes.ColumnConstraint>,
       )
         .filter(([name]) => !['_oldTable', '_transform'].includes(name))
         .map(

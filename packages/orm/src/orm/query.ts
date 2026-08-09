@@ -1,5 +1,3 @@
-/** biome-ignore-all lint/correctness/noUnusedPrivateClassMembers: secret access */
-/** biome-ignore-all lint/complexity/noBannedTypes: for types */
 import { Case } from '@bakery/core/utils'
 import { throws } from '@bakery/core/utils/common'
 import type { AppDBSchema as DBSchema } from '../schema-registry'
@@ -130,7 +128,16 @@ export namespace DB {
           ? Extract<keyof DBSchema[J] & string, string>
           : never)
 
-  export type AllTableColumns<S extends TableSchemas> = {
+  /**
+   * Every `table.column` of every table the app declared.
+   *
+   * Deliberately takes no type parameter, though it used to take an unused
+   * `S`. That read as "columns of the schema in scope" and is not what it
+   * means: the right-hand side of a join names a table you are *adding*, so
+   * it cannot already be in scope. The parameter was ignored in the body,
+   * so every call site got this answer anyway — it only misled the reader.
+   */
+  export type AllTableColumns = {
     [T in keyof DBSchema]: `${T & string}.${Extract<keyof DBSchema[T] & string, string>}`
   }[keyof DBSchema]
 
@@ -163,8 +170,8 @@ export namespace DB {
 
   // Defined in schema-util so `evalOperands` can use a real `instanceof`.
   export const SQLFunctionRef = schemaSQLFunctionRef
-  export type SQLFunctionRef<C extends string = string> = schemaSQLFunctionRef<C>
-
+  export type SQLFunctionRef<C extends string = string> =
+    schemaSQLFunctionRef<C>
 
   /**
    * `COUNT`, `SUM` and `AVG` also come in a `.distinct` form —
@@ -280,8 +287,10 @@ export namespace DB {
    * function, so they go through `DB.window(name, args, spec)` where the caller
    * says what they mean rather than through eleven near-identical helpers.
    */
-  const ranking = (fnName: string) => (spec: WindowSpec = {}): WindowRef =>
-    new WindowRef(fnName, windowSpec(spec))
+  const ranking =
+    (fnName: string) =>
+    (spec: WindowSpec = {}): WindowRef =>
+      new WindowRef(fnName, windowSpec(spec))
 
   export const rowNumber = ranking('ROW_NUMBER')
   export const rank = ranking('RANK')
@@ -429,7 +438,13 @@ export namespace DB {
   }
 
   function toCamelCaseKeys<T>(obj: T): T {
-    if (!obj || typeof obj !== 'object' || Array.isArray(obj) || obj instanceof Date) return obj
+    if (
+      !obj ||
+      typeof obj !== 'object' ||
+      Array.isArray(obj) ||
+      obj instanceof Date
+    )
+      return obj
     const res: Record<string, any> = {}
     for (const key of Object.keys(obj)) {
       const val = (obj as any)[key]
@@ -456,7 +471,10 @@ export namespace DB {
      * last operand: `orderBy`, `limit`, `offset`.
      */
     union<Q>(next: QBExecutable<Q>): QBSet<P> {
-      return new QBSet<P>([{ op: null, query: this }, { op: 'UNION', query: next }])
+      return new QBSet<P>([
+        { op: null, query: this },
+        { op: 'UNION', query: next },
+      ])
     }
 
     /** `UNION ALL` — as `union`, keeping duplicates. Cheaper: no dedupe pass. */
@@ -555,15 +573,9 @@ export namespace DB {
     C extends `${infer Table}.${infer _Col}` ? Table : C
 
   // Stage Interfaces for Method Ordering
-  export interface IQBTable<
-    S extends TableSchemas,
-    J extends string,
-    P = any,
-  > extends QBObject<P> {
-    join<
-      R extends AllTableColumns<S>,
-      A extends string | undefined = undefined,
-    >(
+  export interface IQBTable<S extends TableSchemas, J extends string, P = any>
+    extends QBObject<P> {
+    join<R extends AllTableColumns, A extends string | undefined = undefined>(
       leftCol: ColumnString<S, J>,
       rightCol: R,
       as?: A,
@@ -575,7 +587,7 @@ export namespace DB {
     >
 
     leftJoin<
-      R extends AllTableColumns<S>,
+      R extends AllTableColumns,
       A extends string | undefined = undefined,
     >(
       leftCol: ColumnString<S, J>,
@@ -588,7 +600,7 @@ export namespace DB {
     >
 
     rightJoin<
-      R extends AllTableColumns<S>,
+      R extends AllTableColumns,
       A extends string | undefined = undefined,
     >(
       leftCol: ColumnString<S, J>,
@@ -601,7 +613,7 @@ export namespace DB {
     >
 
     innerJoin<
-      R extends AllTableColumns<S>,
+      R extends AllTableColumns,
       A extends string | undefined = undefined,
     >(
       leftCol: ColumnString<S, J>,
@@ -619,7 +631,7 @@ export namespace DB {
      * cannot be expressed in this signature.
      */
     fullJoin<
-      R extends AllTableColumns<S>,
+      R extends AllTableColumns,
       A extends string | undefined = undefined,
     >(
       leftCol: ColumnString<S, J>,
@@ -641,9 +653,7 @@ export namespace DB {
     select<
       C extends SelectColumns<S, J>,
       P2 extends TakeSelectValues<S, C> = TakeSelectValues<S, C>,
-    >(
-      columns: C,
-    ): IQBSelect<S, J, P2>
+    >(columns: C): IQBSelect<S, J, P2>
     selectAll<A extends Extract<J, string>>(
       alias?: A,
     ): IQBSelect<
@@ -674,11 +684,8 @@ export namespace DB {
     ): IQBLimit<S, J, P>
   }
 
-  export interface IQBWhere<
-    S extends TableSchemas,
-    J extends string,
-    P = any,
-  > extends QBObject<P> {
+  export interface IQBWhere<S extends TableSchemas, J extends string, P = any>
+    extends QBObject<P> {
     and(
       column: WhereColumn<S, J>,
       valueOrRef?: WhereValue<ColumnString<S, J>>,
@@ -692,9 +699,7 @@ export namespace DB {
     select<
       C extends SelectColumns<S, J>,
       P2 extends TakeSelectValues<S, C> = TakeSelectValues<S, C>,
-    >(
-      columns: C,
-    ): IQBSelect<S, J, P2>
+    >(columns: C): IQBSelect<S, J, P2>
     selectAll<A extends Extract<J, string>>(
       alias?: A,
     ): IQBSelect<
@@ -719,17 +724,12 @@ export namespace DB {
     ): IQBLimit<S, J, P>
   }
 
-  export interface IQBGroupBy<
-    S extends TableSchemas,
-    J extends string,
-    P = any,
-  > extends QBObject<P> {
+  export interface IQBGroupBy<S extends TableSchemas, J extends string, P = any>
+    extends QBObject<P> {
     select<
       C extends SelectColumns<S, J>,
       P2 extends TakeSelectValues<S, C> = TakeSelectValues<S, C>,
-    >(
-      columns: C,
-    ): IQBSelect<S, J, P2>
+    >(columns: C): IQBSelect<S, J, P2>
     selectAll<A extends Extract<J, string>>(
       alias?: A,
     ): IQBSelect<
@@ -752,11 +752,8 @@ export namespace DB {
     distinct(): this
   }
 
-  export interface IQBHaving<
-    S extends TableSchemas,
-    J extends string,
-    P = any,
-  > extends QBObject<P> {
+  export interface IQBHaving<S extends TableSchemas, J extends string, P = any>
+    extends QBObject<P> {
     andHaving(
       column: WhereColumn<S, J>,
       valueOrRef?: WhereValue<ColumnString<S, J>>,
@@ -782,11 +779,8 @@ export namespace DB {
     ): IQBLimit<S, J, P>
   }
 
-  export interface IQBSelect<
-    S extends TableSchemas,
-    J extends string,
-    P = any,
-  > extends QBObject<P> {
+  export interface IQBSelect<S extends TableSchemas, J extends string, P = any>
+    extends QBObject<P> {
     /**
      * Grouping after selecting, which always worked at runtime — clauses are
      * assembled at `parse()`, so call order is irrelevant — and was simply
@@ -798,9 +792,7 @@ export namespace DB {
     select<
       C extends SelectColumns<S, J>,
       P2 extends TakeSelectValues<S, C> = TakeSelectValues<S, C>,
-    >(
-      columns: C,
-    ): IQBSelect<S, J, P & P2>
+    >(columns: C): IQBSelect<S, J, P & P2>
     selectAll<A extends Extract<J, string>>(
       alias?: A,
     ): IQBSelect<
@@ -848,11 +840,8 @@ export namespace DB {
     ): IQBLimit<S, J, P>
   }
 
-  export interface IQBOrderBy<
-    S extends TableSchemas,
-    J extends string,
-    P = any,
-  > extends QBObject<P> {
+  export interface IQBOrderBy<S extends TableSchemas, J extends string, P = any>
+    extends QBObject<P> {
     orderBy(
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
@@ -870,11 +859,8 @@ export namespace DB {
     ): IQBLimit<S, J, P>
   }
 
-  export interface IQBLimit<
-    S extends TableSchemas,
-    J extends string,
-    P = any,
-  > extends QBObject<P> {
+  export interface IQBLimit<S extends TableSchemas, J extends string, P = any>
+    extends QBObject<P> {
     /** `SELECT DISTINCT` — see the runtime method for the semantics. */
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
@@ -970,7 +956,10 @@ export namespace DB {
     }
 
     paginate(page: number, pageSize: number): this {
-      return this.limit(Math.max(1, pageSize), (Math.max(1, page) - 1) * Math.max(1, pageSize))
+      return this.limit(
+        Math.max(1, pageSize),
+        (Math.max(1, page) - 1) * Math.max(1, pageSize),
+      )
     }
 
     parse(): { sql: string; params: any[] } {
@@ -984,7 +973,11 @@ export namespace DB {
       for (let i = 0; i < this.branches.length; i++) {
         const { op, query } = this.branches[i]!
         if (op) {
-          if (op.endsWith(' ALL') && op !== 'UNION ALL' && !db?.supportsSetOperationAll) {
+          if (
+            op.endsWith(' ALL') &&
+            op !== 'UNION ALL' &&
+            !db?.supportsSetOperationAll
+          ) {
             throws(
               `${op} is not supported by this database. ` +
                 `Use ${op.replace(' ALL', '')} instead — it removes duplicates.`,
@@ -1089,10 +1082,10 @@ export namespace DB {
   }
 
   export class QB<
-    S extends TableSchemas = DBSchema,
-    J extends string = never,
-    P = any,
-  >
+      S extends TableSchemas = DBSchema,
+      J extends string = never,
+      P = any,
+    >
     extends QBObject<P>
     implements
       IQBTable<S, J, P>,
@@ -1401,7 +1394,8 @@ export namespace DB {
       // Coerced here rather than at parse time so a bad value fails at the
       // call site instead of emitting `LIMIT NaN`.
       this._limit = toRowCount(count, 'limit')
-      this._offset = offset === undefined ? undefined : toRowCount(offset, 'offset')
+      this._offset =
+        offset === undefined ? undefined : toRowCount(offset, 'offset')
       return this as any
     }
 
@@ -1507,13 +1501,9 @@ export namespace DB {
             params.push(...parsedRaw.params)
           } else if (typeof colRef === 'string' && colRef.includes('.')) {
             const [tbl, colName] = colRef.split('.')
-            selectParts.push(
-              `${qId(tbl!)}.${qId(colName!)} AS ${qRaw(alias)}`,
-            )
+            selectParts.push(`${qId(tbl!)}.${qId(colName!)} AS ${qRaw(alias)}`)
           } else {
-            selectParts.push(
-              `${qId(colRef)} AS ${qRaw(alias)}`,
-            )
+            selectParts.push(`${qId(colRef)} AS ${qRaw(alias)}`)
           }
         }
       }
