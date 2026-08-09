@@ -4,6 +4,27 @@ There are two executables. `@bakery/cli` owns the `bakery` bin and runs the
 server; `@bakery/orm` owns schema sync. They have separate flag sets and do not
 share a parser.
 
+## The ORM is optional
+
+`@bakery/orm` is an **optional peer dependency** of the CLI, not a dependency.
+An app scaffolded with `bun create bakery --no-orm` does not install it, and the
+server runs without one: no connection is opened, no `bakery/` directory is
+created, and nothing is logged about a database the app never asked for.
+
+The distinction that matters is between *absent* and *broken*. Absence is
+checked once, by asking the resolver whether `@bakery/orm` is installed at all.
+Everything downstream of that is unchanged — **if the ORM is present and
+`initDB()` fails, the boot still dies with exit 1**, because at that point the
+app does have a database and it does not work. A misconfigured `DB_URL` is not
+quietly reinterpreted as "running without a database".
+
+`--sync` is the exception: it is an explicit request to sync a database, so
+with no ORM installed it fails with exit 1 and tells you to add the package,
+rather than succeeding at nothing.
+
+Adding it later is `bun add @bakery/orm` — nothing in the CLI needs
+reconfiguring, since the presence check is what drives all of this.
+
 ```bash
 bunx bakery --dev
 ```
@@ -197,7 +218,7 @@ bunx bakery --threads 4
 | Code | Meaning |
 | --- | --- |
 | 0 | clean shutdown |
-| 1 | fatal startup error — config, database, server setup, or a refused sync |
+| 1 | fatal startup error — config, database, server setup, a refused sync, or `--sync` with no `@bakery/orm` installed |
 | 42 | **worker asks the supervisor to restart it.** Not an error |
 | 130 | interrupted; the supervisor logs the shutdown and exits 0 |
 

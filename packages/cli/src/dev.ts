@@ -1,5 +1,6 @@
 import '@bakery/core/core/init'
 import { errorMsg, log, serveLog } from '@bakery/core/logger'
+import { hasORM } from './orm'
 
 log({
   by: 'process',
@@ -93,56 +94,61 @@ async function computeSchemaHash(
   return hasher.digest('hex')
 }
 
-try {
-  const { Bakery } = await import('@bakery/core')
-  const { classifySchemaSync } = await import('@bakery/core/compiler')
-  const { schemaFromConfig } = await import('@bakery/orm/sync/load')
-  const { Try } = await import('@bakery/core/utils')
+// The entire block is schema sync, so with no ORM there is nothing here to do.
+// Silently: a dev boot of an app that never had a database should not report
+// the absence of one on every reload.
+if (hasORM()) {
+  try {
+    const { Bakery } = await import('@bakery/core')
+    const { classifySchemaSync } = await import('@bakery/core/compiler')
+    const { schemaFromConfig } = await import('@bakery/orm/sync/load')
+    const { Try } = await import('@bakery/core/utils')
 
-  const hashFile = `${Bakery.cacheDir}/schema-sync.hash`
-  const currentHash = await computeSchemaHash(schemaFromConfig(config))
-  const [, stored] = await Try.catch(Bun.file(hashFile).text())
+    const hashFile = `${Bakery.cacheDir}/schema-sync.hash`
+    const currentHash = await computeSchemaHash(schemaFromConfig(config))
+    const [, stored] = await Try.catch(Bun.file(hashFile).text())
 
-  const decision = classifySchemaSync({
-    force: process.argv.includes('--sync') || process.argv.includes('-s'),
-    currentHash,
-    storedHash: stored?.trim() || null,
-    // Only meaningful for the default SQLite target; with a DB_URL there is
-    // no local file to stat, and the hash (which covers DB_URL) plus `--sync`
-    // are the levers for an externally reset database.
-    dbMissing:
-      !process.env.DB_URL &&
-      !process.env.DATABASE_URL &&
-      !(await Bun.file(`${Bakery.dataDir}/server.db`).exists()),
-  })
+    const decision = classifySchemaSync({
+      force: process.argv.includes('--sync') || process.argv.includes('-s'),
+      currentHash,
+      storedHash: stored?.trim() || null,
+      // Only meaningful for the default SQLite target; with a DB_URL there is
+      // no local file to stat, and the hash (which covers DB_URL) plus `--sync`
+      // are the levers for an externally reset database.
+      dbMissing:
+        !process.env.DB_URL &&
+        !process.env.DATABASE_URL &&
+        !(await Bun.file(`${Bakery.dataDir}/server.db`).exists()),
+    })
 
-  if (decision === 'skip') {
-    serveLog.SCHEMA_SYNC_SKIP()
-    // Only on the skip path. When a sync runs it reports drift itself, from the
-    // plan it just built; here nothing else would ever look. Measured at 2.7ms
-    // median against apps/example (4 tables) — it is one introspection pass, so
-    // it grows with table count, which is why it is not on the path that is
-    // about to introspect anyway.
-    const { initDB, connection } = await import('@bakery/orm/connection')
-    const { detectDrift } = await import('@bakery/orm/sync/ledger')
-    await initDB()
-    const drift = await detectDrift(connection)
-    if (drift) serveLog.SCHEMA_DRIFT({ reason: drift.reason })
-  } else {
-    const { SyncService } = await import('@bakery/orm/sync')
-    await SyncService.run()
-    // Recorded only after run() resolves: a failed or aborted sync must leave
-    // the previous hash (or none) behind so the next boot re-syncs.
-    if (currentHash) {
-      const [writeError] = await Try.catch(Bun.write(hashFile, currentHash))
-      // A failed record is tolerated silently: its only consequence is that
-      // the next boot syncs again, which is the safe direction.
-      void writeError
+    if (decision === 'skip') {
+      serveLog.SCHEMA_SYNC_SKIP()
+      // Only on the skip path. When a sync runs it reports drift itself, from
+      // the plan it just built; here nothing else would ever look. Measured at
+      // 2.7ms median against apps/example (4 tables) — it is one introspection
+      // pass, so it grows with table count, which is why it is not on the path
+      // that is about to introspect anyway.
+      const { initDB, connection } = await import('@bakery/orm/connection')
+      const { detectDrift } = await import('@bakery/orm/sync/ledger')
+      await initDB()
+      const drift = await detectDrift(connection)
+      if (drift) serveLog.SCHEMA_DRIFT({ reason: drift.reason })
+    } else {
+      const { SyncService } = await import('@bakery/orm/sync')
+      await SyncService.run()
+      // Recorded only after run() resolves: a failed or aborted sync must leave
+      // the previous hash (or none) behind so the next boot re-syncs.
+      if (currentHash) {
+        const [writeError] = await Try.catch(Bun.write(hashFile, currentHash))
+        // A failed record is tolerated silently: its only consequence is that
+        // the next boot syncs again, which is the safe direction.
+        void writeError
+      }
     }
+  } catch (error: any) {
+    serveLog.UNHANDLED_ERR({ error: `Startup failed: ${errorMsg(error)}` })
+    process.exit(1)
   }
-} catch (error: any) {
-  serveLog.UNHANDLED_ERR({ error: `Startup failed: ${errorMsg(error)}` })
-  process.exit(1)
 }
 
 await import('./worker')

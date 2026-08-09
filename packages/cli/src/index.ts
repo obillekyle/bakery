@@ -35,6 +35,16 @@ if (
   !isDevWorker &&
   !isThreadWorker
 ) {
+  // The one place absence is an *error* rather than a skip. Everywhere else the
+  // ORM is missing because the app never wanted one; here the user typed
+  // `--sync`, which is a request to sync a database, and quietly doing nothing
+  // would look like it worked.
+  const { hasORM, ORM_MISSING } = await import('./orm')
+  if (!hasORM()) {
+    const { serveLog } = await import('@bakery/core/logger')
+    serveLog.UNHANDLED_ERR({ error: `--sync: ${ORM_MISSING}` })
+    process.exit(1)
+  }
   const { SyncService } = await import('@bakery/orm/sync')
   await SyncService.run()
 }

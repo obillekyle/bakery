@@ -55,6 +55,11 @@ than what changed.
   `--yes`), so it drives from a Dockerfile as well as from a terminal. The
   prompts are written from scratch rather than pulled in, for the same reason
   the package has no dependencies at all.
+- **The ORM is optional.** `@bakery/orm` is an optional peer of `@bakery/cli`,
+  so an app scaffolded without a database does not install one. Absence and
+  breakage stay distinct: with no ORM the server simply runs without one, but a
+  *present* ORM that fails to initialise is still a fatal boot error, so a
+  misconfigured `DB_URL` cannot be silently reinterpreted as "no database".
 - **ORM**: three adapters behind one abstract class, a typed query builder,
   schema sync with a migration ledger, `db:rollback` and `db:history`, cursor
   pagination, composite foreign keys, views, set operations and window

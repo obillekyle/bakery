@@ -1,6 +1,7 @@
 import { Bakery } from '@bakery/core/core/bakery'
 import { errorMsg, log, serveLog } from '@bakery/core/logger'
 import { Try } from '@bakery/core/utils/common'
+import { hasORM } from './orm'
 import { FLUSH_TIMEOUT_MS } from './threads'
 
 let running: Promise<void> | null = null
@@ -33,6 +34,8 @@ const defaultTeardown: ShutdownTeardown = {
     closeCacheDb()
   },
   closeDatabase: async () => {
+    // Nothing was ever opened, so there is nothing to close.
+    if (!hasORM()) return
     const { closeDB } = await import('@bakery/orm/connection')
     await closeDB()
   },

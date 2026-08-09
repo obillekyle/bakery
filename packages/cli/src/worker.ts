@@ -15,6 +15,7 @@ import { runStartupBanner, setupServer } from '@bakery/core/startup'
 import { deferredValue, is, Try } from '@bakery/core/utils/common'
 import { getClientIp } from '@bakery/core/utils/http'
 import { COUNTER_SLOTS } from '@bakery/core/utils/shared-pool'
+import { hasORM } from './orm'
 import {
   rateLimitSlot,
   retryAfterSeconds,
@@ -69,14 +70,20 @@ try {
   process.exit(1)
 }
 
-try {
-  const { initDB } = await import('@bakery/orm/connection')
-  await initDB()
-} catch (error: any) {
-  serveLog.UNHANDLED_ERR({
-    error: `Database initialization failed: ${errorMsg(error)}`,
-  })
-  process.exit(1)
+// Skipped entirely when the ORM is not installed — the app has no database and
+// asked for none. Note what is *inside* the guard rather than outside it: once
+// the ORM is present, a failure to initialise is still fatal, because at that
+// point the app does have a database and it does not work.
+if (hasORM()) {
+  try {
+    const { initDB } = await import('@bakery/orm/connection')
+    await initDB()
+  } catch (error: any) {
+    serveLog.UNHANDLED_ERR({
+      error: `Database initialization failed: ${errorMsg(error)}`,
+    })
+    process.exit(1)
+  }
 }
 
 try {

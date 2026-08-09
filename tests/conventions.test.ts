@@ -294,6 +294,32 @@ describe('conventions (CLAUDE.md)', () => {
     expect(offenders).toEqual([])
   })
 
+  test('the CLI never statically imports the ORM', () => {
+    // `@bakery/orm` is an **optional peer** of `@bakery/cli`: an app scaffolded
+    // with `--no-orm` does not install it, and the CLI has to boot anyway.
+    //
+    // That works only because every reach for it is an `await import()` behind
+    // `hasORM()`. A single static `import … from '@bakery/orm/…'` at the top of
+    // any CLI module puts it back in the module graph and the import is
+    // evaluated before a line of guard code runs — so a no-database app dies at
+    // startup with ERR_MODULE_NOT_FOUND, and nothing in this repo would notice,
+    // because in-repo the workspace symlink always resolves it.
+    //
+    // Verified end to end once (packed tarballs, extracted outside the repo,
+    // booted with and without orm present). This is what keeps it true.
+    const offenders = find(
+      packageSources.filter(
+        f => f.path.startsWith('packages/cli/') && !isTest(f),
+      ),
+      // A static import only: `from '@bakery/orm…'` not preceded by `import(`.
+      // `await import('@bakery/orm/x')` writes the specifier inside parens and
+      // has no `from`, so it does not match.
+      /\bfrom\s*['"]@bakery\/orm/,
+    )
+
+    expect(offenders).toEqual([])
+  })
+
   test('one Bun.serve, and it lives in the CLI worker', () => {
     const owners = find(
       packageSources.filter(f => !isTest(f)),
@@ -559,6 +585,24 @@ describe('release versions', () => {
     expect({ versions: versions.length, seen }).toEqual({
       versions: 1,
       seen,
+    })
+  })
+
+  test('the CLI keeps the ORM an optional peer', async () => {
+    // Stated as a test because the natural edit — "the CLI uses orm, so it
+    // should depend on orm" — is wrong here and looks right. A hard dependency
+    // makes `create-bakery --no-orm` a lie: the app declares no database and
+    // installs one anyway, along with its adapters.
+    const json = await Bun.file(`${ROOT}/packages/cli/package.json`).json()
+
+    expect({
+      dependency: json.dependencies?.['@bakery/orm'] ?? null,
+      peer: json.peerDependencies?.['@bakery/orm'] ?? null,
+      optional: json.peerDependenciesMeta?.['@bakery/orm']?.optional ?? null,
+    }).toEqual({
+      dependency: null,
+      peer: 'workspace:^',
+      optional: true,
     })
   })
 

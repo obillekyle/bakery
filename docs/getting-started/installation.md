@@ -21,6 +21,11 @@ is no Node fallback for any of them.
 Nothing else. `@bakery/core` has **no runtime dependencies**; `@bakery/orm` and
 `@bakery/cli` depend only on core.
 
+`@bakery/orm` is an **optional peer** of the CLI rather than a dependency, so an
+app that does not want a database does not install one — see
+[the CLI reference](../reference/cli.md#the-orm-is-optional) for what the server
+does without it.
+
 ## Bakery is not on npm yet
 
 There is no `bun add bakery`, and **`bun create bakery` does not work yet** —
@@ -57,7 +62,8 @@ bun create bakery my-app --yes          # defaults, no questions
 `--yes` and a non-interactive shell take the same defaults — the ORM in, no
 plugins — which is exactly what the command produced before it learned to ask,
 so no existing invocation changed. Without the ORM there is no `orm/` and no
-`db:sync`; the example API route keeps its posts in memory instead.
+`db:sync`; the example API route keeps its posts in memory instead, and
+`@bakery/orm` is not installed at all — the CLI treats it as optional.
 
 It emits real `^`-ranged dependencies on the published package names, so the
 app it writes only installs once the first publish lands. `--no-install` is

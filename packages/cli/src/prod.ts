@@ -1,5 +1,6 @@
 import '@bakery/core/core/init'
 import { errorMsg, log, serveLog } from '@bakery/core/logger'
+import { hasORM } from './orm'
 
 log({
   by: 'process',
@@ -25,14 +26,17 @@ try {
   process.exit(1)
 }
 
-try {
-  const { initDB } = await import('@bakery/orm/connection')
-  await initDB()
-} catch (error: any) {
-  serveLog.UNHANDLED_ERR({
-    error: `Database initialization failed: ${errorMsg(error)}`,
-  })
-  process.exit(1)
+// See the same guard in worker.ts: absent is fine, present-and-broken is fatal.
+if (hasORM()) {
+  try {
+    const { initDB } = await import('@bakery/orm/connection')
+    await initDB()
+  } catch (error: any) {
+    serveLog.UNHANDLED_ERR({
+      error: `Database initialization failed: ${errorMsg(error)}`,
+    })
+    process.exit(1)
+  }
 }
 
 try {
