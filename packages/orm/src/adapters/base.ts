@@ -197,8 +197,8 @@ export function pagedIterate(
   chunkSize: number = DEFAULT_STREAM_CHUNK,
 ): SQLAdapter.Executor['iterate'] {
   return async function* iterate(sqlText: string, params: unknown[] = []) {
-    const windowed =
-      `SELECT * FROM (${sqlText}) AS bakery_stream` + ' LIMIT ? OFFSET ?'
+    const derived = `(${sqlText}) AS bakery_stream`
+    const windowed = `SELECT * FROM ${derived} LIMIT ? OFFSET ?`
     for (let offset = 0; ; offset += chunkSize) {
       const rows = await all(windowed, [...params, chunkSize, offset])
       for (const row of rows) yield row

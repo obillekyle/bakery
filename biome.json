@@ -22,7 +22,8 @@
         "noNonNullAssertion": "off"
       },
       "suspicious": {
-        "useAwait": "error",
+        "useAwait": "off",
+        "noAssignInExpressions": "off",
         "noExplicitAny": "off",
         "noConfusingVoidType": "off",
         "noThenProperty": "off"

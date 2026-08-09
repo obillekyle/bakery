@@ -44,9 +44,11 @@ import type { MapOf } from '@bakery/core/types'
 //
 // Biome's `noBannedTypes` proposed exactly that rewrite and called it a safe
 // fix; the 2026-08-09 sweep applied it and `bun run typecheck` was the only
-// thing that caught it. The rule is off repo-wide now — it had no true
-// positives here — so the guard is the compiler: change this line and
-// `apps/starter` fails to typecheck.
+// thing that caught it. That rule is off repo-wide now — it had no true
+// positives here — but `noEmptyInterface` reaches the same construct and
+// offers the same fix, so the suppression stays. The compiler is the real
+// guard: change this line and `apps/starter` fails to typecheck.
+// biome-ignore lint/suspicious/noEmptyInterface: must stay mergeable — above
 export interface SchemaRegistry {}
 
 type Registered = SchemaRegistry extends { schema: infer S } ? S : never
