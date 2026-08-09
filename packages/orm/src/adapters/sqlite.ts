@@ -207,8 +207,6 @@ export class SQLiteAdapter extends SQLAdapter {
         ),
       }
     },
-    (sqlText: string, params: unknown[] = []) =>
-      this.sql.unsafe(sqlText, params) as any,
     this.driver,
   )
 

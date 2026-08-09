@@ -357,7 +357,7 @@ identifiers.
 | `.value<T>()` / `.scalar<T>()` | the first column of the first row |
 | `.column<T>()` | the first column of every row |
 | `.exists()` | `boolean`, via `SELECT 1 FROM (…) LIMIT 1` |
-| `.iterable()` | an async iterable, streaming rows |
+| `.iterable()` | an async iterable, a chunk at a time |
 | `.parse()` | `{ sql, params }` — builds nothing, runs nothing |
 
 ```ts
@@ -384,9 +384,29 @@ Use `.iterable()` for result sets you do not want in memory at once:
 import DB from '@bakery/orm'
 
 export async function eachPost(fn: (row: unknown) => void) {
-  for await (const row of DB.from('posts').iterable()) fn(row)
+  for await (const row of DB.from('posts').orderBy('posts.id').iterable()) fn(row)
 }
 ```
+
+**It pages; it is not a server-side cursor.** Bun's `SQL` has no streaming API
+at all — a query is a thenable, and every method on it resolves the whole
+result — so the ORM wraps your statement in a derived table and walks it 500
+rows at a time:
+
+```sql
+SELECT * FROM (<your SELECT>) AS bakery_stream LIMIT ? OFFSET ?
+```
+
+Two consequences worth knowing before you use it:
+
+- **Memory is bounded by the chunk, not by the result.** That is the reason to
+  reach for it, and it holds.
+- **Chunk boundaries are only stable under a total order.** The statement is
+  re-executed per chunk, so rows inserted or deleted while you walk can be seen
+  twice or missed — the same hazard `LIMIT`/`OFFSET` paging has. Add an
+  `ORDER BY` on a unique column, as above. If the table is being written to
+  concurrently and you cannot tolerate a skip, [`seek()`](#cursor-paging-with-seek)
+  is the construct that does not have this property.
 
 ## Reusing a builder
 

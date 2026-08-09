@@ -192,3 +192,87 @@ describe('executable round-trip', () => {
     },
   )
 })
+
+/**
+ * `RunResult.changes` means the same thing on every dialect.
+ *
+ * It did not. Two different bugs, one symptom, and both survived because the
+ * only adapter with a real local database was the one that happened to be
+ * right:
+ *
+ * - **MySQL** put the count in `affectedRows` and left `count` at 0, and the
+ *   `??` chain read `count` first — zero is not nullish, so it never fell
+ *   through. Every write reported 0.
+ * - **Postgres** guarded `count` behind `!Array.isArray(rows)`, which is never
+ *   true (a write returns an empty array), so `changes` was `rows.length`.
+ *   `UPDATE` and `DELETE` reported 0; `INSERT` was right only because the
+ *   adapter appends `RETURNING *`.
+ *
+ * Asserted as a table rather than per-dialect, so a dialect that starts
+ * disagreeing has to disagree visibly.
+ */
+describe('changes counts rows on every dialect', () => {
+  const cleanup: Array<() => Promise<unknown> | unknown> = []
+  afterAll(async () => {
+    for (const fn of cleanup) await fn()
+  })
+
+  /** See adapters/nested-tx.test.ts — Bun's MySQL driver needs a pending timer. */
+  function alive<T>(p: T | Promise<T>): Promise<T> {
+    const t = setTimeout(() => {}, 30_000)
+    return Promise.resolve(p).finally(() => clearTimeout(t))
+  }
+
+  const DIALECTS: [string, boolean, () => any][] = [
+    ['SQLite', false, () => new SQLiteAdapter(':memory:')],
+    ['MySQL', !MYSQL_URL, () => new MySQLAdapter(MYSQL_URL)],
+    ['Postgres', !PGSQL_URL, () => new PGAdapter(PGSQL_URL)],
+  ]
+
+  for (const [name, skip, open] of DIALECTS) {
+    test.skipIf(skip)(`${name}: insert, update and delete all count`, async () => {
+      const db = open()
+      const t = `bakery_chg_${process.pid}`
+      const run = (s: string, ...p: unknown[]) => alive(db.query(s).run(...p))
+      cleanup.push(async () => {
+        await run(`DROP TABLE IF EXISTS ${t}`)
+        await db.close?.()
+      })
+
+      await run(`DROP TABLE IF EXISTS ${t}`)
+      await run(
+        `CREATE TABLE ${t} (${db.quote('id')} INT NOT NULL,` +
+          ` ${db.quote('n')} VARCHAR(16))`,
+      )
+
+      const one = await run(`INSERT INTO ${t} VALUES (?, ?)`, 1, 'a')
+      const three = await run(
+        `INSERT INTO ${t} VALUES (?, ?), (?, ?), (?, ?)`,
+        2, 'b', 3, 'c', 4, 'd',
+      )
+      const updated = await run(
+        `UPDATE ${t} SET ${db.quote('n')} = ? WHERE ${db.quote('id')} > ?`,
+        'z',
+        1,
+      )
+      const deleted = await run(
+        `DELETE FROM ${t} WHERE ${db.quote('id')} > ?`,
+        2,
+      )
+
+      expect({
+        dialect: name,
+        insert1: one.changes,
+        insert3: three.changes,
+        update3: updated.changes,
+        delete2: deleted.changes,
+      }).toEqual({
+        dialect: name,
+        insert1: 1,
+        insert3: 3,
+        update3: 3,
+        delete2: 2,
+      })
+    })
+  }
+})

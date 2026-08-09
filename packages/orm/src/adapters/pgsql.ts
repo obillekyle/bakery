@@ -140,10 +140,18 @@ export class PGAdapter extends SQLAdapter {
         PGAdapter.normalizePostgresSQL(sql, params),
         params,
       )) as any
+      // `count` is authoritative on Postgres for every command — it is the
+      // row count from the command tag — so it is read first and `rows.length`
+      // is only a fallback.
+      //
+      // It used to be the other way round, behind an `Array.isArray` check
+      // that was always true: Bun returns an *array* for a write too, just an
+      // empty one, so the `count` branch was unreachable and `changes` was
+      // `rows.length`. `UPDATE` and `DELETE` return no rows, so both reported
+      // 0. `INSERT` was right only by accident — the `RETURNING *` appended
+      // above happens to make `rows.length` the number inserted.
       const changes = Number(
-        !Array.isArray(rows)
-          ? (rows?.count ?? rows?.affectedRows ?? 0)
-          : rows.length,
+        rows?.count ?? (Array.isArray(rows) ? rows.length : 0),
       )
       let lastInsertRowid = null
 
@@ -158,11 +166,6 @@ export class PGAdapter extends SQLAdapter {
       }
       return { lastInsertRowid, changes }
     },
-    (sqlText: string, params: unknown[] = []) =>
-      this.sql.unsafe(
-        PGAdapter.normalizePostgresSQL(sqlText, params),
-        params,
-      ) as any,
     this.driver,
   )
 
