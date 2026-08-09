@@ -3,7 +3,20 @@ import { rmSync } from 'node:fs'
 import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { isScaffoldable, ownVersion, parseArgs, writeTemplate } from './index'
+import {
+  isScaffoldable,
+  ownVersion,
+  parseArgs,
+  resolveChoices,
+  writeTemplate,
+} from './index'
+import {
+  applyConfirmKey,
+  applyKey,
+  type KeyResult,
+  type MultiselectState,
+  renderMultiselect,
+} from './prompt'
 import { dependencyRange, isValidAppName, templateFiles } from './template'
 
 const dirs: string[] = []
@@ -371,5 +384,328 @@ describe('the template only imports enumerated exports', () => {
     // and this one is easy to get wrong because it carries a file extension.
     const entry = `.${tsconfig.extends.slice('@bakery/core'.length)}`
     expect(core.has(entry)).toBe(true)
+  })
+})
+
+/**
+ * The ORM and the plugins are choices now, and the flags are what make that
+ * choice reproducible — `bun create` runs in scripts and Dockerfiles as often
+ * as it runs for a person, and neither of those can answer a prompt.
+ */
+describe('--orm / --no-orm / --plugins', () => {
+  const opts = (argv: string[]) => {
+    const parsed = parseArgs(argv)
+    if (!parsed.ok) throw new Error(parsed.message)
+    return parsed.options
+  }
+
+  test('unspecified is null, not a default', () => {
+    // The distinction is the whole design: null means "ask", and a default
+    // baked in at parse time would make the prompt unreachable.
+    const o = opts(['app'])
+    expect({ orm: o.orm, plugins: o.plugins }).toEqual({
+      orm: null,
+      plugins: null,
+    })
+  })
+
+  test('--orm and --no-orm both state an answer', () => {
+    expect(opts(['app', '--orm']).orm).toBe(true)
+    expect(opts(['app', '--no-orm']).orm).toBe(false)
+  })
+
+  test('--plugins takes a list, in either syntax', () => {
+    expect(opts(['app', '--plugins', 'vue,analytics']).plugins).toEqual([
+      'vue',
+      'analytics',
+    ])
+    expect(opts(['app', '--plugins=dashboard']).plugins).toEqual(['dashboard'])
+  })
+
+  test('order and duplicates are normalised', () => {
+    // So two people who typed the same set in a different order get identical
+    // apps, and a diff between them is empty.
+    expect(opts(['app', '--plugins', 'dashboard,vue']).plugins).toEqual([
+      'vue',
+      'dashboard',
+    ])
+    expect(opts(['app', '--plugins', 'vue,vue']).plugins).toEqual(['vue'])
+  })
+
+  test('--plugins none is an explicit empty set', () => {
+    expect(opts(['app', '--plugins', 'none']).plugins).toEqual([])
+  })
+
+  test('an unknown plugin is refused by name, and lists the real ones', () => {
+    const parsed = parseArgs(['app', '--plugins', 'vue,redis'])
+    expect(parsed.ok).toBe(false)
+    if (parsed.ok) throw new Error('expected failure')
+    expect(parsed.message).toContain('redis')
+    expect(parsed.message).toContain('dashboard')
+  })
+
+  test('an empty --plugins= is a mistake, not an empty set', () => {
+    expect(parseArgs(['app', '--plugins=']).ok).toBe(false)
+  })
+
+  test('--yes is carried through', () => {
+    expect(opts(['app', '--yes']).yes).toBe(true)
+    expect(opts(['app', '-y']).yes).toBe(true)
+    expect(opts(['app']).yes).toBe(false)
+  })
+})
+
+describe('resolveChoices', () => {
+  const base = { dir: '/tmp/x', name: 'x', install: true, yes: false }
+
+  test('a non-interactive run takes the defaults rather than hanging', async () => {
+    // `bun test` is not a TTY, which is the same situation as CI and a pipe. A
+    // scaffolder that blocks on a prompt there cannot be scripted.
+    const choices = await resolveChoices({ ...base, orm: null, plugins: null })
+    expect(choices).toEqual({ orm: true, plugins: [] })
+  })
+
+  test('flags win without asking', async () => {
+    const choices = await resolveChoices({
+      ...base,
+      orm: false,
+      plugins: ['vue'],
+    })
+    expect(choices).toEqual({ orm: false, plugins: ['vue'] })
+  })
+})
+
+describe('templateFiles with choices', () => {
+  const range = '^4.0.0'
+  const paths = (files: { path: string }[]) => files.map(f => f.path).sort()
+  const pkgOf = (files: { path: string; contents: string }[]) =>
+    JSON.parse(files.find(f => f.path === 'package.json')!.contents)
+  const fileOf = (files: { path: string; contents: string }[], p: string) =>
+    files.find(f => f.path === p)?.contents ?? ''
+
+  test('the default is what it has always been: ORM in, no plugins', () => {
+    const files = templateFiles('app', range)
+    expect(paths(files)).toContain('orm/tables.ts')
+    expect(pkgOf(files).dependencies['@bakery/orm']).toBe(range)
+    expect(pkgOf(files).scripts['db:sync']).toBeDefined()
+    expect(fileOf(files, 'server.config.ts')).not.toContain('plugins:')
+  })
+
+  test('--no-orm drops the files, the dependency and the script', () => {
+    const files = templateFiles('app', range, { orm: false, plugins: [] })
+    expect(paths(files).filter(p => p.startsWith('orm/'))).toEqual([])
+    expect(paths(files)).not.toContain('scripts/db-sync.ts')
+    expect(pkgOf(files).dependencies['@bakery/orm']).toBeUndefined()
+    expect(pkgOf(files).scripts['db:sync']).toBeUndefined()
+    // …and the tsconfig stops including directories that no longer exist.
+    expect(fileOf(files, 'tsconfig.json')).not.toContain('orm/**/*.ts')
+  })
+
+  test('--no-orm still ships a working API route', () => {
+    // The route is the thing most likely to be left importing a package that is
+    // no longer a dependency — which installs fine and fails at first request.
+    const files = templateFiles('app', range, { orm: false, plugins: [] })
+    const route = fileOf(files, 'src/api/notes.ts')
+    // An *import* of it, not a mention: the comment in that file points at
+    // `@bakery/orm` as the thing to add later, which is the whole point of
+    // the comment.
+    expect(route).not.toContain("from '@bakery/orm'")
+    expect(route).toContain('defineRoute')
+    // The client script is shared, so the shape it reads has to survive.
+    expect(route).toContain('response.json.success')
+  })
+
+  test('no generated file imports a package that is not a dependency', () => {
+    for (const orm of [true, false]) {
+      const files = templateFiles('app', range, { orm, plugins: [] })
+      const declared = Object.keys(pkgOf(files).dependencies)
+      const body = files
+        .filter(f => f.path !== 'package.json' && f.path !== 'README.md')
+        .map(f => f.contents)
+        .join('\n')
+      for (const spec of body.matchAll(/from '(@bakery\/[^']+)'/g)) {
+        const pkg = spec[1]!.split('/').slice(0, 2).join('/')
+        expect({ orm, pkg, declared: declared.includes(pkg) }).toEqual({
+          orm,
+          pkg,
+          declared: true,
+        })
+      }
+    }
+  })
+
+  test('a plugin adds its package and registers it', () => {
+    const files = templateFiles('app', range, {
+      orm: true,
+      plugins: ['analytics'],
+    })
+    expect(pkgOf(files).dependencies['@bakery/plugin-analytics']).toBe(range)
+    const config = fileOf(files, 'server.config.ts')
+    expect(config).toContain(
+      "import analyticsPlugin from '@bakery/plugin-analytics'",
+    )
+    expect(config).toContain('analyticsPlugin(),')
+  })
+
+  test('vue brings its peers, or SFCs fail after a clean install', () => {
+    const files = templateFiles('app', range, { orm: true, plugins: ['vue'] })
+    const deps = pkgOf(files).dependencies
+    expect(deps.vue).toBe('^3.5.0')
+    expect(deps['@vue/compiler-sfc']).toBe('^3.5.0')
+  })
+
+  test('the dashboard is scaffolded without an authorize predicate', () => {
+    // Omitted, it is loopback-only in dev and denied in production. A generated
+    // app must not be born with an open console — apps/example passes
+    // `() => true` because it is a local demo, and copying that here would ship
+    // every scaffolded app with the console open to anyone.
+    const files = templateFiles('app', range, {
+      orm: true,
+      plugins: ['dashboard'],
+    })
+    const config = fileOf(files, 'server.config.ts')
+    expect(config).toContain('dashboardPlugin(),')
+    expect(config).not.toContain('authorize: () => true')
+  })
+
+  test('dependencies are sorted, so the file does not churn', () => {
+    const files = templateFiles('app', range, {
+      orm: true,
+      plugins: ['dashboard', 'vue'],
+    })
+    const keys = Object.keys(pkgOf(files).dependencies)
+    expect(keys).toEqual([...keys].sort())
+  })
+})
+
+/**
+ * The prompt's state machine, tested without a terminal.
+ *
+ * This is why the key handling is a pure function: raw-mode stdin cannot be
+ * driven from `bun test`, and a multiselect whose arrow keys were never
+ * exercised is one that gets found broken by the first person to use it.
+ */
+describe('multiselect key handling', () => {
+  const CHOICES = [
+    { id: 'vue', label: 'vue' },
+    { id: 'analytics', label: 'analytics' },
+    { id: 'dashboard', label: 'dashboard' },
+  ]
+  const fresh = (): MultiselectState => ({
+    choices: CHOICES,
+    cursor: 0,
+    selected: new Set<string>(),
+  })
+  const press = (state: MultiselectState, ...keys: string[]) => {
+    let result: KeyResult = { kind: 'update', state }
+    for (const key of keys) {
+      if (result.kind === 'cancel') return result
+      result = applyKey(result.state, key)
+    }
+    return result
+  }
+  const DOWN = '\x1b[B'
+  const UP = '\x1b[A'
+
+  test('space toggles the item under the cursor', () => {
+    const r = press(fresh(), ' ')
+    if (r.kind === 'cancel') throw new Error('cancelled')
+    expect([...r.state.selected]).toEqual(['vue'])
+  })
+
+  test('space again deselects it', () => {
+    const r = press(fresh(), ' ', ' ')
+    if (r.kind === 'cancel') throw new Error('cancelled')
+    expect([...r.state.selected]).toEqual([])
+  })
+
+  test('the cursor moves and wraps in both directions', () => {
+    const down = press(fresh(), DOWN, DOWN, DOWN)
+    if (down.kind === 'cancel') throw new Error('cancelled')
+    expect(down.state.cursor).toBe(0)
+
+    const up = press(fresh(), UP)
+    if (up.kind === 'cancel') throw new Error('cancelled')
+    expect(up.state.cursor).toBe(2)
+  })
+
+  test('a selects everything, and again clears it', () => {
+    const all = press(fresh(), 'a')
+    if (all.kind === 'cancel') throw new Error('cancelled')
+    expect(all.state.selected.size).toBe(3)
+
+    const none = press(fresh(), 'a', 'a')
+    if (none.kind === 'cancel') throw new Error('cancelled')
+    expect(none.state.selected.size).toBe(0)
+  })
+
+  test('enter submits what is selected', () => {
+    const r = press(fresh(), ' ', DOWN, DOWN, ' ', '\r')
+    if (r.kind !== 'submit') throw new Error(`expected submit, got ${r.kind}`)
+    expect([...r.state.selected].sort()).toEqual(['dashboard', 'vue'])
+  })
+
+  test('ctrl-c cancels, and cancelling is not an empty selection', () => {
+    // Distinct outcomes on purpose: Ctrl-C must not scaffold, and returning an
+    // empty array here would have it scaffold with no plugins instead.
+    expect(press(fresh(), ' ', '\x03').kind).toBe('cancel')
+  })
+
+  test('an unrecognised key changes nothing', () => {
+    const r = press(fresh(), 'q')
+    if (r.kind === 'cancel') throw new Error('cancelled')
+    expect({ cursor: r.state.cursor, size: r.state.selected.size }).toEqual({
+      cursor: 0,
+      size: 0,
+    })
+  })
+
+  test('the state is replaced, never mutated', () => {
+    // A mutated Set makes a stale frame indistinguishable from a fresh one,
+    // which is the kind of bug that only shows up as flicker.
+    const before = fresh()
+    const r = applyKey(before, ' ')
+    if (r.kind === 'cancel') throw new Error('cancelled')
+    expect(before.selected.size).toBe(0)
+    expect(r.state.selected.size).toBe(1)
+  })
+})
+
+describe('confirm key handling', () => {
+  test('y and n answer regardless of the default', () => {
+    expect(applyConfirmKey('y', false)).toEqual({ kind: 'answer', value: true })
+    expect(applyConfirmKey('n', true)).toEqual({ kind: 'answer', value: false })
+  })
+
+  test('enter takes the default', () => {
+    expect(applyConfirmKey('\r', true)).toEqual({ kind: 'answer', value: true })
+    expect(applyConfirmKey('\r', false)).toEqual({
+      kind: 'answer',
+      value: false,
+    })
+  })
+
+  test('ctrl-c cancels and anything else is ignored', () => {
+    expect(applyConfirmKey('\x03', true).kind).toBe('cancel')
+    expect(applyConfirmKey('z', true).kind).toBe('ignore')
+  })
+})
+
+describe('renderMultiselect', () => {
+  test('marks the selected rows and points at the cursor', () => {
+    const frame = renderMultiselect('Plugins', {
+      choices: [
+        { id: 'vue', label: 'vue', hint: 'SFCs' },
+        { id: 'analytics', label: 'analytics' },
+      ],
+      cursor: 1,
+      selected: new Set(['vue']),
+    })
+    expect(frame).toContain('◉')
+    expect(frame).toContain('◯')
+    expect(frame).toContain('❯')
+    expect(frame).toContain('SFCs')
+    // One line per choice, plus the question.
+    expect(frame.trimEnd().split('\n')).toHaveLength(3)
   })
 })

@@ -44,6 +44,21 @@ clone today:
 bun run packages/create/src/index.ts ../my-app --no-install
 ```
 
+At a terminal it asks what to include — the ORM, and any of the three plugins —
+the way `bun create vite` does. Every answer is also a flag, because a
+scaffolder that can only be driven by a human cannot be put in a Dockerfile:
+
+```bash
+bun create bakery my-app --no-orm --plugins vue
+bun create bakery my-app --plugins dashboard,analytics
+bun create bakery my-app --yes          # defaults, no questions
+```
+
+`--yes` and a non-interactive shell take the same defaults — the ORM in, no
+plugins — which is exactly what the command produced before it learned to ask,
+so no existing invocation changed. Without the ORM there is no `orm/` and no
+`db:sync`; the example API route keeps its posts in memory instead.
+
 It emits real `^`-ranged dependencies on the published package names, so the
 app it writes only installs once the first publish lands. `--no-install` is
 what you want until then.

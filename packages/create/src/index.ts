@@ -2,9 +2,12 @@
 
 import { mkdir, readdir, writeFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
+import { confirm, isInteractive, multiselect } from './prompt'
 import {
   dependencyRange,
   isValidAppName,
+  PLUGIN_IDS,
+  type PluginId,
   type TemplateFile,
   templateFiles,
 } from './template'
@@ -27,24 +30,75 @@ const HELP = `bun create bakery <directory>
 
 Scaffold a Bakery app.
 
+Run it without --orm/--no-orm or --plugins and it asks, so long as you are at a
+terminal. Pass either and it stops asking about that one; pass --yes and it
+stops asking entirely.
+
 Arguments:
   <directory>       Where to create it. Also the package name, unless --name
                     is given. Use "." for the current directory.
 
 Options:
   --name <name>     Package name, when it should differ from the directory.
+  --orm             Include the ORM: orm/, db:sync, @bakery/orm.
+  --no-orm          Leave it out. The example API route keeps posts in memory.
+  --plugins <list>  Comma-separated, from: ${PLUGIN_IDS.join(', ')}.
+                    Use --plugins none for an explicit empty set.
+  --yes, -y         Take the defaults for anything not passed (ORM in, no
+                    plugins). What a non-interactive shell does anyway.
   --no-install      Write the files and stop, without running bun install.
   -h, --help        This.
 
 Examples:
   bun create bakery my-app
-  bun create bakery . --name my-app
+  bun create bakery my-app --no-orm --plugins vue
+  bun create bakery . --name my-app --plugins dashboard,analytics
+  bun create bakery my-app --yes
 `
 
 type Options = {
   dir: string
   name: string
   install: boolean
+  /** `null` means "not specified" — ask, or fall back to the default. */
+  orm: boolean | null
+  plugins: PluginId[] | null
+  yes: boolean
+}
+
+/**
+ * Parse one `--plugins` value into the ids it names.
+ *
+ * Split out of `parseArgs` because it is the only flag that validates rather
+ * than assigns, and inlining it put the loop over the complexity limit — which
+ * is the rule doing its job: a `for` over argv should read as a dispatch table.
+ */
+function parsePlugins(
+  value: string,
+): { ok: true; plugins: PluginId[] } | { ok: false; message: string } {
+  // `none` rather than an empty string, so "I want no plugins" is something you
+  // can state — an empty `--plugins=` reads like a mistake and is treated as one
+  // by the caller, which rejects an empty value before reaching here.
+  if (value === 'none') return { ok: true, plugins: [] }
+
+  const requested = value
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+
+  const unknown = requested.filter(p => !PLUGIN_IDS.includes(p as PluginId))
+  if (unknown.length) {
+    return {
+      ok: false,
+      message:
+        `Unknown plugin${unknown.length > 1 ? 's' : ''}: ` +
+        `${unknown.join(', ')}. Available: ${PLUGIN_IDS.join(', ')}.`,
+    }
+  }
+
+  // De-duplicated and put in a fixed order, so `--plugins dashboard,vue` and
+  // `--plugins vue,dashboard` generate byte-identical apps.
+  return { ok: true, plugins: PLUGIN_IDS.filter(id => requested.includes(id)) }
 }
 
 /**
@@ -54,12 +108,16 @@ type Options = {
  * user typed, and answering it with a stack trace teaches nothing. Throwing is
  * reserved for a failure of the scaffolding itself.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: argv dispatcher — one branch per flag
 export function parseArgs(
   argv: string[],
 ): { ok: true; options: Options } | { ok: false; message: string } {
   let dir: string | null = null
   let name: string | null = null
   let install = true
+  let orm: boolean | null = null
+  let plugins: PluginId[] | null = null
+  let yes = false
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
@@ -68,6 +126,30 @@ export function parseArgs(
 
     if (arg === '--no-install') {
       install = false
+      continue
+    }
+
+    if (arg === '--yes' || arg === '-y') {
+      yes = true
+      continue
+    }
+
+    if (arg === '--orm' || arg === '--no-orm') {
+      orm = arg === '--orm'
+      continue
+    }
+
+    if (arg === '--plugins' || arg.startsWith('--plugins=')) {
+      const value = arg.startsWith('--plugins=') ? arg.slice(10) : argv[++i]
+      if (!value) {
+        return {
+          ok: false,
+          message: `--plugins needs a value: ${PLUGIN_IDS.join(', ')}, or none.`,
+        }
+      }
+      const parsed = parsePlugins(value)
+      if (!parsed.ok) return parsed
+      plugins = parsed.plugins
       continue
     }
 
@@ -105,7 +187,53 @@ export function parseArgs(
     }
   }
 
-  return { ok: true, options: { dir: resolved, name: appName, install } }
+  return {
+    ok: true,
+    options: { dir: resolved, name: appName, install, orm, plugins, yes },
+  }
+}
+
+/**
+ * Fill in whatever the flags left unspecified.
+ *
+ * Asks only when there is a terminal on both ends and `--yes` was not passed.
+ * A pipe, a CI runner or a `--yes` takes the defaults — ORM in, no plugins —
+ * which is what `bun create bakery my-app` has always produced, so adding the
+ * prompts changed no existing invocation.
+ *
+ * Returns `null` when the user cancels, which is a distinct outcome from
+ * "chose nothing" and has to stay that way: Ctrl-C should not scaffold.
+ */
+export async function resolveChoices(
+  options: Options,
+): Promise<{ orm: boolean; plugins: PluginId[] } | null> {
+  const interactive = !options.yes && isInteractive()
+
+  let orm = options.orm
+  if (orm === null) {
+    if (!interactive) orm = true
+    else {
+      const answer = await confirm('Include the ORM?', true)
+      if (answer === null) return null
+      orm = answer
+    }
+  }
+
+  let plugins = options.plugins
+  if (plugins === null) {
+    if (!interactive) plugins = []
+    else {
+      const chosen = await multiselect('Plugins', [
+        { id: 'vue', label: 'vue', hint: 'single-file components' },
+        { id: 'analytics', label: 'analytics', hint: 'request metrics' },
+        { id: 'dashboard', label: 'dashboard', hint: 'admin console' },
+      ])
+      if (chosen === null) return null
+      plugins = PLUGIN_IDS.filter(id => chosen.includes(id))
+    }
+  }
+
+  return { orm, plugins }
 }
 
 /**
@@ -171,6 +299,9 @@ async function main(): Promise<number> {
 
   const { dir, name, install } = parsed.options
 
+  // Checked before the prompts, not after: asking someone three questions and
+  // then refusing because the directory was never usable is the rudest possible
+  // ordering.
   if (!(await isScaffoldable(dir))) {
     console.log(
       `${dir} already has files in it. Bakery will not scaffold over an ` +
@@ -179,10 +310,26 @@ async function main(): Promise<number> {
     return 1
   }
 
-  const files = templateFiles(name, dependencyRange(await ownVersion()))
+  const choices = await resolveChoices(parsed.options)
+  if (!choices) {
+    console.log('\nCancelled. Nothing was written.')
+    return 130
+  }
+
+  const files = templateFiles(
+    name,
+    dependencyRange(await ownVersion()),
+    choices,
+  )
   await writeTemplate(dir, files)
 
-  console.log(`Created ${name} in ${dir}`)
+  const summary = [
+    choices.orm ? 'with the ORM' : 'without the ORM',
+    choices.plugins.length ? `plugins: ${choices.plugins.join(', ')}` : null,
+  ]
+    .filter(Boolean)
+    .join(', ')
+  console.log(`Created ${name} in ${dir} (${summary})`)
 
   if (install) {
     const proc = Bun.spawn(['bun', 'install'], {
@@ -203,7 +350,7 @@ async function main(): Promise<number> {
   const cd = dir === process.cwd() ? '' : `  cd ${basename(dir)}\n`
   console.log(
     `\nNext:\n\n${cd}${install ? '' : '  bun install\n'}` +
-      '  bun run db:sync\n  bun run dev\n',
+      `${choices.orm ? '  bun run db:sync\n' : ''}  bun run dev\n`,
   )
 
   return 0

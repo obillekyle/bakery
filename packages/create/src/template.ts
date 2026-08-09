@@ -21,6 +21,52 @@ export type TemplateFile = {
   contents: string
 }
 
+/** The plugins `--plugins` accepts, in the order they are registered. */
+export const PLUGIN_IDS = ['vue', 'analytics', 'dashboard'] as const
+export type PluginId = (typeof PLUGIN_IDS)[number]
+
+export type TemplateOptions = {
+  /** Generate `orm/` and depend on `@bakery/orm`. */
+  orm: boolean
+  plugins: PluginId[]
+}
+
+/**
+ * What each plugin costs a generated app.
+ *
+ * `peers` matters and is easy to miss: `@bakery/plugin-vue` declares `vue` and
+ * `@vue/compiler-sfc` as **peer** dependencies, so scaffolding the plugin
+ * without them produces an app that installs cleanly and then fails the first
+ * time it compiles an SFC. They go into the generated `dependencies`, because a
+ * scaffolded app is an application — it should pin what it needs rather than
+ * inherit an unmet peer warning.
+ */
+const PLUGINS: Record<
+  PluginId,
+  { pkg: string; import: string; call: string; peers?: Record<string, string> }
+> = {
+  vue: {
+    pkg: '@bakery/plugin-vue',
+    import: 'vuePlugin',
+    call: 'vuePlugin()',
+    peers: { vue: '^3.5.0', '@vue/compiler-sfc': '^3.5.0' },
+  },
+  analytics: {
+    pkg: '@bakery/plugin-analytics',
+    import: 'analyticsPlugin',
+    call: 'analyticsPlugin()',
+  },
+  dashboard: {
+    pkg: '@bakery/plugin-dashboard',
+    import: 'dashboardPlugin',
+    // Deliberately no `authorize`. Omitted, the dashboard limits itself to
+    // loopback in development and denies in production, so a scaffolded app is
+    // never born with an open console. `apps/example` passes `() => true`
+    // because it is a local demo; a generated app is not.
+    call: 'dashboardPlugin()',
+  },
+}
+
 /**
  * The version range the generated `package.json` asks for.
  *
@@ -53,13 +99,40 @@ export function isValidAppName(name: string): boolean {
   )
 }
 
-const SERVER_CONFIG = `import { defineConfig } from '@bakery/core'
+function serverConfig(plugins: PluginId[]): string {
+  const imports = plugins
+    .map(id => `import ${PLUGINS[id].import} from '${PLUGINS[id].pkg}'\n`)
+    .join('')
+
+  if (!plugins.length) {
+    return `import { defineConfig } from '@bakery/core'
 
 export default defineConfig({
   root: 'src',
   port: 3000,
 })
 `
+  }
+
+  const calls = plugins.map(id => `    ${PLUGINS[id].call},\n`).join('')
+  const dashboardNote = plugins.includes('dashboard')
+    ? `  // The dashboard authenticates nobody itself — the app does, because it is\n` +
+      `  // the thing that knows who its users are. With no \`authorize\`, access is\n` +
+      `  // loopback-only in development and denied in production:\n` +
+      `  //\n` +
+      `  //   dashboardPlugin({ authorize: req => req.session.get('role') === 'admin' })\n`
+    : ''
+
+  return `import { defineConfig } from '@bakery/core'
+${imports}
+export default defineConfig({
+  root: 'src',
+  port: 3000,
+${dashboardNote}  plugins: [
+${calls}  ],
+})
+`
+}
 
 const INDEX_PAGE = `export default function Home() {
   return (
@@ -102,6 +175,32 @@ export default defineRoute<{ title: string; slug: string; body: string }>(
     return response.json.success('ok', posts)
   },
 )
+`
+
+/**
+ * The same route without a database.
+ *
+ * Kept to the same shape — `defineRoute`, a typed body, one JSON envelope, and
+ * `data` as an array — so the client script below is identical either way and
+ * the two templates do not drift into demonstrating different things.
+ */
+const API_ROUTE_NO_ORM = `import { defineRoute, response } from '@bakery/core'
+
+// In memory, and therefore per process: a cluster (\`--threads N\`) gives each
+// worker its own copy. That is the point at which you want the ORM — scaffold
+// with it, or add @bakery/orm later.
+const posts: { title: string }[] = []
+
+// The type parameter declares the body's shape. It states the contract — it
+// does not validate it. The body is still client input.
+export default defineRoute<{ title: string }>(async (req, body) => {
+  if (req.method === 'POST') {
+    posts.push({ title: body.title })
+    return response.json.success('created')
+  }
+
+  return response.json.success('ok', posts)
+})
 `
 
 const CLIENT_SCRIPT = `const res = await fetch('/api/notes')
@@ -198,40 +297,74 @@ await SyncService.run()
 process.exit(0)
 `
 
-const GITIGNORE = `node_modules
+function gitignore(orm: boolean): string {
+  // `bakery/` only exists once something opens a database, so an app scaffolded
+  // without the ORM does not get a rule for a directory it will never have.
+  const data = orm
+    ? '\n# `bakery/` holds server.db and backups/. Not tracked either, but do not\n' +
+      '# delete it: nothing regenerates what is in there.\nbakery/\n'
+    : ''
 
-# Bakery's two runtime directories. \`.cache\` is disposable — the framework
-# deletes it wholesale on every version bump and dev<->prod switch. \`bakery/\`
-# holds server.db and backups/, so it is not tracked either, but do not delete
-# it: nothing regenerates what is in there.
+  return `node_modules
+
+# Disposable — the framework deletes it wholesale on every version bump and
+# dev<->prod switch.
 .cache
-bakery/
-`
+${data}`
+}
 
-const README = `# {{name}}
+function readme(name: string, orm: boolean, plugins: PluginId[]): string {
+  const sync = orm
+    ? 'bun run db:sync   # create the tables in orm/tables.ts\n'
+    : ''
+
+  const ormRows = orm
+    ? '| `orm/tables.ts` | Table definitions. Run `bun run db:sync` after editing. |\n' +
+      '| `orm/views.ts` | View definitions — stored SELECTs, read-only. |\n' +
+      "| `orm/index.ts` | Registers the schema with the ORM's types. Without its `declare module` block the ORM still works, untyped. |\n"
+    : ''
+
+  const pluginSection = plugins.length
+    ? `\n## Plugins\n\nRegistered in \`server.config.ts\`:\n\n` +
+      plugins.map(id => `- \`${PLUGINS[id].pkg}\``).join('\n') +
+      (plugins.includes('dashboard')
+        ? '\n\nThe dashboard is loopback-only in development and denied in production ' +
+          'until you give it an `authorize` predicate.'
+        : '') +
+      (plugins.includes('vue')
+        ? '\n\n`vue` and `@vue/compiler-sfc` are direct dependencies rather than ' +
+          'unmet peers, so `.vue` pages compile straight after install.'
+        : '') +
+      '\n'
+    : ''
+
+  const noOrm = orm
+    ? ''
+    : '\nScaffolded without the ORM. `src/api/notes.ts` keeps its posts in memory, ' +
+      'which is per process — add `@bakery/orm` when you want them to outlive a ' +
+      'restart or survive `--threads`.\n'
+
+  return `# ${name}
 
 Built with [Bakery](https://github.com/obillekyle/bun-server).
 
 \`\`\`bash
 bun install
-bun run db:sync   # create the tables in orm/tables.ts
-bun run dev
+${sync}bun run dev
 \`\`\`
 
 Then open http://localhost:3000.
-
+${noOrm}
 ## Layout
 
 | Path | What it is |
 | --- | --- |
 | \`src/\` | Served. Every file is a route — \`src/index.tsx\` is \`/\`, \`src/api/notes.ts\` is \`/api/notes\`. |
-| \`orm/tables.ts\` | Table definitions. Run \`bun run db:sync\` after editing. |
-| \`orm/views.ts\` | View definitions -- stored SELECTs, read-only. |
-| \`orm/index.ts\` | Registers the schema with the ORM's types. Without its \`declare module\` block the ORM still works, untyped. |
-| \`server.config.ts\` | Port, root directory, plugins. |
-
+${ormRows}| \`server.config.ts\` | Port, root directory, plugins. |
+${pluginSection}
 \`bun run start\` serves in production mode; add \`--threads N\` to fork a cluster.
 `
+}
 
 /**
  * The three JSX options are repeated here on purpose, and removing them breaks
@@ -247,7 +380,17 @@ Then open http://localhost:3000.
  *
  * `extends` still carries everything else, and is what `tsc` reads.
  */
-const TSCONFIG = `{
+function tsconfig(orm: boolean): string {
+  const include = [
+    '"src/**/*.ts"',
+    '"src/**/*.tsx"',
+    ...(orm ? ['"orm/**/*.ts"', '"scripts/**/*.ts"'] : []),
+    '"server.config.ts"',
+  ]
+    .map(entry => `    ${entry}`)
+    .join(',\n')
+
+  return `{
   "$comment": "The three jsx* options are also set by @bakery/core/tsconfig.app.json, and tsc reads them from there — but Bun's runtime does not follow 'extends' into a package specifier, only a relative path. Without them here, every .tsx page fails at runtime with \\"Cannot find module 'react/jsx-dev-runtime'\\" while typecheck stays clean. Keep them.",
   "extends": "@bakery/core/tsconfig.app.json",
   "compilerOptions": {
@@ -256,14 +399,11 @@ const TSCONFIG = `{
     "jsxFragmentFactory": "Fragment"
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "orm/**/*.ts",
-    "scripts/**/*.ts",
-    "server.config.ts"
+${include}
   ]
 }
 `
+}
 
 /**
  * Build the file list for an app named `name`.
@@ -271,7 +411,23 @@ const TSCONFIG = `{
  * `range` is threaded in rather than read from disk so this stays pure — the
  * caller resolves it from the running package's own version.
  */
-export function templateFiles(name: string, range: string): TemplateFile[] {
+export function templateFiles(
+  name: string,
+  range: string,
+  options: TemplateOptions = { orm: true, plugins: [] },
+): TemplateFile[] {
+  const { orm, plugins } = options
+
+  const dependencies: Record<string, string> = {
+    '@bakery/cli': range,
+    '@bakery/core': range,
+  }
+  if (orm) dependencies['@bakery/orm'] = range
+  for (const id of plugins) {
+    dependencies[PLUGINS[id].pkg] = range
+    Object.assign(dependencies, PLUGINS[id].peers ?? {})
+  }
+
   const pkg = {
     name,
     version: '0.1.0',
@@ -280,31 +436,39 @@ export function templateFiles(name: string, range: string): TemplateFile[] {
     scripts: {
       dev: 'bakery --dev',
       start: 'bakery',
-      'db:sync': 'bun run scripts/db-sync.ts',
+      ...(orm ? { 'db:sync': 'bun run scripts/db-sync.ts' } : {}),
     },
-    dependencies: {
-      '@bakery/cli': range,
-      '@bakery/core': range,
-      '@bakery/orm': range,
-    },
+    // Sorted, because the key order here is otherwise "whichever plugin was
+    // listed first", and a generated file that differs run to run is a diff
+    // nobody can read.
+    dependencies: Object.fromEntries(
+      Object.entries(dependencies).sort(([a], [b]) => a.localeCompare(b)),
+    ),
   }
 
-  return [
+  const files: TemplateFile[] = [
     { path: 'package.json', contents: `${JSON.stringify(pkg, null, 2)}\n` },
-    { path: 'tsconfig.json', contents: TSCONFIG },
-    { path: '.gitignore', contents: GITIGNORE },
-    { path: 'README.md', contents: README.replaceAll('{{name}}', name) },
-    { path: 'server.config.ts', contents: SERVER_CONFIG },
-    { path: 'scripts/db-sync.ts', contents: DB_SYNC_SCRIPT },
-    { path: 'orm/tables.ts', contents: ORM_SCHEMA },
-    { path: 'orm/views.ts', contents: ORM_VIEWS },
-    { path: 'orm/indexes.ts', contents: ORM_INDEXES },
-    { path: 'orm/index.ts', contents: ORM_INDEX },
+    { path: 'tsconfig.json', contents: tsconfig(orm) },
+    { path: '.gitignore', contents: gitignore(orm) },
+    { path: 'README.md', contents: readme(name, orm, plugins) },
+    { path: 'server.config.ts', contents: serverConfig(plugins) },
     {
       path: 'src/index.tsx',
       contents: INDEX_PAGE.replaceAll('{{name}}', name),
     },
-    { path: 'src/api/notes.ts', contents: API_ROUTE },
+    { path: 'src/api/notes.ts', contents: orm ? API_ROUTE : API_ROUTE_NO_ORM },
     { path: 'src/script.ts', contents: CLIENT_SCRIPT },
   ]
+
+  if (orm) {
+    files.push(
+      { path: 'scripts/db-sync.ts', contents: DB_SYNC_SCRIPT },
+      { path: 'orm/tables.ts', contents: ORM_SCHEMA },
+      { path: 'orm/views.ts', contents: ORM_VIEWS },
+      { path: 'orm/indexes.ts', contents: ORM_INDEXES },
+      { path: 'orm/index.ts', contents: ORM_INDEX },
+    )
+  }
+
+  return files
 }
