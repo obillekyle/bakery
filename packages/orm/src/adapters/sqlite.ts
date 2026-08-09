@@ -207,8 +207,6 @@ export class SQLiteAdapter extends SQLAdapter {
         ),
       }
     },
-    (sqlText: string, params: unknown[] = []) =>
-      this.sql.unsafe(sqlText, params) as any,
     this.driver,
   )
 
@@ -421,6 +419,14 @@ export class SQLiteAdapter extends SQLAdapter {
    * would fail.
    */
   override get supportsAlterForeignKey(): boolean {
+    return false
+  }
+
+  /**
+   * SQLite has `UNION ALL` but neither `INTERSECT ALL` nor `EXCEPT ALL` — the
+   * `ALL` modifier is only accepted after `UNION`.
+   */
+  override get supportsSetOperationAll(): boolean {
     return false
   }
 

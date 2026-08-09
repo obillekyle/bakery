@@ -174,8 +174,9 @@ is supported; the rest expect a column.
 
 ## Joins
 
-`join(leftColumn, rightColumn, alias?, type?)`, plus `leftJoin`, `rightJoin` and
-`innerJoin`. The `ON` clause is always an equality between the two columns.
+`join(leftColumn, rightColumn, alias?, type?)`, plus `leftJoin`, `rightJoin`,
+`innerJoin` and `fullJoin`. The `ON` clause is always an equality between the
+two columns.
 
 ```ts
 import DB from '@bakery/orm'
@@ -197,6 +198,103 @@ not `'teachers.surname'`.
 
 To join a table to itself, alias it. To do the same in a *schema* declaration,
 see `alias()` in [Schema](schema.md).
+
+`fullJoin` needs a caveat: **MySQL has no `FULL OUTER JOIN`**, at any version.
+SQLite (3.39+) and Postgres do. Calling it on MySQL throws at the call site
+rather than emitting SQL the server rejects, because MySQL's own message for it
+is "You have an error in your SQL syntax" pointing at the whole statement. The
+standard workaround is a `LEFT JOIN` unioned with a `RIGHT JOIN`, which is a
+different query rather than a flag — so the builder does not rewrite it for you.
+
+## Set operations
+
+`union`, `unionAll`, `intersect` and `except` combine two queries. They return a
+**set**, not a query:
+
+```ts
+import DB from '@bakery/orm'
+
+const everyone = DB.from('students')
+  .select({ name: 'students.surname' })
+  .union(DB.from('teachers').select({ name: 'teachers.surname' }))
+  .orderBy('name')
+  .limit(50)
+```
+
+What comes back has `orderBy`, `limit`, `offset` and `paginate` — what SQL
+allows after the last operand — and nothing else. `where` and `select` are gone
+because they would have to mean "on which branch?"; put them on the branch.
+
+Chaining a third operand extends the set rather than nesting it, matching SQL's
+own left-to-right evaluation:
+
+```ts
+import DB from '@bakery/orm'
+
+const q = DB.from('a').union(DB.from('b')).except(DB.from('c'))
+// SELECT * FROM "a" UNION SELECT * FROM "b" EXCEPT SELECT * FROM "c"
+```
+
+Two things the dialects disagree about, both handled for you:
+
+- **A branch with its own `ORDER BY` or `LIMIT`** cannot sit bare in a compound.
+  Parenthesising it is the documented fix and works on MySQL and Postgres —
+  *SQLite rejects a parenthesised operand outright*. So the builder wraps that
+  branch as a derived table instead, which all three accept.
+- **`INTERSECT ALL` and `EXCEPT ALL`** (pass `true` as the second argument)
+  exist on MySQL 8.0.31+ and Postgres. SQLite has neither, and reports
+  `near "ALL": syntax error`. The builder refuses by name instead, and points at
+  the plain form. `UNION ALL` is universal and is never gated.
+
+## Window functions
+
+`DB.over()` puts an `OVER (…)` clause on any aggregate the builder already has:
+
+```ts
+import DB from '@bakery/orm'
+
+const q = DB.from('students').select({
+  year: 'students.year',
+  runningTotal: DB.over(DB.sum('students.year'), {
+    partitionBy: 'students.course',
+    orderBy: 'students.year',
+  }),
+})
+```
+
+`DB.rowNumber()`, `DB.rank()` and `DB.denseRank()` take only the window — the
+window *is* their argument:
+
+```ts
+import DB from '@bakery/orm'
+
+const q = DB.from('students').select({
+  name: 'students.surname',
+  place: DB.rank({ partitionBy: 'students.course', orderBy: 'students.year DESC' }),
+})
+```
+
+The direction goes inside the `orderBy` string, per column, so two columns can
+disagree: `orderBy: ['students.year DESC', 'students.surname']`. Anything else
+in the window vocabulary goes through `DB.window(name, args, spec)`:
+
+```ts
+import DB from '@bakery/orm'
+
+const q = DB.from('orders').select({
+  previous: DB.window('LAG', [DB.col('orders.total'), 1], {
+    orderBy: 'orders.createdAt',
+  }),
+})
+```
+
+Arguments follow the same rule as everywhere else in the builder: a bare value
+binds as a parameter, `DB.col(…)` references a column. The function name is
+checked against an allow-list — it is interpolated, not bound.
+
+Window functions work on all three dialects (SQLite 3.25+, MySQL 8.0+,
+Postgres). Frame clauses (`ROWS BETWEEN …`) are **not** offered; every call gets
+SQL's default frame.
 
 ## Grouping
 
@@ -357,7 +455,7 @@ identifiers.
 | `.value<T>()` / `.scalar<T>()` | the first column of the first row |
 | `.column<T>()` | the first column of every row |
 | `.exists()` | `boolean`, via `SELECT 1 FROM (…) LIMIT 1` |
-| `.iterable()` | an async iterable, streaming rows |
+| `.iterable()` | an async iterable, a chunk at a time |
 | `.parse()` | `{ sql, params }` — builds nothing, runs nothing |
 
 ```ts
@@ -384,9 +482,29 @@ Use `.iterable()` for result sets you do not want in memory at once:
 import DB from '@bakery/orm'
 
 export async function eachPost(fn: (row: unknown) => void) {
-  for await (const row of DB.from('posts').iterable()) fn(row)
+  for await (const row of DB.from('posts').orderBy('posts.id').iterable()) fn(row)
 }
 ```
+
+**It pages; it is not a server-side cursor.** Bun's `SQL` has no streaming API
+at all — a query is a thenable, and every method on it resolves the whole
+result — so the ORM wraps your statement in a derived table and walks it 500
+rows at a time:
+
+```sql
+SELECT * FROM (<your SELECT>) AS bakery_stream LIMIT ? OFFSET ?
+```
+
+Two consequences worth knowing before you use it:
+
+- **Memory is bounded by the chunk, not by the result.** That is the reason to
+  reach for it, and it holds.
+- **Chunk boundaries are only stable under a total order.** The statement is
+  re-executed per chunk, so rows inserted or deleted while you walk can be seen
+  twice or missed — the same hazard `LIMIT`/`OFFSET` paging has. Add an
+  `ORDER BY` on a unique column, as above. If the table is being written to
+  concurrently and you cannot tolerate a skip, [`seek()`](#cursor-paging-with-seek)
+  is the construct that does not have this property.
 
 ## Reusing a builder
 

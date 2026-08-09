@@ -174,12 +174,73 @@ export function quoteIdentifier(name: string, quoteChar: string): string {
     ? `${quoteChar}${name.replaceAll(quoteChar, '')}${quoteChar}`
     : `${quoteChar}${name}${quoteChar}`
 }
+/**
+ * How many rows one `iterate()` chunk fetches. See {@link pagedIterate}.
+ *
+ * Big enough that the round trips are amortised, small enough that the point of
+ * streaming — never holding the whole result — survives. Not a tuning knob
+ * anyone has measured; it is a default, and `createExecutor` takes an override.
+ */
+export const DEFAULT_STREAM_CHUNK = 500
+
+/**
+ * `iterate()`, built out of `all()` by paging.
+ *
+ * **Bun cannot stream.** As of 1.3.14 an `SQLQuery` is a thenable and nothing
+ * more — no `Symbol.asyncIterator`, no `Symbol.iterator`, and its own methods
+ * (`raw`, `simple`, `values`, `execute`, `run`) all resolve the whole result.
+ * The adapters used to hand their raw query object to `for await`, which is why
+ * `iterate` threw `… .iterate is not a function` on **every** dialect and why
+ * `QBExecutable.iterable()` had never once worked.
+ *
+ * So this pages instead: the caller's statement becomes a derived table and the
+ * generator walks it a window at a time.
+ *
+ * ```sql
+ * SELECT * FROM (<the caller's SELECT>) AS bakery_stream LIMIT ? OFFSET ?
+ * ```
+ *
+ * Verified on all three dialects against live servers, including a statement
+ * that already carries its own `ORDER BY` or `LIMIT` — the derived table
+ * contains it, so the window composes rather than colliding. MySQL needs the
+ * alias; the other two tolerate it.
+ *
+ * **What this is not.** It is not a server-side cursor, and the difference is
+ * observable, so say it plainly: the statement is re-executed once per chunk,
+ * and chunk boundaries are only stable under a total order. Rows inserted or
+ * deleted mid-walk can therefore be seen twice or missed — the same hazard
+ * offset pagination has, and exactly what `seek()` exists to avoid. What it
+ * does buy is the thing people reach for streaming to get: memory bounded by
+ * the chunk instead of by the result.
+ */
+export function pagedIterate(
+  all: SQLAdapter.Executor['all'],
+  chunkSize: number = DEFAULT_STREAM_CHUNK,
+): SQLAdapter.Executor['iterate'] {
+  return async function* iterate(sqlText: string, params: unknown[] = []) {
+    const windowed = `SELECT * FROM (${sqlText}) AS bakery_stream LIMIT ? OFFSET ?`
+    for (let offset = 0; ; offset += chunkSize) {
+      const rows = await all(windowed, [...params, chunkSize, offset])
+      for (const row of rows) yield row
+      // A short chunk is the end. Checked against the requested size rather
+      // than against zero, so the common case costs one round trip fewer than
+      // walking until an empty result.
+      if (rows.length < chunkSize) return
+    }
+  }
+}
+
 export function createExecutor(
   all: SQLAdapter.Executor['all'],
   run: SQLAdapter.Executor['run'],
-  iterate: SQLAdapter.Executor['iterate'],
   driver: SQLAdapter.Driver,
+  options: {
+    /** Replace the paging walker — for a driver that can genuinely stream. */
+    iterate?: SQLAdapter.Executor['iterate']
+    chunkSize?: number
+  } = {},
 ): SQLAdapter.Executor {
+  const iterate = options.iterate ?? pagedIterate(all, options.chunkSize)
   // `get` and `values` call the raw `all` rather than `exec.all`, which is a
   // behavioural detail worth stating: it is what keeps one executed statement
   // to exactly one observer event. Routing them through the observed `exec.all`
@@ -450,6 +511,30 @@ export abstract class SQLAdapter {
    * drop is skipped and the views are simply left alone.
    */
   get viewsBlockTableRebuild(): boolean {
+    return true
+  }
+
+  /**
+   * `INTERSECT ALL` and `EXCEPT ALL` — the duplicate-preserving forms.
+   *
+   * `UNION ALL` is universal and is not covered by this; only the other two
+   * are. MySQL grew them in 8.0.31 and Postgres has always had them; SQLite
+   * has neither and reports `near "ALL": syntax error`, which names the
+   * keyword but not the construct.
+   */
+  get supportsSetOperationAll(): boolean {
+    return true
+  }
+
+  /**
+   * `FULL OUTER JOIN`.
+   *
+   * Postgres has it; SQLite gained it in 3.39 and the version Bun bundles has
+   * it. **MySQL has never had it**, at any version — the workaround there is a
+   * `LEFT JOIN` unioned with a `RIGHT JOIN`, which is a different query rather
+   * than a flag, so the builder refuses instead of rewriting silently.
+   */
+  get supportsFullOuterJoin(): boolean {
     return true
   }
 

@@ -46,14 +46,19 @@ function stubExecutor(
       await guard('run', sql, params)
       return { lastInsertRowid: 7, changes: 3 }
     },
-    async function* (sql: string, params: unknown[] = []) {
-      await guard('iterate', sql, params)
-      for (const row of ROWS) {
-        if (opts.delayMs) await Bun.sleep(opts.delayMs)
-        yield row
-      }
-    },
     driver,
+    {
+      // An explicit walker, because these tests are about the *observer*, not
+      // about how rows are fetched — `pagedIterate` would issue its own
+      // windowed statements and the assertions below count calls.
+      iterate: async function* (sql: string, params: unknown[] = []) {
+        await guard('iterate', sql, params)
+        for (const row of ROWS) {
+          if (opts.delayMs) await Bun.sleep(opts.delayMs)
+          yield row
+        }
+      },
+    },
   )
   return { exec, calls }
 }
@@ -169,8 +174,8 @@ describe('query events', () => {
     const exec = createExecutor(
       async () => [],
       async () => ({ lastInsertRowid: null, changes: 0 }),
-      async function* () {},
       'mysql',
+      { iterate: async function* () {} },
     )
 
     expect(await exec.get('SELECT nothing')).toBeUndefined()
@@ -342,11 +347,13 @@ describe('iterate', () => {
     const exec = createExecutor(
       async () => ROWS,
       async () => ({ lastInsertRowid: null, changes: 0 }),
-      async function* () {
-        yield ROWS[0]
-        throw new Error('stream died')
-      },
       'sqlite',
+      {
+        iterate: async function* () {
+          yield ROWS[0]
+          throw new Error('stream died')
+        },
+      },
     )
 
     const seen: unknown[] = []
@@ -373,8 +380,8 @@ describe('iterate', () => {
     const exec = createExecutor(
       async () => ROWS,
       async () => ({ lastInsertRowid: null, changes: 0 }),
-      () => notIterable,
       'sqlite',
+      { iterate: () => notIterable },
     )
 
     const unobserved = async () => {

@@ -37,17 +37,24 @@ export class MySQLAdapter extends SQLAdapter {
       return {
         lastInsertRowid:
           rows?.insertId ?? rows?.lastInsertRowid ?? rows?.lastInsertId ?? null,
+        // `affectedRows` first, and the order is the whole fix.
+        //
+        // Bun's MySQL driver sets `count` to **0** for every write and puts the
+        // real number in `affectedRows` — the reverse of SQLite, where `count`
+        // is authoritative and `affectedRows` is null. Reading `count` first
+        // through a `??` chain therefore never fell through: zero is not
+        // nullish, so it was taken and returned. Every insert, update and
+        // delete on MySQL reported `changes: 0`.
+        //
+        // Not cosmetic: `Mutation`'s batched insert sums this to report how
+        // many rows it wrote, the dashboard prints it after a CSV import, and
+        // it is the row count on every `run` event the query observer emits.
+        // All three said zero on MySQL.
         changes: Number(
-          rows?.count ??
-            rows?.affectedRows ??
-            rows?.changedRows ??
-            rows?.length ??
-            0,
+          rows?.affectedRows ?? rows?.changedRows ?? rows?.count ?? 0,
         ),
       }
     },
-    (sqlText: string, params: unknown[] = []) =>
-      this.sql.unsafe(sqlText, params) as any,
     this.driver,
   )
 
@@ -239,6 +246,15 @@ export class MySQLAdapter extends SQLAdapter {
    * Postgres both refuse — see the base declaration for the two messages.
    */
   override get viewsBlockTableRebuild(): boolean {
+    return false
+  }
+
+  /**
+   * MySQL has no `FULL OUTER JOIN` in any version. `FULL JOIN` and
+   * `FULL OUTER JOIN` both fail the parser, and the error names nothing more
+   * specific than "error in your SQL syntax".
+   */
+  override get supportsFullOuterJoin(): boolean {
     return false
   }
 
