@@ -64,6 +64,7 @@ const CLOSING_TAG = '</script'
  * non-greedy regex stops at the first match — so server code containing
  * `"</script>"` would be cut short and its remainder left in the client bundle.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character scanner — locates a block end past nested quotes
 function findServerScriptEnd(raw: string, start: number): number {
   let index = start
 
@@ -192,6 +193,7 @@ export function rewriteRelativeImports(
  * skips strings/comments, so a multi-line object, function, or arrow body
  * survives intact — stopping at the first newline breaks all three.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character scanner — brace and quote state machine
 function findExpressionEnd(code: string, start: number): number {
   let depth = 0
   let index = start

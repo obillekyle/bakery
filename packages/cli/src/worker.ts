@@ -216,11 +216,14 @@ try {
 }
 
 if (isDevWorker) {
-  import('@bakery/core/compiler').then(({ startCompileService }) =>
-    startCompileService(Bakery.server).catch(e =>
-      serveLog.WATCHER_ERR({ error: String(e) }),
-    ),
-  )
+  // One `.catch` on the whole chain, not one nested inside the `.then`. The
+  // nested form covered `startCompileService` rejecting but left the dynamic
+  // `import()` itself unhandled — so a compiler module that failed to load
+  // produced an unhandled rejection rather than the WATCHER_ERR line that
+  // exists to report exactly that.
+  import('@bakery/core/compiler')
+    .then(({ startCompileService }) => startCompileService(Bakery.server))
+    .catch(e => serveLog.WATCHER_ERR({ error: String(e) }))
 }
 
 try {

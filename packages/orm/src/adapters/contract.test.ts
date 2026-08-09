@@ -128,7 +128,9 @@ describe('Postgres normalisation', () => {
  */
 describe('executable round-trip', () => {
   const cleanup: Array<() => void> = []
-  afterAll(() => cleanup.forEach(fn => fn()))
+  afterAll(() => {
+    for (const fn of cleanup) fn()
+  })
 
   test('SQLite: generated SQL executes and returns rows', async () => {
     const db = new SQLiteAdapter(':memory:')

@@ -148,7 +148,7 @@ export class Session<
     const forwardedHttps =
       trustProxy && req.headers.get('x-forwarded-proto') === 'https'
     const isHttps = Boolean(
-      (req.url && req.url.startsWith('https:')) ||
+      req.url?.startsWith('https:') ||
         forwardedHttps ||
         import.meta.env.PROD,
     )

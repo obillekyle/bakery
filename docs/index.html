@@ -462,6 +462,9 @@ function resolveHref(href, page) {
   return `#/${joined.replace(/\.md$/i, '')}${hash ? `#${hash}` : ''}`
 }
 
+  // The markdown renderer: one branch per block construct. Splitting it by
+  // construct spreads the line-lookahead state the parser depends on.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: markdown block parser
 function render(src, page) {
   const lines = src.replace(/\r\n/g, '\n').split('\n')
   let html = '', i = 0
@@ -611,8 +614,9 @@ async function route() {
     : ''
 
   // sidebar active state
-  document.querySelectorAll('.sb-link').forEach(a =>
-    a.classList.toggle('active', a.dataset.page === page))
+  document.querySelectorAll('.sb-link').forEach(a => {
+    a.classList.toggle('active', a.dataset.page === page)
+  })
 
   // prev / next
   const idx = FLAT.findIndex(([p]) => p === page)
@@ -645,7 +649,9 @@ function syncAside() {
     const el = document.getElementById(link.dataset.id)
     if (el && el.getBoundingClientRect().top < 140) active = link
   }
-  links.forEach(l => l.classList.toggle('active', l === active))
+  links.forEach(l => {
+    l.classList.toggle('active', l === active)
+  })
 }
 
 /* --------------------------------------------------------------------- boot */
@@ -733,6 +739,7 @@ function plain(line) {
 async function buildIndex() {
   if (index) return index
   index = []
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: search index build — one branch per field weight
   await Promise.all(FLAT.map(async ([page, label]) => {
     let src
     try { src = await load(page) } catch { return }
@@ -802,7 +809,9 @@ box.addEventListener('keydown', e => {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault()
     selected = (selected + (e.key === 'ArrowDown' ? 1 : -1) + links.length) % links.length
-    links.forEach((l, i) => l.classList.toggle('sel', i === selected))
+    links.forEach((l, i) => {
+      l.classList.toggle('sel', i === selected)
+    })
     links[selected].scrollIntoView({ block: 'nearest' })
   } else if (e.key === 'Enter' && selected >= 0) {
     location.hash = links[selected].getAttribute('href')

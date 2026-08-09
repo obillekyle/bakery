@@ -78,6 +78,13 @@ export namespace Route {
   export type Meta = RouteData.Meta
 }
 
+// A class, not an object of statics, because it is also a **type** namespace:
+// `RouteData.Info` and `RouteData.Meta` are referenced in type position at four
+// sites above and below. A class declaration provides both a value and a
+// namespace for its nested classes; `const RouteData = { Info: class {} }`
+// provides only the value, and every one of those type references stops
+// resolving.
+// biome-ignore lint/complexity/noStaticOnlyClass: also a type namespace — see above
 export class RouteData {
   static Info = class Info {
     readonly params: string[]

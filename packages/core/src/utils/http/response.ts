@@ -35,7 +35,7 @@ responseJson.error = function responseJsonError<T>(
   }
   if (
     typeof status !== 'number' ||
-    isNaN(status) ||
+    Number.isNaN(status) ||
     status < 100 ||
     status > 599
   ) {

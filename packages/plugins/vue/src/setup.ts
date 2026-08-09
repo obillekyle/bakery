@@ -19,5 +19,5 @@ export function setupVue() {
   initVueVersion()
   Bakery.handlers.fetch.set(VueHandler, 58)
   Bakery.handlers.error.set(VueErrorHandler, 18)
-  Bakery.config.importMap['vue'] = `/_vue/${VUE_VERSION}.js`
+  Bakery.config.importMap.vue = `/_vue/${VUE_VERSION}.js`
 }

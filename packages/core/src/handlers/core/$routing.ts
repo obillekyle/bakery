@@ -109,6 +109,7 @@ async function getCatchAllRoute(
   return new RouteData.Info(file, fs.relative(root, file))
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: request-to-route dispatcher
 export async function getRoute(
   pathOrArr: string | string[],
   exts: string[] = [],

@@ -74,7 +74,7 @@ describe('PublicHandler', () => {
 describe('ImageHandler publicRoot fallback', () => {
   test('resolves source from publicRoot when serveRoot misses', async () => {
     await placeFile('avatar.png')
-    const parsed = await (ImageHandler as any)['path'](`/${testDir}/avatar.png`)
+    const parsed = await (ImageHandler as any).path(`/${testDir}/avatar.png`)
     expect(parsed.source).toBe(
       posix(join(Bakery.publicRoot, testDir, 'avatar.png')),
     )
@@ -86,7 +86,7 @@ describe('ImageHandler publicRoot fallback', () => {
     await writeFile(srcFile, 'x')
     created.push(srcFile)
     try {
-      const parsed = await (ImageHandler as any)['path'](`/${testDir}/logo.png`)
+      const parsed = await (ImageHandler as any).path(`/${testDir}/logo.png`)
       expect(parsed.source).toBe(posix(srcFile))
     } finally {
       await rm(join(Bakery.serveRoot, testDir), {
