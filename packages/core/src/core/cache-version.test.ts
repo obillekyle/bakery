@@ -28,9 +28,7 @@ describe('cache invalidation reads two versions', () => {
   })
 
   test('the framework version comes from @bakery/core, not the cwd', async () => {
-    const core = await Bun.file(
-      `${import.meta.dir}/../../package.json`,
-    ).json()
+    const core = await Bun.file(`${import.meta.dir}/../../package.json`).json()
     expect(core.name).toBe('@bakery/core')
     expect(getFrameworkVersion()).toBe(core.version)
   })
