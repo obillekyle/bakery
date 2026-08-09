@@ -1,0 +1,15 @@
+# Check every text file out with LF, on every platform.
+#
+# Without this, a clone on Windows with the default `core.autocrlf=true` gets a
+# CRLF working tree while the committed content is LF — and biome's formatter
+# defaults to `lineEnding: "lf"`, so `bunx biome check` reports **every file**
+# as unformatted. 319 of them, on a tree that is byte-identical to one the same
+# command called clean.
+#
+# It stayed invisible for the whole build because files edited in place keep the
+# LF the editor wrote; only a fresh checkout re-runs the filter. It surfaced the
+# first time the history was replayed, which is the first time this repo had
+# been checked out rather than edited.
+#
+# `text=auto` still lets git detect and leave binaries alone.
+* text=auto eol=lf
