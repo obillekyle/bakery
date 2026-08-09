@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { DEFAULT_STREAM_CHUNK, pagedIterate, SQLAdapter } from './base'
+import type { SQLAdapter } from './base'
+import { DEFAULT_STREAM_CHUNK, pagedIterate } from './base'
 import { MySQLAdapter } from './mysql'
 import { PGAdapter } from './pgsql'
 import { SQLiteAdapter } from './sqlite'
@@ -24,7 +25,7 @@ describe('pagedIterate', () => {
   function stubAll(total: number) {
     const seen: { sql: string; params: unknown[] }[] = []
     const rows = Array.from({ length: total }, (_, i) => ({ id: i + 1 }))
-    const all: SQLAdapter.Executor['all'] = async (sql, params = []) => {
+    const all: SQLAdapter.Executor['all'] = (sql, params = []) => {
       seen.push({ sql, params })
       const limit = Number(params[params.length - 2])
       const offset = Number(params[params.length - 1])
@@ -90,7 +91,7 @@ describe('pagedIterate', () => {
     // everything and yielded from an array, `live` would reach 1000.
     let live = 0
     let peak = 0
-    const all: SQLAdapter.Executor['all'] = async (_sql, params = []) => {
+    const all: SQLAdapter.Executor['all'] = (_sql, params = []) => {
       const limit = Number(params[params.length - 2])
       const offset = Number(params[params.length - 1])
       const rows = Array.from(
@@ -198,9 +199,13 @@ describe('DB…iterable()', () => {
     const { DB } = await import('../orm')
 
     const db = new SQLiteAdapter(':memory:')
-    await db.query('CREATE TABLE stream_items (id INTEGER PRIMARY KEY, n TEXT)').run()
+    await db
+      .query('CREATE TABLE stream_items (id INTEGER PRIMARY KEY, n TEXT)')
+      .run()
     for (let i = 1; i <= 7; i++) {
-      await db.query('INSERT INTO stream_items (id, n) VALUES (?, ?)').run(i, `x${i}`)
+      await db
+        .query('INSERT INTO stream_items (id, n) VALUES (?, ?)')
+        .run(i, `x${i}`)
     }
     __setTestDb(db)
     try {
@@ -222,7 +227,11 @@ describe('DB…iterable()', () => {
     const { DB } = await import('../orm')
 
     const db = new SQLiteAdapter(':memory:')
-    await db.query('CREATE TABLE stream_cased (id INTEGER PRIMARY KEY, given_name TEXT)').run()
+    await db
+      .query(
+        'CREATE TABLE stream_cased (id INTEGER PRIMARY KEY, given_name TEXT)',
+      )
+      .run()
     await db.query('INSERT INTO stream_cased VALUES (?, ?)').run(1, 'ada')
     __setTestDb(db)
     try {

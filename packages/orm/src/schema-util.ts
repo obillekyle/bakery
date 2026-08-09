@@ -152,6 +152,56 @@ export const SQL_FUNCTIONS = new Set([
   'UPPER',
 ])
 
+/**
+ * Functions that are only meaningful over a window.
+ *
+ * Deliberately a second list rather than more entries in `SQL_FUNCTIONS`:
+ * `ROW_NUMBER()` outside an `OVER` clause is a syntax error on all three
+ * dialects, so putting it in the general list would let the builder emit SQL
+ * that cannot run. The aggregates in `SQL_FUNCTIONS` work in *both* positions
+ * and stay where they are — `evalOperands` accepts either list inside a window.
+ *
+ * Verified present on all three servers: SQLite has had window functions since
+ * 3.25, MySQL since 8.0, Postgres throughout.
+ */
+export const WINDOW_FUNCTIONS = new Set([
+  'CUME_DIST',
+  'DENSE_RANK',
+  'FIRST_VALUE',
+  'LAG',
+  'LAST_VALUE',
+  'LEAD',
+  'NTH_VALUE',
+  'NTILE',
+  'PERCENT_RANK',
+  'RANK',
+  'ROW_NUMBER',
+])
+
+/**
+ * A function call with an `OVER (…)` clause.
+ *
+ * `spec` is the inside of the parentheses — `PARTITION BY "a" ORDER BY "b" ASC`
+ * — and arrives **already validated and quoted**, exactly like `_joins[].on`.
+ * That is deliberate: `safeColumn` lives in the query builder, and duplicating
+ * the identifier rules here would make two writers of the same SQL, which is
+ * the thing convention 8 exists to prevent. This class stores; the builder
+ * validates.
+ *
+ * No frame clause (`ROWS BETWEEN …`). It is legal everywhere and would fit, but
+ * it has its own grammar and nobody has asked — an empty frame is the SQL
+ * default and is what every call here gets.
+ */
+export class WindowRef {
+  constructor(
+    /** Either an aggregate call, or the name of a window-only function. */
+    public fn: SQLFunctionRef | string,
+    public spec: string,
+    /** Arguments for a window-only function, e.g. `LAG(col, 1)`. */
+    public args: unknown[] = [],
+  ) {}
+}
+
 const RX_SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/
 
 /** True for a plain identifier safe to interpolate into SQL after quoting. */
@@ -279,6 +329,27 @@ export function evalOperands(
   if (where === null) return 'NULL'
 
   if (typeof where === 'object' && where !== null) {
+    if (where instanceof WindowRef) {
+      // The function half only. `spec` was built by the query builder out of
+      // `safeColumn` output and is inserted as-is — see the class comment.
+      let call: string
+      if (where.fn instanceof SQLFunctionRef) {
+        call = evalOperands(where.fn, params, true)
+      } else {
+        const fnName = String(where.fn).toUpperCase()
+        // Interpolated, not bound, so it passes the same kind of allow-list
+        // `SQL_FUNCTIONS` applies to an ordinary call.
+        if (!WINDOW_FUNCTIONS.has(fnName) && !SQL_FUNCTIONS.has(fnName)) {
+          throws(`Unsupported window function: ${where.fn}`)
+        }
+        const args = where.args
+          .map(a => evalOperands(a, params, false))
+          .join(', ')
+        call = `${fnName}(${args})`
+      }
+      return `${call} OVER (${where.spec})`
+    }
+
     if (where instanceof SQLFunctionRef) {
       const fnName = String(where.fnName).toUpperCase()
       const colArg = where.col

@@ -14,6 +14,7 @@ import {
   OperatorRef as schemaOperatorRef,
   SQL_FUNCTIONS,
   SQLFunctionRef as schemaSQLFunctionRef,
+  WindowRef as schemaWindowRef,
 } from '../schema-util'
 import { Mutation } from './mutation'
 
@@ -28,6 +29,12 @@ export namespace DB {
   function singleRow(sql: string): string {
     return /\bLIMIT\s+\d+/i.test(sql) ? sql : `${sql} LIMIT 1`
   }
+
+  /**
+   * Join keywords the builder may emit. `FULL` renders as `FULL JOIN`, which
+   * both dialects that have it accept as a synonym for `FULL OUTER JOIN`.
+   */
+  const JOIN_TYPES = new Set(['INNER', 'LEFT', 'RIGHT', 'FULL', 'CROSS'])
 
   /** LIMIT/OFFSET are interpolated, so they must be real non-negative integers. */
   function toRowCount(value: unknown, label: string): number {
@@ -202,6 +209,103 @@ export namespace DB {
   ): SQLFunctionRef<C> {
     return new SQLFunctionRef('COALESCE', col, [defaultVal])
   }
+
+  // Defined in schema-util for the same reason as SQLFunctionRef: `evalOperands`
+  // needs a real `instanceof`.
+  export const WindowRef = schemaWindowRef
+  export type WindowRef = schemaWindowRef
+
+  /** `PARTITION BY … ORDER BY …`, for a window. Every field is optional. */
+  export interface WindowSpec {
+    partitionBy?: string | string[]
+    /**
+     * `'users.score'` or `'users.score DESC'`. The direction is optional and
+     * per column, which is why it is spelled inside the string rather than as
+     * a separate field — a window frequently orders by two columns in opposite
+     * directions, and one shared flag could not express that.
+     */
+    orderBy?: string | string[]
+  }
+
+  /** Build the inside of `OVER (…)`, with every identifier through safeColumn. */
+  function windowSpec(spec: WindowSpec = {}): string {
+    const parts: string[] = []
+    const list = (v: string | string[] | undefined) =>
+      v === undefined ? [] : Array.isArray(v) ? v : [v]
+
+    const partition = list(spec.partitionBy).map(c => safeColumn(c))
+    if (partition.length) parts.push(`PARTITION BY ${partition.join(', ')}`)
+
+    const order = list(spec.orderBy).map(entry => {
+      // Split the direction off the tail rather than taking a separate
+      // argument — `safeColumn` would reject 'score DESC' as an identifier, so
+      // the two halves have to be validated apart from each other anyway.
+      const m = /^(.*?)\s+(ASC|DESC)$/i.exec(String(entry).trim())
+      if (!m) return `${safeColumn(String(entry).trim())} ASC`
+      return `${safeColumn(m[1]!.trim())} ${m[2]!.toUpperCase()}`
+    })
+    if (order.length) parts.push(`ORDER BY ${order.join(', ')}`)
+
+    return parts.join(' ')
+  }
+
+  /**
+   * An aggregate over a window: `SUM("total") OVER (PARTITION BY "user_id")`.
+   *
+   * ```ts no-check — illustrative
+   * DB.from('orders').select({
+   *   runningTotal: DB.over(DB.sum('orders.total'), {
+   *     partitionBy: 'orders.userId',
+   *     orderBy: 'orders.createdAt',
+   *   }),
+   * })
+   * ```
+   *
+   * Takes an existing function ref rather than a column, so every aggregate the
+   * builder already has — including `DB.count.distinct(…)` — composes with a
+   * window without a second set of wrappers.
+   */
+  export function over(
+    fn: SQLFunctionRef<string>,
+    spec: WindowSpec = {},
+  ): WindowRef {
+    return new WindowRef(fn, windowSpec(spec))
+  }
+
+  /**
+   * The ranking functions, which take no column — the window *is* the argument.
+   *
+   * Only these three are wrapped by name. The rest of `WINDOW_FUNCTIONS`
+   * (`LAG`, `NTILE`, `FIRST_VALUE`, …) take arguments whose meaning differs per
+   * function, so they go through `DB.window(name, args, spec)` where the caller
+   * says what they mean rather than through eleven near-identical helpers.
+   */
+  const ranking = (fnName: string) => (spec: WindowSpec = {}): WindowRef =>
+    new WindowRef(fnName, windowSpec(spec))
+
+  export const rowNumber = ranking('ROW_NUMBER')
+  export const rank = ranking('RANK')
+  export const denseRank = ranking('DENSE_RANK')
+
+  /**
+   * Any window function by name, with its own arguments.
+   *
+   * ```ts no-check — illustrative
+   * DB.window('LAG', ['orders.total', 1], { orderBy: 'orders.createdAt' })
+   * ```
+   *
+   * The name is checked against `WINDOW_FUNCTIONS` (plus the aggregates) at
+   * parse time — it is interpolated, not bound. Arguments go through
+   * `evalOperands`, so a bare string binds as a parameter and `DB.col('x')`
+   * references a column, exactly as everywhere else in the builder.
+   */
+  export function window(
+    fnName: string,
+    args: unknown[] = [],
+    spec: WindowSpec = {},
+  ): WindowRef {
+    return new WindowRef(fnName, windowSpec(spec), args)
+  }
   export function abs<C extends string = string>(col: C): SQLFunctionRef<C> {
     return new SQLFunctionRef('ABS', col)
   }
@@ -271,6 +375,12 @@ export namespace DB {
   export type SelectValue<S extends TableSchemas, J extends string> =
     | ColumnString<S, J>
     | SQLFunctionRef<ColumnString<S, J> | '*'>
+    // Unparameterised: a window's columns are validated at construction by
+    // `safeColumn`, not by the select's column union. Threading `S`/`J` through
+    // would mean typing the spec against the same table set, which reads well
+    // until a window orders by a *select alias* — legal SQL, and not a column
+    // of any table in scope.
+    | WindowRef
     | QBRaw
 
   export type SelectColumns<S extends TableSchemas, J extends string> = {
@@ -278,15 +388,20 @@ export namespace DB {
   }
 
   export type TakeSelectValues<S, C> = {
-    [A in keyof C]: C[A] extends SQLFunctionRef<infer _Col>
-      ? C[A]['fnName'] extends 'COUNT'
-        ? number
-        : number | null
-      : C[A] extends QBRaw<infer R>
-        ? R
-        : C[A] extends string
-          ? ResolveColumnString<S, C[A]>
-          : any
+    // `WindowRef` first: it is checked before `SQLFunctionRef` because a
+    // windowed aggregate *contains* one, and the outer expression is what the
+    // column's type follows.
+    [A in keyof C]: C[A] extends WindowRef
+      ? number | null
+      : C[A] extends SQLFunctionRef<infer _Col>
+        ? C[A]['fnName'] extends 'COUNT'
+          ? number
+          : number | null
+        : C[A] extends QBRaw<infer R>
+          ? R
+          : C[A] extends string
+            ? ResolveColumnString<S, C[A]>
+            : any
   }
 
   /**
@@ -329,6 +444,44 @@ export namespace DB {
 
   export abstract class QBExecutable<P> {
     abstract parse(): { sql: string; params: any[] }
+
+    /**
+     * `UNION` — every distinct row from this query and the next.
+     *
+     * Returns a {@link QBSet}, not `this`. That is the whole shape of the
+     * feature: a compound select is not a `SELECT` with an extra clause, it is
+     * a different kind of statement whose operands happen to be selects. So
+     * `.where()` and `.select()` are gone from the result — they would have to
+     * mean "on which branch?" — and what remains is what SQL allows after the
+     * last operand: `orderBy`, `limit`, `offset`.
+     */
+    union<Q>(next: QBExecutable<Q>): QBSet<P> {
+      return new QBSet<P>([{ op: null, query: this }, { op: 'UNION', query: next }])
+    }
+
+    /** `UNION ALL` — as `union`, keeping duplicates. Cheaper: no dedupe pass. */
+    unionAll<Q>(next: QBExecutable<Q>): QBSet<P> {
+      return new QBSet<P>([
+        { op: null, query: this },
+        { op: 'UNION ALL', query: next },
+      ])
+    }
+
+    /** `INTERSECT` — rows present in both. */
+    intersect<Q>(next: QBExecutable<Q>, all = false): QBSet<P> {
+      return new QBSet<P>([
+        { op: null, query: this },
+        { op: all ? 'INTERSECT ALL' : 'INTERSECT', query: next },
+      ])
+    }
+
+    /** `EXCEPT` — rows in this query that are not in the next. */
+    except<Q>(next: QBExecutable<Q>, all = false): QBSet<P> {
+      return new QBSet<P>([
+        { op: null, query: this },
+        { op: all ? 'EXCEPT ALL' : 'EXCEPT', query: next },
+      ])
+    }
 
     async *iterable(): AsyncIterable<P> {
       const { sql, params } = this.parse()
@@ -414,7 +567,7 @@ export namespace DB {
       leftCol: ColumnString<S, J>,
       rightCol: R,
       as?: A,
-      type?: 'INNER' | 'LEFT' | 'RIGHT' | 'CROSS',
+      type?: 'INNER' | 'LEFT' | 'RIGHT' | 'FULL' | 'CROSS',
     ): IQBTable<
       S & NewJoinedTable<S, A, ExtractTableFromColumn<R>>,
       NewJoinedScope<J, A, ExtractTableFromColumn<R>>,
@@ -448,6 +601,24 @@ export namespace DB {
     >
 
     innerJoin<
+      R extends AllTableColumns<S>,
+      A extends string | undefined = undefined,
+    >(
+      leftCol: ColumnString<S, J>,
+      rightCol: R,
+      as?: A,
+    ): IQBTable<
+      S & NewJoinedTable<S, A, ExtractTableFromColumn<R>>,
+      NewJoinedScope<J, A, ExtractTableFromColumn<R>>,
+      P
+    >
+
+    /**
+     * `FULL OUTER JOIN`. Typed like the others, but **MySQL has none** — the
+     * runtime refuses there, because a capability the compiler cannot see
+     * cannot be expressed in this signature.
+     */
+    fullJoin<
       R extends AllTableColumns<S>,
       A extends string | undefined = undefined,
     >(
@@ -717,6 +888,132 @@ export namespace DB {
     ): IQBLimit<S, J, P>
   }
 
+  export type SetOperator =
+    | 'UNION'
+    | 'UNION ALL'
+    | 'INTERSECT'
+    | 'INTERSECT ALL'
+    | 'EXCEPT'
+    | 'EXCEPT ALL'
+
+  /**
+   * A compound select: two or more queries joined by `UNION` and friends.
+   *
+   * The emission rules below are not style choices — each one is the only form
+   * all three dialects accept, measured against live servers rather than read
+   * off a standard:
+   *
+   * - **Operands are bare, never parenthesised.** MySQL and Postgres take
+   *   `(SELECT …) UNION (SELECT …)`; **SQLite rejects it outright** — a
+   *   parenthesised select is not a legal operand of a compound there.
+   * - **A branch carrying its own `ORDER BY`/`LIMIT` is wrapped as a derived
+   *   table** instead. `SELECT id FROM a LIMIT 2 UNION …` is a syntax error on
+   *   all three, the parenthesised fix works on two of them, and
+   *   `SELECT * FROM (SELECT id FROM a LIMIT 2) AS b0` works on all three. The
+   *   alias is required by MySQL and harmless elsewhere.
+   * - **`ORDER BY` and `LIMIT` on the set go at the very end**, unwrapped,
+   *   where every dialect reads them as applying to the whole compound.
+   * - **`INTERSECT ALL` / `EXCEPT ALL` are gated.** MySQL 8.0.31+ and Postgres
+   *   have them; SQLite does not, and its message — `near "ALL": syntax error`
+   *   — does not say which construct it means.
+   */
+  export class QBSet<P = any> extends QBExecutable<P> {
+    private _orderBy: string[] = []
+    private _limit?: number
+    private _offset?: number
+
+    constructor(
+      private branches: { op: SetOperator | null; query: QBExecutable<any> }[],
+    ) {
+      super()
+    }
+
+    private add(op: SetOperator, next: QBExecutable<any>): QBSet<P> {
+      this.branches.push({ op, query: next })
+      return this
+    }
+
+    // Chaining a third operand extends this set rather than nesting one inside
+    // another: `a UNION b UNION c` is flat in SQL and mixed operators are
+    // evaluated left to right, which is what a flat list already means.
+    override union<Q>(next: QBExecutable<Q>): QBSet<P> {
+      return this.add('UNION', next)
+    }
+    override unionAll<Q>(next: QBExecutable<Q>): QBSet<P> {
+      return this.add('UNION ALL', next)
+    }
+    override intersect<Q>(next: QBExecutable<Q>, all = false): QBSet<P> {
+      return this.add(all ? 'INTERSECT ALL' : 'INTERSECT', next)
+    }
+    override except<Q>(next: QBExecutable<Q>, all = false): QBSet<P> {
+      return this.add(all ? 'EXCEPT ALL' : 'EXCEPT', next)
+    }
+
+    /**
+     * Order the whole compound. The column names an *output* column of the
+     * set, so it is the select alias rather than `table.column`.
+     */
+    orderBy(column: string, direction: 'ASC' | 'DESC' = 'ASC'): this {
+      const dir = String(direction).toUpperCase()
+      if (dir !== 'ASC' && dir !== 'DESC') {
+        throws(`Invalid sort direction: ${direction}`)
+      }
+      this._orderBy.push(`${safeColumn(column)} ${dir}`)
+      return this
+    }
+
+    limit(count: number, offset?: number): this {
+      this._limit = toRowCount(count, 'limit')
+      this._offset =
+        offset === undefined ? undefined : toRowCount(offset, 'offset')
+      return this
+    }
+
+    paginate(page: number, pageSize: number): this {
+      return this.limit(Math.max(1, pageSize), (Math.max(1, page) - 1) * Math.max(1, pageSize))
+    }
+
+    parse(): { sql: string; params: any[] } {
+      if (this.branches.length < 2) {
+        throws('A set operation needs at least two queries')
+      }
+      const db = getActiveDb()
+      const params: any[] = []
+      const parts: string[] = []
+
+      for (let i = 0; i < this.branches.length; i++) {
+        const { op, query } = this.branches[i]!
+        if (op) {
+          if (op.endsWith(' ALL') && op !== 'UNION ALL' && !db?.supportsSetOperationAll) {
+            throws(
+              `${op} is not supported by this database. ` +
+                `Use ${op.replace(' ALL', '')} instead — it removes duplicates.`,
+            )
+          }
+          parts.push(op)
+        }
+        const parsed = query.parse()
+        params.push(...parsed.params)
+        // Only a branch that orders or limits itself needs the wrapper; a plain
+        // SELECT is emitted as written, which keeps the common case readable.
+        parts.push(
+          /\b(ORDER\s+BY|LIMIT)\b/i.test(parsed.sql)
+            ? `SELECT * FROM (${parsed.sql}) AS ${qRaw(`bakery_set_${i}`)}`
+            : parsed.sql,
+        )
+      }
+
+      const orderSql =
+        this._orderBy.length > 0 ? ` ORDER BY ${this._orderBy.join(', ')}` : ''
+      const limitSql =
+        this._limit !== undefined
+          ? ` LIMIT ${this._limit}${this._offset !== undefined ? ` OFFSET ${this._offset}` : ''}`
+          : ''
+
+      return { sql: `${parts.join(' ')}${orderSql}${limitSql}`, params }
+    }
+  }
+
   export class QBRaw<T = any> extends QBObject<T> {
     constructor(
       private _sql: string,
@@ -959,11 +1256,30 @@ export namespace DB {
 
       const onClause = `${safeColumn(strLeft)} = ${safeColumn(rightSideOn)}`
 
+      // The union type is compile-time only and this string is interpolated
+      // straight into `${j.type} JOIN`, so it needs the same runtime allow-list
+      // `orderBy` gives its direction. Without it, a join type taken off a
+      // request was emitted verbatim.
+      const joinType = String(type).toUpperCase()
+      if (!JOIN_TYPES.has(joinType)) {
+        throws(`Invalid join type: ${type}`)
+      }
+      // Refused at the call site rather than at the server, because MySQL's
+      // message for it — "You have an error in your SQL syntax" pointing at the
+      // whole statement — says nothing about which construct is unsupported.
+      if (joinType === 'FULL' && !getActiveDb()?.supportsFullOuterJoin) {
+        throws(
+          'FULL OUTER JOIN is not supported by this database (MySQL has no ' +
+            'FULL JOIN at all). Express it as a LEFT JOIN unioned with a ' +
+            'RIGHT JOIN, or query the two sides separately.',
+        )
+      }
+
       this._joins.push({
         table: targetTable,
         alias: aliasKey,
         on: onClause,
-        type: type.toUpperCase(),
+        type: joinType,
       })
       return this as any
     }
@@ -978,6 +1294,16 @@ export namespace DB {
 
     innerJoin(leftCol: any, rightCol: any, as?: string): any {
       return this.join(leftCol, rightCol, as, 'INNER')
+    }
+
+    /**
+     * `FULL OUTER JOIN` — every row from both sides, matched where possible.
+     *
+     * SQLite (3.39+) and Postgres have it; **MySQL does not**, at any version,
+     * so this throws there rather than emitting SQL the server will reject.
+     */
+    fullJoin(leftCol: any, rightCol: any, as?: string): any {
+      return this.join(leftCol, rightCol, as, 'FULL')
     }
 
     where(left: any, valueOrRef?: any): any {
@@ -1162,7 +1488,7 @@ export namespace DB {
 
       if (Object.keys(this._select).length > 0) {
         for (const [alias, colRef] of Object.entries(this._select)) {
-          if (colRef instanceof SQLFunctionRef) {
+          if (colRef instanceof WindowRef || colRef instanceof SQLFunctionRef) {
             // `evalOperands` is the single writer for a function call — the
             // same one WHERE and HAVING go through, allow-list included.
             //

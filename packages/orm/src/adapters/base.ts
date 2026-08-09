@@ -514,6 +514,30 @@ export abstract class SQLAdapter {
     return true
   }
 
+  /**
+   * `INTERSECT ALL` and `EXCEPT ALL` — the duplicate-preserving forms.
+   *
+   * `UNION ALL` is universal and is not covered by this; only the other two
+   * are. MySQL grew them in 8.0.31 and Postgres has always had them; SQLite
+   * has neither and reports `near "ALL": syntax error`, which names the
+   * keyword but not the construct.
+   */
+  get supportsSetOperationAll(): boolean {
+    return true
+  }
+
+  /**
+   * `FULL OUTER JOIN`.
+   *
+   * Postgres has it; SQLite gained it in 3.39 and the version Bun bundles has
+   * it. **MySQL has never had it**, at any version — the workaround there is a
+   * `LEFT JOIN` unioned with a `RIGHT JOIN`, which is a different query rather
+   * than a flag, so the builder refuses instead of rewriting silently.
+   */
+  get supportsFullOuterJoin(): boolean {
+    return true
+  }
+
   async addForeignKey(fk: SyncTypes.ForeignKeyInfo): Promise<void> {
     await this.query(
       `ALTER TABLE ${this.quote(Case.snake(fk.table))}` +

@@ -422,6 +422,14 @@ export class SQLiteAdapter extends SQLAdapter {
     return false
   }
 
+  /**
+   * SQLite has `UNION ALL` but neither `INTERSECT ALL` nor `EXCEPT ALL` — the
+   * `ALL` modifier is only accepted after `UNION`.
+   */
+  override get supportsSetOperationAll(): boolean {
+    return false
+  }
+
   async getConstraints(): Promise<SyncTypes.DBConstraints> {
     const tables = (await this.query(
       'SELECT sql,name,type FROM sqlite_master' +

@@ -249,6 +249,15 @@ export class MySQLAdapter extends SQLAdapter {
     return false
   }
 
+  /**
+   * MySQL has no `FULL OUTER JOIN` in any version. `FULL JOIN` and
+   * `FULL OUTER JOIN` both fail the parser, and the error names nothing more
+   * specific than "error in your SQL syntax".
+   */
+  override get supportsFullOuterJoin(): boolean {
+    return false
+  }
+
   protected withConnection(sql: unknown): SQLAdapter {
     return new MySQLAdapter(sql as SQL)
   }
