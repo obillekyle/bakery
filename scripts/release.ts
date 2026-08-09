@@ -5,6 +5,7 @@
  *     bun run release              # version computed from the commit messages
  *     bun run release --dry-run    # show the computed bump, write nothing
  *     bun run release 1.4.0        # explicit, overrides the computation
+ *     bun run release --beta       # 1.3.0-beta.0, publishes under the beta tag
  *
  * Does **not** publish. Publishing is seven `bun publish` calls against a
  * registry, and a script that both rewrites the tree and pushes to npm is one
@@ -15,7 +16,13 @@
  * `tests/conventions.test.ts` for the check that keeps it true between
  * releases.
  */
-import { applyBump, classify, highestBump } from './version-from-commits'
+import {
+  CHANNELS,
+  type Channel,
+  classify,
+  highestBump,
+  nextVersion,
+} from './version-from-commits'
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(
   /^\/([A-Za-z]:)/,
@@ -42,6 +49,12 @@ function die(message: string): never {
   process.exit(1)
 }
 
+const channels = CHANNELS.filter(c => args.includes(`--${c}`))
+if (channels.length > 1) {
+  die(`pick one channel, not ${channels.map(c => `--${c}`).join(' and ')}`)
+}
+const channel: Channel | null = channels[0] ?? null
+
 async function sh(cmd: string[], label: string) {
   const proc = Bun.spawn(cmd, {
     cwd: ROOT,
@@ -59,7 +72,27 @@ async function capture(cmd: string[]): Promise<string> {
 }
 
 /**
- * Work out the next version from the commits since the last tag.
+ * The newest **stable** tag reachable from HEAD, or `null` if there is none.
+ *
+ * Stable specifically — `git describe --abbrev=0` would hand back
+ * `v1.3.0-beta.2`, and measuring commits from there is how a breaking change
+ * that lands mid-beta gets released as a minor. See `nextVersion`.
+ */
+async function lastStableTag(): Promise<string | null> {
+  const raw = await capture([
+    'git',
+    'tag',
+    '--list',
+    'v*',
+    '--merged',
+    'HEAD',
+    '--sort=-v:refname',
+  ])
+  return raw.split('\n').find(t => /^v\d+\.\d+\.\d+$/.test(t.trim())) ?? null
+}
+
+/**
+ * Work out the next version from the commits since the last stable release.
  *
  * The history is 100% conventional-commit formatted (62/62 at the time this was
  * written), so the types are trustworthy input rather than a guess. An explicit
@@ -75,7 +108,7 @@ async function capture(cmd: string[]): Promise<string> {
  * it stays hand-written; the script only opens the heading for it.
  */
 async function computeVersion(current: string): Promise<string> {
-  const lastTag = await capture(['git', 'describe', '--tags', '--abbrev=0'])
+  const lastTag = await lastStableTag()
   const range = lastTag ? `${lastTag}..HEAD` : 'HEAD'
 
   // \x1e between records, \x1f between fields: a commit body can contain
@@ -119,8 +152,18 @@ async function computeVersion(current: string): Promise<string> {
     }
   }
 
-  const next = applyBump(current, bump)
-  console.log(`release: ${current} -> ${next} (${bump})`)
+  // The base is measured from the last stable release, not from `current` and
+  // not from the last tag. `nextVersion` documents why both of those are wrong.
+  const next = nextVersion({
+    lastStable: lastTag ? lastTag.slice(1) : '0.0.0',
+    bump,
+    channel,
+    current,
+  })
+
+  console.log(
+    `release: ${current} -> ${next} (${bump}${channel ? `, ${channel}` : ''})`,
+  )
   return next
 }
 
@@ -189,10 +232,23 @@ const rolled = changelog.replace(
 if (!dryRun) await Bun.write(changelogPath, rolled)
 console.log(`  ✎ CHANGELOG.md    new heading [${version}] — ${today}`)
 
+// **A prerelease published without `--tag` becomes `latest`.** That is npm's
+// default, it is silent, and the consequence is that every `bun add
+// @bakery-framework/core` in the world starts resolving to an alpha. Undoing it
+// means re-tagging by hand *after* users have already installed it, so the
+// command printed here always carries the flag rather than leaving it to be
+// remembered at the point of running seven publishes in a row.
+const publishCmd = channel ? `bun publish --tag ${channel}` : 'bun publish'
+
 console.log(
   dryRun
     ? '\nrelease: dry run, nothing written'
     : `\nrelease: ${changed.length} manifest(s) updated.\n` +
         `  next: review the diff, commit, tag v${version},\n` +
-        '        then publish each package with `bun publish`.',
+        `        then publish each package with \`${publishCmd}\`.` +
+        (channel
+          ? `\n\n  The --tag is not optional: without it npm marks ${version}\n` +
+            '  as `latest` and every plain install resolves to a prerelease.\n' +
+            `  Consumers opt in with \`bun add @bakery-framework/core@${channel}\`.`
+          : ''),
 )

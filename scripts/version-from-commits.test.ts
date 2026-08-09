@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { applyBump, classify, highestBump } from './version-from-commits'
+import {
+  applyBump,
+  classify,
+  highestBump,
+  nextVersion,
+} from './version-from-commits'
 
 const c = (subject: string, body = '') => ({ subject, body })
 
@@ -107,5 +112,138 @@ describe('applyBump', () => {
 
   test('refuses a version it cannot parse', () => {
     expect(() => applyBump('not-a-version', 'patch')).toThrow()
+  })
+})
+
+describe('nextVersion — stable', () => {
+  test('is the bump applied to the last stable release', () => {
+    const at = (bump: 'major' | 'minor' | 'patch') =>
+      nextVersion({
+        lastStable: '1.2.3',
+        bump,
+        channel: null,
+        current: '1.2.3',
+      })
+
+    expect(at('major')).toBe('2.0.0')
+    expect(at('minor')).toBe('1.3.0')
+    expect(at('patch')).toBe('1.2.4')
+  })
+
+  test('graduating a prerelease keeps the base it was testing', () => {
+    // **The bug this exists to prevent.** Everyone spent the beta on 1.3.0;
+    // releasing 1.3.1 would skip it entirely and leave a version number that
+    // was never published as stable. The base comes from lastStable + bump, so
+    // the prerelease counter cannot leak into it.
+    expect(
+      nextVersion({
+        lastStable: '1.2.3',
+        bump: 'minor',
+        channel: null,
+        current: '1.3.0-beta.4',
+      }),
+    ).toBe('1.3.0')
+  })
+
+  test('a break during a beta still graduates to a major', () => {
+    // The other direction, and the more dangerous one: measuring against the
+    // last *tag* (1.3.0-beta.2) would ship this breaking change as 1.3.0.
+    expect(
+      nextVersion({
+        lastStable: '1.2.3',
+        bump: 'major',
+        channel: null,
+        current: '1.3.0-beta.2',
+      }),
+    ).toBe('2.0.0')
+  })
+})
+
+describe('nextVersion — prerelease', () => {
+  test('opens a channel at .0', () => {
+    expect(
+      nextVersion({
+        lastStable: '1.2.3',
+        bump: 'minor',
+        channel: 'alpha',
+        current: '1.2.3',
+      }),
+    ).toBe('1.3.0-alpha.0')
+  })
+
+  test('continues the counter while base and channel both hold', () => {
+    expect(
+      nextVersion({
+        lastStable: '1.2.3',
+        bump: 'minor',
+        channel: 'alpha',
+        current: '1.3.0-alpha.0',
+      }),
+    ).toBe('1.3.0-alpha.1')
+
+    expect(
+      nextVersion({
+        lastStable: '1.2.3',
+        bump: 'minor',
+        channel: 'alpha',
+        current: '1.3.0-alpha.9',
+      }),
+    ).toBe('1.3.0-alpha.10')
+  })
+
+  test('a channel change restarts at .0', () => {
+    // 1.3.0-beta.0 must sort above 1.3.0-alpha.7, and it does — but carrying
+    // the counter across (beta.8) would work by accident and then break the
+    // first time someone opened a channel out of order.
+    expect(
+      nextVersion({
+        lastStable: '1.2.3',
+        bump: 'minor',
+        channel: 'beta',
+        current: '1.3.0-alpha.7',
+      }),
+    ).toBe('1.3.0-beta.0')
+  })
+
+  test('a base change mid-channel restarts at .0', () => {
+    // A `feat!` lands during the 1.3.0 alpha: the base moves to 2.0.0 and the
+    // counter cannot continue, because 2.0.0-alpha.4 would imply three earlier
+    // 2.0.0 alphas that never existed.
+    expect(
+      nextVersion({
+        lastStable: '1.2.3',
+        bump: 'major',
+        channel: 'alpha',
+        current: '1.3.0-alpha.3',
+      }),
+    ).toBe('2.0.0-alpha.0')
+  })
+
+  test('never produces a version that sorts below the current one', () => {
+    // The invariant behind the two restart rules, asserted directly rather than
+    // trusted: whatever the transition, the result must be a semver increase.
+    const cases = [
+      {
+        current: '1.3.0-alpha.0',
+        channel: 'alpha' as const,
+        bump: 'minor' as const,
+      },
+      {
+        current: '1.3.0-alpha.7',
+        channel: 'beta' as const,
+        bump: 'minor' as const,
+      },
+      {
+        current: '1.3.0-alpha.3',
+        channel: 'alpha' as const,
+        bump: 'major' as const,
+      },
+      { current: '1.3.0-beta.1', channel: null, bump: 'minor' as const },
+    ]
+
+    for (const { current, channel, bump } of cases) {
+      const next = nextVersion({ lastStable: '1.2.3', bump, channel, current })
+      expect(Bun.semver.order(next, current)).toBe(1)
+    }
   })
 })

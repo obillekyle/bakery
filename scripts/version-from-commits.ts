@@ -63,14 +63,16 @@ export function highestBump(commits: Commit[]): Bump {
 }
 
 /**
- * Apply a bump to a version.
+ * Apply a bump to a **stable** version.
  *
  * No 0.x special case, deliberately. Semver treats a break below 1.0.0 as a
  * minor bump, but this project is at 1.0.0 and cannot go back, so that branch
  * would be unreachable code wearing the costume of a rule.
  *
- * Any prerelease or build metadata on the current version is dropped, which is
- * what a bump means: `1.2.0-rc.1` + patch is `1.2.1`, not `1.2.1-rc.1`.
+ * Prerelease and build metadata on the input are dropped. That is right for the
+ * only thing that calls this — it is fed the last *stable* version — and wrong
+ * for anything else, which is why `nextVersion` below exists rather than
+ * callers reaching for this directly with whatever they have to hand.
  */
 export function applyBump(current: string, bump: Exclude<Bump, null>): string {
   const core = current.split(/[-+]/)[0] ?? current
@@ -83,4 +85,58 @@ export function applyBump(current: string, bump: Exclude<Bump, null>): string {
   if (bump === 'major') return `${major + 1}.0.0`
   if (bump === 'minor') return `${major}.${minor + 1}.0`
   return `${major}.${minor}.${patch + 1}`
+}
+
+/** Prerelease channels, in semver precedence order — which is also alphabetical. */
+export const CHANNELS = ['alpha', 'beta', 'rc'] as const
+export type Channel = (typeof CHANNELS)[number]
+
+const PRERELEASE = /^(?<base>\d+\.\d+\.\d+)-(?<channel>[a-z]+)\.(?<n>\d+)$/
+
+/**
+ * The next version, stable or prerelease.
+ *
+ * **The base always comes from the last *stable* release plus the bump across
+ * every commit since it — never from the current version.** That is the whole
+ * trick, and getting it wrong is the classic prerelease bug in both directions:
+ *
+ * - Bumping the current version instead means `1.2.0-rc.1` graduates to
+ *   `1.2.1`, silently skipping the `1.2.0` everyone was testing.
+ * - Only counting commits since the last *tag* means a `feat!` landing during a
+ *   beta gets measured against `1.2.0-beta.2`, and ships as `1.2.0` — a
+ *   breaking change released as a minor.
+ *
+ * Computing from the last stable handles both without a special case: the base
+ * is recomputed from scratch every time, so escalation just works, and
+ * graduating is "the same base, minus the tag".
+ *
+ * @param lastStable  the last non-prerelease version released
+ * @param bump        strongest bump across commits since `lastStable`
+ * @param channel     `null` graduates to (or stays) stable
+ * @param current     the version in the manifests right now, used only to
+ *                    decide whether a prerelease counter continues or restarts
+ */
+export function nextVersion({
+  lastStable,
+  bump,
+  channel,
+  current,
+}: {
+  lastStable: string
+  bump: Exclude<Bump, null>
+  channel: Channel | null
+  current: string
+}): string {
+  const base = applyBump(lastStable, bump)
+  if (!channel) return base
+
+  // Continue the counter only when the base *and* the channel both match.
+  // A base change (a break landed mid-beta) or a channel change (beta after
+  // alpha) restarts at .0 — anything else would produce a version that sorts
+  // below one already published.
+  const m = PRERELEASE.exec(current)
+  const continuing = m?.groups?.base === base && m.groups.channel === channel
+  const n = continuing ? Number(m?.groups?.n) + 1 : 0
+
+  return `${base}-${channel}.${n}`
 }
