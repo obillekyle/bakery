@@ -15,8 +15,8 @@ import { join } from 'node:path'
 import './init'
 import { setLogCallback } from '../logger/logger'
 import { runStartupBanner } from '../startup'
-import { DEFAULT_PORT } from '../utils/constants'
 import { setModeFlag } from '../tests/fixtures'
+import { DEFAULT_PORT } from '../utils/constants'
 import { clearHostConfigCache, getConfigLoadError, initConfig } from './config'
 
 /**

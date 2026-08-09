@@ -1,5 +1,5 @@
 import type { Statement } from 'bun:sqlite'
-import { db, registerCache, type Milliseconds } from './tiered'
+import { db, type Milliseconds, registerCache } from './tiered'
 
 type StringEntry = { value: string; accessedAt: number }
 

@@ -1,12 +1,12 @@
+import { Bakery } from '@bakery/core/core/bakery'
 import { errorMsg, getElapsed } from '@bakery/core/logger'
+import { Session } from '@bakery/core/session'
 import { Try } from '@bakery/core/utils/common'
 import * as core from './core'
 import { computeStats } from './endpoints/stats'
 import { connectedAnalyticsClients } from './endpoints/websocket'
 import { analyticsLog } from './log'
 import { saveAnalyticsData } from './storage-sqlite'
-import { Bakery } from '@bakery/core/core/bakery'
-import { Session } from '@bakery/core/session'
 
 const SAVE_THROTTLE_MS = 60000
 
@@ -61,7 +61,9 @@ async function runAnalyticsTick(server: any) {
     const opts = ws.data?.data
     if (opts) {
       const stats = computeStats(opts.timescale, true, opts.pagesFilter)
-      ws.send(JSON.stringify({ status: 200, excludeHistory: true, data: stats }))
+      ws.send(
+        JSON.stringify({ status: 200, excludeHistory: true, data: stats }),
+      )
     }
   }
 }
@@ -91,7 +93,10 @@ let loopRunning = false
  * `intervalMs` is a parameter so a test can drive the scheduler in
  * milliseconds instead of minutes; nothing in the framework passes it.
  */
-export function startAnalyticsLoop(server: any, intervalMs = ANALYTICS_TICK_MS) {
+export function startAnalyticsLoop(
+  server: any,
+  intervalMs = ANALYTICS_TICK_MS,
+) {
   stopAnalyticsLoop()
   loopRunning = true
 

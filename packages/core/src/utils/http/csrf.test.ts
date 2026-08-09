@@ -13,8 +13,12 @@ function req(method: string, headers: Record<string, string> = {}) {
 
 describe('checkCsrf', () => {
   test('allows safe methods regardless of origin', () => {
-    expect(checkCsrf(req('GET', { origin: 'https://evil.example' }), url)).toBeNull()
-    expect(checkCsrf(req('HEAD', { origin: 'https://evil.example' }), url)).toBeNull()
+    expect(
+      checkCsrf(req('GET', { origin: 'https://evil.example' }), url),
+    ).toBeNull()
+    expect(
+      checkCsrf(req('HEAD', { origin: 'https://evil.example' }), url),
+    ).toBeNull()
   })
 
   test('rejects a cross-origin POST', () => {
@@ -31,7 +35,10 @@ describe('checkCsrf', () => {
   })
 
   test('rejects a cross-site POST signalled only by Sec-Fetch-Site', () => {
-    const reason = checkCsrf(req('POST', { 'sec-fetch-site': 'cross-site' }), url)
+    const reason = checkCsrf(
+      req('POST', { 'sec-fetch-site': 'cross-site' }),
+      url,
+    )
     expect(reason).toContain('cross-site')
   })
 
@@ -49,7 +56,9 @@ describe('checkCsrf', () => {
   })
 
   test('allows same-site and none', () => {
-    expect(checkCsrf(req('POST', { 'sec-fetch-site': 'same-site' }), url)).toBeNull()
+    expect(
+      checkCsrf(req('POST', { 'sec-fetch-site': 'same-site' }), url),
+    ).toBeNull()
     expect(checkCsrf(req('POST', { 'sec-fetch-site': 'none' }), url)).toBeNull()
   })
 

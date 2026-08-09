@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, test, expect } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { Bakery, hostStore } from './core/bakery'
 import { __resetTestConfig, __setTestConfig, initConfig } from './core/config'
-import { deferredValue } from './utils/common'
 import { Session } from './session'
+import { deferredValue } from './utils/common'
 
 describe('Session', () => {
   test('constructor creates session with random id', () => {
@@ -148,7 +148,11 @@ describe('sessions are scoped to the host that issued them', () => {
   test('an id created on one host does not resolve on another', async () => {
     const id = 'cross-tenant-id'
     onHost('a.com', () =>
-      Session.create({ id, persistKeys: ['token'], data: { token: 'a-secret' } }),
+      Session.create({
+        id,
+        persistKeys: ['token'],
+        data: { token: 'a-secret' },
+      }),
     )
 
     expect(await onHost('a.com', () => Session.get(id))).toBeDefined()
@@ -158,7 +162,11 @@ describe('sessions are scoped to the host that issued them', () => {
   test('a stolen cookie replayed against another host gets a fresh session', () => {
     const id = 'replayed-id'
     onHost('a.com', () =>
-      Session.create({ id, persistKeys: ['token'], data: { token: 'a-secret' } }),
+      Session.create({
+        id,
+        persistKeys: ['token'],
+        data: { token: 'a-secret' },
+      }),
     )
 
     const req = new Request('http://b.com/', {
@@ -172,7 +180,9 @@ describe('sessions are scoped to the host that issued them', () => {
     const own = new Request('http://a.com/', {
       headers: { cookie: `sId=${id}` },
     })
-    expect(onHost('a.com', () => Session.from(own)).get('token')).toBe('a-secret')
+    expect(onHost('a.com', () => Session.from(own)).get('token')).toBe(
+      'a-secret',
+    )
   })
 
   test('delete on the wrong host is a no-op', async () => {
@@ -207,9 +217,9 @@ describe('sessions are scoped to the host that issued them', () => {
     expect(listed.totalRows).toBe(listedIds.length)
 
     // Keys come back bare, so they round-trip through the id-taking statics.
-    expect(onHost('b.com', () => [...Session.values()]).map(s => s.id)).toContain(
-      'list-b',
-    )
+    expect(
+      onHost('b.com', () => [...Session.values()]).map(s => s.id),
+    ).toContain('list-b')
   })
 })
 

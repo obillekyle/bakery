@@ -246,9 +246,18 @@ describe('the folder write target honours the old filename', () => {
     // A project with neither: the generator should create the new name.
     await Bun.write(`${FRESH}/orm/index.ts`, tableSource('freshTable', 'id'))
     // Both present: the new name wins, so a half-migrated project converges.
-    await Bun.write(`${BOTH_NAMES}/orm/index.ts`, tableSource('bothTable', 'id'))
-    await Bun.write(`${BOTH_NAMES}/orm/schema.ts`, tableSource('bothTable', 'id'))
-    await Bun.write(`${BOTH_NAMES}/orm/tables.ts`, tableSource('bothTable', 'id'))
+    await Bun.write(
+      `${BOTH_NAMES}/orm/index.ts`,
+      tableSource('bothTable', 'id'),
+    )
+    await Bun.write(
+      `${BOTH_NAMES}/orm/schema.ts`,
+      tableSource('bothTable', 'id'),
+    )
+    await Bun.write(
+      `${BOTH_NAMES}/orm/tables.ts`,
+      tableSource('bothTable', 'id'),
+    )
   })
 
   test('an existing schema.ts stays the write target', async () => {

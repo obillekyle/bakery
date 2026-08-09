@@ -1,5 +1,5 @@
-import { describe, test, expect, beforeAll } from 'bun:test'
-import { Logger, log, setLogCallback, messageLogger } from './logger'
+import { beforeAll, describe, expect, test } from 'bun:test'
+import { Logger, log, messageLogger, setLogCallback } from './logger'
 
 describe('Logger class', () => {
   test('constructs with by name', () => {
@@ -36,7 +36,7 @@ describe('log function', () => {
 describe('setLogCallback', () => {
   test('callback receives log entries', () => {
     let received: any = null
-    setLogCallback((entry) => {
+    setLogCallback(entry => {
       received = entry
     })
     log({ msg: 'callback test', by: 'test' })
@@ -62,7 +62,7 @@ describe('messageLogger', () => {
   test('interpolates params in templates', () => {
     let lastMsg = ''
     const logger = new Logger('test')
-    setLogCallback((entry) => {
+    setLogCallback(entry => {
       lastMsg = entry.msg
     })
 
@@ -79,7 +79,7 @@ describe('messageLogger', () => {
   test('falls back to key for missing messages', () => {
     let lastMsg = ''
     const logger = new Logger('test')
-    setLogCallback((entry) => {
+    setLogCallback(entry => {
       lastMsg = entry.msg
     })
 

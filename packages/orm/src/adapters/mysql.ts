@@ -1,8 +1,8 @@
 import { Case, Try } from '@bakery/core/utils'
 import { SQL } from 'bun'
+import { type PoolOptions, withPoolOptions } from '../pool'
 import type * as SyncTypes from '../sync/types'
 import { createExecutor, isOpenConnection, SQLAdapter } from './base'
-import { type PoolOptions, withPoolOptions } from '../pool'
 
 export class MySQLAdapter extends SQLAdapter {
   protected readonly sql: SQL

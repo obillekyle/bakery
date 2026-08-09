@@ -11,7 +11,6 @@ import { Field } from './field'
  */
 const shape = (d: unknown) => ({ ...(d as Record<string, unknown>) })
 
-
 /**
  * The exact objects each builder emits.
  *
@@ -75,7 +74,13 @@ describe('Field emits plain column descriptors', () => {
     for (const def of [Field.Primary(), Field.String(null), Field.Date.now()]) {
       for (const [k, v] of Object.entries(def)) {
         expect(typeof v).not.toBe('function')
-        expect(['type', 'default', 'nullable', 'autoIncrement', 'primary']).toContain(k)
+        expect([
+          'type',
+          'default',
+          'nullable',
+          'autoIncrement',
+          'primary',
+        ]).toContain(k)
       }
     }
   })

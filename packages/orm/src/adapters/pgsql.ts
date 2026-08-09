@@ -1,8 +1,8 @@
 import { Case, Try } from '@bakery/core/utils'
 import { SQL } from 'bun'
+import { type PoolOptions, withPoolOptions } from '../pool'
 import type * as SyncTypes from '../sync/types'
 import { createExecutor, isOpenConnection, SQLAdapter } from './base'
-import { type PoolOptions, withPoolOptions } from '../pool'
 
 interface PGSQLParserState {
   inSingleQuote: boolean
@@ -332,7 +332,10 @@ export class PGAdapter extends SQLAdapter {
     }
   }
 
-  async remove(tableName: string, rowid: unknown): Promise<SQLAdapter.RunResult> {
+  async remove(
+    tableName: string,
+    rowid: unknown,
+  ): Promise<SQLAdapter.RunResult> {
     return await this.query(
       `DELETE FROM ${this.quote(tableName)} WHERE ctid::text = ?`,
     ).run(rowid)
@@ -498,7 +501,9 @@ export class PGAdapter extends SQLAdapter {
     primary = false,
   ): SyncTypes.ColumnConstraint {
     const cons: SyncTypes.ColumnConstraint = {
-      type: PGAdapter.mapPgTypeToTsType(String(col.data_type || col.udt_name || '')),
+      type: PGAdapter.mapPgTypeToTsType(
+        String(col.data_type || col.udt_name || ''),
+      ),
     }
     // Postgres calls it 'character varying' and reports null for TEXT, so the
     // guard has less to do here than on MySQL — but it is the same guard.
@@ -514,7 +519,8 @@ export class PGAdapter extends SQLAdapter {
     let def = col.column_default
     if (
       typeof def === 'string' &&
-      (def.replace(/[()'::\w]+$/, '').trim() === '%dateNow%' || def === '%dateNow%')
+      (def.replace(/[()'::\w]+$/, '').trim() === '%dateNow%' ||
+        def === '%dateNow%')
     ) {
       def = `'${def}'`
     } else {

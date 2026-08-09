@@ -1,6 +1,6 @@
-import { describe, test, expect, beforeEach } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
+import { clearHostConfigCache, initConfig } from '../core/config'
 import { syncTSConfigPaths } from './tsconfig-sync'
-import { initConfig, clearHostConfigCache } from '../core/config'
 
 beforeEach(async () => {
   clearHostConfigCache()

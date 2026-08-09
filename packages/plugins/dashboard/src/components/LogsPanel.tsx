@@ -21,16 +21,13 @@ export function renderLogsPanel() {
               <span>Clear Logs</span>
             </button>
             <label>
-              <input type="checkbox" id="logs-autoscroll" checked />{' '}
-              Auto-scroll
+              <input type="checkbox" id="logs-autoscroll" checked /> Auto-scroll
             </label>
           </div>
         </div>
 
         <div id="logs-console" class="log-console">
-          <div class="text-secondary">
-            Connecting to server log stream...
-          </div>
+          <div class="text-secondary">Connecting to server log stream...</div>
         </div>
       </div>
     </div>

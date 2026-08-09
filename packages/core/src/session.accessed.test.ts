@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { __resetTestConfig, initConfig } from './core/config'
-import { deferredValue } from './utils/common'
-import { DEFAULT_SESSION_TTL } from './utils/constants'
 import { db } from './cache/tiered'
+import { __resetTestConfig, initConfig } from './core/config'
 import {
   __resetTestClock,
   __setTestClock,
   newSessionId,
   Session,
 } from './session'
+import { deferredValue } from './utils/common'
+import { DEFAULT_SESSION_TTL } from './utils/constants'
 
 /**
  * The accessed/modified split. `Session.from` used to `touch()` every session

@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { fs } from '../utils/fs'
 import { matchBlocked } from '../utils/constants'
+import { fs } from '../utils/fs'
 
 export type HostContext = {
   config: Readonly<ProcessedAppConfig>

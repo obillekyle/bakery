@@ -1,9 +1,9 @@
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { hostStore, type HostContext } from '../core/context'
-import { fs } from './fs'
+import { type HostContext, hostStore } from '../core/context'
 import { Try } from './common'
+import { fs } from './fs'
 
 /**
  * The implementation `isForbidden` had before its walk was rewritten to use
@@ -88,18 +88,22 @@ describe('fs.isForbidden', () => {
   test('leaves siblings and parents of a forbidden directory alone', () => {
     expect(fs.isForbidden(fs.resolve(base, 'a'), base)).toBe(false)
     expect(fs.isForbidden(fs.resolve(base, 'pub'), base)).toBe(false)
-    expect(fs.isForbidden(fs.resolve(base, 'pub/open/ok.html'), base)).toBe(false)
+    expect(fs.isForbidden(fs.resolve(base, 'pub/open/ok.html'), base)).toBe(
+      false,
+    )
     expect(fs.isForbidden(fs.resolve(base, 'ab'), base)).toBe(false)
     expect(fs.isForbidden(fs.resolve(base, 'abc'), base)).toBe(false)
   })
 
   test('walks up only as far as the root it was given', () => {
     // `a/b` is forbidden, so a root *below* it must not see the marker above.
-    expect(fs.isForbidden(fs.resolve(base, 'a/b/c/d'), fs.resolve(base, 'a/b/c')))
-      .toBe(false)
+    expect(
+      fs.isForbidden(fs.resolve(base, 'a/b/c/d'), fs.resolve(base, 'a/b/c')),
+    ).toBe(false)
     // ...but from `a` the marker is between the target and the root.
-    expect(fs.isForbidden(fs.resolve(base, 'a/b/c/d'), fs.resolve(base, 'a')))
-      .toBe(true)
+    expect(
+      fs.isForbidden(fs.resolve(base, 'a/b/c/d'), fs.resolve(base, 'a')),
+    ).toBe(true)
   })
 
   test('visits every level between target and root, and no others', async () => {
@@ -138,7 +142,9 @@ describe('fs.isForbidden', () => {
   test('collapses dot segments before walking', () => {
     // Reaches `a/b` by traversal; the marker must still be found.
     expect(fs.isForbidden(fs.resolve(base, 'pub/../a/b/c'), base)).toBe(true)
-    expect(fs.isForbidden(`${base}/a/b/../../pub/open/ok.html`, base)).toBe(false)
+    expect(fs.isForbidden(`${base}/a/b/../../pub/open/ok.html`, base)).toBe(
+      false,
+    )
   })
 
   test('a .forbidden created after a negative answer takes effect at once', async () => {
@@ -425,7 +431,9 @@ describe('fs.getOrCreateCachedFile', () => {
     )
 
     expect(compiles).toBe(2)
-    expect(await Bun.file(fs.resolve(dir, 'sequential.js')).text()).toBe('second')
+    expect(await Bun.file(fs.resolve(dir, 'sequential.js')).text()).toBe(
+      'second',
+    )
   })
 
   test('a failed build is retried rather than remembered', async () => {

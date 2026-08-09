@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { __resetTestDb, __setTestDb } from '../connection'
 
 const mockDb = {
@@ -24,8 +24,18 @@ describe('Unified ORM Query Builder (DB.table)', () => {
 
   test('automatically exposes camelCase keys on query result rows', async () => {
     mockDb.query = () => ({
-      all: async () => [{ subject_code: 'AAp 113', subject_title: 'Art Appreciation', type_id: 1 }],
-      get: async () => ({ subject_code: 'AAp 113', subject_title: 'Art Appreciation', type_id: 1 }),
+      all: async () => [
+        {
+          subject_code: 'AAp 113',
+          subject_title: 'Art Appreciation',
+          type_id: 1,
+        },
+      ],
+      get: async () => ({
+        subject_code: 'AAp 113',
+        subject_title: 'Art Appreciation',
+        type_id: 1,
+      }),
     })
     const list = await DB.table('subjects').array()
     expect(list[0].subject_code).toBe('AAp 113')

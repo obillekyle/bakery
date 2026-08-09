@@ -1,12 +1,24 @@
-import { Bakery } from './bakery'
-import { is } from '../utils/common/misc'
 import type { MapOf, RouteBody } from '../types'
+import { is } from '../utils/common/misc'
+import { Bakery } from './bakery'
 
 type Server = Bun.Server<any>
 
 const VOID_ELEMENTS = new Set([
-  'area', 'base', 'br', 'col', 'embed', 'hr', 'img',
-  'input', 'link', 'meta', 'param', 'source', 'track', 'wbr',
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'param',
+  'source',
+  'track',
+  'wbr',
 ])
 
 export const Fragment = ({ children }: { children?: any }) =>
@@ -117,8 +129,7 @@ export function html<P = {}>(render: RenderFn<P>) {
 
     if (rawDom.trim().toLowerCase().startsWith('<html'))
       return `<!DOCTYPE html>\n${rawDom}`
-    if (rawDom.trim().toLowerCase().startsWith('<!doctype'))
-      return rawDom
+    if (rawDom.trim().toLowerCase().startsWith('<!doctype')) return rawDom
 
     let title = 'Document'
     const dom = rawDom.replace(/<title>(.*?)<\/title>/i, (_, t) => {

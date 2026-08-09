@@ -1,23 +1,24 @@
 import { bundleModule } from '@bakery/core/compiler'
 import { Bakery } from '@bakery/core/core/bakery'
 import { isDevWorker } from '@bakery/core/core/init'
-import { Handler } from '@bakery/core/handlers'
-import { setLogCallback } from '@bakery/core/logger'
-import { errorMsg, pluginLog } from '@bakery/core/logger'
-import { mountRoutes } from '@bakery/core/handlers'
-import { pluginPath } from './paths'
+import { Handler, mountRoutes } from '@bakery/core/handlers'
+// LiveReloadHandler owns this registry — it adds and removes sockets from it.
+import {
+  connectedLoggers,
+  errorMsg,
+  pluginLog,
+  setLogCallback,
+} from '@bakery/core/logger'
 import { type PluginRouteTable, routeTable } from '@bakery/core/plugins'
+import type { JsonResponseData } from '@bakery/core/utils/common'
+import { Try } from '@bakery/core/utils/common'
+import { checkCsrf, injectIfHtml, response } from '@bakery/core/utils/http'
 import {
   type AuthorizeFn,
   defaultAuthorize,
   isAuthorized,
   resolveAuthorize,
 } from './authorize'
-// LiveReloadHandler owns this registry — it adds and removes sockets from it.
-import { connectedLoggers } from '@bakery/core/logger'
-import { Try } from '@bakery/core/utils/common'
-import type { JsonResponseData } from '@bakery/core/utils/common'
-import { checkCsrf, injectIfHtml, response } from '@bakery/core/utils/http'
 import {
   handleExecuteAction,
   handleQuery,
@@ -29,6 +30,7 @@ import {
   handleGetSessions,
   handleUpdateSession,
 } from './endpoints/sessions'
+import { pluginPath } from './paths'
 import renderDashboardShell from './shell'
 
 export { connectedLoggers }
@@ -48,7 +50,9 @@ function inNamespace(path: string, root: string): boolean {
 }
 
 function isDashboardPath(path: string): boolean {
-  return inNamespace(path, '/_dashboard') || inNamespace(path, '/api/_dashboard')
+  return (
+    inNamespace(path, '/_dashboard') || inNamespace(path, '/api/_dashboard')
+  )
 }
 
 export class DashboardHandler extends Handler {
@@ -62,10 +66,7 @@ export class DashboardHandler extends Handler {
 
   static resolveRoute(path: string): Handler.Route.Info | null {
     if (isDashboardPath(path)) {
-      return new Handler.Route.Info(
-        pluginPath('setup.tsx'),
-        path,
-      )
+      return new Handler.Route.Info(pluginPath('setup.tsx'), path)
     }
     return null
   }
@@ -140,9 +141,7 @@ async function handleJsAsset() {
     if (cachedFile.size > 0) return response.type(cachedFile, 'text/javascript')
   }
 
-  const bundleResult = await bundleModule(
-    pluginPath('client/dashboard.ts'),
-  )
+  const bundleResult = await bundleModule(pluginPath('client/dashboard.ts'))
 
   if (!bundleResult.success || !bundleResult.content) {
     pluginLog.DASHBOARD_BUNDLE_ERR({
@@ -192,10 +191,7 @@ async function checkAuthMiddleware(req: Request, path: string) {
  * sails past this guard. The mutating keys in the table below are
  * method-qualified for exactly that reason; neither half closes the hole alone.
  */
-function checkCsrfMiddleware(
-  req: Request,
-  url: URL,
-): DashboardResponse | null {
+function checkCsrfMiddleware(req: Request, url: URL): DashboardResponse | null {
   const reason = checkCsrf(req, url)
   if (!reason) return null
 

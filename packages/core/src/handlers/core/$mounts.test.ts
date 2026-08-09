@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
 import { initConfig } from '../../core/config'
 import { fs } from '../../utils'
-import { clearMounts, getMounts, mountRoutes, resolveMount } from './$mounts'
 import { TSXHandler } from '../assets/tsx'
+import { clearMounts, getMounts, mountRoutes, resolveMount } from './$mounts'
 
 /**
  * A stand-in for a plugin's own directory, outside the app's serve root.
@@ -16,7 +16,10 @@ beforeAll(async () => {
     `${PLUGIN_DIR}/panel.tsx`,
     'export default function Panel() { return <div>panel</div> }\n',
   )
-  await Bun.write(`${PLUGIN_DIR}/nested/deep.tsx`, 'export default () => null\n')
+  await Bun.write(
+    `${PLUGIN_DIR}/nested/deep.tsx`,
+    'export default () => null\n',
+  )
 })
 
 afterAll(async () => {
@@ -96,7 +99,9 @@ describe('route mounts', () => {
     clearMounts()
     mountRoutes('/_demo', PLUGIN_DIR)
     // Traversal above the mount directory must not resolve.
-    const escaped = await TSXHandler.resolveRoute('/_demo/../../../package.json')
+    const escaped = await TSXHandler.resolveRoute(
+      '/_demo/../../../package.json',
+    )
     expect(escaped).toBeNull()
   })
 })

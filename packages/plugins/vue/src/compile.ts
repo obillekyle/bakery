@@ -3,6 +3,7 @@ import { Logger } from '@bakery/core/logger'
 import type { SFCStyleCompileResults } from '@vue/compiler-sfc'
 
 const logger = new Logger('vue')
+
 import type {
   AssembleComponentOptions,
   CompileScriptOptions,

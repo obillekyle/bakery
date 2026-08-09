@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'bun:test'
-import { hostStore, getBakeryVersion } from './context'
+import { describe, expect, test } from 'bun:test'
+import { getBakeryVersion, hostStore } from './context'
 
 describe('hostStore', () => {
   test('runs callback in AsyncLocalStorage context', async () => {
@@ -11,15 +11,21 @@ describe('hostStore', () => {
   test('isolates concurrent contexts', async () => {
     const results: string[] = []
 
-    const taskA = hostStore.run({ hostname: 'a.com', config: {} as any }, async () => {
-      await new Promise(r => setTimeout(r, 10))
-      results.push(hostStore.getStore()?.hostname || '')
-    })
+    const taskA = hostStore.run(
+      { hostname: 'a.com', config: {} as any },
+      async () => {
+        await new Promise(r => setTimeout(r, 10))
+        results.push(hostStore.getStore()?.hostname || '')
+      },
+    )
 
-    const taskB = hostStore.run({ hostname: 'b.com', config: {} as any }, async () => {
-      await new Promise(r => setTimeout(r, 5))
-      results.push(hostStore.getStore()?.hostname || '')
-    })
+    const taskB = hostStore.run(
+      { hostname: 'b.com', config: {} as any },
+      async () => {
+        await new Promise(r => setTimeout(r, 5))
+        results.push(hostStore.getStore()?.hostname || '')
+      },
+    )
 
     await Promise.all([taskA, taskB])
     expect(results).toContain('a.com')

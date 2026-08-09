@@ -1,12 +1,12 @@
 import { Try } from '@bakery/core/utils'
 import { throws } from '@bakery/core/utils/common'
-import type {
-  AppDBOptionals as DBOptionals,
-  AppDBSchema as DBSchema,
-  AppViews,
-} from '../schema-registry'
 import { DEFAULT_MAX_QUERY_PARAMS, type SQLAdapter } from '../adapters'
 import { getActiveDb, txStorage } from '../connection'
+import type {
+  AppViews,
+  AppDBOptionals as DBOptionals,
+  AppDBSchema as DBSchema,
+} from '../schema-registry'
 import { evalOperands, qId } from '../schema-util'
 import { DB } from './query'
 
@@ -70,8 +70,6 @@ export namespace Mutation {
         | ColumnTarget<T>
     : string
 
-
-
   /**
    * What a write returns — the adapter's own result, not a copy of it.
    *
@@ -101,16 +99,18 @@ export namespace Mutation {
      */
     values(records: InsertSchema<T>[]): InsertExecutable
     values(...records: InsertSchema<T>[]): InsertExecutable
-    values(
-      ...args: (InsertSchema<T> | InsertSchema<T>[])[]
-    ): InsertExecutable {
+    values(...args: (InsertSchema<T> | InsertSchema<T>[])[]): InsertExecutable {
       const records =
         args.length === 1 && Array.isArray(args[0])
           ? (args[0] as InsertSchema<T>[])
           : (args as InsertSchema<T>[])
 
       for (const record of records) {
-        if (record === null || typeof record !== 'object' || Array.isArray(record)) {
+        if (
+          record === null ||
+          typeof record !== 'object' ||
+          Array.isArray(record)
+        ) {
           throws(
             'values() takes records: values(row), values(rowA, rowB) or ' +
               'values(rows). Got a ' +
@@ -372,8 +372,9 @@ export namespace Mutation {
     first = this.fetch
 
     async run(): Promise<RunResult> {
-      const results = await this.runBatches(this.parseAll(), (db, sql, params) =>
-        Promise.resolve(db.execute.run(sql, params)),
+      const results = await this.runBatches(
+        this.parseAll(),
+        (db, sql, params) => Promise.resolve(db.execute.run(sql, params)),
       )
       if (results.length === 1) return results[0]!
 
@@ -528,9 +529,7 @@ export namespace Mutation {
       const params: any[] = []
       const whereSql = this.evalWhere(params)
       const result = await getActiveDb()
-        .query(
-          `SELECT 1 FROM ${qId(this._table)} WHERE ${whereSql} LIMIT 1`,
-        )
+        .query(`SELECT 1 FROM ${qId(this._table)} WHERE ${whereSql} LIMIT 1`)
         .get(...params)
       return !!result
     }
@@ -671,9 +670,7 @@ export namespace Mutation {
       const params: any[] = []
       const whereSql = this.evalWhere(params)
       const result = await getActiveDb()
-        .query(
-          `SELECT 1 FROM ${qId(this._table)} WHERE ${whereSql} LIMIT 1`,
-        )
+        .query(`SELECT 1 FROM ${qId(this._table)} WHERE ${whereSql} LIMIT 1`)
         .get(...params)
       return !!result
     }

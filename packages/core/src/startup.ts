@@ -1,5 +1,7 @@
 import { networkInterfaces } from 'node:os'
 import { Bakery } from './core/bakery'
+import { getConfigLoadError } from './core/config'
+import { resolvePort } from './core/port'
 import {
   ApiErrorHandler,
   ApiHandler,
@@ -19,11 +21,8 @@ import {
   TSXHandler,
   VirtualAssetHandler,
 } from './handlers'
-import { log } from './logger'
+import { log, serveLog } from './logger'
 import { match } from './utils/common'
-import { serveLog } from './logger'
-import { getConfigLoadError } from './core/config'
-import { resolvePort } from './core/port'
 import { DEFAULT_RATE_LIMIT } from './utils/constants'
 
 let pluginSetup: Promise<void> | null = null

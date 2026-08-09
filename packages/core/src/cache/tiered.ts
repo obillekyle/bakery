@@ -1,8 +1,8 @@
 import type { Statement } from 'bun:sqlite'
-import { LRUCache } from './lru'
 import { Bakery } from '../core/bakery'
-import { cacheDb as db } from './shared-db'
 import { Logger } from '../logger'
+import { LRUCache } from './lru'
+import { cacheDb as db } from './shared-db'
 
 export { db }
 
@@ -107,7 +107,9 @@ export class TieredCache<K extends string | number, V> {
       // `has` and `getAccessedAt` used `select`, which drags the whole JSON
       // blob out of SQLite and marshals it into JS only to be thrown away.
       // Projecting just what each needs is O(1) instead of O(value).
-      exists: db.prepare(`SELECT 1 AS present FROM ${this.tableName} WHERE key = ?`),
+      exists: db.prepare(
+        `SELECT 1 AS present FROM ${this.tableName} WHERE key = ?`,
+      ),
       accessedAt: db.prepare(
         `SELECT accessedAt FROM ${this.tableName} WHERE key = ?`,
       ),

@@ -1,7 +1,7 @@
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import type { SQLAdapter } from './base'
 import { MySQLAdapter } from './mysql'
 import { PGAdapter } from './pgsql'
@@ -138,7 +138,9 @@ describe('colDef maps the schema type set onto each dialect', () => {
     // Not 'json' — that is a real schema type now, mapping to JSON/JSONB. This
     // needs a name the map genuinely does not know.
     expect(db.colDef({ type: 'geometry' })).toBe('TEXT NOT NULL')
-    expect(new MySQLAdapter().colDef({ type: 'geometry' })).toBe('TEXT NOT NULL')
+    expect(new MySQLAdapter().colDef({ type: 'geometry' })).toBe(
+      'TEXT NOT NULL',
+    )
     expect(new PGAdapter().colDef({ type: 'geometry' })).toBe('TEXT NOT NULL')
   })
 })
@@ -155,7 +157,9 @@ describe('colDef emits each dialect s auto-increment spelling', () => {
   })
 
   test('MySQL puts AUTO_INCREMENT before PRIMARY KEY', () => {
-    expect(new MySQLAdapter().colDef(def)).toBe('INT AUTO_INCREMENT PRIMARY KEY')
+    expect(new MySQLAdapter().colDef(def)).toBe(
+      'INT AUTO_INCREMENT PRIMARY KEY',
+    )
   })
 
   test('Postgres uses an identity column, not a serial', () => {
@@ -196,28 +200,30 @@ describe('colDef renders defaults per dialect', () => {
   test('a string default is single-quoted with embedded quotes doubled', () => {
     for (const [, db] of dialects()) {
       if (db instanceof SQLiteAdapter) recorded.push(db)
-      expect(db.colDef({ type: 'string', nullable: true, default: "it's" })).toContain(
-        "DEFAULT 'it''s'",
-      )
+      expect(
+        db.colDef({ type: 'string', nullable: true, default: "it's" }),
+      ).toContain("DEFAULT 'it''s'")
     }
   })
 
   test('null and numeric defaults render unquoted', () => {
     for (const [, db] of dialects()) {
       if (db instanceof SQLiteAdapter) recorded.push(db)
-      expect(db.colDef({ type: 'integer', nullable: true, default: null })).toContain(
-        'DEFAULT NULL',
-      )
-      expect(db.colDef({ type: 'number', nullable: true, default: 1.5 })).toContain(
-        'DEFAULT 1.5',
-      )
+      expect(
+        db.colDef({ type: 'integer', nullable: true, default: null }),
+      ).toContain('DEFAULT NULL')
+      expect(
+        db.colDef({ type: 'number', nullable: true, default: 1.5 }),
+      ).toContain('DEFAULT 1.5')
     }
   })
 
   test('an undefined default adds no DEFAULT clause at all', () => {
     for (const [, db] of dialects()) {
       if (db instanceof SQLiteAdapter) recorded.push(db)
-      expect(db.colDef({ type: 'string', nullable: true })).not.toContain('DEFAULT')
+      expect(db.colDef({ type: 'string', nullable: true })).not.toContain(
+        'DEFAULT',
+      )
     }
   })
 })
@@ -240,7 +246,10 @@ describe('shared DDL differs only in the quote character', () => {
       const db = make()
       if (db instanceof SQLiteAdapter) recorded.push(db)
       const calls = record(db)
-      await db.addCol('app_users', 'nick_name', { type: 'string', nullable: true })
+      await db.addCol('app_users', 'nick_name', {
+        type: 'string',
+        nullable: true,
+      })
       expect(texts(calls)).toEqual([
         `ALTER TABLE ${q}app_users${q} ADD COLUMN ${q}nick_name${q} TEXT`,
       ])
@@ -358,10 +367,18 @@ describe('row identity differs per dialect', () => {
   test('MySQL has neither, so it looks the primary key up first', async () => {
     const db = new MySQLAdapter()
     const calls = record(db, sql => {
-      if (sql.includes('information_schema.tables')) return [{ name: 'app_users' }]
+      if (sql.includes('information_schema.tables'))
+        return [{ name: 'app_users' }]
       if (sql.includes('COUNT(*)')) return [{ count: 0 }]
       if (sql.includes('information_schema.columns'))
-        return [{ name: 'user_id', type: 'int', is_nullable: 'NO', column_key: 'PRI' }]
+        return [
+          {
+            name: 'user_id',
+            type: 'int',
+            is_nullable: 'NO',
+            column_key: 'PRI',
+          },
+        ]
       return []
     })
     await db.remove('app_users', 7)
@@ -398,7 +415,9 @@ describe('row identity differs per dialect', () => {
     await db.update('app_users', 7, { nick_name: 'x' })
 
     expect(texts(calls).filter(sql => /COUNT\(\*\)/i.test(sql))).toEqual([])
-    expect(texts(calls).filter(sql => sql.includes('information_schema.tables'))).toEqual([])
+    expect(
+      texts(calls).filter(sql => sql.includes('information_schema.tables')),
+    ).toEqual([])
     // One key lookup per statement, and nothing else.
     expect(calls).toHaveLength(4)
     expect(calls[1]).toEqual({
@@ -535,7 +554,14 @@ describe('rename DDL diverges on MySQL', () => {
     const calls = record(db, sql => {
       if (sql.includes('RENAME COLUMN')) throw new Error('syntax error')
       if (sql.includes('information_schema.columns'))
-        return [{ column_type: 'text', is_nullable: 'YES', column_default: null, extra: '' }]
+        return [
+          {
+            column_type: 'text',
+            is_nullable: 'YES',
+            column_default: null,
+            extra: '',
+          },
+        ]
       return []
     })
     await db.rename('COLUMN', 'app_users', 'old_col', 'nick_name')
@@ -648,7 +674,12 @@ describe('MySQL introspection queries', () => {
 
     expect(await db.getConstraints()).toEqual({
       appUsers: {
-        id: { type: 'integer', primary: true, autoIncrement: true, default: null },
+        id: {
+          type: 'integer',
+          primary: true,
+          autoIncrement: true,
+          default: null,
+        },
         nickName: { type: 'string', nullable: true, default: 'anon' },
       },
     })
@@ -681,7 +712,12 @@ describe('MySQL introspection queries', () => {
     // accumulated rather than overwritten.
     const db = new MySQLAdapter()
     const calls = record(db, () => [
-      { index_name: 'PRIMARY', non_unique: 0, table_name: 'app_users', column_name: 'id' },
+      {
+        index_name: 'PRIMARY',
+        non_unique: 0,
+        table_name: 'app_users',
+        column_name: 'id',
+      },
       {
         index_name: 'idx_app_users_name',
         non_unique: 0,
@@ -703,7 +739,11 @@ describe('MySQL introspection queries', () => {
     ])
 
     expect(await db.getIndexes()).toEqual({
-      idxAppUsersName: { type: 'unique', table: 'appUsers', cols: ['nickName'] },
+      idxAppUsersName: {
+        type: 'unique',
+        table: 'appUsers',
+        cols: ['nickName'],
+      },
       idxAppUsersPair: {
         type: 'index',
         table: 'appUsers',
@@ -718,12 +758,18 @@ describe('MySQL introspection queries', () => {
   test('getSchema reports row counts, pk flags and deduplicated indexes', async () => {
     const db = new MySQLAdapter()
     const calls = record(db, sql => {
-      if (sql.includes('information_schema.tables')) return [{ name: 'app_users' }]
+      if (sql.includes('information_schema.tables'))
+        return [{ name: 'app_users' }]
       if (sql.includes('COUNT(*)')) return [{ count: 3 }]
       if (sql.includes('information_schema.columns'))
         return [
           { name: 'id', type: 'int', is_nullable: 'NO', column_key: 'PRI' },
-          { name: 'nick_name', type: 'varchar', is_nullable: 'YES', column_key: '' },
+          {
+            name: 'nick_name',
+            type: 'varchar',
+            is_nullable: 'YES',
+            column_key: '',
+          },
         ]
       if (sql.includes('information_schema.statistics'))
         return [
@@ -762,7 +808,8 @@ describe('MySQL introspection queries', () => {
   test('getData validates sort and filter columns against the real column list', async () => {
     const db = new MySQLAdapter()
     const calls = record(db, sql => {
-      if (sql.includes('information_schema.columns')) return [{ name: 'nick_name' }]
+      if (sql.includes('information_schema.columns'))
+        return [{ name: 'nick_name' }]
       if (sql.includes('COUNT(*)')) return [{ count: 1 }]
       return []
     })
@@ -873,9 +920,14 @@ describe('Postgres introspection queries', () => {
   test('type mapping covers the Postgres spellings the ORM emits', () => {
     const map = (dataType: string) => {
       const pg = new PGAdapter()
-      const parse = (pg as unknown as {
-        parseConstraints: (col: unknown, primary?: boolean) => { type: string }
-      }).parseConstraints.bind(pg)
+      const parse = (
+        pg as unknown as {
+          parseConstraints: (
+            col: unknown,
+            primary?: boolean,
+          ) => { type: string }
+        }
+      ).parseConstraints.bind(pg)
       return parse({ data_type: dataType, is_nullable: 'YES' }).type
     }
     expect(map('integer')).toBe('integer')
@@ -899,7 +951,8 @@ describe('Postgres introspection queries', () => {
     const calls = record(db, () => [
       {
         indexname: 'app_users_pkey',
-        indexdef: 'CREATE UNIQUE INDEX app_users_pkey ON public.app_users USING btree (id)',
+        indexdef:
+          'CREATE UNIQUE INDEX app_users_pkey ON public.app_users USING btree (id)',
         tablename: 'app_users',
       },
       {
@@ -917,7 +970,11 @@ describe('Postgres introspection queries', () => {
     ])
 
     expect(await db.getIndexes()).toEqual({
-      idxAppUsersName: { type: 'unique', table: 'appUsers', cols: ['nickName'] },
+      idxAppUsersName: {
+        type: 'unique',
+        table: 'appUsers',
+        cols: ['nickName'],
+      },
       idxAppUsersPair: {
         type: 'index',
         table: 'appUsers',
@@ -976,7 +1033,8 @@ describe('Postgres introspection queries', () => {
   test('getData selects ctid as the row handle', async () => {
     const db = new PGAdapter()
     const calls = record(db, sql => {
-      if (sql.includes('information_schema.columns')) return [{ name: 'nick_name' }]
+      if (sql.includes('information_schema.columns'))
+        return [{ name: 'nick_name' }]
       if (sql.includes('COUNT(*)')) return [{ count: 1 }]
       return []
     })
@@ -1046,7 +1104,12 @@ describe('SQLite: DDL round-trips through introspection', () => {
   test('every colDef survives the round trip back to a constraint', async () => {
     const constraints = await db.getConstraints()
     expect(constraints.appUsers).toEqual({
-      id: { type: 'integer', primary: true, autoIncrement: true, default: null },
+      id: {
+        type: 'integer',
+        primary: true,
+        autoIncrement: true,
+        default: null,
+      },
       nickName: { type: 'string', default: null },
       createdAt: { type: 'integer', default: '%dateNow%' },
       score: { type: 'number', nullable: true, default: 1.5 },
@@ -1066,8 +1129,12 @@ describe('SQLite: DDL round-trips through introspection', () => {
     const stored = (await db
       .query("SELECT sql FROM sqlite_master WHERE name = 'app_users'")
       .get()) as { sql: string }
-    expect(stored.sql).toContain("DEFAULT (CAST(strftime('%s', 'now') AS INTEGER))")
-    expect((await db.getConstraints()).appUsers.createdAt.default).toBe('%dateNow%')
+    expect(stored.sql).toContain(
+      "DEFAULT (CAST(strftime('%s', 'now') AS INTEGER))",
+    )
+    expect((await db.getConstraints()).appUsers.createdAt.default).toBe(
+      '%dateNow%',
+    )
   })
 
   test('a view reports its body and its columns, but no defaults', async () => {
@@ -1075,12 +1142,19 @@ describe('SQLite: DDL round-trips through introspection', () => {
     // Quotes are stripped from plain identifiers so the stored body can be
     // compared against the one in schema.ts.
     expect(constraints.activeUsers._view).toBe('SELECT id FROM app_users')
-    expect(constraints.activeUsers.id).toEqual({ type: 'integer', nullable: true })
+    expect(constraints.activeUsers.id).toEqual({
+      type: 'integer',
+      nullable: true,
+    })
   })
 
   test('getIndexes reports declared indexes with their columns in order', async () => {
     expect(await db.getIndexes()).toEqual({
-      idxAppUsersName: { type: 'unique', table: 'appUsers', cols: ['nickName'] },
+      idxAppUsersName: {
+        type: 'unique',
+        table: 'appUsers',
+        cols: ['nickName'],
+      },
       idxAppUsersPair: {
         type: 'index',
         table: 'appUsers',
@@ -1130,8 +1204,12 @@ describe('SQLite: DDL round-trips through introspection', () => {
       .query("SELECT name FROM sqlite_master WHERE name = 'sqlite_sequence'")
       .all()) as Array<{ name: string }>
     expect(master.length).toBe(1)
-    expect((await db.getSchema()).map(t => t.name)).not.toContain('sqlite_sequence')
-    expect(Object.keys(await db.getConstraints())).not.toContain('sqliteSequence')
+    expect((await db.getSchema()).map(t => t.name)).not.toContain(
+      'sqlite_sequence',
+    )
+    expect(Object.keys(await db.getConstraints())).not.toContain(
+      'sqliteSequence',
+    )
   })
 
   test('hasCol answers from the live table', async () => {
@@ -1314,7 +1392,10 @@ describe('dialect defects, fixed and pinned', () => {
     const lite = new SQLiteAdapter(':memory:')
     recorded.push(lite)
     const liteDef = lite.colDef({ type: 'integer', default: '%dateNow%' })
-    const pgDef = new PGAdapter().colDef({ type: 'integer', default: '%dateNow%' })
+    const pgDef = new PGAdapter().colDef({
+      type: 'integer',
+      default: '%dateNow%',
+    })
     const myDef = new MySQLAdapter().colDef({
       type: 'integer',
       default: '%dateNow%',
@@ -1487,8 +1568,8 @@ describe('dialect defects, fixed and pinned', () => {
     await db.createTable('good_table', [`${db.quote('id')} ${textKey}`])
 
     // An integer key must keep it, or the guard has broken the normal case.
-    expect(db.colDef({ type: 'integer', primary: true, autoIncrement: true })).toBe(
-      'INTEGER PRIMARY KEY AUTOINCREMENT',
-    )
+    expect(
+      db.colDef({ type: 'integer', primary: true, autoIncrement: true }),
+    ).toBe('INTEGER PRIMARY KEY AUTOINCREMENT')
   })
 })

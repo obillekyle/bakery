@@ -9,7 +9,12 @@ export default defineRoute<{ title: string; slug: string; body: string }>(
   async (req, body) => {
     if (req.method === 'POST') {
       await DB.Insert.into('posts')
-        .values({ authorId: 1, title: body.title, slug: body.slug, body: body.body })
+        .values({
+          authorId: 1,
+          title: body.title,
+          slug: body.slug,
+          body: body.body,
+        })
         .run()
       return response.json.success('created')
     }

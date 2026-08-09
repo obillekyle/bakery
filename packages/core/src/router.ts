@@ -1,14 +1,16 @@
 import { Bakery, hostStore } from './core/bakery'
-import { Session } from './session'
+import { matchBlockedCached } from './core/context'
+import { PluginHooks } from './core/plugins'
 import { DefaultErrorHandler } from './handlers/assets/static'
 import type { Handler } from './handlers/core/$base'
 import { ErrorHandler } from './handlers/core/$error'
 import { WebSocketHandler } from './handlers/core/$websocket'
-import { log } from './logger'
+import { errorMsg, getElapsed, log, serveLog } from './logger'
+import { Session } from './session'
+import type { MixedPromise } from './types'
 import { JsonResponseData } from './utils'
 import { is, Try } from './utils/common'
 import { fs } from './utils/fs'
-import { matchBlockedCached } from './core/context'
 import {
   checkWebSocketOrigin,
   ETag,
@@ -16,9 +18,6 @@ import {
   response,
   withStatus,
 } from './utils/http'
-import { errorMsg, getElapsed, serveLog } from './logger'
-import { PluginHooks } from './core/plugins'
-import type { MixedPromise } from './types'
 
 /**
  * Resolve a WebSocket upgrade, refusing cross-origin handshakes first.

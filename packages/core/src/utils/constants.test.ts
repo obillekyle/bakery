@@ -1,12 +1,12 @@
-import { describe, test, expect } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import {
-  DEFAULT_PORT,
-  DEFAULT_HOST,
-  DEFAULT_DB_BACKUPS,
-  DEFAULT_SESSION_TTL,
-  DEFAULT_SESSION_PERSIST,
-  DEFAULT_RATE_LIMIT,
   DEFAULT_BLOCKED_GLOBS,
+  DEFAULT_DB_BACKUPS,
+  DEFAULT_HOST,
+  DEFAULT_PORT,
+  DEFAULT_RATE_LIMIT,
+  DEFAULT_SESSION_PERSIST,
+  DEFAULT_SESSION_TTL,
   matchBlocked,
   normalizeBlockedPath,
 } from './constants'
@@ -177,7 +177,9 @@ describe('matchBlocked', () => {
 
 describe('normalizeBlockedPath', () => {
   test('folds case', () => {
-    expect(normalizeBlockedPath('/STYLES/Global.CSS')).toBe('/styles/global.css')
+    expect(normalizeBlockedPath('/STYLES/Global.CSS')).toBe(
+      '/styles/global.css',
+    )
   })
 
   test('trims trailing dots and spaces per component', () => {

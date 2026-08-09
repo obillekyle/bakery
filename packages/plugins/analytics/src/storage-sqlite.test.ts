@@ -1,11 +1,7 @@
-import { afterEach, describe, expect, test } from 'bun:test'
 import { Database } from 'bun:sqlite'
+import { afterEach, describe, expect, test } from 'bun:test'
 import { type LoggerEntry, setLogCallback } from '@bakery/core/logger'
-import {
-  __resetTestDb,
-  __setTestDb,
-  saveAnalyticsData,
-} from './storage-sqlite'
+import { __resetTestDb, __setTestDb, saveAnalyticsData } from './storage-sqlite'
 
 /** Collect log lines for the duration of one call. */
 async function capture(fn: () => Promise<void>): Promise<LoggerEntry[]> {

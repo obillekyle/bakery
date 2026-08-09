@@ -11,9 +11,13 @@ let config: unknown
 
 try {
   const { initConfig } = await import('@bakery/core/core/config')
-  const { initImportMap, initHostImportMaps } = await import('@bakery/core/utils/http')
+  const { initImportMap, initHostImportMaps } = await import(
+    '@bakery/core/utils/http'
+  )
   const { setupPlugins } = await import('@bakery/core/startup')
-  const { syncTSConfigPaths } = await import('@bakery/core/compiler/tsconfig-sync')
+  const { syncTSConfigPaths } = await import(
+    '@bakery/core/compiler/tsconfig-sync'
+  )
 
   config = await initConfig()
   // Still before initImportMap(): a plugin's setup() may contribute entries.

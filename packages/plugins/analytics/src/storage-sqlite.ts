@@ -1,5 +1,7 @@
 import type Database from 'bun:sqlite'
 import { cacheDb } from '@bakery/core/cache/shared-db'
+import { errorMsg, pluginLog } from '@bakery/core/logger'
+import { Try } from '@bakery/core/utils/common'
 import {
   BOOT_MAX_ITEMS,
   history1d,
@@ -11,8 +13,6 @@ import {
   pageHitsMap,
   RETENTION_MS,
 } from './core'
-import { errorMsg, pluginLog } from '@bakery/core/logger'
-import { Try } from '@bakery/core/utils/common'
 import { analyticsLog } from './log'
 import { timescaleToMs } from './timescale'
 import type { AnalyticsSnapshot } from './types'

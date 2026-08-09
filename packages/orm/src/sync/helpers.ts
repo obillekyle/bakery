@@ -1,7 +1,7 @@
 import { Case } from '@bakery/core/utils'
 import { SQLAdapter } from '../adapters/base'
-import type * as SyncTypes from './types'
 import { resolveCurrentState } from './ledger'
+import type * as SyncTypes from './types'
 import { normalizeViewBody } from './view-sql'
 
 export namespace SyncPlan {
@@ -485,7 +485,8 @@ function diffViews(
     const camel = Case.camel(name)
     declared.add(camel)
 
-    const dbBody = (dbSide[camel] as SyncTypes.TableConstraints | undefined)?._view
+    const dbBody = (dbSide[camel] as SyncTypes.TableConstraints | undefined)
+      ?._view
     const want = normalizeViewBody(String(body), database)
     const have = dbBody ? normalizeViewBody(String(dbBody), database) : null
     if (have !== want) plan.viewsToUpdate.push(Case.snake(name))
@@ -516,7 +517,8 @@ function diffTableViewsAndColumns(
       plan.tablesToRebuild.has(Case.snake(camelTable))
     )
       continue
-    if (diffViewStrings(plan, camelTable, dbName, constraints, database)) continue
+    if (diffViewStrings(plan, camelTable, dbName, constraints, database))
+      continue
     diffTableColumns(plan, camelTable, dbName, constraints, logger, MESSAGES)
   }
 }
@@ -671,7 +673,8 @@ async function processTableRebuild(
     ([n]) => !['_oldTable', '_transform'].includes(n),
   )
   const colDefs = validCols.map(
-    ([name, cons]) => `  ${tx.quote(Case.snake(name))} ${tx.colDef(cons, Case.snake(name))}`,
+    ([name, cons]) =>
+      `  ${tx.quote(Case.snake(name))} ${tx.colDef(cons, Case.snake(name))}`,
   )
 
   // Inline, or the rebuild silently drops every foreign key the table had.
@@ -794,11 +797,7 @@ async function renameColumnsPhase(
   }
 }
 
-async function dropTablesPhase(
-  tx: SQLAdapter,
-  plan: SyncPlan,
-  MESSAGES: any,
-) {
+async function dropTablesPhase(tx: SQLAdapter, plan: SyncPlan, MESSAGES: any) {
   for (const table of plan.tablesToDrop) {
     const tType = plan.dbConstraintsForDiff[Case.camel(table)]?._view
       ? 'view'
@@ -808,22 +807,14 @@ async function dropTablesPhase(
   }
 }
 
-async function dropColumnsPhase(
-  tx: SQLAdapter,
-  plan: SyncPlan,
-  MESSAGES: any,
-) {
+async function dropColumnsPhase(tx: SQLAdapter, plan: SyncPlan, MESSAGES: any) {
   for (const { table, column } of plan.columnsToDrop) {
     MESSAGES.EXEC_DROP_COL({ table, column })
     await tx.drop('COLUMN', table, column)
   }
 }
 
-async function addColumnsPhase(
-  tx: SQLAdapter,
-  plan: SyncPlan,
-  MESSAGES: any,
-) {
+async function addColumnsPhase(tx: SQLAdapter, plan: SyncPlan, MESSAGES: any) {
   for (const { table, column, def } of plan.columnsToAdd) {
     if (!(await tx.hasCol(table, column))) {
       MESSAGES.EXEC_ADD_COL({ table, column })
@@ -980,7 +971,6 @@ export async function executeSyncPlan(
   await foreignKeysPhase(tx, fksToAdd, fksToDrop, MESSAGES)
 }
 
-
 export function hasOldWrappers(constraints: SyncTypes.DBConstraints) {
   return Object.values(constraints).some(
     tObj =>
@@ -991,7 +981,6 @@ export function hasOldWrappers(constraints: SyncTypes.DBConstraints) {
       ),
   )
 }
-
 
 /** The `foreign()` declarations, normalised into the shape the diff uses. */
 export function collectForeignKeys(
@@ -1053,7 +1042,8 @@ export function calculateForeignKeyDiff(
   const sameActions = (
     a: SyncTypes.ForeignKeyInfo,
     b: SyncTypes.ForeignKeyInfo,
-  ) => act(a.onDelete) === act(b.onDelete) && act(a.onUpdate) === act(b.onUpdate)
+  ) =>
+    act(a.onDelete) === act(b.onDelete) && act(a.onUpdate) === act(b.onUpdate)
 
   for (const [id, fk] of Object.entries(tsFks)) {
     // A rebuilt table is recreated from the constraints, foreign keys included,

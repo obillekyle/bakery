@@ -1,8 +1,8 @@
 import { Bakery } from '../core/bakery'
-import { fs } from '../utils/fs'
-import { parseJSONC } from '../utils/jsonc'
 import { errorMsg, serveLog } from '../logger'
 import type { MapOf } from '../types'
+import { fs } from '../utils/fs'
+import { parseJSONC } from '../utils/jsonc'
 
 // 🚀 Hoisted Regexes
 const RE_ROOT_RELATIVE = /^(\.\/)?(\.server|api|node_modules)\//

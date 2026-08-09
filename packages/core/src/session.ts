@@ -1,8 +1,8 @@
-import { Bakery, hostKey } from './core/bakery'
-import { hasDeferredValue } from './utils'
 import { TieredCache } from './cache/tiered'
-import { DEFAULT_SESSION_PERSIST, DEFAULT_SESSION_TTL } from './utils/constants'
+import { Bakery, hostKey } from './core/bakery'
 import type { MapOf } from './types'
+import { hasDeferredValue } from './utils'
+import { DEFAULT_SESSION_PERSIST, DEFAULT_SESSION_TTL } from './utils/constants'
 
 /**
  * Keys under this prefix are framework-internal privilege markers. They share

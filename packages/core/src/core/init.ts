@@ -2,8 +2,7 @@ import { createElement, Fragment, html } from './jsx'
 
 const hasDevWorkerArg = process.argv.includes('--dev-worker')
 const isThreadWorker =
-  process.argv.includes('--thread-worker') ||
-  process.env.THREAD_WORKER === '1'
+  process.argv.includes('--thread-worker') || process.env.THREAD_WORKER === '1'
 const isDev = process.argv.includes('--dev') || hasDevWorkerArg
 const isTest = process.env.NODE_ENV === 'test' || Bun.env.NODE_ENV === 'test'
 const mode = hasDevWorkerArg
@@ -24,8 +23,7 @@ const getArgValue = (name: string) => {
     : null
 }
 
-const threadId =
-  process.env.THREAD_ID ?? getArgValue('--thread-id') ?? '0'
+const threadId = process.env.THREAD_ID ?? getArgValue('--thread-id') ?? '0'
 
 /**
  * An accessor pair, not a bare getter.

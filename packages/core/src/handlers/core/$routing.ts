@@ -1,6 +1,6 @@
 import Bakery from '../../core'
 import { fs } from '../../utils'
-import { RouteData, type Handler } from './$base'
+import { type Handler, RouteData } from './$base'
 
 const GETFILE = (dir: fs.AbsolutePath) => ({
   absolute: true,
@@ -43,7 +43,8 @@ const routeGlobs = (
   }
 
   const hasExt = Boolean(fs.parse(first).ext)
-  const valid = !hasExt || exts.length === 0 || exts.some(e => first.endsWith(`.${e}`))
+  const valid =
+    !hasExt || exts.length === 0 || exts.some(e => first.endsWith(`.${e}`))
   const stem = fs.parse(first).name
 
   const staticGlobs: Bun.Glob[] = []

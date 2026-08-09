@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { createExecutor, type SQLAdapter } from './base'
-import {
-  getQueryObserver,
-  type QueryEvent,
-  setQueryObserver,
-} from './observe'
+import { getQueryObserver, type QueryEvent, setQueryObserver } from './observe'
 
 /**
  * The observer is process-wide state, so every test here restores it — a leaked
@@ -374,9 +370,9 @@ describe('iterate', () => {
     // Bun's SQL query object is a thenable with no iterator, so this is the
     // shape all three adapters actually hand over today. Observability must not
     // paper over that, and must not change where the failure surfaces.
-    const notIterable = { then: () => {} } as unknown as AsyncIterable<
-      SQLAdapter.RowRecord
-    >
+    const notIterable = {
+      then: () => {},
+    } as unknown as AsyncIterable<SQLAdapter.RowRecord>
     const exec = createExecutor(
       async () => ROWS,
       async () => ({ lastInsertRowid: null, changes: 0 }),

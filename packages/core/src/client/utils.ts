@@ -84,11 +84,7 @@ export async function request(
     ...options,
     method,
     body:
-      method === 'GET'
-        ? undefined
-        : isFormData
-          ? body
-          : JSON.stringify(body),
+      method === 'GET' ? undefined : isFormData ? body : JSON.stringify(body),
     headers: {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(options.headers || {}),

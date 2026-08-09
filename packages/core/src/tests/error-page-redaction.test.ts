@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
 import { __resetTestConfig, __setTestConfig, initConfig } from '../core/config'
-import { fs } from '../utils'
-import { HTMLErrorHandler } from '../handlers/routes/html'
 import { TSXErrorHandler } from '../handlers/assets/tsx'
+import { HTMLErrorHandler } from '../handlers/routes/html'
+import { fs } from '../utils'
 import { asDev, asProd } from './fixtures'
 
 /**

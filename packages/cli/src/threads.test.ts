@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import {
   type FlushTarget,
-  requestWorkerFlush,
   RESPAWN_BASE_DELAY_MS,
   RESPAWN_MAX_DELAY_MS,
+  requestWorkerFlush,
   respawnDelayMs,
 } from './threads'
 

@@ -17,10 +17,10 @@
  * columns) until a schema registers itself.
  */
 import { Field } from '@bakery/orm'
-import {
-  type ExtractOptionals,
-  type ExtractTableTypes,
-  type ExtractViews,
+import type {
+  ExtractOptionals,
+  ExtractTableTypes,
+  ExtractViews,
 } from '@bakery/orm/schema-util'
 
 export namespace DBInfo {

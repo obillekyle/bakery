@@ -1,7 +1,14 @@
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  test,
+} from 'bun:test'
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
 // Side-effect import, and it must come before the descriptor capture below.
 // `@bakery/orm` does not otherwise load `core/init`, so without this the
 // capture sees no `PROD` accessor, and the restore below has nothing to put
@@ -52,7 +59,8 @@ describe('the production guard reads a boolean, not the string "true"', () => {
     // `installProdFlag` defines a getter with no setter, which is how an
     // accessor installed here is told apart from one init owns.
     const current = Object.getOwnPropertyDescriptor(process.env, key)
-    if (current && !current.set) delete (process.env as Record<string, unknown>)[key]
+    if (current && !current.set)
+      delete (process.env as Record<string, unknown>)[key]
   }
 
   /** Exactly what `core/init.ts` installs: a getter returning a boolean. */
@@ -178,7 +186,10 @@ describe('SQLite column renames survive planning', () => {
       .run()
 
     const out = await dryRun(db, {
-      people: { id: pk, displayName: { type: 'string', _oldColumn: 'oldName' } },
+      people: {
+        id: pk,
+        displayName: { type: 'string', _oldColumn: 'oldName' },
+      },
     })
 
     expect(out).toContain('Columns to rename')
@@ -201,7 +212,10 @@ describe('SQLite column renames survive planning', () => {
 
     const out = await dryRun(db, {
       widgets: { id: pk, _oldTable: 'oldWidgets' },
-      people: { id: pk, displayName: { type: 'string', _oldColumn: 'oldName' } },
+      people: {
+        id: pk,
+        displayName: { type: 'string', _oldColumn: 'oldName' },
+      },
     })
 
     expect(out).toContain('old_widgets -> widgets')
@@ -239,7 +253,12 @@ describe('SQLite column renames survive execution', () => {
     db: SQLiteAdapter,
     constraints: Record<string, unknown>,
   ) {
-    const plan = await buildSyncPlan(db as any, constraints as any, logger, silent)
+    const plan = await buildSyncPlan(
+      db as any,
+      constraints as any,
+      logger,
+      silent,
+    )
     await executeSyncPlan(
       db as any,
       plan,
@@ -259,10 +278,15 @@ describe('SQLite column renames survive execution', () => {
         'CREATE TABLE people (id INTEGER PRIMARY KEY AUTOINCREMENT, old_name TEXT NOT NULL)',
       )
       .run()
-    await db.query("INSERT INTO people (old_name) VALUES ('ann'), ('bob')").run()
+    await db
+      .query("INSERT INTO people (old_name) VALUES ('ann'), ('bob')")
+      .run()
 
     await apply(db, {
-      people: { id: pk, displayName: { type: 'string', _oldColumn: 'oldName' } },
+      people: {
+        id: pk,
+        displayName: { type: 'string', _oldColumn: 'oldName' },
+      },
     })
 
     const cols = Object.keys((await db.getConstraints()).people)
@@ -295,9 +319,9 @@ describe('SQLite column renames survive execution', () => {
       },
     })
 
-    expect(await db.query('SELECT display_name, score FROM people').all()).toEqual(
-      [{ display_name: 'ann', score: 5 }],
-    )
+    expect(
+      await db.query('SELECT display_name, score FROM people').all(),
+    ).toEqual([{ display_name: 'ann', score: 5 }])
   })
 
   test('a view over the renamed column does not block the rename', async () => {
@@ -310,10 +334,15 @@ describe('SQLite column renames survive execution', () => {
       )
       .run()
     await db.query("INSERT INTO people (old_name) VALUES ('ann')").run()
-    await db.query('CREATE VIEW people_names AS SELECT old_name FROM people').run()
+    await db
+      .query('CREATE VIEW people_names AS SELECT old_name FROM people')
+      .run()
 
     await apply(db, {
-      people: { id: pk, displayName: { type: 'string', _oldColumn: 'oldName' } },
+      people: {
+        id: pk,
+        displayName: { type: 'string', _oldColumn: 'oldName' },
+      },
       peopleNames: {
         _view: 'SELECT display_name FROM people',
         displayName: { type: 'string', nullable: true },

@@ -398,10 +398,10 @@ export abstract class SQLAdapter {
    * report the word. Anything unrecognised becomes `NO ACTION` — the SQL
    * default — so a dialect that grows a new code cannot make the diff churn.
    */
-  static normalizeForeignKeyAction(
-    raw: unknown,
-  ): SyncTypes.ForeignKeyAction {
-    const v = String(raw ?? '').trim().toUpperCase()
+  static normalizeForeignKeyAction(raw: unknown): SyncTypes.ForeignKeyAction {
+    const v = String(raw ?? '')
+      .trim()
+      .toUpperCase()
     const byChar: Record<string, SyncTypes.ForeignKeyAction> = {
       A: 'NO ACTION',
       R: 'RESTRICT',

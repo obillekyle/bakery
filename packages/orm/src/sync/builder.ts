@@ -1,10 +1,10 @@
 import { Bakery } from '@bakery/core/core/bakery'
 import { Case } from '@bakery/core/utils'
-import { isSafeIdentifier } from '../schema-util'
-import { formatViewBody } from './view-sql'
 import type { SQLAdapter } from '../adapters/base'
+import { isSafeIdentifier } from '../schema-util'
 import type { SchemaLayout } from './load'
 import type * as SyncTypes from './types'
+import { formatViewBody } from './view-sql'
 
 /**
  * Names that cannot bind a `const` in a module (modules are always strict), so
@@ -13,12 +13,52 @@ import type * as SyncTypes from './types'
  * the string passed to `table()`, not the binding — so renaming one is safe.
  */
 const RESERVED_WORDS = new Set([
-  'await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger',
-  'default', 'delete', 'do', 'else', 'enum', 'export', 'extends', 'false',
-  'finally', 'for', 'function', 'if', 'implements', 'import', 'in',
-  'instanceof', 'interface', 'let', 'new', 'null', 'package', 'private',
-  'protected', 'public', 'return', 'static', 'super', 'switch', 'this',
-  'throw', 'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield',
+  'await',
+  'break',
+  'case',
+  'catch',
+  'class',
+  'const',
+  'continue',
+  'debugger',
+  'default',
+  'delete',
+  'do',
+  'else',
+  'enum',
+  'export',
+  'extends',
+  'false',
+  'finally',
+  'for',
+  'function',
+  'if',
+  'implements',
+  'import',
+  'in',
+  'instanceof',
+  'interface',
+  'let',
+  'new',
+  'null',
+  'package',
+  'private',
+  'protected',
+  'public',
+  'return',
+  'static',
+  'super',
+  'switch',
+  'this',
+  'throw',
+  'true',
+  'try',
+  'typeof',
+  'var',
+  'void',
+  'while',
+  'with',
+  'yield',
 ])
 
 function exportNameFor(tableName: string): string {
@@ -49,7 +89,9 @@ export class SchemaBuilder {
         // a real view that made `category` and `images` non-nullable in the
         // generated interface while the database reports both nullable, so the
         // first thing the file said about the data was wrong.
-        cons.nullable = existingCol ? existingCol.nullable === true : cons.nullable === true
+        cons.nullable = existingCol
+          ? existingCol.nullable === true
+          : cons.nullable === true
       }
     }
   }
@@ -162,7 +204,8 @@ export class SchemaBuilder {
     //
     // Emitting `Field.Uuid()` / `Field.Date.now()` also removes the need for the
     // `dateNow` import, which is added only when the body still mentions it.
-    if (cons.type === 'string' && cons.default === '%uuid%') return 'Field.Uuid()'
+    if (cons.type === 'string' && cons.default === '%uuid%')
+      return 'Field.Uuid()'
     switch (cons.type) {
       case 'integer':
         if (cons.default === '%dateNow%') return 'Field.Date.now()'
@@ -180,8 +223,10 @@ export class SchemaBuilder {
         if (def === undefined) return 'Field.Json()'
         return nullable && def === 'null' ? 'Field.Json(true)' : null
       case 'string':
-        if (hasLen) return `Field.Varchar(${cons.length}${arg ? `, ${arg}` : ''})`
-        if (def === undefined) return nullable ? 'Field.Text(true)' : 'Field.Text()'
+        if (hasLen)
+          return `Field.Varchar(${cons.length}${arg ? `, ${arg}` : ''})`
+        if (def === undefined)
+          return nullable ? 'Field.Text(true)' : 'Field.Text()'
         return `Field.String(${arg})`
       default:
         return null

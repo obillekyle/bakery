@@ -16,9 +16,13 @@ describe('seek()', () => {
   let db: any
   beforeAll(async () => {
     db = new SQLiteAdapter(':memory:')
-    await db.query('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)').run()
+    await db
+      .query('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)')
+      .run()
     for (let i = 1; i <= 25; i++) {
-      await db.query('INSERT INTO items (id, name) VALUES (?, ?)').run(i, `n${i}`)
+      await db
+        .query('INSERT INTO items (id, name) VALUES (?, ?)')
+        .run(i, `n${i}`)
     }
     __setTestDb(db)
   })
@@ -39,7 +43,9 @@ describe('seek()', () => {
   })
 
   test('undefined is the first page too, so one call site serves both', async () => {
-    const rows = (await DB.from('items').seek('id', undefined, 3).array()) as any[]
+    const rows = (await DB.from('items')
+      .seek('id', undefined, 3)
+      .array()) as any[]
     expect(rows.map(r => r.id)).toEqual([1, 2, 3])
   })
 
@@ -53,7 +59,9 @@ describe('seek()', () => {
     const seen: number[] = []
     let cursor: number | null = null
     for (let guard = 0; guard < 20; guard++) {
-      const rows = (await DB.from('items').seek('id', cursor, 7).array()) as any[]
+      const rows = (await DB.from('items')
+        .seek('id', cursor, 7)
+        .array()) as any[]
       if (!rows.length) break
       seen.push(...rows.map(r => r.id))
       cursor = rows.at(-1)!.id
@@ -63,16 +71,20 @@ describe('seek()', () => {
   })
 
   test('DESC seeks backwards', async () => {
-    const first = (await DB.from('items').seek('id', null, 4, 'DESC').array()) as any[]
+    const first = (await DB.from('items')
+      .seek('id', null, 4, 'DESC')
+      .array()) as any[]
     expect(first.map(r => r.id)).toEqual([25, 24, 23, 22])
-    const next = (await DB.from('items').seek('id', 22, 4, 'DESC').array()) as any[]
+    const next = (await DB.from('items')
+      .seek('id', 22, 4, 'DESC')
+      .array()) as any[]
     expect(next.map(r => r.id)).toEqual([21, 20, 19, 18])
   })
 
   test('a bad direction fails at the call site', () => {
-    expect(() => DB.from('items').seek('id', null, 5, 'SIDEWAYS' as any)).toThrow(
-      /Invalid seek direction/,
-    )
+    expect(() =>
+      DB.from('items').seek('id', null, 5, 'SIDEWAYS' as any),
+    ).toThrow(/Invalid seek direction/)
   })
 
   test('an unsafe cursor column cannot reach the query', () => {

@@ -74,7 +74,9 @@ describe('dashboard authorization', () => {
     __setTestConfig({ trustProxy: true })
 
     expect(
-      isLoopback(req('http://example.com/_dashboard', { 'x-real-ip': '127.0.0.1' })),
+      isLoopback(
+        req('http://example.com/_dashboard', { 'x-real-ip': '127.0.0.1' }),
+      ),
     ).toBe(true)
     expect(
       isLoopback(req('http://localhost/_dashboard', { 'x-real-ip': '::1' })),
@@ -89,7 +91,9 @@ describe('dashboard authorization', () => {
     // The exact live reproduction: a peer address that is not loopback, and a
     // Host header that says otherwise.
     expect(
-      isLoopback(req('http://localhost/_dashboard', { 'x-real-ip': '10.0.0.6' })),
+      isLoopback(
+        req('http://localhost/_dashboard', { 'x-real-ip': '10.0.0.6' }),
+      ),
     ).toBe(false)
 
     __resetTestConfig()

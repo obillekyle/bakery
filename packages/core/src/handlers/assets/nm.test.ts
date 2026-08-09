@@ -79,9 +79,7 @@ describe('NMHandler — containment and .forbidden', () => {
     expect(res).toBeTruthy()
     expect(await (res as Bun.BunFile).text()).toContain('sub')
     // Pinning the divergence itself, so this stops being a claim in a comment.
-    expect(
-      await getStatic('/ok-pkg/sub', join(dir, 'node_modules')),
-    ).toBeNull()
+    expect(await getStatic('/ok-pkg/sub', join(dir, 'node_modules'))).toBeNull()
   })
 
   test('a .forbidden marker beside the file refuses it', async () => {

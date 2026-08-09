@@ -1,16 +1,16 @@
 import { Case } from '@bakery/core/utils'
 import { throws } from '@bakery/core/utils/common'
-import type { AppDBSchema as DBSchema } from '../schema-registry'
 import { getActiveDb, txStorage } from '../connection'
+import type { AppDBSchema as DBSchema } from '../schema-registry'
 import {
   evalOperands,
   isSafeIdentifier,
   qId,
   qRaw,
+  SQL_FUNCTIONS,
   col as schemaCol,
   ColumnRef as schemaColumnRef,
   OperatorRef as schemaOperatorRef,
-  SQL_FUNCTIONS,
   SQLFunctionRef as schemaSQLFunctionRef,
   WindowRef as schemaWindowRef,
 } from '../schema-util'

@@ -32,7 +32,11 @@ export class WebSocketHandler extends Handler {
   static open(ws: ServerWebSocket<any>, data: any): MixedPromise<void>
   static open() {}
 
-  static message(ws: ServerWebSocket<any>, msg: any, data: any): MixedPromise<void>
+  static message(
+    ws: ServerWebSocket<any>,
+    msg: any,
+    data: any,
+  ): MixedPromise<void>
   static message() {}
 
   static close(

@@ -5,7 +5,8 @@ import { Try } from '@bakery/core/utils'
 const MESSAGES = messageLogger(new Logger('db-backup'), {
   BACKUP_CREATED: 'I Created database backup: %y{file}%*',
   BACKUP_FAILED: 'E Failed to create database backup: %r{error}%*',
-  BACKUP_SKIPPED: 'W No database backup was produced (in-memory DB or no dump tool available).',
+  BACKUP_SKIPPED:
+    'W No database backup was produced (in-memory DB or no dump tool available).',
   BACKUP_CLEANUP: 'I Auto-deleted %c{count}%* old backup(s) to maintain limit.',
 } as const)
 

@@ -3,11 +3,11 @@ import {
   errorBox,
   executeAction,
   getJson,
-  icon,
   ICON_DELETE,
   ICON_EDIT,
   ICON_EYE,
   ICON_TABLE,
+  icon,
   postJson,
   setEmpty,
   setPager,
@@ -394,7 +394,9 @@ function tableDataParams(page: number, pageSize: number): URLSearchParams {
 }
 
 function fetchTableRows(page: number, pageSize: number): Promise<any> {
-  return getJson(`/api/_dashboard/table-data?${tableDataParams(page, pageSize)}`)
+  return getJson(
+    `/api/_dashboard/table-data?${tableDataParams(page, pageSize)}`,
+  )
 }
 
 function renderFetchedTableData(data: any, gridContainer: HTMLElement | null) {
@@ -1160,7 +1162,9 @@ export async function runQuery() {
       // escapes it and supplies its own wrapping span; the `<span>` this used to
       // pass was nesting a second one inside it.
       if (resultsBody) {
-        resultsBody.innerHTML = errorBox(`Query failed: ${String(json.message)}`)
+        resultsBody.innerHTML = errorBox(
+          `Query failed: ${String(json.message)}`,
+        )
       }
       return
     }

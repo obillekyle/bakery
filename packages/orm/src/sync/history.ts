@@ -1,8 +1,8 @@
 import '@bakery/core/core/init'
 
 import { Logger } from '@bakery/core/logger'
-import type * as SyncTypes from './types'
 import { type LedgerEntry, readLedgerEntries } from './ledger'
+import type * as SyncTypes from './types'
 
 const logger = new Logger('db-history')
 

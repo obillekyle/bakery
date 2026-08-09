@@ -1,8 +1,8 @@
-import { describe, test, expect, afterAll, beforeAll } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 import { Bakery, getHostname, hostKey } from './bakery'
-import { hostStore, getBakeryVersion } from './context'
 import { __resetTestConfig, __setTestConfig, initConfig } from './config'
+import { getBakeryVersion, hostStore } from './context'
 
 beforeAll(async () => {
   await initConfig()
@@ -13,7 +13,9 @@ describe('Bakery', () => {
     expect(Bakery.root).toBeDefined()
     expect(Bakery.cacheDir).toBeDefined()
     expect(Bakery.dataDir).toBeDefined()
-    expect(Bakery.publicRoot).toBe(join(Bakery.root, 'public').replaceAll('\\', '/'))
+    expect(Bakery.publicRoot).toBe(
+      join(Bakery.root, 'public').replaceAll('\\', '/'),
+    )
     expect(Bakery.handlers).toBeDefined()
     expect(Bakery.handlers.fetch).toBeDefined()
     expect(Bakery.handlers.error).toBeDefined()
@@ -38,14 +40,18 @@ describe('getHostname', () => {
     const req = new Request('http://localhost/', {
       headers: { host: 'app.example.com:3000' },
     })
-    expect(getHostname(req, { trustProxy: false } as any)).toBe('app.example.com')
+    expect(getHostname(req, { trustProxy: false } as any)).toBe(
+      'app.example.com',
+    )
   })
 
   test('extracts from x-forwarded-host with trustProxy', () => {
     const req = new Request('http://localhost/', {
       headers: { 'x-forwarded-host': 'proxy.example.com' },
     })
-    expect(getHostname(req, { trustProxy: true } as any)).toBe('proxy.example.com')
+    expect(getHostname(req, { trustProxy: true } as any)).toBe(
+      'proxy.example.com',
+    )
   })
 
   test('ignores x-forwarded-host without trustProxy', () => {
@@ -55,12 +61,16 @@ describe('getHostname', () => {
         'x-forwarded-host': 'proxy.example.com',
       },
     })
-    expect(getHostname(req, { trustProxy: false } as any)).toBe('direct.example.com')
+    expect(getHostname(req, { trustProxy: false } as any)).toBe(
+      'direct.example.com',
+    )
   })
 
   test('falls back to URL hostname', () => {
     const req = new Request('http://fallback.local:8080/')
-    expect(getHostname(req, { trustProxy: false } as any)).toBe('fallback.local')
+    expect(getHostname(req, { trustProxy: false } as any)).toBe(
+      'fallback.local',
+    )
   })
 
   test('uses cached __hostname if present', () => {
@@ -77,9 +87,12 @@ describe('hostKey', () => {
 
   test('scopes path with a configured hostStore hostname', async () => {
     __setTestConfig({ hosts })
-    await hostStore.run({ hostname: 'tenant.com', config: Bakery.config }, () => {
-      expect(hostKey('/page')).toBe('tenant.com:/page')
-    })
+    await hostStore.run(
+      { hostname: 'tenant.com', config: Bakery.config },
+      () => {
+        expect(hostKey('/page')).toBe('tenant.com:/page')
+      },
+    )
   })
 
   test('returns raw path outside hostStore', () => {
@@ -121,9 +134,12 @@ describe('hostKey', () => {
 
   test('with no hosts configured every request shares the default key', async () => {
     __setTestConfig({ hosts: {} })
-    await hostStore.run({ hostname: 'anything.example', config: Bakery.config }, () => {
-      expect(hostKey('/index.html')).toBe('/index.html')
-    })
+    await hostStore.run(
+      { hostname: 'anything.example', config: Bakery.config },
+      () => {
+        expect(hostKey('/index.html')).toBe('/index.html')
+      },
+    )
   })
 })
 

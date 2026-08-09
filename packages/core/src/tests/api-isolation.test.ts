@@ -1,9 +1,9 @@
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
-import { fs } from '../utils/fs'
 import { Bakery, hostStore } from '../core/bakery'
-import { ApiHandler } from '../handlers/routes/api'
 import { initConfig } from '../core/config'
+import { ApiHandler } from '../handlers/routes/api'
+import { fs } from '../utils/fs'
 import { executeAcrossEdit } from './fixtures'
 
 describe('Virtual Host API Isolation (`Bakery.serveRoot + /api`)', () => {
@@ -41,7 +41,9 @@ describe('API module reloads', () => {
   const directories: string[] = []
 
   afterEach(async () => {
-    await Promise.all(directories.splice(0).map(dir => rm(dir, { recursive: true })))
+    await Promise.all(
+      directories.splice(0).map(dir => rm(dir, { recursive: true })),
+    )
   })
 
   test('reloads an API module when its modification time changes', async () => {

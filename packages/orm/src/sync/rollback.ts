@@ -24,8 +24,7 @@ const rollbackMsgs = {
     'I Rolling back to schema %y#{id}%* ({when} UTC), applied {steps} change(s) ago.',
   NO_INDEX_RECORD:
     'W %ySchema #{id} predates the ledger recording indexes%*, so this rollback leaves indexes exactly as they are. Tables and columns roll back; index changes made since then do not.',
-  SCHEMA_REWRITTEN:
-    'I Rewrote %y{path}%* to match the restored schema.',
+  SCHEMA_REWRITTEN: 'I Rewrote %y{path}%* to match the restored schema.',
   SCHEMA_KEPT:
     'W %y--keep-schema: schema.ts still describes the newer schema.%* The next %ydb:sync%* — including the one a dev boot runs — will apply it again and undo this rollback. Revert the file yourself, or re-run without the flag.',
   DONE: 'I %gRollback complete%*.',

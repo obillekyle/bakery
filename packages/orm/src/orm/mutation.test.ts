@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { __resetTestDb, __setTestDb } from '../connection'
 import { SQLiteAdapter } from '../adapters/sqlite'
-import { DB } from './query'
+import { __resetTestDb, __setTestDb } from '../connection'
 import { Mutation } from './mutation'
+import { DB } from './query'
 
 // A real in-memory SQLite adapter rather than a `quoteChar` stub: `parse()`
 // only needs the quote character, but the execution block below needs a

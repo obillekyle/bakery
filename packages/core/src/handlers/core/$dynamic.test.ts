@@ -1,9 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
 import { Bakery } from '../../core/bakery'
-import { __resetTestConfig, __setTestConfig, initConfig } from '../../core/config'
+import {
+  __resetTestConfig,
+  __setTestConfig,
+  initConfig,
+} from '../../core/config'
 import { fs } from '../../utils'
-import { RouteData, type Route } from './$base'
+import { type Route, RouteData } from './$base'
 import { DynamicHandler } from './$dynamic'
 
 const ROUTE_DIR = fs.resolve(process.cwd(), '.cache/__dynamic-test__')
@@ -103,7 +107,8 @@ describe('DynamicHandler.findDynamicRoute', () => {
 
   function seed(...entries: Route.Info[]) {
     ScanHandler.dynamicCache.clear()
-    for (const entry of entries) ScanHandler.dynamicCache.set(entry.regex!, entry)
+    for (const entry of entries)
+      ScanHandler.dynamicCache.set(entry.regex!, entry)
   }
 
   beforeAll(async () => {
@@ -253,7 +258,10 @@ describe('findDynamicRoute — catch-alls yield to real files', () => {
   const Y_ROOT = fs.resolve(ROUTE_DIR, 'yield')
 
   beforeAll(async () => {
-    await Bun.write(`${Y_ROOT}/site/[...rest].tsx`, 'export default () => null\n')
+    await Bun.write(
+      `${Y_ROOT}/site/[...rest].tsx`,
+      'export default () => null\n',
+    )
     await Bun.write(`${Y_ROOT}/site/app.css`, 'body{}\n')
     __setTestConfig({ root: Y_ROOT } as any)
     const info = new RouteData.Info(

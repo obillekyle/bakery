@@ -119,18 +119,21 @@ for (const dialect of DIALECTS) {
       }
     }
 
-    test.skipIf(dialect.skip)('a transaction inside a transaction runs', async () => {
-      const { db, insert, rows } = await fixture('basic')
+    test.skipIf(dialect.skip)(
+      'a transaction inside a transaction runs',
+      async () => {
+        const { db, insert, rows } = await fixture('basic')
 
-      await db.transaction(async outer => {
-        await insert(outer, 1)
-        await outer.transaction(async inner => {
-          await insert(inner, 2)
+        await db.transaction(async outer => {
+          await insert(outer, 1)
+          await outer.transaction(async inner => {
+            await insert(inner, 2)
+          })
         })
-      })
 
-      expect(await rows()).toEqual([1, 2])
-    })
+        expect(await rows()).toEqual([1, 2])
+      },
+    )
 
     test.skipIf(dialect.skip)(
       'an inner rollback keeps the outer transaction’s work',
@@ -222,7 +225,9 @@ describe('DB.transaction nests through getActiveDb', () => {
     // Deliberately written as two functions that each open a transaction and
     // neither is aware of the other. That is the shape that used to crash.
     const createUser = (name: string) =>
-      DB.transaction(tx => tx.query('INSERT INTO users (name) VALUES (?)').run(name))
+      DB.transaction(tx =>
+        tx.query('INSERT INTO users (name) VALUES (?)').run(name),
+      )
     const importUsers = (names: string[]) =>
       DB.transaction(async () => {
         for (const name of names) await createUser(name)
@@ -230,7 +235,9 @@ describe('DB.transaction nests through getActiveDb', () => {
 
     await importUsers(['ada', 'grace'])
 
-    const rows = (await db.query('SELECT name FROM users ORDER BY name').all()) as {
+    const rows = (await db
+      .query('SELECT name FROM users ORDER BY name')
+      .all()) as {
       name: string
     }[]
     expect(rows.map(r => r.name)).toEqual(['ada', 'grace'])

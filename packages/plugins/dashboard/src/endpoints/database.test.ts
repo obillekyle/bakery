@@ -1,7 +1,14 @@
-import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  test,
+} from 'bun:test'
 import { __resetTestDb, __setTestDb } from '@bakery/orm/connection'
-import { handleExecuteAction, handleQuery } from './database'
 import { createStubDb } from '../test-fixtures'
+import { handleExecuteAction, handleQuery } from './database'
 
 const ACTION_URL = 'http://localhost/api/_dashboard/execute-action'
 const TABLE = 'nonexistent_table_write_gate'

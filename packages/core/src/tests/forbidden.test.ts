@@ -1,9 +1,9 @@
-import { describe, expect, test, beforeAll, afterAll } from 'bun:test'
-import { fs } from '../utils/fs'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { Bakery, hostStore } from '../core/bakery'
+import { getConfig, initConfig } from '../core/config'
 import { getRoute } from '../handlers/core/$routing'
 import { handleRequest } from '../router'
-import { initConfig, getConfig } from '../core/config'
+import { fs } from '../utils/fs'
 
 describe('.forbidden Security Guard & Directory Protection', () => {
   const rootDir = fs.resolve(Bakery.root, 'src')
@@ -38,32 +38,51 @@ describe('.forbidden Security Guard & Directory Protection', () => {
     const routeTop = await getRoute('/feetpics', ['html'], rootDir, rootDir)
     expect(routeTop).toBeNull()
 
-    const routeIndex = await getRoute('/feetpics/index', ['html'], rootDir, rootDir)
+    const routeIndex = await getRoute(
+      '/feetpics/index',
+      ['html'],
+      rootDir,
+      rootDir,
+    )
     expect(routeIndex).toBeNull()
 
-    const routeSub = await getRoute('/feetpics/subfolder/secret', ['html'], rootDir, rootDir)
+    const routeSub = await getRoute(
+      '/feetpics/subfolder/secret',
+      ['html'],
+      rootDir,
+      rootDir,
+    )
     expect(routeSub).toBeNull()
   })
 
   test('handleRequest immediately returns 403 Forbidden when requesting URLs in forbidden directories', async () => {
-    await hostStore.run({ config: getConfig(), hostname: 'localhost' }, async () => {
-      const res1 = await handleRequest(new Request('http://localhost:6767/feetpics'))
-      expect(res1 instanceof Response).toBe(true)
-      if (res1 instanceof Response) {
-        expect(res1.status).toBe(403)
-      }
+    await hostStore.run(
+      { config: getConfig(), hostname: 'localhost' },
+      async () => {
+        const res1 = await handleRequest(
+          new Request('http://localhost:6767/feetpics'),
+        )
+        expect(res1 instanceof Response).toBe(true)
+        if (res1 instanceof Response) {
+          expect(res1.status).toBe(403)
+        }
 
-      const res2 = await handleRequest(new Request('http://localhost:6767/feetpics/index'))
-      expect(res2 instanceof Response).toBe(true)
-      if (res2 instanceof Response) {
-        expect(res2.status).toBe(403)
-      }
+        const res2 = await handleRequest(
+          new Request('http://localhost:6767/feetpics/index'),
+        )
+        expect(res2 instanceof Response).toBe(true)
+        if (res2 instanceof Response) {
+          expect(res2.status).toBe(403)
+        }
 
-      const res3 = await handleRequest(new Request('http://localhost:6767/feetpics/subfolder/secret.html'))
-      expect(res3 instanceof Response).toBe(true)
-      if (res3 instanceof Response) {
-        expect(res3.status).toBe(403)
-      }
-    })
+        const res3 = await handleRequest(
+          new Request('http://localhost:6767/feetpics/subfolder/secret.html'),
+        )
+        expect(res3 instanceof Response).toBe(true)
+        if (res3 instanceof Response) {
+          expect(res3.status).toBe(403)
+        }
+      },
+    )
   })
 })

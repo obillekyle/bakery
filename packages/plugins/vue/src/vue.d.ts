@@ -4,5 +4,3 @@ declare global {
   var req: Request
   var body: any
 }
-
-export {}

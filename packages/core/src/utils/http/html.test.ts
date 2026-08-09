@@ -1,4 +1,4 @@
-import { beforeAll, describe, test, expect } from 'bun:test'
+import { beforeAll, describe, expect, test } from 'bun:test'
 import { initConfig } from '../../core/config'
 import { assembleHtml, injectIfHtml, withStatus } from './html'
 
@@ -66,9 +66,15 @@ describe('assembleHtml', () => {
   test('appends body injects when there is no closing body tag', () => {
     // The single-pass rewrite decides "no </body>" from the replacer never
     // firing rather than from a separate test() pass.
-    const result = assembleHtml('<head></head><p>bare</p>', {}, { body: '<!--B-->' })
+    const result = assembleHtml(
+      '<head></head><p>bare</p>',
+      {},
+      { body: '<!--B-->' },
+    )
     expect(result).toContain('<!--B-->')
-    expect(result.indexOf('<!--B-->')).toBeGreaterThan(result.indexOf('<p>bare</p>'))
+    expect(result.indexOf('<!--B-->')).toBeGreaterThan(
+      result.indexOf('<p>bare</p>'),
+    )
   })
 
   test('inserts body injects before the closing body tag when present', () => {
@@ -125,11 +131,15 @@ describe('assembleHtml injection safety', () => {
   })
 
   test('server-supplied injects are still honoured', () => {
-    const result = assembleHtml(page, {}, {
-      head: '<link rel="stylesheet" href="/a.css">',
-      body: '<script src="/a.js"></script>',
-      prio: '<script src="/prio.js"></script>',
-    })
+    const result = assembleHtml(
+      page,
+      {},
+      {
+        head: '<link rel="stylesheet" href="/a.css">',
+        body: '<script src="/a.js"></script>',
+        prio: '<script src="/prio.js"></script>',
+      },
+    )
     expect(result).toContain('/a.css')
     expect(result).toContain('/a.js')
     expect(result).toContain('/prio.js')
@@ -493,7 +503,9 @@ describe('injectIfHtml streaming path', () => {
   test('large HTML Blob streams with parity, small Blob stays buffered', async () => {
     const bigHtml =
       '<html><head></head><body>' +
-      '<p>' + 'b'.repeat(70 * 1024) + '</p>' +
+      '<p>' +
+      'b'.repeat(70 * 1024) +
+      '</p>' +
       '</body></html>'
     const big = new Blob([bigHtml], { type: 'text/html' })
     const bigRes = await injectIfHtml(big)
@@ -524,7 +536,9 @@ describe('withStatus', () => {
     const restated = withStatus(page, 410)
 
     expect(restated.status).toBe(410)
-    expect(restated.headers.get('Content-Type')).toBe(page.headers.get('Content-Type'))
+    expect(restated.headers.get('Content-Type')).toBe(
+      page.headers.get('Content-Type'),
+    )
     expect(restated.headers.get('ETag')).toBe(page.headers.get('ETag'))
     expect(await restated.text()).toContain('gone')
   })

@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'bun:test'
-import { is, Math2, deferredValue, hasDeferredValue, throws } from './misc'
+import { describe, expect, test } from 'bun:test'
+import { deferredValue, hasDeferredValue, is, Math2, throws } from './misc'
 
 describe('is', () => {
   test('is.string', () => {
@@ -78,7 +78,7 @@ describe('deferredValue', () => {
   test('lazily computes value on first access', () => {
     let callCount = 0
     const obj = { x: 10 }
-    deferredValue(obj, 'doubled', function (o: any) {
+    deferredValue(obj, 'doubled', (o: any) => {
       callCount++
       return o.x * 2
     })

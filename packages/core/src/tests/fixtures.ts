@@ -81,7 +81,7 @@ export function setModeFlag(flag: string, value: unknown): void {
   })
 }
 
-export const asDev = <T,>(fn: () => T | Promise<T>) =>
+export const asDev = <T>(fn: () => T | Promise<T>) =>
   withEnvFlag('DEV', true, fn)
 
 /**
@@ -96,7 +96,7 @@ export const asDev = <T,>(fn: () => T | Promise<T>) =>
  * already satisfied mid-suite. Forcing all three is the only statement that
  * reads as "production" to every gate at once.
  */
-export const asProd = <T,>(fn: () => T | Promise<T>) =>
+export const asProd = <T>(fn: () => T | Promise<T>) =>
   withEnvFlag('DEV', false, () =>
     withEnvFlag('PROD', true, () => withEnvFlag('TEST', false, fn)),
   )

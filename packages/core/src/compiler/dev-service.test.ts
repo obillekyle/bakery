@@ -1,20 +1,16 @@
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
-import {
-  __resetTestConfig,
-  __setTestConfig,
-  initConfig,
-} from '../core/config'
+import { __resetTestConfig, __setTestConfig, initConfig } from '../core/config'
 import { fs } from '../utils/fs'
 import {
   classifyDevError,
   classifySchemaSync,
   classifyWatchEvent,
-  isCreatedRouteModule,
   createDevErrorPlugin,
   DEV_ERROR_PLUGIN,
   emitDevError,
   formatDevErrorFrame,
   isBackendPriorityFile,
+  isCreatedRouteModule,
   MAX_DEV_ERROR_BODY,
   notifyError,
   notifySockets,

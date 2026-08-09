@@ -1,22 +1,22 @@
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { Bakery, hostStore } from './core/bakery'
 import {
-  initConfig,
-  getConfig,
-  __setTestConfig,
   __resetTestConfig,
+  __setTestConfig,
+  getConfig,
+  initConfig,
 } from './core/config'
+import { StaticHandler } from './handlers/assets/static'
+import { ErrorHandler } from './handlers/core/$error'
+import { HandlerMap } from './handlers/core/$registry'
+import { WebSocketHandler } from './handlers/core/$websocket'
+import { ApiHandler } from './handlers/routes/api'
 import {
   handleRequest,
   handleRequestError,
   processResponse,
   upgradeWebsocket,
 } from './router'
-import { Bakery, hostStore } from './core/bakery'
-import { HandlerMap } from './handlers/core/$registry'
-import { ErrorHandler } from './handlers/core/$error'
-import { StaticHandler } from './handlers/assets/static'
-import { WebSocketHandler } from './handlers/core/$websocket'
-import { ApiHandler } from './handlers/routes/api'
 import { injectIfHtml } from './utils/http'
 
 /**
@@ -117,7 +117,9 @@ describe('handleRequest — blocked globs are scoped to file-serving handlers', 
     __setTestConfig(blocked)
     await run(async () => {
       for (const path of ['/.env', '/config/.env', '/dump.sql']) {
-        const res = await handleRequest(new Request(`http://localhost:3000${path}`))
+        const res = await handleRequest(
+          new Request(`http://localhost:3000${path}`),
+        )
         expect((res as Response).status).toBe(403)
       }
     })

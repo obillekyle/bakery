@@ -1,7 +1,7 @@
 import {
-  icon,
   ICON_DELETE,
   ICON_EDIT,
+  icon,
   postJson,
   setEmpty,
   setPager,

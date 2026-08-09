@@ -197,9 +197,7 @@ let testOverrides: Partial<ProcessedAppConfig> | null = null
  *
  * Always pair with `__resetTestConfig()` in `afterAll`.
  */
-export function __setTestConfig(
-  overrides: Partial<ProcessedAppConfig>,
-): void {
+export function __setTestConfig(overrides: Partial<ProcessedAppConfig>): void {
   testOverrides = overrides
 }
 

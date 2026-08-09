@@ -61,5 +61,3 @@ declare global {
     function(value: any): value is Function
   }
 }
-
-export {}

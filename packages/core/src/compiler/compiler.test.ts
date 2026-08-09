@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll } from 'bun:test'
+import { beforeAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
 import { fs } from '../utils/fs'
 import { compile, compileText } from './compiler'

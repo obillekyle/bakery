@@ -1,6 +1,6 @@
-import { describe, test, expect } from 'bun:test'
-import { HandlerMap } from './$registry'
+import { describe, expect, test } from 'bun:test'
 import { Handler } from './$base'
+import { HandlerMap } from './$registry'
 
 class TestHandlerA extends Handler {
   static override canHandle(path: string) {

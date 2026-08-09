@@ -6,10 +6,5 @@
     "jsxFactory": "createElement",
     "jsxFragmentFactory": "Fragment"
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "orm/**/*.ts",
-    "server.config.ts"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "orm/**/*.ts", "server.config.ts"]
 }

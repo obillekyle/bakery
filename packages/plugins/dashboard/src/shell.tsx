@@ -93,7 +93,9 @@ export default function Dashboard() {
                 <span id="server-status-text">Connecting…</span>
               </div>
 
-              <div class="profile-dropdown-wrapper" id="profile-dropdown-wrapper">
+              <div
+                class="profile-dropdown-wrapper"
+                id="profile-dropdown-wrapper">
                 <button
                   type="button"
                   class="profile-trigger-btn"

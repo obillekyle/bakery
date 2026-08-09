@@ -2,8 +2,6 @@ import { Logger, messageLogger } from '@bakery/core/logger'
 import { Case } from '@bakery/core/utils'
 import type { SQLAdapter } from '../adapters/base'
 import { SchemaBuilder } from './builder'
-import type { SchemaLayout } from './load'
-import { writeLedger } from './ledger'
 import {
   buildSyncPlan,
   calculateForeignKeyDiff,
@@ -13,6 +11,8 @@ import {
   hasOldWrappers,
   logPlannedChanges,
 } from './helpers'
+import { writeLedger } from './ledger'
+import type { SchemaLayout } from './load'
 import type * as SyncTypes from './types'
 
 // prettier-ignore
@@ -304,19 +304,18 @@ export class SyncEngine {
     // database, the special case lost a rename in a non-renamed table silently
     // — reporting a perfect sync — and threw outright in the two cases where it
     // did fire. See sync/engine.test.ts, which pins all four.
-    const plan = await buildSyncPlan(
-      adapter,
-      constraints,
-      logger,
-      MESSAGES,
-    )
+    const plan = await buildSyncPlan(adapter, constraints, logger, MESSAGES)
 
     // `buildSyncPlan` has always recorded which state it diffed against and
     // nothing ever read it. Falling back to introspection is *correct* — see
     // sync/ledger.ts — but doing it silently means a column somebody added by
     // hand in production looks exactly like an ordinary run. "No ledger yet" is
     // the normal state of a fresh database and is not drift.
-    if (plan.ledgerSource === 'introspection' && plan.ledgerReason && plan.ledgerReason !== 'no ledger yet') {
+    if (
+      plan.ledgerSource === 'introspection' &&
+      plan.ledgerReason &&
+      plan.ledgerReason !== 'no ledger yet'
+    ) {
       MESSAGES.LEDGER_DRIFT({ reason: plan.ledgerReason })
     }
 
@@ -365,13 +364,7 @@ export class SyncEngine {
       MESSAGES.GEN_TYPES()
       return await genLocal(plan.dbConstraintsForDiff)
     }
-    logPlannedChanges(
-      plan,
-      indexesToDrop,
-      indexesToAdd,
-      isDangerous,
-      MESSAGES,
-    )
+    logPlannedChanges(plan, indexesToDrop, indexesToAdd, isDangerous, MESSAGES)
     if (argv.includes('--dry-run')) {
       // `logger.log` takes the level as its second argument. A leading 'D ' is
       // `messageLogger` table syntax, and this is not a table — so the letter

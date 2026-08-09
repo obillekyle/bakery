@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { Try } from './try'
 
 describe('Try()', () => {
@@ -7,7 +7,11 @@ describe('Try()', () => {
   })
 
   test('returns null on sync error', () => {
-    expect(Try(() => { throw new Error('boom') })).toBeNull()
+    expect(
+      Try(() => {
+        throw new Error('boom')
+      }),
+    ).toBeNull()
   })
 
   test('returns null on async error', async () => {
@@ -27,7 +31,9 @@ describe('Try.catch', () => {
   })
 
   test('returns [error, null] on sync error', async () => {
-    const result: any = await Try.catch(() => { throw new Error('boom') })
+    const result: any = await Try.catch(() => {
+      throw new Error('boom')
+    })
     expect(result[0]).toBeInstanceOf(Error)
     expect(result[0].message).toBe('boom')
     expect(result[1]).toBeNull()
@@ -59,12 +65,18 @@ describe('Try.return', () => {
   })
 
   test('returns default on sync error', () => {
-    expect(Try.return(() => { throw new Error('boom') }, 0)).toBe(0)
+    expect(
+      Try.return(() => {
+        throw new Error('boom')
+      }, 0),
+    ).toBe(0)
   })
 
   test('calls default function with error', () => {
     const result = Try.return(
-      () => { throw new Error('boom') },
+      () => {
+        throw new Error('boom')
+      },
       (err: Error) => err.message.length,
     )
     expect(result).toBe(4)
@@ -91,24 +103,35 @@ describe('Try.return', () => {
 
 describe('Try.throw', () => {
   test('rethrows with custom string message', () => {
-    expect(() => Try.throw(() => { throw new Error('original') }, 'custom'))
-      .toThrow('custom')
+    expect(() =>
+      Try.throw(() => {
+        throw new Error('original')
+      }, 'custom'),
+    ).toThrow('custom')
   })
 
   test('rethrows with custom Error', () => {
     const custom = new Error('custom')
-    expect(() => Try.throw(() => { throw new Error('original') }, custom))
-      .toThrow(custom)
+    expect(() =>
+      Try.throw(() => {
+        throw new Error('original')
+      }, custom),
+    ).toThrow(custom)
   })
 
   test('rethrows original when no override', () => {
-    expect(() => Try.throw(() => { throw new Error('original') }))
-      .toThrow('original')
+    expect(() =>
+      Try.throw(() => {
+        throw new Error('original')
+      }),
+    ).toThrow('original')
   })
 
   test('works with async callback', async () => {
     try {
-      await Try.throw(async () => { throw new Error('async') }, 'wrapped')
+      await Try.throw(async () => {
+        throw new Error('async')
+      }, 'wrapped')
       expect.unreachable()
     } catch (e: any) {
       expect(e.message).toBe('wrapped')
