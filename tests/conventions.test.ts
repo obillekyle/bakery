@@ -518,3 +518,58 @@ describe('conventions (CLAUDE.md)', () => {
     expect(find(shared, /\.driver\s*(===|!==|==|!=)/)).toEqual([])
   })
 })
+
+/**
+ * Every publishable package carries the same version.
+ *
+ * Lockstep is not a preference here, it is already load-bearing:
+ * `create-bakery` derives the `^x.y.z` range it writes into a generated app
+ * from **its own** version (`dependencyRange` in `packages/create/src/
+ * template.ts`), so the moment the scaffolder's number diverges from the
+ * framework's, every generated app asks for a range that does not match what
+ * shipped.
+ *
+ * The private root manifest is included: `bakery-monorepo` naming a different
+ * version than the packages it contains is the first thing that goes stale, and
+ * it is what `bun run release` bumps alongside them.
+ *
+ * See CHANGELOG.md for the policy and what it trades away.
+ */
+describe('release versions', () => {
+  const MANIFESTS = [
+    'package.json',
+    'packages/core/package.json',
+    'packages/orm/package.json',
+    'packages/cli/package.json',
+    'packages/create/package.json',
+    'packages/plugins/vue/package.json',
+    'packages/plugins/analytics/package.json',
+    'packages/plugins/dashboard/package.json',
+  ]
+
+  test('every package is on one version', async () => {
+    const seen: Record<string, string> = {}
+    for (const rel of MANIFESTS) {
+      const json = await Bun.file(`${ROOT}/${rel}`).json()
+      seen[json.name] = json.version
+    }
+    const versions = [...new Set(Object.values(seen))]
+    // Reported as the whole map, not as a bare boolean: a failure should say
+    // which package drifted without anyone having to go and look.
+    expect({ versions: versions.length, seen }).toEqual({
+      versions: 1,
+      seen,
+    })
+  })
+
+  test('every publishable package declares an engines.bun floor', async () => {
+    // A missing floor is a claim that any Bun works, which is never true here —
+    // three of the plugins shipped without one until 2026-08-09.
+    const missing: string[] = []
+    for (const rel of MANIFESTS.slice(1)) {
+      const json = await Bun.file(`${ROOT}/${rel}`).json()
+      if (!json.engines?.bun) missing.push(json.name)
+    }
+    expect(missing).toEqual([])
+  })
+})
