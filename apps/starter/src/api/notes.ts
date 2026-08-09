@@ -1,5 +1,5 @@
-import { defineRoute, response } from '@bakery/core'
-import DB from '@bakery/orm'
+import { defineRoute, response } from '@bakery-framework/core'
+import DB from '@bakery-framework/orm'
 
 // Declared once, typed everywhere below: body.title / body.slug / body.body
 // are strings, while undeclared keys stay reachable (body is RouteBody<P>,

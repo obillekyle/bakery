@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { Try } from '@bakery/core/utils'
+import { Try } from '@bakery-framework/core/utils'
 import { createDbAdapter, type SQLAdapter } from './adapters'
 
 let dbCache: any = null

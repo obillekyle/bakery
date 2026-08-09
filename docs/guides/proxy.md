@@ -5,7 +5,7 @@ at priority 95 in the `fetch` registry, second only to middleware
 (`packages/core/src/startup.ts`).
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',
@@ -74,7 +74,7 @@ The prefixes are iterated in object insertion order and the loop `break`s on the
 first `startsWith` hit (`proxy.ts`). It is not longest-prefix routing.
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   proxy: {
@@ -136,7 +136,7 @@ A `hosts` entry replaces the proxy map for that hostname rather than merging wit
 the global one (`packages/core/src/core/config.ts`):
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',

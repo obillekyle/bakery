@@ -1,4 +1,4 @@
-import { throws } from '@bakery/core/utils/common'
+import { throws } from '@bakery-framework/core/utils/common'
 import type { DataTypes, TableDef } from './schema-util'
 import type * as SyncTypes from './sync/types'
 

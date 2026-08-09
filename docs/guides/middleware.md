@@ -10,7 +10,7 @@ middleware for authorisation. It does not do what you will assume.
 ## Declaring it
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',
@@ -77,7 +77,7 @@ response when injection declines it (`$middleware.ts`).
 ## A throw is a 500, deliberately
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   middleware: [
@@ -185,8 +185,8 @@ For the client address, use `getClientIp`, which honours `config.trustProxy`
 rather than trusting `X-Forwarded-For` blindly:
 
 ```ts
-import { defineConfig } from '@bakery/core'
-import { getClientIp } from '@bakery/core/utils/http'
+import { defineConfig } from '@bakery-framework/core'
+import { getClientIp } from '@bakery-framework/core/utils/http'
 
 export default defineConfig({
   trustProxy: true,
@@ -207,7 +207,7 @@ A `hosts` entry replaces the middleware array wholesale for that hostname — it
 not concatenated with the global one (`packages/core/src/core/config.ts`):
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   middleware: [globalGuard],
@@ -236,7 +236,7 @@ between:
 
 ```ts
 // src/plugins/admin-guard.ts
-import { definePlugin, response } from '@bakery/core'
+import { definePlugin, response } from '@bakery-framework/core'
 
 export const adminGuard = definePlugin({
   name: 'admin-guard',
@@ -253,7 +253,7 @@ export const adminGuard = definePlugin({
 
 ```ts no-check — the import path is app-specific; the plugin itself is checked above
 // server.config.ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 import { adminGuard } from './src/plugins/admin-guard'
 
 export default defineConfig({

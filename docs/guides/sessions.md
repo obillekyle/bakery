@@ -115,7 +115,7 @@ entry to disk when it has persisted keys or any data at all
 ## The API
 
 ```ts
-import { Session } from '@bakery/core/session'
+import { Session } from '@bakery-framework/core/session'
 
 export default function demo(req: Request) {
   const session: Session = req.session
@@ -215,7 +215,7 @@ writes a caller-supplied key must refuse the prefix** — otherwise a preference
 endpoint becomes a privilege-escalation primitive:
 
 ```ts
-import { isReservedSessionKey } from '@bakery/core/session'
+import { isReservedSessionKey } from '@bakery-framework/core/session'
 
 export default function setPreference(req: Request, body: { key: string; value: string }) {
   if (isReservedSessionKey(body.key)) return 'forbidden'

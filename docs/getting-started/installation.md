@@ -18,10 +18,10 @@ is no Node fallback for any of them.
   typechecking and editor support — Bun transpiles TypeScript itself, so there
   is no build step and no `tsc` in the run path.
 
-Nothing else. `@bakery/core` has **no runtime dependencies**; `@bakery/orm` and
-`@bakery/cli` depend only on core.
+Nothing else. `@bakery-framework/core` has **no runtime dependencies**; `@bakery-framework/orm` and
+`@bakery-framework/cli` depend only on core.
 
-`@bakery/orm` is an **optional peer** of the CLI rather than a dependency, so an
+`@bakery-framework/orm` is an **optional peer** of the CLI rather than a dependency, so an
 app that does not want a database does not install one — see
 [the CLI reference](../reference/cli.md#the-orm-is-optional) for what the server
 does without it.
@@ -31,13 +31,13 @@ does without it.
 There is no `bun add bakery`, and **`bun create bakery` does not work yet** —
 not because the scaffolder is missing, but because `bun create x` fetches
 `create-x` from npm and nothing here is published. The packages are
-unpublished — the package names and the `@bakery/orm/schema-registry` module
+unpublished — the package names and the `@bakery-framework/orm/schema-registry` module
 name that your `schema.ts` writes into are still free to change, and publishing
 freezes them.
 
 The export maps were the sharpest of those, and they are now settled. The
 packages no longer carry a `"./*"` wildcard, so only the enumerated subpaths
-exist and everything else is private: `@bakery/core/cache/tiered` does not
+exist and everything else is private: `@bakery-framework/core/cache/tiered` does not
 resolve for you, whatever your editor suggests. Adding a subpath later is easy;
 taking one away once someone imports it is a breaking change, which is why it
 was closed before the first publish rather than after.
@@ -63,7 +63,7 @@ bun create bakery my-app --yes          # defaults, no questions
 plugins — which is exactly what the command produced before it learned to ask,
 so no existing invocation changed. Without the ORM there is no `orm/` and no
 `db:sync`; the example API route keeps its posts in memory instead, and
-`@bakery/orm` is not installed at all — the CLI treats it as optional.
+`@bakery-framework/orm` is not installed at all — the CLI treats it as optional.
 
 It emits real `^`-ranged dependencies on the published package names, so the
 app it writes only installs once the first publish lands. `--no-install` is
@@ -84,7 +84,7 @@ cd bakery && bun install
 ```
 
 `bun install` links the workspace packages into each app's `node_modules` and
-puts the `bakery` binary (owned by `@bakery/cli`) on each app's path as
+puts the `bakery` binary (owned by `@bakery-framework/cli`) on each app's path as
 `node_modules/.bin/bakery`.
 
 ## Create the schema files a fresh clone is missing
@@ -97,7 +97,7 @@ clone does not contain:
 - `apps/example/schema.ts`
 - `apps/starter/orm/schema.ts`
 
-Neither app will typecheck or boot until you create them. `@bakery/orm` ships
+Neither app will typecheck or boot until you create them. `@bakery-framework/orm` ships
 the template:
 
 ```bash
@@ -196,7 +196,7 @@ An app extends the tsconfig that ships with core:
 
 ```json
 {
-  "extends": "@bakery/core/tsconfig.app.json",
+  "extends": "@bakery-framework/core/tsconfig.app.json",
   "compilerOptions": {
     "jsx": "react",
     "jsxFactory": "createElement",

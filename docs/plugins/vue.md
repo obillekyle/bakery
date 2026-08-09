@@ -1,6 +1,6 @@
 # Vue plugin
 
-`@bakery/plugin-vue` adds `.vue` single-file components as a first-class route
+`@bakery-framework/plugin-vue` adds `.vue` single-file components as a first-class route
 type, alongside `.tsx`, `.html` and `.ts`. A `.vue` file under the serve root is
 a page; a `.vue` file imported by another component is a module. Components
 render **in the browser** — there is no SSR — but each page may carry a
@@ -26,8 +26,8 @@ the first compile, and throws "compiler-sfc not available" if it is missing.
 ## Register
 
 ```ts
-import { defineConfig } from '@bakery/core'
-import vuePlugin from '@bakery/plugin-vue'
+import { defineConfig } from '@bakery-framework/core'
+import vuePlugin from '@bakery-framework/plugin-vue'
 
 export default defineConfig({
   root: 'src',
@@ -109,7 +109,7 @@ authorization belong in the server block.
 
 ```vue
 <script server>
-import DB, { Mutation } from '@bakery/orm'
+import DB, { Mutation } from '@bakery-framework/orm'
 
 export const students = await DB.table('students').where('active', 1).array()
 export const viewer = req.session.get('userId')

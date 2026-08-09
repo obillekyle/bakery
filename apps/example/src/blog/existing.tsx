@@ -1,4 +1,4 @@
-import { Fragment, HTMLBody } from '@bakery/core'
+import { Fragment, HTMLBody } from '@bakery-framework/core'
 import { CardHeader, HeroHeader, Layout } from '../Layout.tsx'
 export default HTMLBody((_req: any, _body: any) => {
   return (

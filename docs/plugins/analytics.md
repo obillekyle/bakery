@@ -1,6 +1,6 @@
 # Analytics plugin
 
-`@bakery/plugin-analytics` collects request telemetry — hit counts, memory,
+`@bakery-framework/plugin-analytics` collects request telemetry — hit counts, memory,
 uptime, session count, self-measured ping — aggregates it into five time
 windows, and persists it to SQLite.
 
@@ -12,8 +12,8 @@ windows, and persists it to SQLite.
 ## Register
 
 ```ts
-import { defineConfig } from '@bakery/core'
-import analyticsPlugin from '@bakery/plugin-analytics'
+import { defineConfig } from '@bakery-framework/core'
+import analyticsPlugin from '@bakery-framework/plugin-analytics'
 
 export default defineConfig({
   root: 'src',
@@ -149,7 +149,7 @@ The collected state is exported, so an application can read it in-process
 without going through the guarded endpoints:
 
 ```ts
-import { history1m, pageHitsMap, recordDbHit } from '@bakery/plugin-analytics'
+import { history1m, pageHitsMap, recordDbHit } from '@bakery-framework/plugin-analytics'
 
 export function summary() {
   recordDbHit()
@@ -161,7 +161,7 @@ export function summary() {
 ```
 
 `computeStats(timescale, excludeHistory, pagesFilter)` from
-`@bakery/plugin-analytics/endpoints/stats` builds the same payload the HTTP
+`@bakery-framework/plugin-analytics/endpoints/stats` builds the same payload the HTTP
 endpoint would return, without the authorization check — it is the function the
 guard sits in front of, not behind. Exposing it on your own route means you own
 the access decision.

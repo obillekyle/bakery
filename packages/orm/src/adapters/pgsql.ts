@@ -1,4 +1,4 @@
-import { Case, Try } from '@bakery/core/utils'
+import { Case, Try } from '@bakery-framework/core/utils'
 import { SQL } from 'bun'
 import { type PoolOptions, withPoolOptions } from '../pool'
 import type * as SyncTypes from '../sync/types'

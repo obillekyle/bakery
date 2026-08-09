@@ -1,7 +1,7 @@
 {
   "$comment": [
     "Base tsconfig for applications built on Bakery. Extend it:",
-    "  { \"extends\": \"@bakery/core/tsconfig.app.json\" }",
+    "  { \"extends\": \"@bakery-framework/core/tsconfig.app.json\" }",
     "",
     "The JSX settings are not optional. Bakery renders JSX server-side to a",
     "string through its own `createElement`, so without these Bun falls back to",

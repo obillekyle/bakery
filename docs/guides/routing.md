@@ -14,7 +14,7 @@ to `src` and is resolved to an absolute path at startup
 `Bakery.serveRoot`.
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',
@@ -208,7 +208,7 @@ the route params merged together (`$dynamic.ts`, `tsx.ts`). Route params
 are applied last, so a param named `id` overwrites a query string `?id=`.
 
 ```tsx
-import { createElement, HTMLBody } from '@bakery/core'
+import { createElement, HTMLBody } from '@bakery-framework/core'
 
 // src/blog/[id].tsx — declare the param once and body.id is a string, not any
 export default HTMLBody<{ id: string }>((req, body) => (
@@ -228,7 +228,7 @@ A catch-all page declares its param the same way — the value is the joined
 rest of the path:
 
 ```tsx
-import { createElement, HTMLBody } from '@bakery/core'
+import { createElement, HTMLBody } from '@bakery-framework/core'
 
 // src/wiki/[...page].tsx — one file for /wiki/<anything>, however deep
 export default HTMLBody<{ page: string }>((req, body) => (
@@ -238,7 +238,7 @@ export default HTMLBody<{ page: string }>((req, body) => (
 ))
 ```
 
-`HTMLBody` (exported as both `html` and `HTMLBody` from `@bakery/core`) wraps the
+`HTMLBody` (exported as both `html` and `HTMLBody` from `@bakery-framework/core`) wraps the
 render function: it stringifies the result, prepends `<!DOCTYPE html>` when the
 markup starts with `<html`, and otherwise wraps loose markup in a minimal
 document (`core/jsx.ts`). It also passes `Bakery.server` as a third argument,
@@ -246,7 +246,7 @@ which the bare form does not.
 
 The type parameter is optional and type-level only — `HTMLBody(render)` without
 one behaves exactly as before, with `body` as a permissive map. Declared keys
-type over that base (`RouteBody` in `@bakery/core`), so undeclared params and
+type over that base (`RouteBody` in `@bakery-framework/core`), so undeclared params and
 query fields stay reachable. API routes get the same treatment through
 `defineRoute` — see [API routes](api-routes.md#the-signature).
 
@@ -271,7 +271,7 @@ export default function Home() {
 
 JSX children are escaped unless they came from `createElement` itself
 (`core/jsx.ts`), so interpolating user data is safe by default. Use `raw()`
-from `@bakery/core/core/jsx` to opt a string out.
+from `@bakery-framework/core/core/jsx` to opt a string out.
 
 ### Sibling `.ts` and `.css` files are auto-injected
 
@@ -323,8 +323,8 @@ Anything that serves a request is a `Handler` subclass registered with a
 priority. There is no other extension point.
 
 ```ts
-import { Bakery, response } from '@bakery/core'
-import { Handler } from '@bakery/core/handlers'
+import { Bakery, response } from '@bakery-framework/core'
+import { Handler } from '@bakery-framework/core/handlers'
 
 export class HealthHandler extends Handler {
   static override canHandle(path: string) {
@@ -385,10 +385,10 @@ only exist when that plugin is installed.
 | `/_gf`, `/_gf/*` | Google Fonts, proxied and cached to disk | core (`GoogleFontHandler`) |
 | `/_nm/*` | `node_modules`, bundled on demand | core (`NMHandler`) |
 | `/_livereload` | the live-reload WebSocket — **development only** | core (`LiveReloadHandler`) |
-| `/_dashboard`, `/_dashboard/dashboard.js`, `/api/_dashboard`, `/api/_dashboard/*` | admin console | `@bakery/plugin-dashboard` |
-| `/_analytics/ping`, `/api/_analytics/stats`, `/api/_analytics/reset` | telemetry endpoints | `@bakery/plugin-analytics` |
-| `/_analytics_ws` | telemetry WebSocket | `@bakery/plugin-analytics` |
-| `/_vue/*` | compiled SFC chunks and the Vue runtime | `@bakery/plugin-vue` |
+| `/_dashboard`, `/_dashboard/dashboard.js`, `/api/_dashboard`, `/api/_dashboard/*` | admin console | `@bakery-framework/plugin-dashboard` |
+| `/_analytics/ping`, `/api/_analytics/stats`, `/api/_analytics/reset` | telemetry endpoints | `@bakery-framework/plugin-analytics` |
+| `/_analytics_ws` | telemetry WebSocket | `@bakery-framework/plugin-analytics` |
+| `/_vue/*` | compiled SFC chunks and the Vue runtime | `@bakery-framework/plugin-vue` |
 
 Two of these are namespace *roots*, not string prefixes: `DashboardHandler`
 matches `/_dashboard` and `/api/_dashboard` exactly or a segment below them, so

@@ -1,4 +1,4 @@
-import { WebSocketHandler } from '@bakery/core/handlers'
+import { WebSocketHandler } from '@bakery-framework/core/handlers'
 import type { ServerWebSocket } from 'bun'
 import { computeStats, isAnalyticsAuthorized } from './stats'
 

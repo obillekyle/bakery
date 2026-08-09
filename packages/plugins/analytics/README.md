@@ -1,18 +1,18 @@
-# @bakery/plugin-analytics
+# @bakery-framework/plugin-analytics
 
 Request, route and error metrics for
 [Bakery](https://github.com/obillekyle/bun-server), with a live WebSocket feed.
 
 ```bash
-bun add @bakery/plugin-analytics
+bun add @bakery-framework/plugin-analytics
 ```
 
 ## Usage
 
 ```ts
 // server.config.ts
-import { defineConfig } from '@bakery/core'
-import analyticsPlugin from '@bakery/plugin-analytics'
+import { defineConfig } from '@bakery-framework/core'
+import analyticsPlugin from '@bakery-framework/plugin-analytics'
 
 export default defineConfig({
   root: 'src',

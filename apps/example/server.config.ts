@@ -1,5 +1,5 @@
-import { defineConfig } from '@bakery/core'
-import dashboardPlugin from '@bakery/plugin-dashboard'
+import { defineConfig } from '@bakery-framework/core'
+import dashboardPlugin from '@bakery-framework/plugin-dashboard'
 
 export default defineConfig({
   root: 'src',

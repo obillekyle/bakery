@@ -35,7 +35,7 @@ export type {
  *
  * `table`/`alias` live in `define.ts` and the column and constraint helpers in
  * `schema-util.ts`, but that split is an implementation detail — someone
- * writing `orm/schema.ts` should import from `@bakery/orm` without having to
+ * writing `orm/schema.ts` should import from `@bakery-framework/orm` without having to
  * know which file a helper happens to sit in.
  */
 export { alias, table, view } from './define'

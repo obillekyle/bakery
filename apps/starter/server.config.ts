@@ -1,4 +1,4 @@
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',

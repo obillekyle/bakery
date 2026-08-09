@@ -14,7 +14,7 @@ clone of the repo, because the packages are not published yet.
 ## 1. Create the app
 
 Bun's workspace covers `apps/*`, so a new directory there becomes a linked
-consumer of `@bakery/core`, `@bakery/orm` and `@bakery/cli`.
+consumer of `@bakery-framework/core`, `@bakery-framework/orm` and `@bakery-framework/cli`.
 
 ```bash
 mkdir -p apps/notes/src/api apps/notes/orm
@@ -24,7 +24,7 @@ mkdir -p apps/notes/src/api apps/notes/orm
 
 ```json
 {
-  "name": "@bakery/notes",
+  "name": "@bakery-framework/notes",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -34,9 +34,9 @@ mkdir -p apps/notes/src/api apps/notes/orm
     "db:sync": "bun --smol run ../../packages/orm/src/sync"
   },
   "dependencies": {
-    "@bakery/core": "workspace:*",
-    "@bakery/cli": "workspace:*",
-    "@bakery/orm": "workspace:*"
+    "@bakery-framework/core": "workspace:*",
+    "@bakery-framework/cli": "workspace:*",
+    "@bakery-framework/orm": "workspace:*"
   }
 }
 ```
@@ -45,7 +45,7 @@ mkdir -p apps/notes/src/api apps/notes/orm
 
 ```json
 {
-  "extends": "@bakery/core/tsconfig.app.json",
+  "extends": "@bakery-framework/core/tsconfig.app.json",
   "compilerOptions": {
     "jsx": "react",
     "jsxFactory": "createElement",
@@ -70,7 +70,7 @@ bun install
 `apps/notes/server.config.ts`:
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',
@@ -103,7 +103,7 @@ hand-written beside the tables would be collateral
 `apps/notes/orm/schema.ts`:
 
 ```ts
-import { Field, table } from '@bakery/orm'
+import { Field, table } from '@bakery-framework/orm'
 
 export const notes = table('notes', {
   id: Field.Primary(),
@@ -122,12 +122,12 @@ DEFAULT on a TEXT column.
 `apps/notes/orm/index.ts`:
 
 ```ts no-check — module augmentation plus a relative import of the reader's own schema.ts; neither resolves outside a real app
-import type { InferOptionals, InferSchema, InferViews } from '@bakery/orm'
+import type { InferOptionals, InferSchema, InferViews } from '@bakery-framework/orm'
 import * as model from './schema'
 
 export * from './schema'
 
-declare module '@bakery/orm/schema-registry' {
+declare module '@bakery-framework/orm/schema-registry' {
   interface SchemaRegistry {
     schema: {
       DBSchema: InferSchema<typeof model>
@@ -180,8 +180,8 @@ See [Schema sync](../orm/sync.md).
 `notes.ts` under `<root>/api`:
 
 ```ts
-import { response } from '@bakery/core'
-import DB from '@bakery/orm'
+import { response } from '@bakery-framework/core'
+import DB from '@bakery-framework/orm'
 
 export default async function handler(req: Request, body: any) {
   if (req.method === 'POST') {
@@ -226,7 +226,7 @@ clients.
 route name:
 
 ```tsx
-import { HTMLBody } from '@bakery/core'
+import { HTMLBody } from '@bakery-framework/core'
 
 export default HTMLBody(() => (
   <html lang="en">

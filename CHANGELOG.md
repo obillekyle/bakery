@@ -5,19 +5,19 @@ All notable changes to Bakery are recorded here, following
 
 ## Versioning
 
-**Every package ships one version, together.** `@bakery/core`, `@bakery/orm`,
-`@bakery/cli`, `@bakery/plugin-vue`, `@bakery/plugin-analytics`,
-`@bakery/plugin-dashboard` and `create-bakery` are always at the same number,
+**Every package ships one version, together.** `@bakery-framework/core`, `@bakery-framework/orm`,
+`@bakery-framework/cli`, `@bakery-framework/plugin-vue`, `@bakery-framework/plugin-analytics`,
+`@bakery-framework/plugin-dashboard` and `create-bakery` are always at the same number,
 and a release publishes all seven — including the ones with no changes.
 
 That is a deliberate trade. It costs some no-op releases. It buys the thing a
 framework split across seven packages most needs: *"which plugin works with core
-4.2?"* has one answer, always, without a compatibility table.
+1.2?"* has one answer, always, without a compatibility table.
 
 It is also already load-bearing rather than newly chosen. `create-bakery`
 derives the `^x.y.z` range it writes into a generated app **from its own
 version** (`dependencyRange` in `packages/create/src/template.ts`), so
-`create-bakery@4.1.0` scaffolding `^4.0.0` is drift that cannot happen — but
+`create-bakery@1.1.0` scaffolding `^1.0.0` is drift that cannot happen — but
 only while the numbers move together. `tests/conventions.test.ts` fails if any
 package drifts, so the policy is enforced rather than remembered.
 
@@ -36,17 +36,22 @@ gates, bumps all seven, and rolls the `Unreleased` section into the new heading.
 
 ## [Unreleased]
 
-## [4.0.0] — unreleased
+## [1.0.0] — unreleased
 
-First published release. Bakery has existed for four major versions as a single
-package inside the app it served; 4.0.0 is the first that is installable, so
-there is no upgrade path from 3.x and this entry describes what ships rather
-than what changed.
+First published release, and **the version number restarts here.** Bakery had
+reached 4.x as a single package living inside the app it served — private
+numbering, no installable artifact, no consumers. This is the first release
+anyone can install, under a new scope (`@bakery-framework/*`), so it is 1.0.0
+rather than 4.0.0: publishing 4.0.0 as a package's first version implies three
+prior majors a user could have been on, and there are none.
+
+There is consequently no upgrade path from the old 3.x/4.x, and this entry
+describes what ships rather than what changed.
 
 ### Added
 
-- **Workspace split.** `@bakery/core` (no runtime dependencies), `@bakery/orm`,
-  `@bakery/cli`, and three plugins. Each names its public subpaths explicitly;
+- **Workspace split.** `@bakery-framework/core` (no runtime dependencies), `@bakery-framework/orm`,
+  `@bakery-framework/cli`, and three plugins. Each names its public subpaths explicitly;
   there is no wildcard export, so anything unnamed is private from day one.
 - **`bun create bakery`** — a scaffolder that declares no dependencies at all
   and emits a working app, pinned to the framework version that generated it.
@@ -55,7 +60,7 @@ than what changed.
   `--yes`), so it drives from a Dockerfile as well as from a terminal. The
   prompts are written from scratch rather than pulled in, for the same reason
   the package has no dependencies at all.
-- **The ORM is optional.** `@bakery/orm` is an optional peer of `@bakery/cli`,
+- **The ORM is optional.** `@bakery-framework/orm` is an optional peer of `@bakery-framework/cli`,
   so an app scaffolded without a database does not install one. Absence and
   breakage stay distinct: with no ORM the server simply runs without one, but a
   *present* ORM that fails to initialise is still a fatal boot error, so a
@@ -64,7 +69,7 @@ than what changed.
   schema sync with a migration ledger, `db:rollback` and `db:history`, cursor
   pagination, composite foreign keys, views, set operations and window
   functions.
-- **Third-party adapters.** `@bakery/orm/adapters` is public: a package can
+- **Third-party adapters.** `@bakery-framework/orm/adapters` is public: a package can
   register a driver through the same API the three built-ins use, with the
   driver name added by declaration merging rather than by widening a union.
 - **Query observability** — `setQueryObserver`, off by default, parameters
@@ -96,5 +101,5 @@ Stated here rather than discovered later:
   the disposable `.cache/`, which is cleared whenever the framework version
   changes.
 
-[Unreleased]: https://github.com/obillekyle/bun-server/compare/v4.0.0...HEAD
-[4.0.0]: https://github.com/obillekyle/bun-server/releases/tag/v4.0.0
+[Unreleased]: https://github.com/obillekyle/bun-server/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/obillekyle/bun-server/releases/tag/v1.0.0

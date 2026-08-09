@@ -45,7 +45,7 @@ cache is safe to delete, and the database is not.
 ## Connection lifecycle
 
 ```ts
-import { closeDB, connection, getActiveDb, initDB } from '@bakery/orm/connection'
+import { closeDB, connection, getActiveDb, initDB } from '@bakery-framework/orm/connection'
 
 export async function boot() {
   const db = await initDB()          // creates the adapter, once
@@ -145,7 +145,7 @@ adapter instance* bound to that transaction, which is what makes
 `getActiveDb()` return it:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const driver = await DB.transaction(async tx => {
   await DB.Update.table('accounts').set({ balance: 0 }).where('id', 1).run()
@@ -169,7 +169,7 @@ Older backups beyond the keep count are pruned oldest-first; the count comes
 from `backups` in `server.config.ts`.
 
 ```ts
-import { backupDatabase } from '@bakery/orm/backup'
+import { backupDatabase } from '@bakery-framework/orm/backup'
 
 export async function nightly() {
   const ok = await backupDatabase()
@@ -190,7 +190,7 @@ tracing exporter or a test that asserts "this endpoint made three queries"
 hangs off.
 
 ```ts
-import { setQueryObserver } from '@bakery/orm'
+import { setQueryObserver } from '@bakery-framework/orm'
 
 const slowest: { sql: string; ms: number; driver: string }[] = []
 
@@ -204,7 +204,7 @@ setQueryObserver(event => {
 The call returns a disposer, and passing `null` removes the observer:
 
 ```ts
-import { setQueryObserver } from '@bakery/orm'
+import { setQueryObserver } from '@bakery-framework/orm'
 
 const off = setQueryObserver(event => {
   if (event.error) throw new Error(`query failed: ${event.sql}`)
@@ -255,7 +255,7 @@ Anything an observer receives is one log call away from a log file or a
 dashboard panel, so exposing them has to be a decision someone made on purpose.
 
 ```ts
-import { setQueryObserver } from '@bakery/orm'
+import { setQueryObserver } from '@bakery-framework/orm'
 
 const captured: (readonly unknown[] | undefined)[] = []
 
@@ -289,7 +289,7 @@ set, so `bun run test` on your machine is really testing SQLite.
 ## Writing your own
 
 An adapter is a subclass of `SQLAdapter` plus a registration. Both come from
-`@bakery/orm/adapters`, which is the only subpath involved — the individual
+`@bakery-framework/orm/adapters`, which is the only subpath involved — the individual
 adapter modules are private.
 
 Two steps, and the first is the one that is easy to get wrong.
@@ -299,14 +299,14 @@ nothing declared is a type error rather than a string typo that surfaces at
 runtime. Add yours by merging into the interface:
 
 ```ts no-check — a declaration file in the adapter's own package
-declare module '@bakery/orm/adapters' {
+declare module '@bakery-framework/orm/adapters' {
   interface DriverRegistry {
     mssql: true
   }
 }
 ```
 
-Aim that at `@bakery/orm/adapters` and nothing deeper. An augmentation pointed
+Aim that at `@bakery-framework/orm/adapters` and nothing deeper. An augmentation pointed
 at a module you cannot resolve does not fail — it quietly declares a second,
 unrelated interface, and your driver name goes on being rejected with nothing
 to indicate why.
@@ -314,9 +314,9 @@ to indicate why.
 **Register it**, at import time of your package's entry:
 
 ```ts
-import { registerAdapter, type SQLAdapter } from '@bakery/orm/adapters'
+import { registerAdapter, type SQLAdapter } from '@bakery-framework/orm/adapters'
 
-declare module '@bakery/orm/adapters' {
+declare module '@bakery-framework/orm/adapters' {
   interface DriverRegistry {
     mssql: true
   }

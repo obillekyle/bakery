@@ -6,12 +6,12 @@ How a Bakery process starts, and how a request becomes a response.
 
 | Package | Depends on | Contents |
 | --- | --- | --- |
-| `@bakery/core` | nothing at runtime | handlers, router, config, sessions, caches, logger, compiler, JSX |
-| `@bakery/orm` | core | query builder, mutations, adapters, schema sync, backup |
-| `@bakery/cli` | core, orm | the `bakery` binary; process-mode dispatch |
-| `@bakery/plugin-vue` | core | `.vue` components with server blocks |
-| `@bakery/plugin-analytics` | core | request telemetry |
-| `@bakery/plugin-dashboard` | core, orm | the admin console |
+| `@bakery-framework/core` | nothing at runtime | handlers, router, config, sessions, caches, logger, compiler, JSX |
+| `@bakery-framework/orm` | core | query builder, mutations, adapters, schema sync, backup |
+| `@bakery-framework/cli` | core, orm | the `bakery` binary; process-mode dispatch |
+| `@bakery-framework/plugin-vue` | core | `.vue` components with server blocks |
+| `@bakery-framework/plugin-analytics` | core | request telemetry |
+| `@bakery-framework/plugin-dashboard` | core, orm | the admin console |
 
 Core depending on nothing is a rule, not an accident: it is why escaping
 helpers live in core and are re-exported by the Vue plugin rather than the

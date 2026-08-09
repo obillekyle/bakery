@@ -18,7 +18,7 @@ export const pageHitsMap = new Map<string, number>()
  * the registry cannot live in a plugin. Re-exported because this plugin's
  * public surface and internals read it (the `activeLoggers` gauge).
  */
-export { connectedLoggers } from '@bakery/core/logger'
+export { connectedLoggers } from '@bakery-framework/core/logger'
 
 type TempAccumulator = {
   count: number

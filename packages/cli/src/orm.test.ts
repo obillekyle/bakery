@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { hasORM, ORM_MISSING } from './orm'
 
 /**
- * These run in-repo, where `@bakery/orm` is always present through the
+ * These run in-repo, where `@bakery-framework/orm` is always present through the
  * workspace symlink — so they cannot test the absent case, and pretending
  * otherwise is the trap. The absent case is verified by packing the tarballs
  * and booting outside the repo; see the CLI docs and the two `conventions`
@@ -14,7 +14,7 @@ import { hasORM, ORM_MISSING } from './orm'
 describe('optional ORM', () => {
   test('the probe agrees with a real import of the same specifier', async () => {
     // The one that would hurt. `hasORM()` asks the resolver about
-    // `@bakery/orm/connection`; every guarded call site then imports it. If
+    // `@bakery-framework/orm/connection`; every guarded call site then imports it. If
     // that subpath ever leaves orm's export map — or the string here picks up
     // a typo — the probe goes permanently false and every guard silently
     // skips. No error, no log: apps that *do* have a database just quietly
@@ -22,7 +22,7 @@ describe('optional ORM', () => {
     // something reads from it.
     //
     // So: assert the probe and the import cannot disagree, by doing both.
-    const importable = await import('@bakery/orm/connection')
+    const importable = await import('@bakery-framework/orm/connection')
       .then(() => true)
       .catch(() => false)
 
@@ -41,7 +41,7 @@ describe('optional ORM', () => {
   test('the missing-ORM message names the package and the fix', () => {
     // It is the only thing a user in this state sees. A message that describes
     // the problem without the command is a worse version of this test passing.
-    expect(ORM_MISSING).toContain('@bakery/orm')
-    expect(ORM_MISSING).toContain('bun add @bakery/orm')
+    expect(ORM_MISSING).toContain('@bakery-framework/orm')
+    expect(ORM_MISSING).toContain('bun add @bakery-framework/orm')
   })
 })

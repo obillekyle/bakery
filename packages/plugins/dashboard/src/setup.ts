@@ -1,18 +1,25 @@
-import { bundleModule } from '@bakery/core/compiler'
-import { Bakery } from '@bakery/core/core/bakery'
-import { isDevWorker } from '@bakery/core/core/init'
-import { Handler, mountRoutes } from '@bakery/core/handlers'
+import { bundleModule } from '@bakery-framework/core/compiler'
+import { Bakery } from '@bakery-framework/core/core/bakery'
+import { isDevWorker } from '@bakery-framework/core/core/init'
+import { Handler, mountRoutes } from '@bakery-framework/core/handlers'
 // LiveReloadHandler owns this registry — it adds and removes sockets from it.
 import {
   connectedLoggers,
   errorMsg,
   pluginLog,
   setLogCallback,
-} from '@bakery/core/logger'
-import { type PluginRouteTable, routeTable } from '@bakery/core/plugins'
-import type { JsonResponseData } from '@bakery/core/utils/common'
-import { Try } from '@bakery/core/utils/common'
-import { checkCsrf, injectIfHtml, response } from '@bakery/core/utils/http'
+} from '@bakery-framework/core/logger'
+import {
+  type PluginRouteTable,
+  routeTable,
+} from '@bakery-framework/core/plugins'
+import type { JsonResponseData } from '@bakery-framework/core/utils/common'
+import { Try } from '@bakery-framework/core/utils/common'
+import {
+  checkCsrf,
+  injectIfHtml,
+  response,
+} from '@bakery-framework/core/utils/http'
 import {
   type AuthorizeFn,
   defaultAuthorize,
@@ -84,7 +91,7 @@ let authorize: AuthorizeFn = defaultAuthorize
 
 /**
  * Test seam for the module-level predicate, symmetric with `__setTestDb` in
- * `@bakery/orm` and `__setTestConfig` in core.
+ * `@bakery-framework/orm` and `__setTestConfig` in core.
  *
  * `setupDashboard` is the only other way to set it, and it also mounts routes,
  * registers the handler at priority 120 and installs a global log callback —

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import '@bakery/core/core/init'
+import '@bakery-framework/core/core/init'
 
 const isDev = import.meta.env.DEV
 const isDevWorker = import.meta.env.DEV_WORKER
@@ -41,11 +41,11 @@ if (
   // would look like it worked.
   const { hasORM, ORM_MISSING } = await import('./orm')
   if (!hasORM()) {
-    const { serveLog } = await import('@bakery/core/logger')
+    const { serveLog } = await import('@bakery-framework/core/logger')
     serveLog.UNHANDLED_ERR({ error: `--sync: ${ORM_MISSING}` })
     process.exit(1)
   }
-  const { SyncService } = await import('@bakery/orm/sync')
+  const { SyncService } = await import('@bakery-framework/orm/sync')
   await SyncService.run()
 }
 try {

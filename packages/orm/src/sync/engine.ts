@@ -1,5 +1,5 @@
-import { Logger, messageLogger } from '@bakery/core/logger'
-import { Case } from '@bakery/core/utils'
+import { Logger, messageLogger } from '@bakery-framework/core/logger'
+import { Case } from '@bakery-framework/core/utils'
 import type { SQLAdapter } from '../adapters/base'
 import { SchemaBuilder } from './builder'
 import {

@@ -60,7 +60,7 @@ describe('--help is answered before anything is opened', () => {
   }
 
   beforeAll(async () => {
-    // Written as plain objects rather than by importing `@bakery/orm`, exactly
+    // Written as plain objects rather than by importing `@bakery-framework/orm`, exactly
     // as `load.test.ts` does: the fixture must not need a resolution path back
     // into the workspace from a temp directory.
     await Bun.write(path.join(cwd, 'schema.ts'), SCHEMA_WITH_FOREIGN)

@@ -3,7 +3,7 @@
  *
  * Separated from the I/O in `index.ts` so the tests can assert on what gets
  * written without a filesystem, and so the one interesting invariant is
- * checkable: **every `@bakery/*` specifier below resolves through an
+ * checkable: **every `@bakery-framework/*` specifier below resolves through an
  * *enumerated* export, never the `"./*"` wildcard.** That wildcard is a
  * deprecation ramp with one release to live (MONOREPO.md), so a template that
  * leaned on it would generate apps that break on its removal — and it would
@@ -26,7 +26,7 @@ export const PLUGIN_IDS = ['vue', 'analytics', 'dashboard'] as const
 export type PluginId = (typeof PLUGIN_IDS)[number]
 
 export type TemplateOptions = {
-  /** Generate `orm/` and depend on `@bakery/orm`. */
+  /** Generate `orm/` and depend on `@bakery-framework/orm`. */
   orm: boolean
   plugins: PluginId[]
 }
@@ -34,7 +34,7 @@ export type TemplateOptions = {
 /**
  * What each plugin costs a generated app.
  *
- * `peers` matters and is easy to miss: `@bakery/plugin-vue` declares `vue` and
+ * `peers` matters and is easy to miss: `@bakery-framework/plugin-vue` declares `vue` and
  * `@vue/compiler-sfc` as **peer** dependencies, so scaffolding the plugin
  * without them produces an app that installs cleanly and then fails the first
  * time it compiles an SFC. They go into the generated `dependencies`, because a
@@ -46,18 +46,18 @@ const PLUGINS: Record<
   { pkg: string; import: string; call: string; peers?: Record<string, string> }
 > = {
   vue: {
-    pkg: '@bakery/plugin-vue',
+    pkg: '@bakery-framework/plugin-vue',
     import: 'vuePlugin',
     call: 'vuePlugin()',
     peers: { vue: '^3.5.0', '@vue/compiler-sfc': '^3.5.0' },
   },
   analytics: {
-    pkg: '@bakery/plugin-analytics',
+    pkg: '@bakery-framework/plugin-analytics',
     import: 'analyticsPlugin',
     call: 'analyticsPlugin()',
   },
   dashboard: {
-    pkg: '@bakery/plugin-dashboard',
+    pkg: '@bakery-framework/plugin-dashboard',
     import: 'dashboardPlugin',
     // Deliberately no `authorize`. Omitted, the dashboard limits itself to
     // loopback in development and denies in production, so a scaffolded app is
@@ -105,7 +105,7 @@ function serverConfig(plugins: PluginId[]): string {
     .join('')
 
   if (!plugins.length) {
-    return `import { defineConfig } from '@bakery/core'
+    return `import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',
@@ -123,7 +123,7 @@ export default defineConfig({
       `  //   dashboardPlugin({ authorize: req => req.session.get('role') === 'admin' })\n`
     : ''
 
-  return `import { defineConfig } from '@bakery/core'
+  return `import { defineConfig } from '@bakery-framework/core'
 ${imports}
 export default defineConfig({
   root: 'src',
@@ -151,8 +151,8 @@ const INDEX_PAGE = `export default function Home() {
 }
 `
 
-const API_ROUTE = `import { defineRoute, response } from '@bakery/core'
-import DB from '@bakery/orm'
+const API_ROUTE = `import { defineRoute, response } from '@bakery-framework/core'
+import DB from '@bakery-framework/orm'
 
 // The type parameter declares the body's shape: body.title / body.slug /
 // body.body are strings below, while undeclared keys stay reachable. It states
@@ -184,11 +184,11 @@ export default defineRoute<{ title: string; slug: string; body: string }>(
  * `data` as an array — so the client script below is identical either way and
  * the two templates do not drift into demonstrating different things.
  */
-const API_ROUTE_NO_ORM = `import { defineRoute, response } from '@bakery/core'
+const API_ROUTE_NO_ORM = `import { defineRoute, response } from '@bakery-framework/core'
 
 // In memory, and therefore per process: a cluster (\`--threads N\`) gives each
 // worker its own copy. That is the point at which you want the ORM — scaffold
-// with it, or add @bakery/orm later.
+// with it, or add @bakery-framework/orm later.
 const posts: { title: string }[] = []
 
 // The type parameter declares the body's shape. It states the contract — it
@@ -209,7 +209,7 @@ const el = document.getElementById('count')
 if (el) el.textContent = \`\${json.data?.length ?? 0} posts\`
 `
 
-const ORM_SCHEMA = `import { Field, table } from '@bakery/orm'
+const ORM_SCHEMA = `import { Field, table } from '@bakery-framework/orm'
 
 export const users = table('users', {
   id: Field.Primary(),
@@ -232,7 +232,7 @@ export const posts = table('posts', {
 })
 `
 
-const ORM_INDEXES = `import { Field } from '@bakery/orm'
+const ORM_INDEXES = `import { Field } from '@bakery-framework/orm'
 import { posts, users } from './tables'
 
 export const usernameUniq = Field.Unique(users.username)
@@ -247,7 +247,7 @@ export const postsByAuthor = Field.Index(posts.authorId)
  * generating rather than documenting.
  */
 
-const ORM_VIEWS = `import { view } from '@bakery/orm'
+const ORM_VIEWS = `import { view } from '@bakery-framework/orm'
 import { posts } from './tables'
 
 // A view is a stored SELECT the database treats as a read-only table. Borrowing
@@ -259,7 +259,7 @@ export const publishedPosts = view(
 )
 `
 
-const ORM_INDEX = `import type { InferOptionals, InferSchema, InferViews } from '@bakery/orm'
+const ORM_INDEX = `import type { InferOptionals, InferSchema, InferViews } from '@bakery-framework/orm'
 import * as tables from './tables'
 import * as views from './views'
 
@@ -271,7 +271,7 @@ export * from './indexes'
 // specifically -- that is what stops DB.Insert.into() targeting one.
 type Model = typeof tables & typeof views
 
-declare module '@bakery/orm/schema-registry' {
+declare module '@bakery-framework/orm/schema-registry' {
   interface SchemaRegistry {
     schema: {
       DBSchema: InferSchema<Model>
@@ -288,10 +288,10 @@ declare module '@bakery/orm/schema-registry' {
  *
  * `bakery --sync` is not this: it syncs and then *boots the server*, which is
  * the wrong shape for a `db:sync` you run in a deploy step. The CLI's own
- * standalone path is `import.meta.main` inside `@bakery/orm/sync`, so this
+ * standalone path is `import.meta.main` inside `@bakery-framework/orm/sync`, so this
  * reproduces exactly what that guard does, through the enumerated export.
  */
-const DB_SYNC_SCRIPT = `import { SyncService } from '@bakery/orm/sync'
+const DB_SYNC_SCRIPT = `import { SyncService } from '@bakery-framework/orm/sync'
 
 await SyncService.run()
 process.exit(0)
@@ -341,7 +341,7 @@ function readme(name: string, orm: boolean, plugins: PluginId[]): string {
   const noOrm = orm
     ? ''
     : '\nScaffolded without the ORM. `src/api/notes.ts` keeps its posts in memory, ' +
-      'which is per process — add `@bakery/orm` when you want them to outlive a ' +
+      'which is per process — add `@bakery-framework/orm` when you want them to outlive a ' +
       'restart or survive `--threads`.\n'
 
   return `# ${name}
@@ -370,7 +370,7 @@ ${pluginSection}
  * The three JSX options are repeated here on purpose, and removing them breaks
  * every page in the generated app.
  *
- * `@bakery/core/tsconfig.app.json` already sets them, and `tsc` picks them up
+ * `@bakery-framework/core/tsconfig.app.json` already sets them, and `tsc` picks them up
  * from there — but **Bun's runtime does not follow `extends` into a package
  * specifier**, only a relative path. So at runtime the app is transpiled with
  * Bun's default automatic JSX runtime instead of Bakery's classic
@@ -391,8 +391,8 @@ function tsconfig(orm: boolean): string {
     .join(',\n')
 
   return `{
-  "$comment": "The three jsx* options are also set by @bakery/core/tsconfig.app.json, and tsc reads them from there — but Bun's runtime does not follow 'extends' into a package specifier, only a relative path. Without them here, every .tsx page fails at runtime with \\"Cannot find module 'react/jsx-dev-runtime'\\" while typecheck stays clean. Keep them.",
-  "extends": "@bakery/core/tsconfig.app.json",
+  "$comment": "The three jsx* options are also set by @bakery-framework/core/tsconfig.app.json, and tsc reads them from there — but Bun's runtime does not follow 'extends' into a package specifier, only a relative path. Without them here, every .tsx page fails at runtime with \\"Cannot find module 'react/jsx-dev-runtime'\\" while typecheck stays clean. Keep them.",
+  "extends": "@bakery-framework/core/tsconfig.app.json",
   "compilerOptions": {
     "jsx": "react",
     "jsxFactory": "createElement",
@@ -419,10 +419,10 @@ export function templateFiles(
   const { orm, plugins } = options
 
   const dependencies: Record<string, string> = {
-    '@bakery/cli': range,
-    '@bakery/core': range,
+    '@bakery-framework/cli': range,
+    '@bakery-framework/core': range,
   }
-  if (orm) dependencies['@bakery/orm'] = range
+  if (orm) dependencies['@bakery-framework/orm'] = range
   for (const id of plugins) {
     dependencies[PLUGINS[id].pkg] = range
     Object.assign(dependencies, PLUGINS[id].peers ?? {})

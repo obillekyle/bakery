@@ -1,14 +1,19 @@
-import { LRUCache } from '@bakery/core/cache/lru'
-import { Bakery, hostKey } from '@bakery/core/core/bakery'
-import type { Handler } from '@bakery/core/handlers'
+import { LRUCache } from '@bakery-framework/core/cache/lru'
+import { Bakery, hostKey } from '@bakery-framework/core/core/bakery'
+import type { Handler } from '@bakery-framework/core/handlers'
 import {
   beginPageRoute,
   DynamicErrorHandler,
   DynamicHandler,
-} from '@bakery/core/handlers'
-import { Logger } from '@bakery/core/logger'
-import { fs, JsonResponseData, response, toHash } from '@bakery/core/utils'
-import { ETag, injectIfHtml } from '@bakery/core/utils/http'
+} from '@bakery-framework/core/handlers'
+import { Logger } from '@bakery-framework/core/logger'
+import {
+  fs,
+  JsonResponseData,
+  response,
+  toHash,
+} from '@bakery-framework/core/utils'
+import { ETag, injectIfHtml } from '@bakery-framework/core/utils/http'
 
 const logger = new Logger('vue')
 

@@ -277,9 +277,9 @@ describe('conventions (CLAUDE.md)', () => {
     // core ← orm ← plugins, with cli the only package depending on both.
     // MONOREPO.md verified this once by grep; this keeps it verified.
     const RULES = [
-      { dir: 'packages/core/', banned: /@bakery\/(orm|cli|plugin-)/ },
-      { dir: 'packages/orm/', banned: /@bakery\/(cli|plugin-)/ },
-      { dir: 'packages/plugins/', banned: /@bakery\/(cli|plugin-)/ },
+      { dir: 'packages/core/', banned: /@bakery-framework\/(orm|cli|plugin-)/ },
+      { dir: 'packages/orm/', banned: /@bakery-framework\/(cli|plugin-)/ },
+      { dir: 'packages/plugins/', banned: /@bakery-framework\/(cli|plugin-)/ },
     ]
 
     const offenders: string[] = []
@@ -295,11 +295,11 @@ describe('conventions (CLAUDE.md)', () => {
   })
 
   test('the CLI never statically imports the ORM', () => {
-    // `@bakery/orm` is an **optional peer** of `@bakery/cli`: an app scaffolded
+    // `@bakery-framework/orm` is an **optional peer** of `@bakery-framework/cli`: an app scaffolded
     // with `--no-orm` does not install it, and the CLI has to boot anyway.
     //
     // That works only because every reach for it is an `await import()` behind
-    // `hasORM()`. A single static `import … from '@bakery/orm/…'` at the top of
+    // `hasORM()`. A single static `import … from '@bakery-framework/orm/…'` at the top of
     // any CLI module puts it back in the module graph and the import is
     // evaluated before a line of guard code runs — so a no-database app dies at
     // startup with ERR_MODULE_NOT_FOUND, and nothing in this repo would notice,
@@ -311,10 +311,10 @@ describe('conventions (CLAUDE.md)', () => {
       packageSources.filter(
         f => f.path.startsWith('packages/cli/') && !isTest(f),
       ),
-      // A static import only: `from '@bakery/orm…'` not preceded by `import(`.
-      // `await import('@bakery/orm/x')` writes the specifier inside parens and
+      // A static import only: `from '@bakery-framework/orm…'` not preceded by `import(`.
+      // `await import('@bakery-framework/orm/x')` writes the specifier inside parens and
       // has no `from`, so it does not match.
-      /\bfrom\s*['"]@bakery\/orm/,
+      /\bfrom\s*['"]@bakery-framework\/orm/,
     )
 
     expect(offenders).toEqual([])
@@ -462,7 +462,7 @@ describe('conventions (CLAUDE.md)', () => {
     // installs a tarball, which is the worst place to find out.
     //
     // Verified against a real extracted tarball when the wildcard was removed:
-    // `@bakery/core/cache/tiered` and its neighbours are blocked while every
+    // `@bakery-framework/core/cache/tiered` and its neighbours are blocked while every
     // enumerated path resolves. This keeps it that way.
     //
     // The fix for a failure is to add the subpath to that package's `exports`,
@@ -494,12 +494,12 @@ describe('conventions (CLAUDE.md)', () => {
     // **Both spellings.** This matched only `from '…'` until it was found to be
     // missing four live offenders, all of them `await import('…')` — the form
     // the CLI uses for nearly everything it pulls out of core, because it is
-    // lazy-loading on purpose. `@bakery/core/cache/tiered`,
+    // lazy-loading on purpose. `@bakery-framework/core/cache/tiered`,
     // `core/compiler/tsconfig-sync`, `core/core/plugins` and `orm/sync/load`
     // were all absent from their export maps and all resolved fine in-repo
     // through the workspace symlink. A rule that cannot see the import style a
     // package actually uses is not a rule.
-    const IMPORT = /(?:from|import\()\s*'(@bakery\/[^']+)'/g
+    const IMPORT = /(?:from|import\()\s*'(@bakery-framework\/[^']+)'/g
     const offenders: string[] = []
     for (const file of allSources) {
       for (const [, spec] of file.text.matchAll(IMPORT)) {
@@ -596,9 +596,10 @@ describe('release versions', () => {
     const json = await Bun.file(`${ROOT}/packages/cli/package.json`).json()
 
     expect({
-      dependency: json.dependencies?.['@bakery/orm'] ?? null,
-      peer: json.peerDependencies?.['@bakery/orm'] ?? null,
-      optional: json.peerDependenciesMeta?.['@bakery/orm']?.optional ?? null,
+      dependency: json.dependencies?.['@bakery-framework/orm'] ?? null,
+      peer: json.peerDependencies?.['@bakery-framework/orm'] ?? null,
+      optional:
+        json.peerDependenciesMeta?.['@bakery-framework/orm']?.optional ?? null,
     }).toEqual({
       dependency: null,
       peer: 'workspace:^',

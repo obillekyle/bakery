@@ -1,5 +1,5 @@
-import { response } from '@bakery/core'
-import { Session } from '@bakery/core/session'
+import { response } from '@bakery-framework/core'
+import { Session } from '@bakery-framework/core/session'
 
 export default function TestSessionApi(req: Request) {
   req.session = new Session()

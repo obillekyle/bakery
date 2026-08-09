@@ -1,9 +1,9 @@
-import { Fragment, HTMLBody, log } from '@bakery/core'
+import { Fragment, HTMLBody, log } from '@bakery-framework/core'
 import { CardHeader, HeroHeader, Layout } from '../Layout.tsx'
 
 // The [id] segment from the filename, declared once — body.id is a string
 // below instead of `any`. (The filename itself cannot infer this; see
-// RouteBody in @bakery/core.)
+// RouteBody in @bakery-framework/core.)
 export default HTMLBody<{ id: string }>((req, body) => {
   const url = new URL(req.url)
   const searchQuery = url.searchParams.toString()

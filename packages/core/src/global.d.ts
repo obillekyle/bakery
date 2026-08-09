@@ -126,7 +126,7 @@ declare global {
      * `index.ts`. Relative paths resolve against the app's cwd. Omit it (or
      * leave it empty) to auto-detect `orm/` then `schema.ts`.
      *
-     * A plain string, deliberately: core must never depend on `@bakery/orm`,
+     * A plain string, deliberately: core must never depend on `@bakery-framework/orm`,
      * which depends on core, and a path carries no type from it. The ORM reads
      * this through `schemaFromConfig`. A configured path that does not exist is
      * a hard error rather than a fall back to auto-detect — otherwise a typo

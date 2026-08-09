@@ -17,7 +17,7 @@ destructive plan on a production host falls through to the interactive
 bunx bakery
 ```
 
-That is `@bakery/cli`'s `bin`. In the example app the same thing is wrapped as
+That is `@bakery-framework/cli`'s `bin`. In the example app the same thing is wrapped as
 `bun run serve`.
 
 ## What starts, in what order
@@ -173,7 +173,7 @@ Bakery does not terminate TLS. Put nginx, Caddy or a load balancer in front, and
 tell Bakery to believe it:
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',

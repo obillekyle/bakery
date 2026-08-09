@@ -1,9 +1,12 @@
-import { Bakery } from '@bakery/core/core/bakery'
-import { Handler } from '@bakery/core/handlers'
-import { type PluginRouteTable, routeTable } from '@bakery/core/plugins'
-import { FileSystem as fs } from '@bakery/core/utils'
-import type { JsonResponseData } from '@bakery/core/utils/common'
-import { response } from '@bakery/core/utils/http'
+import { Bakery } from '@bakery-framework/core/core/bakery'
+import { Handler } from '@bakery-framework/core/handlers'
+import {
+  type PluginRouteTable,
+  routeTable,
+} from '@bakery-framework/core/plugins'
+import { FileSystem as fs } from '@bakery-framework/core/utils'
+import type { JsonResponseData } from '@bakery-framework/core/utils/common'
+import { response } from '@bakery-framework/core/utils/http'
 import * as core from './core'
 import { BOOT_MAX_ITEMS } from './core'
 import type { AnalyticsStats } from './endpoints/stats'

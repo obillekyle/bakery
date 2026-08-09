@@ -1,4 +1,4 @@
-import { connection } from '@bakery/orm/connection'
+import { connection } from '@bakery-framework/orm/connection'
 
 const driverNames = {
   postgres: 'PostgreSQL',

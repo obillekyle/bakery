@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { LRUCache } from '@bakery/core/cache/lru'
-import { Bakery } from '@bakery/core/core/bakery'
-import { initConfig } from '@bakery/core/core/config'
-import { fs, toHash } from '@bakery/core/utils'
+import { LRUCache } from '@bakery-framework/core/cache/lru'
+import { Bakery } from '@bakery-framework/core/core/bakery'
+import { initConfig } from '@bakery-framework/core/core/config'
+import { fs, toHash } from '@bakery-framework/core/utils'
 import {
   resolveActionTarget,
   validateActionRequest,

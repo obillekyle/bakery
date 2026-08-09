@@ -1,5 +1,5 @@
-import { Try } from '@bakery/core/utils'
-import { throws } from '@bakery/core/utils/common'
+import { Try } from '@bakery-framework/core/utils'
+import { throws } from '@bakery-framework/core/utils/common'
 import { DEFAULT_MAX_QUERY_PARAMS, type SQLAdapter } from '../adapters'
 import { getActiveDb, txStorage } from '../connection'
 import type {

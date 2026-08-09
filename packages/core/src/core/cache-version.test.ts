@@ -10,7 +10,7 @@ import { getAppVersion, getFrameworkVersion } from './context'
  *
  * It used to key on the app's alone, through a function called
  * `getBakeryVersion` that read `<cwd>/package.json` — so `bun update
- * @bakery/core` left a cache full of artifacts compiled by the previous
+ * @bakery-framework/core` left a cache full of artifacts compiled by the previous
  * framework version and nothing invalidated them. The misnomer is what hid it,
  * and the repo layout is what kept it hidden: `apps/example`'s version tracks
  * the framework's, so bumping both made the app version look sufficient.
@@ -27,9 +27,9 @@ describe('cache invalidation reads two versions', () => {
     expect(getAppVersion()).toBe(root.version)
   })
 
-  test('the framework version comes from @bakery/core, not the cwd', async () => {
+  test('the framework version comes from @bakery-framework/core, not the cwd', async () => {
     const core = await Bun.file(`${import.meta.dir}/../../package.json`).json()
-    expect(core.name).toBe('@bakery/core')
+    expect(core.name).toBe('@bakery-framework/core')
     expect(getFrameworkVersion()).toBe(core.version)
   })
 
@@ -45,11 +45,19 @@ describe('cache invalidation reads two versions', () => {
   })
 
   test('neither falls back to the other on a missing file', () => {
-    // Distinct fallbacks on purpose: a shared '1.0.0' would make an
-    // unreadable manifest look like a version that never changes, which is
-    // silently "never invalidate" rather than "invalidate once".
-    expect(getAppVersion()).not.toBe('0.0.0')
-    expect(getFrameworkVersion()).not.toBe('1.0.0')
+    // Distinct fallbacks on purpose: a shared one would make an unreadable
+    // manifest look like a version that never changes, which is silently
+    // "never invalidate" rather than "invalidate once".
+    //
+    // The sentinels are deliberately impossible as real versions. They were
+    // '0.0.0' and '1.0.0' until the framework was renumbered to 1.0.0 for its
+    // first publish — at which point the framework's *correct* version equalled
+    // the app's fallback, and this assertion could no longer distinguish a
+    // successful read from a fallback. It failed, which is the good outcome;
+    // had the numbers landed the other way it would have passed vacuously
+    // forever.
+    expect(getAppVersion()).not.toBe('0.0.0-unknown-app')
+    expect(getFrameworkVersion()).not.toBe('0.0.0-unknown-framework')
   })
 })
 

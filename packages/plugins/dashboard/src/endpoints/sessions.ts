@@ -1,7 +1,7 @@
-import { isReservedSessionKey, Session } from '@bakery/core/session'
-import { processBody } from '@bakery/core/utils'
-import type { JsonResponseData } from '@bakery/core/utils/common'
-import { response } from '@bakery/core/utils/http'
+import { isReservedSessionKey, Session } from '@bakery-framework/core/session'
+import { processBody } from '@bakery-framework/core/utils'
+import type { JsonResponseData } from '@bakery-framework/core/utils/common'
+import { response } from '@bakery-framework/core/utils/http'
 
 export async function handleGetSessions(
   url: URL,

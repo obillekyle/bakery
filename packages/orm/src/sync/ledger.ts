@@ -1,4 +1,4 @@
-import { Case } from '@bakery/core/utils'
+import { Case } from '@bakery-framework/core/utils'
 import type { SQLAdapter } from '../adapters/base'
 import type * as SyncTypes from './types'
 

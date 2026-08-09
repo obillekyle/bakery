@@ -1,5 +1,5 @@
-import '@bakery/core/core/init'
-import { errorMsg, log, serveLog } from '@bakery/core/logger'
+import '@bakery-framework/core/core/init'
+import { errorMsg, log, serveLog } from '@bakery-framework/core/logger'
 import { hasORM } from './orm'
 
 log({
@@ -11,13 +11,13 @@ serveLog.STARTING({ mode: 'development' })
 let config: unknown
 
 try {
-  const { initConfig } = await import('@bakery/core/core/config')
+  const { initConfig } = await import('@bakery-framework/core/core/config')
   const { initImportMap, initHostImportMaps } = await import(
-    '@bakery/core/utils/http'
+    '@bakery-framework/core/utils/http'
   )
-  const { setupPlugins } = await import('@bakery/core/startup')
+  const { setupPlugins } = await import('@bakery-framework/core/startup')
   const { syncTSConfigPaths } = await import(
-    '@bakery/core/compiler/tsconfig-sync'
+    '@bakery-framework/core/compiler/tsconfig-sync'
   )
 
   config = await initConfig()
@@ -48,7 +48,7 @@ try {
 async function computeSchemaHash(
   configured: string | undefined,
 ): Promise<string | null> {
-  const { fs, Try } = await import('@bakery/core/utils')
+  const { fs, Try } = await import('@bakery-framework/core/utils')
 
   const files: string[] = []
   const scanDir = async (dir: string) => {
@@ -99,10 +99,12 @@ async function computeSchemaHash(
 // the absence of one on every reload.
 if (hasORM()) {
   try {
-    const { Bakery } = await import('@bakery/core')
-    const { classifySchemaSync } = await import('@bakery/core/compiler')
-    const { schemaFromConfig } = await import('@bakery/orm/sync/load')
-    const { Try } = await import('@bakery/core/utils')
+    const { Bakery } = await import('@bakery-framework/core')
+    const { classifySchemaSync } = await import(
+      '@bakery-framework/core/compiler'
+    )
+    const { schemaFromConfig } = await import('@bakery-framework/orm/sync/load')
+    const { Try } = await import('@bakery-framework/core/utils')
 
     const hashFile = `${Bakery.cacheDir}/schema-sync.hash`
     const currentHash = await computeSchemaHash(schemaFromConfig(config))
@@ -128,13 +130,15 @@ if (hasORM()) {
       // 2.7ms median against apps/example (4 tables) — it is one introspection
       // pass, so it grows with table count, which is why it is not on the path
       // that is about to introspect anyway.
-      const { initDB, connection } = await import('@bakery/orm/connection')
-      const { detectDrift } = await import('@bakery/orm/sync/ledger')
+      const { initDB, connection } = await import(
+        '@bakery-framework/orm/connection'
+      )
+      const { detectDrift } = await import('@bakery-framework/orm/sync/ledger')
       await initDB()
       const drift = await detectDrift(connection)
       if (drift) serveLog.SCHEMA_DRIFT({ reason: drift.reason })
     } else {
-      const { SyncService } = await import('@bakery/orm/sync')
+      const { SyncService } = await import('@bakery-framework/orm/sync')
       await SyncService.run()
       // Recorded only after run() resolves: a failed or aborted sync must leave
       // the previous hash (or none) behind so the next boot re-syncs.

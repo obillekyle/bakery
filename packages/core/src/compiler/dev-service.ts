@@ -338,7 +338,7 @@ export async function handleDevMaster(): Promise<never> {
         '--smol',
         ...inspectArgs,
         // Respawn whatever entry started this process. The entry now lives in
-        // @bakery/cli, and core must not reach into a package that depends on
+        // @bakery-framework/cli, and core must not reach into a package that depends on
         // it — argv[1] is both correct and dependency-free.
         process.argv[1],
         '--dev',

@@ -16,7 +16,7 @@ import {
  * nothing had declared `mssql`. That is the design working: a driver name is
  * checked, and adding one is a declaration rather than a string.
  *
- * `'./adapters'` is the *barrel*, which is `'@bakery/orm/adapters'` from
+ * `'./adapters'` is the *barrel*, which is `'@bakery-framework/orm/adapters'` from
  * outside — and it merges even though `DriverRegistry` is declared a file
  * deeper, behind an `export *`. That is worth stating because the alternative
  * is silent: an augmentation aimed at a module the consumer cannot resolve

@@ -1,4 +1,4 @@
-# @bakery/cli
+# @bakery-framework/cli
 
 The `bakery` binary: process-mode dispatch, the dev watcher, and clustering for
 [Bakery](https://github.com/obillekyle/bun-server).
@@ -6,7 +6,7 @@ The `bakery` binary: process-mode dispatch, the dev watcher, and clustering for
 **Bun only.** Ships TypeScript source with no build step.
 
 ```bash
-bun add @bakery/cli
+bun add @bakery-framework/cli
 ```
 
 ## Usage
@@ -32,7 +32,7 @@ There is no `--port` flag. The port resolves as `PORT` → `port` in
 fallback: `PORT=3000x` exits 1 instead of binding somewhere random.
 
 For a standalone schema sync in a deploy step, drive `SyncService` from
-`@bakery/orm/sync` directly — `--sync` starts a server afterwards.
+`@bakery-framework/orm/sync` directly — `--sync` starts a server afterwards.
 
 ## License
 

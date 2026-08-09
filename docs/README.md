@@ -64,9 +64,9 @@ build step in development.
 
 | Package | Contents |
 | --- | --- |
-| `@bakery/core` | handlers, router, config, sessions, caches, logger, compiler |
-| `@bakery/orm` | query builder, mutations, adapters, schema sync, backup |
-| `@bakery/cli` | the `bakery` binary: dev, serve, cluster, mode dispatch |
-| `@bakery/plugin-vue` | `.vue` single-file components with server blocks |
-| `@bakery/plugin-analytics` | request telemetry collection |
-| `@bakery/plugin-dashboard` | the built-in admin console |
+| `@bakery-framework/core` | handlers, router, config, sessions, caches, logger, compiler |
+| `@bakery-framework/orm` | query builder, mutations, adapters, schema sync, backup |
+| `@bakery-framework/cli` | the `bakery` binary: dev, serve, cluster, mode dispatch |
+| `@bakery-framework/plugin-vue` | `.vue` single-file components with server blocks |
+| `@bakery-framework/plugin-analytics` | request telemetry collection |
+| `@bakery-framework/plugin-dashboard` | the built-in admin console |

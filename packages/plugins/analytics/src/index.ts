@@ -1,4 +1,4 @@
-import { definePlugin } from '@bakery/core/plugins'
+import { definePlugin } from '@bakery-framework/core/plugins'
 import { recordErrorPageHit, recordRouteHit } from './core'
 
 export {

@@ -1,4 +1,4 @@
-# @bakery/core
+# @bakery-framework/core
 
 The core of [Bakery](https://github.com/obillekyle/bun-server): request handling,
 routing, sessions, caching and the server-side JSX runtime.
@@ -7,17 +7,17 @@ routing, sessions, caching and the server-side JSX runtime.
 runtime depends on Bun APIs throughout. It will not run on Node.
 
 ```bash
-bun add @bakery/core @bakery/cli
+bun add @bakery-framework/core @bakery-framework/cli
 ```
 
-`@bakery/cli` owns the `bakery` binary that actually starts a server — core on
+`@bakery-framework/cli` owns the `bakery` binary that actually starts a server — core on
 its own is the library it starts.
 
 ## Usage
 
 ```ts
 // server.config.ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',
@@ -30,7 +30,7 @@ Every file under `root` is a route. A `.tsx` file is a page, a `.ts` file under
 
 ```ts
 // src/api/hello.ts
-import { defineRoute, response } from '@bakery/core'
+import { defineRoute, response } from '@bakery-framework/core'
 
 export default defineRoute(async req => {
   return response.json.success('ok', { method: req.method })
@@ -44,7 +44,7 @@ Pages are rendered server-side through Bakery's own `createElement`, so an app's
 
 ```json
 {
-  "extends": "@bakery/core/tsconfig.app.json",
+  "extends": "@bakery-framework/core/tsconfig.app.json",
   "compilerOptions": {
     "jsx": "react",
     "jsxFactory": "createElement",

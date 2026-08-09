@@ -16,12 +16,12 @@
  * typechecks without it; the ORM is simply untyped (permissive `any`
  * columns) until a schema registers itself.
  */
-import { Field } from '@bakery/orm'
+import { Field } from '@bakery-framework/orm'
 import type {
   ExtractOptionals,
   ExtractTableTypes,
   ExtractViews,
-} from '@bakery/orm/schema-util'
+} from '@bakery-framework/orm/schema-util'
 
 export namespace DBInfo {
   export const constraints = {
@@ -83,7 +83,7 @@ export type DBOptionals = {
  * `DB.from('posts')` know its columns. Keep this block — without it the ORM
  * still works, but every table and column is `any`.
  */
-declare module '@bakery/orm/schema-registry' {
+declare module '@bakery-framework/orm/schema-registry' {
   interface SchemaRegistry {
     schema: {
       DBSchema: DBSchema

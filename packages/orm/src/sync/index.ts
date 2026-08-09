@@ -1,6 +1,6 @@
-import '@bakery/core/core/init'
+import '@bakery-framework/core/core/init'
 
-import { Logger, messageLogger } from '@bakery/core/logger'
+import { Logger, messageLogger } from '@bakery-framework/core/logger'
 import { closeDB, connection, initDB } from '../connection'
 import { loadSchema, schemaFromConfig } from './load'
 
@@ -57,7 +57,7 @@ Flags:
     // connection, a loadable schema, or the absence of a `foreign()`.
     if (SyncService.helpRequested()) return SyncService.printHelp()
 
-    const { initConfig } = await import('@bakery/core/core/config')
+    const { initConfig } = await import('@bakery-framework/core/core/config')
     const config = await initConfig()
     await initDB()
     // `schema` in server.config.ts when the app sets one; otherwise prefers an

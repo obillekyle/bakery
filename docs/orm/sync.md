@@ -9,7 +9,7 @@ actually reports.
 bun run db:sync
 ```
 
-The script runs `@bakery/orm/sync`
+The script runs `@bakery-framework/orm/sync`
 ([`packages/orm/src/sync/index.ts`](../../packages/orm/src/sync/index.ts)) from
 the app directory, not the repo root.
 
@@ -105,7 +105,7 @@ The reliable way is to say so in the schema with `old()`, which the engine
 resolves before anything is dropped:
 
 ```ts
-import { Field, old, table } from '@bakery/orm'
+import { Field, old, table } from '@bakery-framework/orm'
 
 export const posts = table('posts', {
   id: Field.Primary(),

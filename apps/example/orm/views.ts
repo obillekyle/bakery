@@ -1,4 +1,4 @@
-import { view } from '@bakery/orm'
+import { view } from '@bakery-framework/orm'
 import { posts } from './tables'
 
 /**

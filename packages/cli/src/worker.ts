@@ -1,20 +1,27 @@
-import { Bakery, getHostname, hostStore } from '@bakery/core/core/bakery'
-import { initConfig, resolveHostConfig } from '@bakery/core/core/config'
-import { isDevWorker } from '@bakery/core/core/init'
-import { resolvePort } from '@bakery/core/core/port'
-import type { Handler } from '@bakery/core/handlers'
-import { errorMsg, log, serveLog } from '@bakery/core/logger'
+import {
+  Bakery,
+  getHostname,
+  hostStore,
+} from '@bakery-framework/core/core/bakery'
+import {
+  initConfig,
+  resolveHostConfig,
+} from '@bakery-framework/core/core/config'
+import { isDevWorker } from '@bakery-framework/core/core/init'
+import { resolvePort } from '@bakery-framework/core/core/port'
+import type { Handler } from '@bakery-framework/core/handlers'
+import { errorMsg, log, serveLog } from '@bakery-framework/core/logger'
 import {
   handleRequest,
   handleRequestError,
   processResponse,
   serveWebSocket,
-} from '@bakery/core/router'
-import { Session } from '@bakery/core/session'
-import { runStartupBanner, setupServer } from '@bakery/core/startup'
-import { deferredValue, is, Try } from '@bakery/core/utils/common'
-import { getClientIp } from '@bakery/core/utils/http'
-import { COUNTER_SLOTS } from '@bakery/core/utils/shared-pool'
+} from '@bakery-framework/core/router'
+import { Session } from '@bakery-framework/core/session'
+import { runStartupBanner, setupServer } from '@bakery-framework/core/startup'
+import { deferredValue, is, Try } from '@bakery-framework/core/utils/common'
+import { getClientIp } from '@bakery-framework/core/utils/http'
+import { COUNTER_SLOTS } from '@bakery-framework/core/utils/shared-pool'
 import { hasORM } from './orm'
 import {
   rateLimitSlot,
@@ -76,7 +83,7 @@ try {
 // point the app does have a database and it does not work.
 if (hasORM()) {
   try {
-    const { initDB } = await import('@bakery/orm/connection')
+    const { initDB } = await import('@bakery-framework/orm/connection')
     await initDB()
   } catch (error: any) {
     serveLog.UNHANDLED_ERR({
@@ -228,7 +235,7 @@ if (isDevWorker) {
   // `import()` itself unhandled — so a compiler module that failed to load
   // produced an unhandled rejection rather than the WATCHER_ERR line that
   // exists to report exactly that.
-  import('@bakery/core/compiler')
+  import('@bakery-framework/core/compiler')
     .then(({ startCompileService }) => startCompileService(Bakery.server))
     .catch(e => serveLog.WATCHER_ERR({ error: String(e) }))
 }

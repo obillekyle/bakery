@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { SharedMemoryPool } from '@bakery/core/utils/shared-pool'
+import { SharedMemoryPool } from '@bakery-framework/core/utils/shared-pool'
 import {
   __resetRateLimitLogState,
   RATE_LIMIT_LOG_KEYS,

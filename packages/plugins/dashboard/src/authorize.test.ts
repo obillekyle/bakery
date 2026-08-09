@@ -3,7 +3,7 @@ import {
   __resetTestConfig,
   __setTestConfig,
   initConfig,
-} from '@bakery/core/core/config'
+} from '@bakery-framework/core/core/config'
 import {
   defaultAuthorize,
   isAuthorized,

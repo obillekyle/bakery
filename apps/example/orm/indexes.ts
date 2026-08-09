@@ -1,4 +1,4 @@
-import { Field } from '@bakery/orm'
+import { Field } from '@bakery-framework/orm'
 import { comments, posts, users } from './tables'
 
 export const usersUsernameUniq = Field.Unique(users.username)

@@ -31,7 +31,7 @@ page handlers.
 
 ## The signature
 
-The typed contract lives in `@bakery/core` (`packages/core/src/types.d.ts`):
+The typed contract lives in `@bakery-framework/core` (`packages/core/src/types.d.ts`):
 
 ```ts no-check — a type signature, not runnable code
 type RouteHandler<P = {}> = (
@@ -50,7 +50,7 @@ body shape once as the type argument and the whole signature follows, instead of
 annotating `(req: Request, body: any)` by hand.
 
 ```ts
-import { defineRoute, response } from '@bakery/core'
+import { defineRoute, response } from '@bakery-framework/core'
 
 export default defineRoute<{ title?: string }>(async (req, body) => {
   if (req.method !== 'POST') {
@@ -100,7 +100,7 @@ For a dynamic route, the bracket segments are merged in afterwards and win over
 anything of the same name in the body:
 
 ```ts
-import { defineRoute, response } from '@bakery/core'
+import { defineRoute, response } from '@bakery-framework/core'
 
 // src/api/users/[id].ts  →  /api/users/42
 export default defineRoute<{ id: string }>(async (_req, body) => {
@@ -167,7 +167,7 @@ Every JSON body the server emits uses one envelope:
 (`packages/core/src/utils/http/response.ts`):
 
 ```ts
-import { response } from '@bakery/core'
+import { response } from '@bakery-framework/core'
 
 export default function handler() {
   response.json(200, 'ok', { a: 1 })       // status, message, data
@@ -193,7 +193,7 @@ looking for something that was already there. The server log names it too. If
 you want an empty success, say so:
 
 ```ts
-import { response } from '@bakery/core'
+import { response } from '@bakery-framework/core'
 
 export default function handler() {
   return new Response(null, { status: 204 })
@@ -220,7 +220,7 @@ So an unhandled exception in an API route returns JSON, not the HTML error page.
 To control the status, throw a `HandlerError`:
 
 ```ts
-import { HandlerError } from '@bakery/core/handlers'
+import { HandlerError } from '@bakery-framework/core/handlers'
 
 export default function handler(req: Request) {
   throw new HandlerError('Not your record', req, {

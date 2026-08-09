@@ -51,7 +51,7 @@ async function run(): Promise<void> {
     mode: import.meta.env.DEV ? 'development' : 'production',
     // The app's version and the framework's are both here, and they are
     // different files on purpose: keying on the app alone meant
-    // `bun update @bakery/core` left a cache compiled by the previous
+    // `bun update @bakery-framework/core` left a cache compiled by the previous
     // framework version, with nothing to invalidate it.
     version: getAppVersion(),
     framework: getFrameworkVersion(),

@@ -1,5 +1,5 @@
 /**
- * Is `@bakery/orm` installed?
+ * Is `@bakery-framework/orm` installed?
  *
  * The CLI declares it as an **optional peer**, so an app scaffolded with
  * `--no-orm` never downloads it. Every use of it in this package is already an
@@ -23,7 +23,7 @@
 let resolved: boolean | null = null
 
 /**
- * True when `@bakery/orm` can be resolved from this package.
+ * True when `@bakery-framework/orm` can be resolved from this package.
  *
  * Memoised: it is asked on the boot path and once more per shutdown, the answer
  * cannot change within a process, and the filesystem walk is not free.
@@ -39,7 +39,7 @@ export function hasORM(): boolean {
   try {
     // The subpath, not the package root: `exports` can name one and not the
     // other, and this is the one every caller here actually imports.
-    Bun.resolveSync('@bakery/orm/connection', import.meta.dir)
+    Bun.resolveSync('@bakery-framework/orm/connection', import.meta.dir)
     resolved = true
   } catch {
     // Not installed. The only expected outcome of this catch, and the reason
@@ -58,6 +58,6 @@ export function hasORM(): boolean {
  * message should be copy-pasteable.
  */
 export const ORM_MISSING =
-  'This needs @bakery/orm, which is not installed. It is an optional peer ' +
+  'This needs @bakery-framework/orm, which is not installed. It is an optional peer ' +
   'dependency of the CLI, so an app scaffolded without a database does not ' +
-  'carry it. Add it with `bun add @bakery/orm`.'
+  'carry it. Add it with `bun add @bakery-framework/orm`.'

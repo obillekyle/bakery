@@ -6,8 +6,8 @@ import {
   expect,
   test,
 } from 'bun:test'
-import { JsonResponseData } from '@bakery/core/utils/common'
-import { __resetTestDb, __setTestDb } from '@bakery/orm/connection'
+import { JsonResponseData } from '@bakery-framework/core/utils/common'
+import { __resetTestDb, __setTestDb } from '@bakery-framework/orm/connection'
 import {
   __resetTestAuthorize,
   __setTestAuthorize,

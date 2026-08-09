@@ -6,7 +6,7 @@ import {
   expect,
   test,
 } from 'bun:test'
-import { __resetTestDb, __setTestDb } from '@bakery/orm/connection'
+import { __resetTestDb, __setTestDb } from '@bakery-framework/orm/connection'
 import { createStubDb } from '../test-fixtures'
 import { handleExecuteAction, handleQuery } from './database'
 

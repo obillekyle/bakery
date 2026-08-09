@@ -1,10 +1,10 @@
-# @bakery/plugin-vue
+# @bakery-framework/plugin-vue
 
 Vue single-file components for
 [Bakery](https://github.com/obillekyle/bun-server).
 
 ```bash
-bun add @bakery/plugin-vue vue
+bun add @bakery-framework/plugin-vue vue
 ```
 
 `vue` and `@vue/compiler-sfc` are peer dependencies — installing `vue` brings
@@ -14,8 +14,8 @@ the compiler with it.
 
 ```ts
 // server.config.ts
-import { defineConfig } from '@bakery/core'
-import vuePlugin from '@bakery/plugin-vue'
+import { defineConfig } from '@bakery-framework/core'
+import vuePlugin from '@bakery-framework/plugin-vue'
 
 export default defineConfig({
   root: 'src',

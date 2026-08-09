@@ -12,7 +12,7 @@
  * `schema.ts`:
  *
  * ```ts
- * declare module '@bakery/orm/schema-registry' {
+ * declare module '@bakery-framework/orm/schema-registry' {
  *   interface SchemaRegistry {
  *     schema: {
  *       DBSchema: MyDBSchema
@@ -32,14 +32,14 @@
  * is an error.
  */
 
-import type { MapOf } from '@bakery/core/types'
+import type { MapOf } from '@bakery-framework/core/types'
 
 // Augmented by the app; empty until then.
 //
 // **It has to be an `interface`, and the empty body is the point.** Biome's
 // **`interface`, not `type`, and the empty body is the point.** A type alias
 // cannot be declaration-merged, so rewriting this to `type X = {}` turns every
-// app's `declare module '@bakery/orm/schema-registry'` into
+// app's `declare module '@bakery-framework/orm/schema-registry'` into
 // `TS2300: Duplicate identifier` and the whole schema registry stops working.
 //
 // Biome's `noBannedTypes` proposed exactly that rewrite and called it a safe

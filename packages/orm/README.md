@@ -1,4 +1,4 @@
-# @bakery/orm
+# @bakery-framework/orm
 
 The database layer for [Bakery](https://github.com/obillekyle/bun-server):
 adapters, query builder, schema sync and backups.
@@ -6,14 +6,14 @@ adapters, query builder, schema sync and backups.
 **Bun only.** Ships TypeScript source with no build step.
 
 ```bash
-bun add @bakery/orm
+bun add @bakery-framework/orm
 ```
 
 ## Define a schema
 
 ```ts
 // orm/schema.ts
-import { Field, table } from '@bakery/orm'
+import { Field, table } from '@bakery-framework/orm'
 
 export const posts = table('posts', {
   id: Field.Primary(),
@@ -28,12 +28,12 @@ runs — the columns are just permissive `any`:
 
 ```ts no-check — ./schema is the sibling file from the block above, which only exists in a real app
 // orm/index.ts
-import type { InferOptionals, InferSchema, InferViews } from '@bakery/orm'
+import type { InferOptionals, InferSchema, InferViews } from '@bakery-framework/orm'
 import * as model from './schema'
 
 export * from './schema'
 
-declare module '@bakery/orm/schema-registry' {
+declare module '@bakery-framework/orm/schema-registry' {
   interface SchemaRegistry {
     schema: {
       DBSchema: InferSchema<typeof model>
@@ -47,7 +47,7 @@ declare module '@bakery/orm/schema-registry' {
 ## Query
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const rows = await DB.from('posts').selectAll('posts').array()
 
@@ -60,7 +60,7 @@ Identifiers are snake_cased on the way to SQL — `createdAt` becomes
 ## Schema sync
 
 ```ts
-import { SyncService } from '@bakery/orm/sync'
+import { SyncService } from '@bakery-framework/orm/sync'
 
 await SyncService.run()
 process.exit(0)

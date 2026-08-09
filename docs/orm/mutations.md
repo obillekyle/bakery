@@ -13,7 +13,7 @@ DB.Delete.from(table).where(…)       // DELETE
 There is no `Mutation.insert()`, `.update()` or `.delete()`.
 
 ```ts
-import DB, { Mutation } from '@bakery/orm'
+import DB, { Mutation } from '@bakery-framework/orm'
 
 const viaDB = DB.Insert.into('posts').values({ title: 'a' })
 const viaMutation = Mutation.Insert.into('posts').values({ title: 'a' })
@@ -25,7 +25,7 @@ dialect, exactly as in [Queries](queries.md).
 ## Insert
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const result = await DB.Insert.into('posts')
   .values({ authorId: 1, title: 'Hello', slug: 'hello', body: 'Hi.' })
@@ -39,7 +39,7 @@ column list is the union of every record's keys, and a record missing one binds
 `null` for it:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 await DB.Insert.into('posts')
   .values(
@@ -56,7 +56,7 @@ throws `Empty insert`.
 `.returning()` appends a `RETURNING` clause, which pairs with `.fetch()`:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const created = await DB.Insert.into('posts')
   .values({ authorId: 1, title: 'Hello' })
@@ -71,7 +71,7 @@ request.
 ## Update
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const result = await DB.Update.table('posts')
   .set({ published: 1, title: 'Edited' })
@@ -89,7 +89,7 @@ Conditions chain with `.and()` / `.or()`, and take the same **two** arguments
 and the same operator helpers as a query:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 await DB.Update.table('posts')
   .set({ published: 0 })
@@ -101,7 +101,7 @@ await DB.Update.table('posts')
 ## Delete
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const result = await DB.Delete.from('sessions')
   .where('sessions.userId', 5)
@@ -130,7 +130,7 @@ insert; Postgres has no such concept natively, so its adapter adds
 Each builder is a thenable whose default is `.run()`, so `await` alone works:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 await DB.Delete.from('sessions').where('sessions.id', 1)
 ```
@@ -158,8 +158,8 @@ silent, and a condition you *thought* you narrowed may not be narrowed at all.
 Adapted from [`apps/starter/src/api/notes.ts`](../../apps/starter/src/api/notes.ts):
 
 ```ts
-import { defineRoute, response } from '@bakery/core'
-import DB from '@bakery/orm'
+import { defineRoute, response } from '@bakery-framework/core'
+import DB from '@bakery-framework/orm'
 
 export default defineRoute<{ title: string; slug: string; body: string }>(
   async (req, body) => {
@@ -193,7 +193,7 @@ Mutations inside `DB.transaction()` use the transaction automatically — the
 active connection is per-async-context, not per-argument:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 await DB.transaction(async () => {
   const post = await DB.Insert.into('posts')

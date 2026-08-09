@@ -11,9 +11,9 @@ layout, see [the last section](#the-framework-repo).
 
 ```
 apps/notes/
-  package.json          scripts + the three @bakery/* dependencies
+  package.json          scripts + the three @bakery-framework/* dependencies
   server.config.ts      optional; `root` is the only option most apps set
-  tsconfig.json         extends @bakery/core/tsconfig.app.json
+  tsconfig.json         extends @bakery-framework/core/tsconfig.app.json
   orm/
     tables.ts           table() declarations — the generator owns this file
     views.ts            view() declarations
@@ -231,7 +231,7 @@ the current process, the whole cache directory is deleted and recreated
 
 ```
 packages/
-  core/src/            @bakery/core — no runtime dependencies
+  core/src/            @bakery-framework/core — no runtime dependencies
     startup.ts         registry population + the startup banner
     router.ts          handleRequest / handleRequestError / processResponse
     handlers/          every request surface, as a Handler subclass
@@ -240,8 +240,8 @@ packages/
     utils/             server-side helpers (http/, fs, common/)
     client/            the browser runtime
     cache/  logger/  compiler/  plugins/
-  orm/src/             @bakery/orm — adapters/, orm/, sync/, backup
-  cli/src/             @bakery/cli — the `bakery` bin and mode dispatch
+  orm/src/             @bakery-framework/orm — adapters/, orm/, sync/, backup
+  cli/src/             @bakery-framework/cli — the `bakery` bin and mode dispatch
   plugins/{vue,analytics,dashboard}/
 apps/
   example/             the bundled demo and end-to-end target
@@ -249,11 +249,11 @@ apps/
 ```
 
 Directories nest but package names stay flat: `packages/plugins/vue` publishes
-as `@bakery/plugin-vue`.
+as `@bakery-framework/plugin-vue`.
 
 The aliases `@server/*`, `@database/*` and `@plugins/*` appear in some
 package-internal tsconfigs but are **not available to applications**. Import
-from `@bakery/core`, `@bakery/orm` and `@bakery/plugin-*`.
+from `@bakery-framework/core`, `@bakery-framework/orm` and `@bakery-framework/plugin-*`.
 
 ## Next
 

@@ -4,7 +4,7 @@ One file, at the root of your app, exporting one object. Bakery reads it once at
 startup and freezes the result.
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',
@@ -14,7 +14,7 @@ export default defineConfig({
 
 `defineConfig` is an identity function whose only job is to type its argument
 against `AppConfig` — you get completion and an error on a typo instead of a
-silently ignored key. It is exported from `@bakery/core`.
+silently ignored key. It is exported from `@bakery-framework/core`.
 
 ## How it loads
 
@@ -114,7 +114,7 @@ effect (`packages/core/src/startup.ts`). Configure any value of your own and
 the line disappears.
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   rateLimit: { max: 100, refill: 10 },
@@ -141,7 +141,7 @@ has no flood protection at all.
 remember an attacker controls it:
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   trustProxy: true,
@@ -206,7 +206,7 @@ implemented — the first matching prefix in insertion order is used
 (`handlers/routes/proxy.ts`).
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   proxy: {
@@ -227,7 +227,7 @@ page. Your entries are merged over the framework's, which always contains
 `@client/utils` (`config.ts`).
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   importMap: {
@@ -249,7 +249,7 @@ Raw markup appended to every HTML response — `head` just after the opening
 `:88-99`). It is inserted verbatim and not escaped. Keep request data out of it.
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   head: '<link rel="stylesheet" href="/styles/global.css">',
@@ -267,7 +267,7 @@ truthy that becomes the response. Then each `middleware` runs in order, and the
 first one returning a `Response` wins. Returning nothing continues the chain.
 
 ```ts
-import { defineConfig, response } from '@bakery/core'
+import { defineConfig, response } from '@bakery-framework/core'
 
 export default defineConfig({
   middleware: [
@@ -304,7 +304,7 @@ through.
 than in config; those run second, as part of the framework step:
 
 ```ts
-import { Bakery } from '@bakery/core'
+import { Bakery } from '@bakery-framework/core'
 
 Bakery.onShutdown(async () => {
   // flush, close, drain
@@ -312,7 +312,7 @@ Bakery.onShutdown(async () => {
 ```
 
 ```ts
-import { defineConfig, log } from '@bakery/core'
+import { defineConfig, log } from '@bakery-framework/core'
 
 export default defineConfig({
   onError(error) {
@@ -332,7 +332,7 @@ export default defineConfig({
   to be generated somewhere else (`global.d.ts`).
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   schema: 'db/orm',
@@ -357,8 +357,8 @@ router invokes for connections that no `WebSocketHandler` claimed
 (`router.ts`).
 
 ```ts
-import { defineConfig } from '@bakery/core'
-import dashboardPlugin from '@bakery/plugin-dashboard'
+import { defineConfig } from '@bakery-framework/core'
+import dashboardPlugin from '@bakery-framework/plugin-dashboard'
 
 export default defineConfig({
   plugins: [dashboardPlugin({ authorize: req => req.session.get('role') === 'admin' })],

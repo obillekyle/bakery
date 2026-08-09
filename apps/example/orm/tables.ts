@@ -1,4 +1,4 @@
-import { Field, table } from '@bakery/orm'
+import { Field, table } from '@bakery-framework/orm'
 
 export const users = table('users', {
   id: Field.Primary(),

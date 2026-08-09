@@ -1,19 +1,19 @@
-# @bakery/plugin-dashboard
+# @bakery-framework/plugin-dashboard
 
 A built-in admin console for
 [Bakery](https://github.com/obillekyle/bun-server): database browsing, logs and
 runtime state.
 
 ```bash
-bun add @bakery/plugin-dashboard
+bun add @bakery-framework/plugin-dashboard
 ```
 
 ## Usage
 
 ```ts
 // server.config.ts
-import { defineConfig } from '@bakery/core'
-import dashboardPlugin from '@bakery/plugin-dashboard'
+import { defineConfig } from '@bakery-framework/core'
+import dashboardPlugin from '@bakery-framework/plugin-dashboard'
 
 export default defineConfig({
   root: 'src',

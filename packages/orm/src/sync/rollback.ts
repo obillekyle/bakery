@@ -1,6 +1,6 @@
-import '@bakery/core/core/init'
+import '@bakery-framework/core/core/init'
 
-import { Logger, messageLogger } from '@bakery/core/logger'
+import { Logger, messageLogger } from '@bakery-framework/core/logger'
 import type { SQLAdapter } from '../adapters/base'
 import { SchemaBuilder } from './builder'
 import { MESSAGES as SYNC_MESSAGES, SyncEngine } from './engine'
@@ -98,7 +98,7 @@ changes, exactly as db:sync does.
   static async run(): Promise<void> {
     if (RollbackService.helpRequested()) return RollbackService.printHelp()
 
-    const { initConfig } = await import('@bakery/core/core/config')
+    const { initConfig } = await import('@bakery-framework/core/core/config')
     const { closeDB, connection, initDB } = await import('../connection')
     const config = await initConfig()
     await initDB()

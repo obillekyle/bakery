@@ -1,9 +1,9 @@
-import { fs } from '@bakery/core/utils'
+import { fs } from '@bakery-framework/core/utils'
 
 /**
  * Where this plugin's own files live.
  *
- * Not `frameworkPath()` — that anchors to `@bakery/core`, so once the dashboard
+ * Not `frameworkPath()` — that anchors to `@bakery-framework/core`, so once the dashboard
  * became its own package every asset lookup pointed into core and 404'd. Each
  * package that ships files needs its own anchor, derived from its own location.
  */

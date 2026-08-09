@@ -1,6 +1,6 @@
-import { Bakery } from '@bakery/core/core/bakery'
-import { errorMsg, log, serveLog } from '@bakery/core/logger'
-import { Try } from '@bakery/core/utils/common'
+import { Bakery } from '@bakery-framework/core/core/bakery'
+import { errorMsg, log, serveLog } from '@bakery-framework/core/logger'
+import { Try } from '@bakery-framework/core/utils/common'
 import { hasORM } from './orm'
 import { FLUSH_TIMEOUT_MS } from './threads'
 
@@ -30,13 +30,13 @@ export interface ShutdownTeardown {
 
 const defaultTeardown: ShutdownTeardown = {
   closeCache: async () => {
-    const { closeCacheDb } = await import('@bakery/core/cache/tiered')
+    const { closeCacheDb } = await import('@bakery-framework/core/cache/tiered')
     closeCacheDb()
   },
   closeDatabase: async () => {
     // Nothing was ever opened, so there is nothing to close.
     if (!hasORM()) return
-    const { closeDB } = await import('@bakery/orm/connection')
+    const { closeDB } = await import('@bakery-framework/orm/connection')
     await closeDB()
   },
 }
@@ -142,7 +142,7 @@ async function shutdown(): Promise<void> {
   // out here that rejection escaped the sequence entirely — taking the resource
   // close below with it and, in `worker.ts`, the `process.exit(0)` that follows.
   await step('plugin onShutdown', async () => {
-    const { PluginHooks } = await import('@bakery/core/core/plugins')
+    const { PluginHooks } = await import('@bakery-framework/core/core/plugins')
     await PluginHooks.onShutdown()
   })
 

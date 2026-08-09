@@ -1,6 +1,6 @@
 {
-  "name": "@bakery/plugin-vue",
-  "version": "4.0.0",
+  "name": "@bakery-framework/plugin-vue",
+  "version": "1.0.0",
   "description": "Bakery vue plugin.",
   "keywords": [
     "bakery",
@@ -41,7 +41,7 @@
     "vue": "^3.5.38"
   },
   "dependencies": {
-    "@bakery/core": "workspace:^"
+    "@bakery-framework/core": "workspace:^"
   },
   "engines": {
     "bun": ">=1.3.14"

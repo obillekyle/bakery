@@ -1,5 +1,5 @@
-import { Bakery, hostKey } from '@bakery/core/core/bakery'
-import { fs, response, toHash } from '@bakery/core/utils'
+import { Bakery, hostKey } from '@bakery-framework/core/core/bakery'
+import { fs, response, toHash } from '@bakery-framework/core/utils'
 import type { VueMeta } from './types'
 import { collectExportedFunctionNames } from './utils'
 

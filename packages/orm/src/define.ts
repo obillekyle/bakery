@@ -34,7 +34,7 @@ export type ColumnMap = Record<string, unknown>
  * `TableDef<T, N, O>` describing a *column* — and that is the one every
  * internal call site, every test and every schema file means. Both were public,
  * and the root barrel re-exported *this* one, so `import type { TableDef } from
- * '@bakery/orm'` handed you a table where you asked for a column. Nothing
+ * '@bakery-framework/orm'` handed you a table where you asked for a column. Nothing
  * errored at the import, and nothing errored until you tried to use it.
  *
  * `TableRef` also says what it is, and pairs with `TableColumn` below.

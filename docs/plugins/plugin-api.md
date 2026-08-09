@@ -4,7 +4,7 @@ A Bakery plugin is a plain object with optional lifecycle hooks. It is created
 with `definePlugin` and listed in `server.config.ts`:
 
 ```ts
-import { defineConfig, definePlugin, Logger } from '@bakery/core'
+import { defineConfig, definePlugin, Logger } from '@bakery-framework/core'
 
 const logger = new Logger('audit')
 
@@ -111,8 +111,8 @@ subclass. This is convention 1 of the framework: no request-serving code lives
 outside a registered handler.
 
 ```ts
-import { Handler } from '@bakery/core/handlers'
-import { response } from '@bakery/core/utils/http'
+import { Handler } from '@bakery-framework/core/handlers'
+import { response } from '@bakery-framework/core/utils/http'
 
 export class HealthHandler extends Handler {
   static canHandle(path: string) {
@@ -138,9 +138,9 @@ Register from `setup()`, not at module scope, so the registration happens after
 config is loaded:
 
 ```ts
-import { Bakery, definePlugin } from '@bakery/core'
-import { Handler } from '@bakery/core/handlers'
-import { response } from '@bakery/core/utils/http'
+import { Bakery, definePlugin } from '@bakery-framework/core'
+import { Handler } from '@bakery-framework/core/handlers'
+import { response } from '@bakery-framework/core/utils/http'
 
 class HealthHandler extends Handler {
   static canHandle(path: string) {
@@ -169,8 +169,8 @@ hand-rolled `if (path === … && method === …)` chain
 ([`plugins/routes.ts`](../../packages/core/src/plugins/routes.ts)):
 
 ```ts
-import { type PluginRouteTable, routeTable } from '@bakery/core/plugins'
-import { response } from '@bakery/core/utils/http'
+import { type PluginRouteTable, routeTable } from '@bakery-framework/core/plugins'
+import { response } from '@bakery-framework/core/utils/http'
 
 const routes = routeTable({
   '/api/_demo/status': () => response.json.success('ok'),
@@ -234,8 +234,8 @@ containment checks — treats those files exactly like app files
 ([`handlers/core/$mounts.ts`](../../packages/core/src/handlers/core/$mounts.ts)):
 
 ```ts
-import { mountRoutes } from '@bakery/core/handlers'
-import { fs } from '@bakery/core/utils'
+import { mountRoutes } from '@bakery-framework/core/handlers'
+import { fs } from '@bakery-framework/core/utils'
 
 // Call this from the plugin's setup(). Anchor to *this* package, not to
 // Bakery.root — the application's cwd is somewhere else entirely.
@@ -262,7 +262,7 @@ a high priority intercepts paths *before* the mount is consulted. Keep
 - `__bakery.` — session-key prefix for framework privilege markers. Any code
   that writes a caller-supplied session key must refuse this prefix, or a
   preferences endpoint becomes a privilege-escalation primitive. Use
-  `isReservedSessionKey` from `@bakery/core/session`.
+  `isReservedSessionKey` from `@bakery-framework/core/session`.
 
 The paths already taken — by core and by each bundled plugin — are listed in
 [Routing → Reserved paths](../guides/routing.md#reserved-paths). Check it before

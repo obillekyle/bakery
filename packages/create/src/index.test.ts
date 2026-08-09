@@ -186,9 +186,9 @@ describe('the generated app', () => {
     // The point of the whole exercise: a scaffolded app depends on *published*
     // packages. `workspace:*` here would only ever work inside this repo.
     expect(pkg.dependencies).toEqual({
-      '@bakery/cli': '^3.0.0',
-      '@bakery/core': '^3.0.0',
-      '@bakery/orm': '^3.0.0',
+      '@bakery-framework/cli': '^3.0.0',
+      '@bakery-framework/core': '^3.0.0',
+      '@bakery-framework/orm': '^3.0.0',
     })
     for (const range of Object.values(pkg.dependencies)) {
       expect(range).not.toContain('workspace:')
@@ -205,7 +205,7 @@ describe('the generated app', () => {
     const pkg = JSON.parse(
       declared.find(f => f.path === 'package.json')!.contents,
     )
-    expect(pkg.dependencies['@bakery/core']).toBe('^9.9.9')
+    expect(pkg.dependencies['@bakery-framework/core']).toBe('^9.9.9')
   })
 
   test('the emitted range tracks this package, not a literal', async () => {
@@ -246,7 +246,7 @@ describe('the generated app', () => {
 
     expect(pkg.scripts['db:sync']).not.toContain('--sync')
     expect(pkg.scripts['db:sync']).toBe('bun run scripts/db-sync.ts')
-    expect(script).toContain("from '@bakery/orm/sync'")
+    expect(script).toContain("from '@bakery-framework/orm/sync'")
     expect(script).toContain('SyncService.run()')
   })
 
@@ -269,7 +269,9 @@ describe('the generated app', () => {
     // Without this block everything runs and typechecks with permissive `any`
     // columns — a quiet enough failure to be worth generating rather than
     // documenting.
-    expect(index).toContain("declare module '@bakery/orm/schema-registry'")
+    expect(index).toContain(
+      "declare module '@bakery-framework/orm/schema-registry'",
+    )
     expect(index).toContain('InferSchema<Model>')
     // Tables *and* views. Inferring from tables alone leaves `InferViews`
     // empty, and a view is then writable — which is the whole thing declaring
@@ -296,7 +298,7 @@ describe('the template only imports enumerated exports', () => {
   /**
    * The invariant worth having a test for.
    *
-   * `@bakery/core` and `@bakery/orm` both still publish a `"./*"` wildcard, so
+   * `@bakery-framework/core` and `@bakery-framework/orm` both still publish a `"./*"` wildcard, so
    * *every* internal file resolves today — which means a template importing the
    * wrong subpath is indistinguishable from one importing the right one, right
    * up until the wildcard is removed. MONOREPO.md gives it one release.
@@ -312,21 +314,21 @@ describe('the template only imports enumerated exports', () => {
 
   test('every @bakery specifier resolves without the wildcard', async () => {
     const maps = new Map([
-      ['@bakery/core', await exportsOf('core')],
-      ['@bakery/orm', await exportsOf('orm')],
-      ['@bakery/cli', await exportsOf('cli')],
+      ['@bakery-framework/core', await exportsOf('core')],
+      ['@bakery-framework/orm', await exportsOf('orm')],
+      ['@bakery-framework/cli', await exportsOf('cli')],
     ])
 
     const specifiers = new Set<string>()
     for (const file of templateFiles('x', '^3.0.0')) {
       if (!file.path.endsWith('.ts') && !file.path.endsWith('.tsx')) continue
       for (const [, spec] of file.contents.matchAll(
-        /from '(@bakery\/[^']+)'/g,
+        /from '(@bakery-framework\/[^']+)'/g,
       )) {
         specifiers.add(spec)
       }
       for (const [, spec] of file.contents.matchAll(
-        /declare module '(@bakery\/[^']+)'/g,
+        /declare module '(@bakery-framework\/[^']+)'/g,
       )) {
         specifiers.add(spec)
       }
@@ -355,7 +357,7 @@ describe('the template only imports enumerated exports', () => {
 
   test('the JSX options are inline, not only inherited', () => {
     // Bun's runtime does not follow tsconfig `extends` into a package
-    // specifier, so inheriting these from @bakery/core/tsconfig.app.json is not
+    // specifier, so inheriting these from @bakery-framework/core/tsconfig.app.json is not
     // enough: the app transpiles with Bun's default automatic JSX runtime and
     // every .tsx route 500s with `Cannot find module 'react/jsx-dev-runtime'`.
     //
@@ -382,7 +384,7 @@ describe('the template only imports enumerated exports', () => {
 
     // `extends` resolves through the export map exactly like an import does,
     // and this one is easy to get wrong because it carries a file extension.
-    const entry = `.${tsconfig.extends.slice('@bakery/core'.length)}`
+    const entry = `.${tsconfig.extends.slice('@bakery-framework/core'.length)}`
     expect(core.has(entry)).toBe(true)
   })
 })
@@ -486,7 +488,7 @@ describe('templateFiles with choices', () => {
   test('the default is what it has always been: ORM in, no plugins', () => {
     const files = templateFiles('app', range)
     expect(paths(files)).toContain('orm/tables.ts')
-    expect(pkgOf(files).dependencies['@bakery/orm']).toBe(range)
+    expect(pkgOf(files).dependencies['@bakery-framework/orm']).toBe(range)
     expect(pkgOf(files).scripts['db:sync']).toBeDefined()
     expect(fileOf(files, 'server.config.ts')).not.toContain('plugins:')
   })
@@ -495,7 +497,7 @@ describe('templateFiles with choices', () => {
     const files = templateFiles('app', range, { orm: false, plugins: [] })
     expect(paths(files).filter(p => p.startsWith('orm/'))).toEqual([])
     expect(paths(files)).not.toContain('scripts/db-sync.ts')
-    expect(pkgOf(files).dependencies['@bakery/orm']).toBeUndefined()
+    expect(pkgOf(files).dependencies['@bakery-framework/orm']).toBeUndefined()
     expect(pkgOf(files).scripts['db:sync']).toBeUndefined()
     // …and the tsconfig stops including directories that no longer exist.
     expect(fileOf(files, 'tsconfig.json')).not.toContain('orm/**/*.ts')
@@ -507,9 +509,9 @@ describe('templateFiles with choices', () => {
     const files = templateFiles('app', range, { orm: false, plugins: [] })
     const route = fileOf(files, 'src/api/notes.ts')
     // An *import* of it, not a mention: the comment in that file points at
-    // `@bakery/orm` as the thing to add later, which is the whole point of
+    // `@bakery-framework/orm` as the thing to add later, which is the whole point of
     // the comment.
-    expect(route).not.toContain("from '@bakery/orm'")
+    expect(route).not.toContain("from '@bakery-framework/orm'")
     expect(route).toContain('defineRoute')
     // The client script is shared, so the shape it reads has to survive.
     expect(route).toContain('response.json.success')
@@ -523,7 +525,7 @@ describe('templateFiles with choices', () => {
         .filter(f => f.path !== 'package.json' && f.path !== 'README.md')
         .map(f => f.contents)
         .join('\n')
-      for (const spec of body.matchAll(/from '(@bakery\/[^']+)'/g)) {
+      for (const spec of body.matchAll(/from '(@bakery-framework\/[^']+)'/g)) {
         const pkg = spec[1]!.split('/').slice(0, 2).join('/')
         expect({ orm, pkg, declared: declared.includes(pkg) }).toEqual({
           orm,
@@ -539,10 +541,12 @@ describe('templateFiles with choices', () => {
       orm: true,
       plugins: ['analytics'],
     })
-    expect(pkgOf(files).dependencies['@bakery/plugin-analytics']).toBe(range)
+    expect(
+      pkgOf(files).dependencies['@bakery-framework/plugin-analytics'],
+    ).toBe(range)
     const config = fileOf(files, 'server.config.ts')
     expect(config).toContain(
-      "import analyticsPlugin from '@bakery/plugin-analytics'",
+      "import analyticsPlugin from '@bakery-framework/plugin-analytics'",
     )
     expect(config).toContain('analyticsPlugin(),')
   })

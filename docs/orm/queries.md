@@ -1,10 +1,10 @@
 # Queries
 
-`DB` is the query builder. It is the default export of `@bakery/orm` and also a
+`DB` is the query builder. It is the default export of `@bakery-framework/orm` and also a
 named one:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const users = await DB.from('users').array()
 ```
@@ -17,7 +17,7 @@ method. `DB.table` and `DB.from` are the same function.
 A column is written `'table.column'`, or bare when it is unambiguous:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const q = DB.from('posts').select({ title: 'posts.title', id: 'posts.id' })
 ```
@@ -34,7 +34,7 @@ Rows come back with both spellings: the driver's key plus a camelCase alias. A
 **This is the single most important thing on this page.**
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 // column, value — the operator defaults to `=`
 const q = DB.from('users').where('users.id', 42)
@@ -67,7 +67,7 @@ Use an operator helper when you need something other than equality.
 Helpers live on `DB` and go in the second position:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const q = DB.from('students')
   .where('students.year', DB.gte(2))
@@ -108,7 +108,7 @@ keeps user input from becoming SQL. Wrap a column reference in `DB.col()` when
 you mean the other thing:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const q = DB.from('users')
   .where('users.shippingAddress', DB.col('users.billingAddress'))
@@ -124,7 +124,7 @@ call order and are not grouped — there is no parenthesised builder API. Use
 `DB.raw` if you need explicit grouping.
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const q = DB.from('users')
   .where('users.status', 'active')
@@ -138,7 +138,7 @@ const q = DB.from('users')
 emits `alias.*`.
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const q = DB.from('teachers').select({
   teacherId: 'teachers.id',
@@ -153,7 +153,7 @@ matter: `.select(…).where(…)` and `.where(…).select(…)` produce identica
 ## Aggregates and functions
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const q = DB.from('campuses')
   .leftJoin('campuses.id', 'teachers.campusId', 't')
@@ -179,7 +179,7 @@ is supported; the rest expect a column.
 two columns.
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const q = DB.from('campuses')
   .leftJoin('campuses.id', 'teachers.campusId', 't')
@@ -212,7 +212,7 @@ different query rather than a flag — so the builder does not rewrite it for yo
 **set**, not a query:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const everyone = DB.from('students')
   .select({ name: 'students.surname' })
@@ -229,7 +229,7 @@ Chaining a third operand extends the set rather than nesting it, matching SQL's
 own left-to-right evaluation:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const q = DB.from('a').union(DB.from('b')).except(DB.from('c'))
 // SELECT * FROM "a" UNION SELECT * FROM "b" EXCEPT SELECT * FROM "c"
@@ -251,7 +251,7 @@ Two things the dialects disagree about, both handled for you:
 `DB.over()` puts an `OVER (…)` clause on any aggregate the builder already has:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const q = DB.from('students').select({
   year: 'students.year',
@@ -266,7 +266,7 @@ const q = DB.from('students').select({
 window *is* their argument:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const q = DB.from('students').select({
   name: 'students.surname',
@@ -279,7 +279,7 @@ disagree: `orderBy: ['students.year DESC', 'students.surname']`. Anything else
 in the window vocabulary goes through `DB.window(name, args, spec)`:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const q = DB.from('orders').select({
   previous: DB.window('LAG', [DB.col('orders.total'), 1], {
@@ -299,7 +299,7 @@ SQL's default frame.
 ## Grouping
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const q = DB.from('students')
   .groupBy('students.course')
@@ -313,7 +313,7 @@ const q = DB.from('students')
 ## Ordering and paging
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const page = DB.from('products')
   .selectAll()
@@ -340,7 +340,7 @@ makes the server walk and discard 200,000 rows, so page 10,000 costs far more
 than page 1. Past a few hundred thousand rows, `seek()` is the answer:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const first = await DB.from('posts').selectAll().seek('id', null, 20).array()
 const next = await DB.from('posts')
@@ -375,7 +375,7 @@ coming.
 Write the join:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const rows = await DB.from('posts')
   .join('posts.authorId', 'users.id')
@@ -402,7 +402,7 @@ reach from this page, and a better outcome than discovering it three months in.
 Any builder can be a subquery. Pass one to `DB.inList()`:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const activeCampuses = DB.from('campuses')
   .where('code', 'active')
@@ -419,7 +419,7 @@ The inner query's parameters are spliced into the outer parameter list in order.
 query it.
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const activeUsers = DB.table('users').where('status', 'active')
 
@@ -434,7 +434,7 @@ const q = DB.include(activeUsers, 'active_users').table('active_users').selectAl
 interpolated `DB.col()` references and nested builders inline as SQL.
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const email = 'admin@example.com'
 const q = DB.from('teachers').where(DB.raw`LOWER(email) = ${email} AND status = 'active'`)
@@ -459,7 +459,7 @@ identifiers.
 | `.parse()` | `{ sql, params }` — builds nothing, runs nothing |
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const posts = await DB.from('posts').where('posts.published', 1).array()
 const one = await DB.from('posts').where('posts.slug', 'hello').fetch()
@@ -479,7 +479,7 @@ before discarding all but the first.
 Use `.iterable()` for result sets you do not want in memory at once:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 export async function eachPost(fn: (row: unknown) => void) {
   for await (const row of DB.from('posts').orderBy('posts.id').iterable()) fn(row)
@@ -512,7 +512,7 @@ Builder methods mutate. `.clone()` gives an independent copy, which is how you
 share a base query:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 const base = DB.table('users').where('status', 'active')
 const newest = base.clone().orderBy('createdAt', 'DESC').limit(10)
@@ -529,7 +529,7 @@ so builders inside the callback use the transaction without being handed
 anything:
 
 ```ts
-import DB from '@bakery/orm'
+import DB from '@bakery-framework/orm'
 
 await DB.transaction(async () => {
   await DB.Update.table('accounts').set({ balance: 90 }).where('id', 1).run()

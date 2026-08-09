@@ -153,7 +153,7 @@ export async function initConfig(): Promise<Readonly<ProcessedAppConfig>> {
 let testOverrides: Partial<ProcessedAppConfig> | null = null
 
 /**
- * Test seam, symmetric with `__setTestDb` in `@bakery/orm`.
+ * Test seam, symmetric with `__setTestDb` in `@bakery-framework/orm`.
  *
  * The resolved config is frozen, so a test that needs to exercise a
  * config-dependent branch cannot simply assign to it. The alternative was

@@ -76,7 +76,7 @@ Your own entries are prefixed with `**/` if they do not already start with it
 every depth:
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',

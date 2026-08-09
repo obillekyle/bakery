@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { Bakery } from '@bakery/core/core/bakery'
-import { fs } from '@bakery/core/utils'
+import { Bakery } from '@bakery-framework/core/core/bakery'
+import { fs } from '@bakery-framework/core/utils'
 import { SQLiteAdapter } from '../adapters/sqlite'
 import { collectConstraints } from '../define'
 import { SchemaBuilder } from './builder'
@@ -39,7 +39,9 @@ describe('generated schema registers itself', () => {
 
   test('emits the declare module registration block', async () => {
     const source = await generate()
-    expect(source).toContain("declare module '@bakery/orm/schema-registry'")
+    expect(source).toContain(
+      "declare module '@bakery-framework/orm/schema-registry'",
+    )
     expect(source).toContain('interface SchemaRegistry')
   })
 
@@ -63,7 +65,7 @@ describe('generated schema registers itself', () => {
  * The generator only ever emitted the `DBInfo` namespace. For a project on the
  * `orm/` folder layout the write target is `orm/schema.ts` — which `index.ts`
  * re-exports — so a regeneration replaced every `table()` value with a
- * namespace *and* added a second `declare module '@bakery/orm/schema-registry'`
+ * namespace *and* added a second `declare module '@bakery-framework/orm/schema-registry'`
  * block colliding with the one `index.ts` already declares. `--choose=db` did
  * it on demand; a sync involving `old()` wrappers did it implicitly.
  *
@@ -119,7 +121,9 @@ describe('the generated shape follows the layout it is written into', () => {
     // own `InferSchema<typeof model>`, and two augmentations of the same
     // interface member do not merge.
     const source = await generate('folder')
-    expect(source).not.toContain("declare module '@bakery/orm/schema-registry'")
+    expect(source).not.toContain(
+      "declare module '@bakery-framework/orm/schema-registry'",
+    )
     expect(source).not.toContain('interface SchemaRegistry')
   })
 
@@ -135,7 +139,9 @@ describe('the generated shape follows the layout it is written into', () => {
     // `Field` cannot name is an object literal, and `Field.Date.now()` replaces
     // the old `dateNow` marker import — so neither `value` nor `dateNow`
     // appears, and there is no longer a `value` to import.
-    expect(source).toContain("import { Field, table } from '@bakery/orm'")
+    expect(source).toContain(
+      "import { Field, table } from '@bakery-framework/orm'",
+    )
     expect(source).not.toContain('dateNow')
     expect(source).not.toContain('value(')
   })
@@ -145,15 +151,15 @@ describe('the generated shape follows the layout it is written into', () => {
     // parse, or whose `table()` values `collectConstraints` cannot read, is the
     // failure this whole change is about.
     //
-    // The `@bakery/orm` specifier is rewritten to this package's own entry
-    // because the workspace links `@bakery/orm` into the *apps*, not into
+    // The `@bakery-framework/orm` specifier is rewritten to this package's own entry
+    // because the workspace links `@bakery-framework/orm` into the *apps*, not into
     // `packages/orm` itself, so nothing under a temp directory can resolve it.
     // The specifier as emitted is asserted separately above.
     const entry = Bun.pathToFileURL(
       fs.resolve(import.meta.dir, '../index.ts'),
     ).href
     const source = (await generate('folder')).replace(
-      "from '@bakery/orm'",
+      "from '@bakery-framework/orm'",
       `from '${entry}'`,
     )
 
@@ -189,7 +195,9 @@ describe('the generated shape follows the layout it is written into', () => {
     for (const layout of ['file', 'none', undefined] as const) {
       const source = await generate(layout)
       expect(source).toContain('export namespace DBInfo')
-      expect(source).toContain("declare module '@bakery/orm/schema-registry'")
+      expect(source).toContain(
+        "declare module '@bakery-framework/orm/schema-registry'",
+      )
       expect(source).toContain('idxWidgetsLabel')
       expect(source).not.toContain('export const widgets = table(')
     }
@@ -381,7 +389,7 @@ describe('views are generated into their own module', () => {
 
   test('it imports exactly what it uses', async () => {
     const { views } = await generateInto(Bakery.cacheDir)
-    expect(views).toContain("import { view } from '@bakery/orm'")
+    expect(views).toContain("import { view } from '@bakery-framework/orm'")
     expect(views).not.toContain('table(')
   })
 

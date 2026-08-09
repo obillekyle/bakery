@@ -1,4 +1,4 @@
-import type {} from '@bakery/core/global.d.ts'
+import type {} from '@bakery-framework/core/global.d.ts'
 
 declare global {
   var req: Request

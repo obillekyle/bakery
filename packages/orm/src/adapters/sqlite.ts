@@ -1,6 +1,6 @@
 import path from 'node:path'
-import { Bakery } from '@bakery/core/core/bakery'
-import { Case, Try } from '@bakery/core/utils'
+import { Bakery } from '@bakery-framework/core/core/bakery'
+import { Case, Try } from '@bakery-framework/core/utils'
 import { SQL } from 'bun'
 import type * as SyncTypes from '../sync/types'
 import { createExecutor, SQLAdapter } from './base'

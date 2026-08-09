@@ -36,7 +36,7 @@ write a second file beside it.
 To keep the model somewhere else, set `schema` in `server.config.ts`:
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   // A folder containing index.ts …
@@ -47,7 +47,7 @@ export default defineConfig({
 or point it at a single file:
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({ schema: 'db/model.ts' })
 ```
@@ -68,7 +68,7 @@ A table is a value carrying its own name and columns.
 
 ```ts
 // orm/schema.ts
-import { Field, table } from '@bakery/orm'
+import { Field, table } from '@bakery-framework/orm'
 
 export const users = table('users', {
   id: Field.Primary(),
@@ -97,7 +97,7 @@ take one argument instead of two strings, what lets `Field.Foreign()` name its
 target directly, and what makes a typo a compile error rather than a sync-time
 surprise.
 
-`table` from `@bakery/orm` declares a table. `DB.table` starts a *query* — see
+`table` from `@bakery-framework/orm` declares a table. `DB.table` starts a *query* — see
 [Queries](queries.md). They are different functions with the same name.
 
 ## Columns
@@ -174,7 +174,7 @@ database.
 // orm/indexes.ts — in the folder layout this file starts with
 //   import { posts, users } from './schema'
 // The tables are inlined here so the example stands on its own.
-import { Field, table } from '@bakery/orm'
+import { Field, table } from '@bakery-framework/orm'
 
 const users = table('users', { id: Field.Primary(), username: Field.Varchar(64) })
 const posts = table('posts', {
@@ -194,7 +194,7 @@ Both helpers also accept the older string form, which is what `--choose=db`
 generates:
 
 ```ts
-import { Field } from '@bakery/orm'
+import { Field } from '@bakery-framework/orm'
 
 export const postsByAuthor = Field.Index('posts', ['authorId'])
 export const slugUniq = Field.Unique('posts', 'slug')
@@ -212,7 +212,7 @@ Index names, table names and column names are all snake-cased on the way to SQL.
 Declare the reference on the column it constrains:
 
 ```ts
-import { Field, table } from '@bakery/orm'
+import { Field, table } from '@bakery-framework/orm'
 
 const users = table('users', { id: Field.Primary(), name: Field.Varchar(64) })
 
@@ -255,7 +255,7 @@ return different kinds of thing — a column definition that goes *inside* a
 table, versus a table-level constraint that goes *beside* one:
 
 ```ts
-import { Field, table } from '@bakery/orm'
+import { Field, table } from '@bakery-framework/orm'
 
 const orders = table('orders', {
   id: Field.Primary(),
@@ -284,7 +284,7 @@ naming the mistake rather than at sync time with a server error.
 engine renames instead of dropping and recreating.
 
 ```ts
-import { Field, old, table } from '@bakery/orm'
+import { Field, old, table } from '@bakery-framework/orm'
 
 export const posts = table('posts', {
   id: Field.Primary(),
@@ -298,7 +298,7 @@ the change into a full table rebuild — rows are read, mapped in JavaScript, an
 inserted into the new shape:
 
 ```ts
-import { Field, old, table } from '@bakery/orm'
+import { Field, old, table } from '@bakery-framework/orm'
 
 export const posts = table('posts', {
   id: Field.Primary(),
@@ -321,7 +321,7 @@ it regenerates the schema file from the database
 ## Views
 
 ```ts
-import { Field, view } from '@bakery/orm'
+import { Field, view } from '@bakery-framework/orm'
 
 export const activeUsers = view(
   'active_users',
@@ -351,7 +351,7 @@ interface instead of by column builders, which is what the generator emits into
 `orm/views.ts`:
 
 ```ts no-check — generated output, shown as it is written to disk
-import { view } from '@bakery/orm'
+import { view } from '@bakery-framework/orm'
 
 export interface ActiveUsersView {
   id: number
@@ -384,7 +384,7 @@ In the older single-file `DBInfo` layout a view is a table entry carrying a
 ### Naming a row type
 
 ```ts
-import { Field, type InsertOf, type RowOf, table, view } from '@bakery/orm'
+import { Field, type InsertOf, type RowOf, table, view } from '@bakery-framework/orm'
 
 const users = table('users', {
   id: Field.Primary(),
@@ -412,18 +412,18 @@ the optional columns.
 
 Type information reaches the framework by **declaration merging**, not by any
 import or global re-export. The app registers itself against
-`@bakery/orm/schema-registry`; nothing in the framework imports your schema.
+`@bakery-framework/orm/schema-registry`; nothing in the framework imports your schema.
 
 At the bottom of `orm/index.ts`:
 
 ```ts no-check — a module augmentation retypes every other example in the shared docs compile
-import type { InferOptionals, InferSchema, InferViews } from '@bakery/orm'
+import type { InferOptionals, InferSchema, InferViews } from '@bakery-framework/orm'
 import * as model from './schema'
 
 export * from './schema'
 export * from './indexes'
 
-declare module '@bakery/orm/schema-registry' {
+declare module '@bakery-framework/orm/schema-registry' {
   interface SchemaRegistry {
     schema: {
       DBSchema: InferSchema<typeof model>
@@ -456,12 +456,12 @@ The older form puts everything in one `schema.ts` under a `DBInfo` namespace.
 contains:
 
 ```ts no-check — a module augmentation retypes every other example in the shared docs compile
-import { Field } from '@bakery/orm'
+import { Field } from '@bakery-framework/orm'
 import {
   type ExtractOptionals,
   type ExtractTableTypes,
   type ExtractViews,
-} from '@bakery/orm/schema-util'
+} from '@bakery-framework/orm/schema-util'
 
 export namespace DBInfo {
   export const constraints = {
@@ -488,7 +488,7 @@ export type DBOptionals = {
   [T in keyof typeof DBInfo.constraints]: DBInfo.Optionals<T>
 }
 
-declare module '@bakery/orm/schema-registry' {
+declare module '@bakery-framework/orm/schema-registry' {
   interface SchemaRegistry {
     schema: {
       DBSchema: DBSchema

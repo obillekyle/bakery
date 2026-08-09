@@ -1,4 +1,8 @@
-import type { InferOptionals, InferSchema, InferViews } from '@bakery/orm'
+import type {
+  InferOptionals,
+  InferSchema,
+  InferViews,
+} from '@bakery-framework/orm'
 import type * as tables from './tables'
 import type * as views from './views'
 
@@ -18,7 +22,7 @@ export * from './views'
  */
 type Model = typeof tables & typeof views
 
-declare module '@bakery/orm/schema-registry' {
+declare module '@bakery-framework/orm/schema-registry' {
   interface SchemaRegistry {
     schema: {
       DBSchema: InferSchema<Model>

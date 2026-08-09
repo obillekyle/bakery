@@ -1,5 +1,5 @@
-import { compileText } from '@bakery/core/compiler'
-import { Logger } from '@bakery/core/logger'
+import { compileText } from '@bakery-framework/core/compiler'
+import { Logger } from '@bakery-framework/core/logger'
 import type { SFCStyleCompileResults } from '@vue/compiler-sfc'
 
 const logger = new Logger('vue')

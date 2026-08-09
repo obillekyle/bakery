@@ -177,7 +177,7 @@ client.
 Security headers and CORS belong in middleware, which runs before routing:
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   middleware: [

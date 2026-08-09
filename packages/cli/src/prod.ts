@@ -1,5 +1,5 @@
-import '@bakery/core/core/init'
-import { errorMsg, log, serveLog } from '@bakery/core/logger'
+import '@bakery-framework/core/core/init'
+import { errorMsg, log, serveLog } from '@bakery-framework/core/logger'
 import { hasORM } from './orm'
 
 log({
@@ -9,10 +9,10 @@ log({
 serveLog.STARTING({ mode: 'production' })
 
 try {
-  const { initConfig } = await import('@bakery/core/core/config')
-  const { setupPlugins } = await import('@bakery/core/startup')
+  const { initConfig } = await import('@bakery-framework/core/core/config')
+  const { setupPlugins } = await import('@bakery-framework/core/startup')
   const { initImportMap, initHostImportMaps } = await import(
-    '@bakery/core/utils/http'
+    '@bakery-framework/core/utils/http'
   )
 
   await initConfig()
@@ -29,7 +29,7 @@ try {
 // See the same guard in worker.ts: absent is fine, present-and-broken is fatal.
 if (hasORM()) {
   try {
-    const { initDB } = await import('@bakery/orm/connection')
+    const { initDB } = await import('@bakery-framework/orm/connection')
     await initDB()
   } catch (error: any) {
     serveLog.UNHANDLED_ERR({

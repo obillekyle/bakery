@@ -1,5 +1,5 @@
-import { Bakery } from '@bakery/core/core/bakery'
-import { Logger } from '@bakery/core/logger'
+import { Bakery } from '@bakery-framework/core/core/bakery'
+import { Logger } from '@bakery-framework/core/logger'
 import { VueErrorHandler, VueHandler } from './handler'
 import { initVueVersion, VUE_VERSION } from './utils'
 

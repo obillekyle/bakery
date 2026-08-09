@@ -1,7 +1,7 @@
-import { Bakery } from '@bakery/core/core/bakery'
-import { Logger } from '@bakery/core/logger'
-import { fs, response } from '@bakery/core/utils'
-import { ETag } from '@bakery/core/utils/http'
+import { Bakery } from '@bakery-framework/core/core/bakery'
+import { Logger } from '@bakery-framework/core/logger'
+import { fs, response } from '@bakery-framework/core/utils'
+import { ETag } from '@bakery-framework/core/utils/http'
 import { VUE_VERSION } from './utils'
 
 const logger = new Logger('vue')

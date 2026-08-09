@@ -22,15 +22,19 @@
     "noPropertyAccessFromIndexSignature": false,
     "types": ["bun-types"],
     "paths": {
-      "@bakery/core": ["./packages/core/src/core/index.ts"],
-      "@bakery/core/*": ["./packages/core/src/*"],
-      "@bakery/orm": ["./packages/orm/src/index.ts"],
-      "@bakery/orm/*": ["./packages/orm/src/*"],
-      "@bakery/cli": ["./packages/cli/src/index.ts"],
-      "@bakery/cli/*": ["./packages/cli/src/*"],
-      "@bakery/plugin-vue": ["./packages/plugins/vue/src/index.ts"],
-      "@bakery/plugin-analytics": ["./packages/plugins/analytics/src/index.ts"],
-      "@bakery/plugin-dashboard": ["./packages/plugins/dashboard/src/index.ts"]
+      "@bakery-framework/core": ["./packages/core/src/core/index.ts"],
+      "@bakery-framework/core/*": ["./packages/core/src/*"],
+      "@bakery-framework/orm": ["./packages/orm/src/index.ts"],
+      "@bakery-framework/orm/*": ["./packages/orm/src/*"],
+      "@bakery-framework/cli": ["./packages/cli/src/index.ts"],
+      "@bakery-framework/cli/*": ["./packages/cli/src/*"],
+      "@bakery-framework/plugin-vue": ["./packages/plugins/vue/src/index.ts"],
+      "@bakery-framework/plugin-analytics": [
+        "./packages/plugins/analytics/src/index.ts"
+      ],
+      "@bakery-framework/plugin-dashboard": [
+        "./packages/plugins/dashboard/src/index.ts"
+      ]
     }
   }
 }

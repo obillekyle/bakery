@@ -1,7 +1,7 @@
 import type Database from 'bun:sqlite'
-import { cacheDb } from '@bakery/core/cache/shared-db'
-import { errorMsg, pluginLog } from '@bakery/core/logger'
-import { Try } from '@bakery/core/utils/common'
+import { cacheDb } from '@bakery-framework/core/cache/shared-db'
+import { errorMsg, pluginLog } from '@bakery-framework/core/logger'
+import { Try } from '@bakery-framework/core/utils/common'
 import {
   BOOT_MAX_ITEMS,
   history1d,

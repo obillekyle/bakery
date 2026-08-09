@@ -1,5 +1,5 @@
-import { errorMsg, log, serveLog } from '@bakery/core/logger'
-import { Try } from '@bakery/core/utils/common'
+import { errorMsg, log, serveLog } from '@bakery-framework/core/logger'
+import { Try } from '@bakery-framework/core/utils/common'
 
 /**
  * How long the master waits for every worker to acknowledge its pre-terminate
@@ -119,8 +119,8 @@ export async function handleThreadsMaster(threadCount: number) {
 
   let Bakery: any
   try {
-    const configMod = await import('@bakery/core/core/config')
-    const bakeryMod = await import('@bakery/core')
+    const configMod = await import('@bakery-framework/core/core/config')
+    const bakeryMod = await import('@bakery-framework/core')
     await configMod.initConfig()
     Bakery = bakeryMod.Bakery
   } catch (error: any) {

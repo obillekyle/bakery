@@ -1,9 +1,9 @@
-import { getElapsed } from '@bakery/core/logger'
-import { processBody } from '@bakery/core/utils'
-import type { JsonResponseData } from '@bakery/core/utils/common'
-import { is, Try } from '@bakery/core/utils/common'
-import { response } from '@bakery/core/utils/http'
-import { connection } from '@bakery/orm/connection'
+import { getElapsed } from '@bakery-framework/core/logger'
+import { processBody } from '@bakery-framework/core/utils'
+import type { JsonResponseData } from '@bakery-framework/core/utils/common'
+import { is, Try } from '@bakery-framework/core/utils/common'
+import { response } from '@bakery-framework/core/utils/http'
+import { connection } from '@bakery-framework/orm/connection'
 
 export async function handleSchema(): Promise<JsonResponseData<unknown>> {
   return await Try.return(

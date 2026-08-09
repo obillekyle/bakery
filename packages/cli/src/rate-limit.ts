@@ -1,4 +1,4 @@
-import { LRUCache } from '@bakery/core/cache/lru'
+import { LRUCache } from '@bakery-framework/core/cache/lru'
 
 /**
  * Number of token buckets in `SharedMemoryPool`'s rate-limit region.

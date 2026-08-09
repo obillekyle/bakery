@@ -1,6 +1,6 @@
-import { Bakery } from '@bakery/core/core/bakery'
-import { Logger, messageLogger } from '@bakery/core/logger'
-import { Try } from '@bakery/core/utils'
+import { Bakery } from '@bakery-framework/core/core/bakery'
+import { Logger, messageLogger } from '@bakery-framework/core/logger'
+import { Try } from '@bakery-framework/core/utils'
 
 const MESSAGES = messageLogger(new Logger('db-backup'), {
   BACKUP_CREATED: 'I Created database backup: %y{file}%*',

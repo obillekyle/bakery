@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { Bakery } from '@bakery/core/core/bakery'
+import { Bakery } from '@bakery-framework/core/core/bakery'
 import {
   __resetTestConfig,
   __setTestConfig,
   initConfig,
-} from '@bakery/core/core/config'
+} from '@bakery-framework/core/core/config'
 import {
   __resetShutdownSequence,
   __resetTestTeardown,

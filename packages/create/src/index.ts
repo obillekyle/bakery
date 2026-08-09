@@ -17,7 +17,7 @@ import {
  *
  * `bun create x` fetches `create-x` and runs its bin with the remaining
  * arguments, which is the whole reason this is a separate unscoped package
- * rather than another verb on the `bakery` bin: `@bakery/cli` owns that bin,
+ * rather than another verb on the `bakery` bin: `@bakery-framework/cli` owns that bin,
  * and it is a dependency of the app you are trying to create.
  *
  * Deliberately dependency-free. `bun create` downloads this package on its own,
@@ -40,7 +40,7 @@ Arguments:
 
 Options:
   --name <name>     Package name, when it should differ from the directory.
-  --orm             Include the ORM: orm/, db:sync, @bakery/orm.
+  --orm             Include the ORM: orm/, db:sync, @bakery-framework/orm.
   --no-orm          Leave it out. The example API route keeps posts in memory.
   --plugins <list>  Comma-separated, from: ${PLUGIN_IDS.join(', ')}.
                     Use --plugins none for an explicit empty set.

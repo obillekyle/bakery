@@ -493,7 +493,9 @@ describe('live round-trip', () => {
         // matters — if a column differs from itself, it lands in `tablesToRebuild`
         // and every sync from here to eternity rewrites the table.
         const { buildSyncPlan } = await import('./sync/helpers')
-        const { Logger, messageLogger } = await import('@bakery/core/logger')
+        const { Logger, messageLogger } = await import(
+          '@bakery-framework/core/logger'
+        )
         const quiet = new Logger('field-test')
         const plan = await alive(
           buildSyncPlan(

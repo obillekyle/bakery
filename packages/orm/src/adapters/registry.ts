@@ -11,14 +11,14 @@ import type { SQLAdapter } from './base'
  * mechanism `DBSchema` already uses for an app's tables:
  *
  * ```ts no-check — a third-party package's own declaration file
- * declare module '@bakery/orm/adapters' {
+ * declare module '@bakery-framework/orm/adapters' {
  *   interface DriverRegistry {
  *     mssql: true
  *   }
  * }
  * ```
  *
- * `@bakery/orm/adapters` — the public subpath — and not this file, which is
+ * `@bakery-framework/orm/adapters` — the public subpath — and not this file, which is
  * private and does not resolve from outside the package. The merge reaches
  * through the barrel's `export *`; aiming it at an unresolvable specifier
  * instead declares a second, unrelated interface and leaves every driver name

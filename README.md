@@ -51,10 +51,10 @@ typechecking — Bun transpiles everything at runtime.
   receives, `HTMLBody<P>` (also exported as `html`) does the same for a `.tsx`
   page's render function. Both are identity functions — inference only — and
   the `RouteBody`/`RouteResponse` types behind them are exported from
-  `@bakery/core`.
+  `@bakery-framework/core`.
 - **Sessions** — a lazily-created cookie session on every request, backed by a
   tiered memory-then-SQLite cache.
-- **ORM** (`@bakery/orm`) — schema declared in TypeScript, a query builder and
+- **ORM** (`@bakery-framework/orm`) — schema declared in TypeScript, a query builder and
   mutations typed from it, SQLite by default with MySQL/Postgres via `DB_URL`,
   and a sync engine that diffs schema against database, prompts before
   destructive changes, and takes a backup first.
@@ -71,7 +71,7 @@ An `/api` route, complete — save it as `src/api/posts.ts` and `POST /api/posts
 exists:
 
 ```ts
-import { defineRoute, response } from '@bakery/core'
+import { defineRoute, response } from '@bakery-framework/core'
 
 export default defineRoute<{ title?: string }>(async (req, body) => {
   if (req.method !== 'POST') {
@@ -92,16 +92,16 @@ states your contract — it does not validate the request, so validate anyway.
 
 | Package | Contents |
 | --- | --- |
-| `@bakery/core` | handlers, router, config, sessions, caches, logger, compiler, JSX |
-| `@bakery/orm` | query builder, mutations, adapters, schema sync, backup |
-| `@bakery/cli` | the `bakery` binary: dev supervisor, production, cluster dispatch |
-| `@bakery/plugin-vue` | `.vue` single-file components with server blocks |
-| `@bakery/plugin-analytics` | request telemetry |
-| `@bakery/plugin-dashboard` | the admin console |
+| `@bakery-framework/core` | handlers, router, config, sessions, caches, logger, compiler, JSX |
+| `@bakery-framework/orm` | query builder, mutations, adapters, schema sync, backup |
+| `@bakery-framework/cli` | the `bakery` binary: dev supervisor, production, cluster dispatch |
+| `@bakery-framework/plugin-vue` | `.vue` single-file components with server blocks |
+| `@bakery-framework/plugin-analytics` | request telemetry |
+| `@bakery-framework/plugin-dashboard` | the admin console |
 | `apps/example` | the bundled demo app |
 | `apps/starter` | a minimal app written against public entry points only |
 
-`@bakery/core` has no runtime dependencies; the ORM depends only on core, and
+`@bakery-framework/core` has no runtime dependencies; the ORM depends only on core, and
 the CLI on core and the ORM.
 
 ## How a request is served
@@ -144,7 +144,7 @@ shared helper or component that a page imports needs a dev-server restart.
 is an identity function that typechecks the object against `AppConfig`:
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',

@@ -1,6 +1,6 @@
 # Dashboard plugin
 
-`@bakery/plugin-dashboard` serves an admin console at `/_dashboard`: server
+`@bakery-framework/plugin-dashboard` serves an admin console at `/_dashboard`: server
 metrics, live logs, a session browser and editor, and a database browser with a
 SQL console.
 
@@ -14,8 +14,8 @@ for a while; it is gone now too.
 ## Register
 
 ```ts
-import { defineConfig } from '@bakery/core'
-import dashboardPlugin from '@bakery/plugin-dashboard'
+import { defineConfig } from '@bakery-framework/core'
+import dashboardPlugin from '@bakery-framework/plugin-dashboard'
 
 export default defineConfig({
   root: 'src',
@@ -63,7 +63,7 @@ application already has: a session role, a signed cookie, an IP allow-list, an
 upstream header. It can be async.
 
 ```ts
-import dashboardPlugin from '@bakery/plugin-dashboard'
+import dashboardPlugin from '@bakery-framework/plugin-dashboard'
 
 export const plugin = dashboardPlugin({
   authorize: async req => {
@@ -172,7 +172,7 @@ graph and the typechecker
 
 Two things follow:
 
-- Install the dashboard **without** `@bakery/plugin-analytics` and those calls
+- Install the dashboard **without** `@bakery-framework/plugin-analytics` and those calls
   404 silently. The panel stays empty; nothing reports why.
 - Install it **with** analytics and they are refused anyway, because the
   analytics authorization check can no longer be satisfied by anything in the

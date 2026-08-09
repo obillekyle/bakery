@@ -1,6 +1,6 @@
 {
-  "name": "@bakery/plugin-analytics",
-  "version": "4.0.0",
+  "name": "@bakery-framework/plugin-analytics",
+  "version": "1.0.0",
   "description": "Bakery analytics plugin.",
   "keywords": [
     "bakery",
@@ -34,7 +34,7 @@
     "!src/tests"
   ],
   "dependencies": {
-    "@bakery/core": "workspace:^"
+    "@bakery-framework/core": "workspace:^"
   },
   "engines": {
     "bun": ">=1.3.14"

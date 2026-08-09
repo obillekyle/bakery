@@ -4,7 +4,7 @@ One process can serve several hostnames with different roots, middleware, proxy
 tables and rate limits. Add a `hosts` map to `server.config.ts`:
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',
@@ -91,7 +91,7 @@ that store, falling back to the process config
 (`packages/core/src/core/bakery.ts`):
 
 ```ts
-import { Bakery } from '@bakery/core'
+import { Bakery } from '@bakery-framework/core'
 
 export function currentRoot(): string {
   return Bakery.config.root
@@ -107,7 +107,7 @@ Which is what `hostKey()` is for (`core/bakery.ts`). It prefixes a string
 with the current hostname, so a cache keyed by path stays correct across hosts:
 
 ```ts
-import { hostKey } from '@bakery/core'
+import { hostKey } from '@bakery-framework/core'
 
 const key = hostKey('/styles/app.css')
 ```
@@ -140,7 +140,7 @@ comes from a request header.
 ## A fuller example
 
 ```ts
-import { defineConfig, response } from '@bakery/core'
+import { defineConfig, response } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',

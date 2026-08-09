@@ -1,6 +1,6 @@
-import '@bakery/core/core/init'
+import '@bakery-framework/core/core/init'
 
-import { Logger } from '@bakery/core/logger'
+import { Logger } from '@bakery-framework/core/logger'
 import { type LedgerEntry, readLedgerEntries } from './ledger'
 import type * as SyncTypes from './types'
 
@@ -130,7 +130,7 @@ Read-only. Nothing here writes to the database.
   static async run(): Promise<void> {
     if (HistoryService.helpRequested()) return HistoryService.printHelp()
 
-    const { initConfig } = await import('@bakery/core/core/config')
+    const { initConfig } = await import('@bakery-framework/core/core/config')
     const { closeDB, connection, initDB } = await import('../connection')
     await initConfig()
     await initDB()

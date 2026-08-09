@@ -74,8 +74,8 @@ Subclass `WebSocketHandler` and register it. Everything is static, like every
 other handler.
 
 ```ts
-import { Bakery } from '@bakery/core'
-import { WebSocketHandler } from '@bakery/core/handlers'
+import { Bakery } from '@bakery-framework/core'
+import { WebSocketHandler } from '@bakery-framework/core/handlers'
 
 type ChatData = { room: string }
 
@@ -191,7 +191,7 @@ by calling `Bakery.server.upgrade()` yourself
 (`router.ts`, `router.ts`).
 
 ```ts
-import { defineConfig } from '@bakery/core'
+import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',

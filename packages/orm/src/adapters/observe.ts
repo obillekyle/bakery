@@ -1,4 +1,4 @@
-import { Try } from '@bakery/core/utils'
+import { Try } from '@bakery-framework/core/utils'
 import type { SQLAdapter } from './base'
 
 /**
@@ -74,7 +74,7 @@ let includeParams = false
  * later one.
  *
  * ```ts no-check — illustrative: the app decides where slow queries go
- * import { setQueryObserver } from '@bakery/orm'
+ * import { setQueryObserver } from '@bakery-framework/orm'
  *
  * setQueryObserver(event => {
  *   if (event.ms > 100) slowQueries.push(event)

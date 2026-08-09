@@ -1,5 +1,5 @@
-import { Case } from '@bakery/core/utils'
-import { throws } from '@bakery/core/utils/common'
+import { Case } from '@bakery-framework/core/utils'
+import { throws } from '@bakery-framework/core/utils/common'
 import { getActiveDb, txStorage } from '../connection'
 import type { AppDBSchema as DBSchema } from '../schema-registry'
 import {

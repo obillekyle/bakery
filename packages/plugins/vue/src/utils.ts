@@ -3,10 +3,10 @@ import {
   rename as nodeRename,
   unlink as nodeUnlink,
 } from 'node:fs/promises'
-import { LRUCache } from '@bakery/core/cache/lru'
-import { Bakery } from '@bakery/core/core/bakery'
-import { Logger } from '@bakery/core/logger'
-import { fs, is, Try } from '@bakery/core/utils'
+import { LRUCache } from '@bakery-framework/core/cache/lru'
+import { Bakery } from '@bakery-framework/core/core/bakery'
+import { Logger } from '@bakery-framework/core/logger'
+import { fs, is, Try } from '@bakery-framework/core/utils'
 import type { ParsedCacheEntry, ServerResponseOptions, VueMeta } from './types'
 
 const logger = new Logger('vue')
@@ -49,11 +49,11 @@ export const parsedCache = new LRUCache<string, ParsedCacheEntry>(1000)
 
 /**
  * Escaping is owned by the framework, not by this plugin \u2014 core and other
- * plugins were importing it from here, which would make `@bakery/core` depend
- * on `@bakery/vue` once these ship as separate packages. Re-exported so this
+ * plugins were importing it from here, which would make `@bakery-framework/core` depend
+ * on `@bakery-framework/vue` once these ship as separate packages. Re-exported so this
  * plugin's own modules and tests keep their existing import path.
  */
-export { escapeHtml, escapeScriptJson } from '@bakery/core/utils/http'
+export { escapeHtml, escapeScriptJson } from '@bakery-framework/core/utils/http'
 
 const RX_SERVER_SCRIPT_OPEN = /<script\b(?=[^>]*\bserver(?=[\s/>=]))[^>]*>/gi
 const CLOSING_TAG = '</script'

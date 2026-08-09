@@ -1,5 +1,5 @@
-import { Bakery } from '@bakery/core/core/bakery'
-import { Case } from '@bakery/core/utils'
+import { Bakery } from '@bakery-framework/core/core/bakery'
+import { Case } from '@bakery-framework/core/utils'
 import type { SQLAdapter } from '../adapters/base'
 import { isSafeIdentifier } from '../schema-util'
 import type { SchemaLayout } from './load'
@@ -322,7 +322,7 @@ export class SchemaBuilder {
  * A view added to the database later will not appear here on its own; add it,
  * or delete this file and re-run to reseed the lot.
  */
-import { view } from '@bakery/orm'
+import { view } from '@bakery-framework/orm'
 
 ${body}`
   }
@@ -379,7 +379,7 @@ ${body}`
    * The generator only ever emitted the `DBInfo` namespace, and for a folder
    * project the write target is `orm/schema.ts` — which `orm/index.ts`
    * re-exports. So a regeneration replaced every `table()` with a namespace
-   * *and* added a second `declare module '@bakery/orm/schema-registry'` block
+   * *and* added a second `declare module '@bakery-framework/orm/schema-registry'` block
    * colliding with the one in `index.ts`. It fired on `--choose=db` and, less
    * visibly, after any sync involving `old()` wrappers.
    *
@@ -439,7 +439,7 @@ ${body}`
  * This file is rewritten wholesale on every regeneration; the previous copy is
  * kept under \`bakery/backups/\`.
  */
-import { ${helpers.sort().join(', ')} } from '@bakery/orm'
+import { ${helpers.sort().join(', ')} } from '@bakery-framework/orm'
 
 ${body}`
   }
@@ -458,13 +458,13 @@ ${body}`
     stringifiedIndexes: string,
   ): string {
     return `
-import { Field } from '@bakery/orm';
+import { Field } from '@bakery-framework/orm';
 import {
   type ExtractOptionals,
   type ExtractTableTypes,
   type ExtractViews,
   old,
-} from '@bakery/orm/schema-util';
+} from '@bakery-framework/orm/schema-util';
 
 export namespace DBInfo {
   export const constraints = ${stringifiedConstraints}
@@ -488,7 +488,7 @@ export type DBOptionals = {
  * deliberately: the framework never imports schema.ts, so without this block
  * the ORM still runs but every table and column is \`any\`.
  */
-declare module '@bakery/orm/schema-registry' {
+declare module '@bakery-framework/orm/schema-registry' {
   interface SchemaRegistry {
     schema: {
       DBSchema: DBSchema;

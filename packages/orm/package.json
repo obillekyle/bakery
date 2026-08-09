@@ -1,6 +1,6 @@
 {
-  "name": "@bakery/orm",
-  "version": "4.0.0",
+  "name": "@bakery-framework/orm",
+  "version": "1.0.0",
   "description": "Bakery database layer: adapters, query builder, schema sync and backup.",
   "keywords": [
     "bakery",
@@ -54,6 +54,6 @@
     "bun": ">=1.3.14"
   },
   "dependencies": {
-    "@bakery/core": "workspace:^"
+    "@bakery-framework/core": "workspace:^"
   }
 }

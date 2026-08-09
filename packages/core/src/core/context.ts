@@ -59,21 +59,39 @@ export function matchBlockedCached(
  * That misnomer hid a real bug for as long as it existed — see
  * {@link getFrameworkVersion}.
  */
+/**
+ * What each version reader returns when it cannot read its manifest.
+ *
+ * They must be **distinct from each other and impossible as a real version**,
+ * and both halves are load-bearing. Distinct, because the two readers exist to
+ * be different files and a shared fallback would let one silently stand in for
+ * the other. Impossible, because they used to be plain `'1.0.0'` and `'0.0.0'`
+ * — and when the framework was renumbered to 1.0.0 for its first publish, the
+ * app fallback became a legitimate framework version. Nothing broke at runtime,
+ * but `cache-version.test.ts` could no longer tell "read the manifest" from
+ * "fell back to the other one", so the guard was disarmed by a version bump.
+ *
+ * A prerelease suffix keeps them valid semver while making the collision
+ * unrepeatable: no published version can equal these.
+ */
+const UNKNOWN_APP = '0.0.0-unknown-app'
+const UNKNOWN_FW = '0.0.0-unknown-framework'
+
 let _appVersion: string | null = null
 export function getAppVersion() {
   if (_appVersion) return _appVersion
   try {
     const content = fs.readFileSync(fs.resolve(fs.cwd, 'package.json'))
-    if (content) _appVersion = JSON.parse(content).version || '1.0.0'
+    if (content) _appVersion = JSON.parse(content).version || UNKNOWN_APP
   } catch {
     // Missing or malformed package.json. The version is cosmetic and the
-    // '1.0.0' fallback below is the answer either way.
+    // fallback below is the answer either way.
   }
-  return _appVersion || '1.0.0'
+  return _appVersion || UNKNOWN_APP
 }
 
 /**
- * The **framework's** version, from `@bakery/core`'s own package.json.
+ * The **framework's** version, from `@bakery-framework/core`'s own package.json.
  *
  * Resolved from this module's location rather than by package specifier: a
  * package self-referencing by name works only via the `exports` field and is
@@ -82,7 +100,7 @@ export function getAppVersion() {
  * `src/` and the manifest).
  *
  * This exists because `.cache/` invalidation was keyed on the *app's* version
- * alone, so upgrading `@bakery/*` left a cache compiled by the previous
+ * alone, so upgrading `@bakery-framework/*` left a cache compiled by the previous
  * framework version in place. In-repo that was invisible: `apps/example`'s
  * version tracks the framework's, so bumping both wiped it anyway.
  */
@@ -93,11 +111,11 @@ export function getFrameworkVersion() {
     const content = fs.readFileSync(
       fs.resolve(import.meta.dir, '../../package.json'),
     )
-    if (content) _frameworkVersion = JSON.parse(content).version || '0.0.0'
+    if (content) _frameworkVersion = JSON.parse(content).version || UNKNOWN_FW
   } catch {
     // Same reasoning as above, with one addition: a fallback that never
     // changes would silently stop invalidating the cache, so it is a distinct
-    // value from the app fallback rather than a shared '1.0.0'.
+    // value from the app fallback.
   }
-  return _frameworkVersion || '0.0.0'
+  return _frameworkVersion || UNKNOWN_FW
 }

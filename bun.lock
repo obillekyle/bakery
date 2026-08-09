@@ -13,76 +13,81 @@
       },
     },
     "apps/example": {
-      "name": "@bakery/example",
+      "name": "@bakery-framework/example",
       "version": "4.0.0",
       "dependencies": {
-        "@bakery/cli": "workspace:*",
-        "@bakery/core": "workspace:*",
-        "@bakery/orm": "workspace:*",
+        "@bakery-framework/cli": "workspace:*",
+        "@bakery-framework/core": "workspace:*",
+        "@bakery-framework/orm": "workspace:*",
       },
       "devDependencies": {
-        "@bakery/plugin-dashboard": "workspace:*",
+        "@bakery-framework/plugin-dashboard": "workspace:*",
         "vue": "^3.5.38",
       },
     },
     "apps/starter": {
-      "name": "@bakery/starter",
+      "name": "@bakery-framework/starter",
       "version": "1.0.0",
       "dependencies": {
-        "@bakery/cli": "workspace:*",
-        "@bakery/core": "workspace:*",
-        "@bakery/orm": "workspace:*",
+        "@bakery-framework/cli": "workspace:*",
+        "@bakery-framework/core": "workspace:*",
+        "@bakery-framework/orm": "workspace:*",
       },
     },
     "packages/cli": {
-      "name": "@bakery/cli",
-      "version": "4.0.0",
+      "name": "@bakery-framework/cli",
+      "version": "1.0.0",
       "bin": {
         "bakery": "./src/index.ts",
       },
       "dependencies": {
-        "@bakery/core": "workspace:*",
-        "@bakery/orm": "workspace:*",
+        "@bakery-framework/core": "workspace:^",
       },
+      "peerDependencies": {
+        "@bakery-framework/orm": "workspace:^",
+      },
+      "optionalPeers": [
+        "@bakery-framework/orm",
+      ],
     },
     "packages/core": {
-      "name": "@bakery/core",
-      "version": "4.0.0",
+      "name": "@bakery-framework/core",
+      "version": "1.0.0",
     },
     "packages/create": {
       "name": "create-bakery",
-      "version": "4.0.0",
+      "version": "1.0.0",
       "bin": {
         "create-bakery": "./src/index.ts",
       },
     },
     "packages/orm": {
-      "name": "@bakery/orm",
-      "version": "4.0.0",
+      "name": "@bakery-framework/orm",
+      "version": "1.0.0",
       "dependencies": {
-        "@bakery/core": "workspace:*",
+        "@bakery-framework/core": "workspace:^",
       },
     },
     "packages/plugins/analytics": {
-      "name": "@bakery/plugin-analytics",
-      "version": "4.0.0",
+      "name": "@bakery-framework/plugin-analytics",
+      "version": "1.0.0",
       "dependencies": {
-        "@bakery/core": "workspace:*",
+        "@bakery-framework/core": "workspace:^",
       },
     },
     "packages/plugins/dashboard": {
-      "name": "@bakery/plugin-dashboard",
-      "version": "4.0.0",
+      "name": "@bakery-framework/plugin-dashboard",
+      "version": "1.0.0",
       "dependencies": {
-        "@bakery/core": "workspace:*",
-        "@bakery/orm": "workspace:*",
+        "@bakery-framework/core": "workspace:^",
+        "@bakery-framework/orm": "workspace:^",
       },
     },
     "packages/plugins/vue": {
-      "name": "@bakery/plugin-vue",
-      "version": "4.0.0",
+      "name": "@bakery-framework/plugin-vue",
+      "version": "1.0.0",
       "dependencies": {
-        "@bakery/core": "workspace:^",
+        "@bakery-framework/core": "workspace:^",
       },
       "devDependencies": {
         "@vue/compiler-sfc": "^3.5.38",
@@ -103,21 +108,21 @@
 
     "@babel/types": ["@babel/types@7.29.7", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.7", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA=="],
 
-    "@bakery/cli": ["@bakery/cli@workspace:packages/cli"],
+    "@bakery-framework/cli": ["@bakery-framework/cli@workspace:packages/cli"],
 
-    "@bakery/core": ["@bakery/core@workspace:packages/core"],
+    "@bakery-framework/core": ["@bakery-framework/core@workspace:packages/core"],
 
-    "@bakery/example": ["@bakery/example@workspace:apps/example"],
+    "@bakery-framework/example": ["@bakery-framework/example@workspace:apps/example"],
 
-    "@bakery/orm": ["@bakery/orm@workspace:packages/orm"],
+    "@bakery-framework/orm": ["@bakery-framework/orm@workspace:packages/orm"],
 
-    "@bakery/plugin-analytics": ["@bakery/plugin-analytics@workspace:packages/plugins/analytics"],
+    "@bakery-framework/plugin-analytics": ["@bakery-framework/plugin-analytics@workspace:packages/plugins/analytics"],
 
-    "@bakery/plugin-dashboard": ["@bakery/plugin-dashboard@workspace:packages/plugins/dashboard"],
+    "@bakery-framework/plugin-dashboard": ["@bakery-framework/plugin-dashboard@workspace:packages/plugins/dashboard"],
 
-    "@bakery/plugin-vue": ["@bakery/plugin-vue@workspace:packages/plugins/vue"],
+    "@bakery-framework/plugin-vue": ["@bakery-framework/plugin-vue@workspace:packages/plugins/vue"],
 
-    "@bakery/starter": ["@bakery/starter@workspace:apps/starter"],
+    "@bakery-framework/starter": ["@bakery-framework/starter@workspace:apps/starter"],
 
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 

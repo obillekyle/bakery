@@ -1,5 +1,5 @@
-import { Case } from '@bakery/core/utils'
-import { is, throws } from '@bakery/core/utils/common'
+import { Case } from '@bakery-framework/core/utils'
+import { is, throws } from '@bakery-framework/core/utils/common'
 import { quoteIdentifier } from './adapters/base'
 import { getActiveDb } from './connection'
 import type * as SyncTypes from './sync/types'
