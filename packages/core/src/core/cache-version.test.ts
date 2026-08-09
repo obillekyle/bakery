@@ -1,4 +1,8 @@
-import { describe, expect, test } from 'bun:test'
+import { Database } from 'bun:sqlite'
+import { afterAll, describe, expect, test } from 'bun:test'
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { __wipeCacheDir } from './cache-version'
 import { getAppVersion, getFrameworkVersion } from './context'
 
 /**
@@ -93,5 +97,85 @@ describe('the cache marker carries all three fields', () => {
       prev.version !== next.version ||
       prev.framework !== next.framework
     expect(stale).toBe(false)
+  })
+})
+
+/**
+ * The wipe itself — where the real bug was.
+ *
+ * `checkCacheVersion` used to hand the whole directory to a single recursive
+ * `fs.rm` whose every error was swallowed (`.catch(() => {})`), then write a
+ * marker claiming the cache was current. On Windows the delete fails with
+ * `EBUSY` on `.cache/shared-cache.db` — which the process itself opens at
+ * import time — node's walk stops at the locked entry, and everything it had
+ * not reached survived. Including `html/`, the compiled-page cache.
+ *
+ * Ordering is fixed elsewhere (`shared-db.ts` awaits the check before opening
+ * the database). These pin the other half: one undeletable entry must not
+ * shield the rest, and the survivors have to be *reported* rather than
+ * swallowed, because that report is what stops the marker being written.
+ */
+describe('wiping the cache directory', () => {
+  const base = `${tmpdir()}/bakery-wipe-${process.pid}`
+
+  afterAll(() => {
+    rmSync(base, { recursive: true, force: true })
+  })
+
+  test('removes plain files and nested directories alike', async () => {
+    const dir = `${base}/plain`
+    mkdirSync(`${dir}/nested/deeper`, { recursive: true })
+    writeFileSync(`${dir}/a.txt`, 'a')
+    writeFileSync(`${dir}/nested/b.txt`, 'b')
+    writeFileSync(`${dir}/nested/deeper/c.txt`, 'c')
+
+    const survivors = await __wipeCacheDir(dir)
+    expect(survivors).toEqual([])
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  test('a locked file does not shield the entries beside it', async () => {
+    // The exact shape of the bug: an open sqlite handle inside the directory.
+    const dir = `${base}/locked`
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(`${dir}/a-before.txt`, 'a')
+    writeFileSync(`${dir}/z-after.txt`, 'z')
+    mkdirSync(`${dir}/html`, { recursive: true })
+    writeFileSync(`${dir}/html/page.html`, '<p>stale</p>')
+
+    const db = new Database(`${dir}/shared-cache.db`)
+    db.run('CREATE TABLE t (a INT)')
+    db.run('INSERT INTO t VALUES (1)')
+
+    try {
+      const survivors = await __wipeCacheDir(dir)
+      // Everything except the locked file is gone — including `html/`, which
+      // is the entry that actually matters and which used to survive purely
+      // because of where it sat in readdir order.
+      expect(survivors).toEqual(['shared-cache.db'])
+      const left = readdirSync(dir)
+      expect(left).toEqual(['shared-cache.db'])
+    } finally {
+      db.close()
+    }
+  })
+
+  test('a non-empty survivor list is what withholds the marker', async () => {
+    // Not a test of the writer — a statement of the contract the writer reads.
+    // `checkCacheVersion` writes the "cache is current" marker only when this
+    // is empty, so anything that makes it non-empty must keep it withheld.
+    const dir = `${base}/contract`
+    mkdirSync(dir, { recursive: true })
+    const db = new Database(`${dir}/shared-cache.db`)
+    try {
+      const survivors = await __wipeCacheDir(dir)
+      expect(survivors.length).toBeGreaterThan(0)
+    } finally {
+      db.close()
+    }
+  })
+
+  test('an absent directory is not an error', async () => {
+    expect(await __wipeCacheDir(`${base}/never-existed`)).toEqual([])
   })
 })

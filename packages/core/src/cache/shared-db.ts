@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite'
 import { dirname } from 'node:path'
 import { Bakery } from '../core/bakery'
+import { checkCacheVersion } from '../core/cache-version'
 import { fs } from '../utils'
 
 /**
@@ -13,13 +14,25 @@ import { fs } from '../utils'
  * the one durability guarantee the framework makes.
  *
  * **The consequence is that sessions do not survive a framework upgrade.**
- * `checkCacheVersion` in `core/config.ts` wipes the whole cache directory on
- * every version bump and every dev<->prod switch, and this file goes with it —
- * users are logged out. That is intended: the alternative is a cache format
- * from an older framework version being read by a newer one, which is exactly
- * the failure the version wipe exists to prevent. Anything that must outlive an
- * upgrade belongs in the app's own tables under `Bakery.dataDir`.
+ * `checkCacheVersion` wipes the whole cache directory on every version bump and
+ * every dev<->prod switch, and this file goes with it — users are logged out.
+ * That is intended: the alternative is a cache format from an older framework
+ * version being read by a newer one, which is exactly the failure the version
+ * wipe exists to prevent. Anything that must outlive an upgrade belongs in the
+ * app's own tables under `Bakery.dataDir`.
+ *
+ * **That was aspirational until 2026-08-09, and the `await` below is what makes
+ * it true.** The check ran from `initConfig()`, while this module opens the
+ * database at *import* time — so the process already held a handle inside the
+ * directory the wipe was about to delete. On Windows the delete failed with
+ * `EBUSY`, node's recursive walk stopped at the locked entry, and whatever it
+ * had not reached yet survived: sessions *did* outlive upgrades, and so did
+ * `html/`, the compiled-page cache. Awaiting the check here orders the two by
+ * construction — the cache cannot be opened before it has been validated —
+ * rather than by hoping one import happens after another.
  */
+await checkCacheVersion()
+
 const dbFilePath = `${Bakery.cacheDir}/shared-cache.db`
 if (!fs.exists(dbFilePath)) await fs.mkdir(dirname(dbFilePath))
 
