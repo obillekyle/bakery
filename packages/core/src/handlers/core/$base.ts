@@ -1,4 +1,3 @@
-/** biome-ignore-all lint/suspicious/noAssignInExpressions: dynamic */
 import { LRUCache } from '../../cache/lru'
 import type { MapOf, MixedPromise } from '../../types'
 import { fs } from '../../utils/fs'

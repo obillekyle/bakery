@@ -1,7 +1,7 @@
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { SyncService } from './index'
 
 /**
@@ -98,7 +98,9 @@ describe('--help is answered before anything is opened', () => {
     // does — all three adapters emit and read back real foreign keys — so the
     // fixture's `foreign()` now reaches the planner like any other declaration
     // and the run reports a plan instead of refusing.
-    expect(noFlag.out).not.toContain('foreign() is declared but not implemented')
+    expect(noFlag.out).not.toContain(
+      'foreign() is declared but not implemented',
+    )
     expect(noFlag.out).toContain('db-sync')
     expect(dataAfterNoFlag).toBe(true)
   })

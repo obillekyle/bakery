@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
 import { __resetTestConfig, __setTestConfig, initConfig } from '../core/config'
-import { fs } from '../utils'
-import { ApiHandler } from '../handlers/routes/api'
 import { TSHandler } from '../handlers/assets/ts'
+import { ApiHandler } from '../handlers/routes/api'
+import { fs } from '../utils'
 
 /**
  * The blocked globs are matched against the *request path*, but `routeGlobs`

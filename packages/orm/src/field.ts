@@ -1,5 +1,5 @@
 import { throws } from '@bakery/core/utils/common'
-import type { DataTypes, Defs, TableDef } from './schema-util'
+import type { DataTypes, TableDef } from './schema-util'
 import type * as SyncTypes from './sync/types'
 
 /**
@@ -170,15 +170,19 @@ export const Field = {
    * instead of inferring it.
    */
   Primary: () =>
-    ({ type: 'integer', autoIncrement: true, primary: true }) as unknown as TableDef<
-      number,
-      false,
-      true
-    >,
+    ({
+      type: 'integer',
+      autoIncrement: true,
+      primary: true,
+    }) as unknown as TableDef<number, false, true>,
 
   /** A whole number. */
   Int: <D extends number | null | undefined = undefined>(d?: D) =>
-    column<Nullable<number, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('integer', d),
+    column<
+      Nullable<number, D extends null ? true : false>,
+      D extends null ? true : false,
+      OptionalFor<D>
+    >('integer', d),
 
   /**
    * A fractional number — `DOUBLE` on MySQL, `DOUBLE PRECISION` on Postgres,
@@ -189,11 +193,19 @@ export const Field = {
    * next to `Int`.
    */
   Float: <D extends number | null | undefined = undefined>(d?: D) =>
-    column<Nullable<number, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('number', d),
+    column<
+      Nullable<number, D extends null ? true : false>,
+      D extends null ? true : false,
+      OptionalFor<D>
+    >('number', d),
 
   /** Text. `Text()` and `Varchar()` say which kind; this stays the plain one. */
   String: <D extends string | null | undefined = undefined>(d?: D) =>
-    column<Nullable<string, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('string', d),
+    column<
+      Nullable<string, D extends null ? true : false>,
+      D extends null ? true : false,
+      OptionalFor<D>
+    >('string', d),
 
   /**
    * Unbounded text — `TEXT` on every dialect.
@@ -233,7 +245,11 @@ export const Field = {
     d?: D,
   ) =>
     Object.assign(
-      column<Nullable<string, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('string', d),
+      column<
+        Nullable<string, D extends null ? true : false>,
+        D extends null ? true : false,
+        OptionalFor<D>
+      >('string', d),
       { length },
     ),
 
@@ -246,7 +262,11 @@ export const Field = {
    * large integers on SQLite, store them as `Varchar`.
    */
   BigInt: <D extends number | null | undefined = undefined>(d?: D) =>
-    column<Nullable<number, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('bigint' as any, d),
+    column<
+      Nullable<number, D extends null ? true : false>,
+      D extends null ? true : false,
+      OptionalFor<D>
+    >('bigint' as any, d),
 
   /**
    * A JSON document — `JSON` on MySQL, `JSONB` on Postgres, a `JSON`-declared
@@ -268,7 +288,11 @@ export const Field = {
 
   /** True/false — `BOOLEAN` on Postgres, `TINYINT(1)` on MySQL. */
   Bool: <D extends boolean | null | undefined = undefined>(d?: D) =>
-    column<Nullable<boolean, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('boolean', d),
+    column<
+      Nullable<boolean, D extends null ? true : false>,
+      D extends null ? true : false,
+      OptionalFor<D>
+    >('boolean', d),
 
   /** Binary. Always nullable: no dialect here takes a binary literal default. */
   Blob: () => column<Buffer | null, true, true>('buffer', null),
@@ -299,30 +323,30 @@ export const Field = {
    */
   Foreign: Object.assign(
     <N extends true | undefined = undefined>(
-    target: ColumnValue,
-    options: {
-      nullable?: N
-      /** Defaults to NO ACTION, as SQL does. */
-      onDelete?: SyncTypes.ForeignKeyAction
-      onUpdate?: SyncTypes.ForeignKeyAction
-    } = {},
-  ) =>
-    ({
-      // `integer` in the row type, always — see `ForeignDef`. At *runtime* the
-      // type is still overwritten from the referenced column by
-      // `resolveColumnForeignKeys()`, because MySQL refuses a key whose column
-      // type does not match the target exactly. For the ordinary case — a key
-      // pointing at a `Field.Primary()` — the two agree and there is nothing to
-      // reconcile.
-      type: 'integer',
-      ...(options.nullable ? { nullable: true, default: null } : {}),
-      _references: {
-        table: target.__table,
-        column: target.__column,
-        onDelete: options.onDelete,
-        onUpdate: options.onUpdate,
-      },
-    }) as unknown as ForeignDef<N>,
+      target: ColumnValue,
+      options: {
+        nullable?: N
+        /** Defaults to NO ACTION, as SQL does. */
+        onDelete?: SyncTypes.ForeignKeyAction
+        onUpdate?: SyncTypes.ForeignKeyAction
+      } = {},
+    ) =>
+      ({
+        // `integer` in the row type, always — see `ForeignDef`. At *runtime* the
+        // type is still overwritten from the referenced column by
+        // `resolveColumnForeignKeys()`, because MySQL refuses a key whose column
+        // type does not match the target exactly. For the ordinary case — a key
+        // pointing at a `Field.Primary()` — the two agree and there is nothing to
+        // reconcile.
+        type: 'integer',
+        ...(options.nullable ? { nullable: true, default: null } : {}),
+        _references: {
+          table: target.__table,
+          column: target.__column,
+          onDelete: options.onDelete,
+          onUpdate: options.onUpdate,
+        },
+      }) as unknown as ForeignDef<N>,
     {
       /**
        * A key spanning more than one column.
@@ -362,7 +386,9 @@ export const Field = {
                 | undefined) ?? {}
 
             if (!targets.length)
-              throws('Field.Foreign.composite().references() needs a target column')
+              throws(
+                'Field.Foreign.composite().references() needs a target column',
+              )
             if (targets.length !== columns.length)
               throws(
                 `Field.Foreign.composite() references the wrong number of columns: ` +
@@ -558,7 +584,11 @@ export const Field = {
    */
   Date: Object.assign(
     <D extends number | null | undefined = undefined>(d?: D) =>
-      column<Nullable<number, D extends null ? true : false>, D extends null ? true : false, OptionalFor<D>>('integer', d),
+      column<
+        Nullable<number, D extends null ? true : false>,
+        D extends null ? true : false,
+        OptionalFor<D>
+      >('integer', d),
     // Optional on insert: the database supplies it.
     { now: () => column<number, false, true>('integer', '%dateNow%') },
   ),

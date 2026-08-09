@@ -46,18 +46,12 @@ export namespace SQLAdapter {
     pageSize: number
     totalPages: number
   }
-  export interface ColumnConstraint {
-    type: 'integer' | 'string' | 'number' | 'boolean' | 'buffer'
-    primary?: boolean
-    autoIncrement?: boolean
-    nullable?: boolean
-    default?: unknown
-  }
-  export interface IndexConstraint {
-    type: 'unique' | 'index'
-    table: string
-    cols: string[]
-  }
+  // `ColumnConstraint` and `IndexConstraint` used to be declared here as well
+  // as in `sync/types.ts`, and this copy had fallen behind: no `length`, no
+  // `_enum`, no `_oldColumn`/`_transform`, and a `type` union missing `bigint`
+  // and `json`. The three sync call sites that cast to it were therefore
+  // *erasing* the fields at the exact point they are read — harmless only
+  // because `colDef` takes `unknown`. One declaration now, in `sync/types.ts`.
 
   export type RowRecord = MapOf<any>
   export interface FilterSortOptions {
@@ -81,21 +75,6 @@ export namespace SQLAdapter {
   export interface CountRow {
     count: number
   }
-  export interface SQLiteColumnRow {
-    name: string
-    type?: string
-    notnull?: number
-    pk?: number
-  }
-  export interface StatementResult {
-    sql: string
-    params: unknown[]
-  }
-  export interface WhereEvalResult {
-    whereSql: string
-    params: unknown[]
-  }
-
   /**
    * The slice of a Bun `SQL` handle that transaction nesting needs.
    *
@@ -419,10 +398,10 @@ export abstract class SQLAdapter {
    * report the word. Anything unrecognised becomes `NO ACTION` — the SQL
    * default — so a dialect that grows a new code cannot make the diff churn.
    */
-  static normalizeForeignKeyAction(
-    raw: unknown,
-  ): SyncTypes.ForeignKeyAction {
-    const v = String(raw ?? '').trim().toUpperCase()
+  static normalizeForeignKeyAction(raw: unknown): SyncTypes.ForeignKeyAction {
+    const v = String(raw ?? '')
+      .trim()
+      .toUpperCase()
     const byChar: Record<string, SyncTypes.ForeignKeyAction> = {
       A: 'NO ACTION',
       R: 'RESTRICT',

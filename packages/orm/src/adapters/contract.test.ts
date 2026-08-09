@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from 'bun:test'
+import { quoteIdentifier } from './base'
+import { MySQLAdapter } from './mysql'
 import { PGAdapter } from './pgsql'
 import { SQLiteAdapter } from './sqlite'
-import { MySQLAdapter } from './mysql'
-import { quoteIdentifier } from './base'
 
 /**
  * The contract every adapter owes the ORM.
@@ -95,9 +95,9 @@ describe('Postgres normalisation', () => {
   test('leaves a ? inside a string literal alone', () => {
     // The whole reason for a scanner rather than a regex: a question mark in
     // user data must not become a parameter reference.
-    expect(normalize("SELECT * FROM `t` WHERE s = 'what?' AND a = ?", [1])).toBe(
-      'SELECT * FROM "t" WHERE s = \'what?\' AND a = $1',
-    )
+    expect(
+      normalize("SELECT * FROM `t` WHERE s = 'what?' AND a = ?", [1]),
+    ).toBe('SELECT * FROM "t" WHERE s = \'what?\' AND a = $1')
   })
 
   test('leaves a backtick inside a string literal alone', () => {
@@ -113,7 +113,10 @@ describe('Postgres normalisation', () => {
   })
 
   test('handles an escaped quote without losing track of the literal', () => {
-    const out = normalize("SELECT * FROM `t` WHERE s = 'it\\'s ?' AND a = ?", [1])
+    const out = normalize(
+      "SELECT * FROM `t` WHERE s = 'it\\'s ?' AND a = ?",
+      [1],
+    )
     // The ? inside the literal stays literal; only the one outside binds.
     expect(out).toContain('$1')
     expect(out.match(/\$\d/g)).toHaveLength(1)
@@ -156,7 +159,9 @@ describe('executable round-trip', () => {
           `CREATE TABLE ${db.quote(table)} (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64))`,
         )
         .run()
-      await db.query(`INSERT INTO ${db.quote(table)} (name) VALUES (?)`).run('first')
+      await db
+        .query(`INSERT INTO ${db.quote(table)} (name) VALUES (?)`)
+        .run('first')
 
       const rows = await db
         .query(`SELECT ${db.quote('name')} FROM ${db.quote(table)}`)
@@ -181,7 +186,9 @@ describe('executable round-trip', () => {
         .run()
       // Written with ? on purpose: this is the ORM's dialect, and the adapter
       // is responsible for turning it into $1 before it reaches the server.
-      await db.query(`INSERT INTO ${db.quote(table)} (name) VALUES (?)`).run('first')
+      await db
+        .query(`INSERT INTO ${db.quote(table)} (name) VALUES (?)`)
+        .run('first')
 
       const rows = await db
         .query(`SELECT ${db.quote('name')} FROM ${db.quote(table)}`)
@@ -230,49 +237,57 @@ describe('changes counts rows on every dialect', () => {
   ]
 
   for (const [name, skip, open] of DIALECTS) {
-    test.skipIf(skip)(`${name}: insert, update and delete all count`, async () => {
-      const db = open()
-      const t = `bakery_chg_${process.pid}`
-      const run = (s: string, ...p: unknown[]) => alive(db.query(s).run(...p))
-      cleanup.push(async () => {
+    test.skipIf(skip)(
+      `${name}: insert, update and delete all count`,
+      async () => {
+        const db = open()
+        const t = `bakery_chg_${process.pid}`
+        const run = (s: string, ...p: unknown[]) => alive(db.query(s).run(...p))
+        cleanup.push(async () => {
+          await run(`DROP TABLE IF EXISTS ${t}`)
+          await db.close?.()
+        })
+
         await run(`DROP TABLE IF EXISTS ${t}`)
-        await db.close?.()
-      })
+        await run(
+          `CREATE TABLE ${t} (${db.quote('id')} INT NOT NULL,` +
+            ` ${db.quote('n')} VARCHAR(16))`,
+        )
 
-      await run(`DROP TABLE IF EXISTS ${t}`)
-      await run(
-        `CREATE TABLE ${t} (${db.quote('id')} INT NOT NULL,` +
-          ` ${db.quote('n')} VARCHAR(16))`,
-      )
+        const one = await run(`INSERT INTO ${t} VALUES (?, ?)`, 1, 'a')
+        const three = await run(
+          `INSERT INTO ${t} VALUES (?, ?), (?, ?), (?, ?)`,
+          2,
+          'b',
+          3,
+          'c',
+          4,
+          'd',
+        )
+        const updated = await run(
+          `UPDATE ${t} SET ${db.quote('n')} = ? WHERE ${db.quote('id')} > ?`,
+          'z',
+          1,
+        )
+        const deleted = await run(
+          `DELETE FROM ${t} WHERE ${db.quote('id')} > ?`,
+          2,
+        )
 
-      const one = await run(`INSERT INTO ${t} VALUES (?, ?)`, 1, 'a')
-      const three = await run(
-        `INSERT INTO ${t} VALUES (?, ?), (?, ?), (?, ?)`,
-        2, 'b', 3, 'c', 4, 'd',
-      )
-      const updated = await run(
-        `UPDATE ${t} SET ${db.quote('n')} = ? WHERE ${db.quote('id')} > ?`,
-        'z',
-        1,
-      )
-      const deleted = await run(
-        `DELETE FROM ${t} WHERE ${db.quote('id')} > ?`,
-        2,
-      )
-
-      expect({
-        dialect: name,
-        insert1: one.changes,
-        insert3: three.changes,
-        update3: updated.changes,
-        delete2: deleted.changes,
-      }).toEqual({
-        dialect: name,
-        insert1: 1,
-        insert3: 3,
-        update3: 3,
-        delete2: 2,
-      })
-    })
+        expect({
+          dialect: name,
+          insert1: one.changes,
+          insert3: three.changes,
+          update3: updated.changes,
+          delete2: deleted.changes,
+        }).toEqual({
+          dialect: name,
+          insert1: 1,
+          insert3: 3,
+          update3: 3,
+          delete2: 2,
+        })
+      },
+    )
   }
 })

@@ -1,5 +1,5 @@
-import type { MapOf, MixedPromise } from '../../types'
 import { LRUCache } from '../../cache/lru'
+import type { MapOf, MixedPromise } from '../../types'
 import { ASYNC_COMPRESSION_MIN, COMPRESSION_MAP, fs } from '../fs'
 
 export namespace ETag {
@@ -214,10 +214,11 @@ export namespace ETag {
   }
 
   export function sendFile(file: Bun.BunFile, req?: Request): Response {
-    const { resolvedFile, fileHeaders, etag: negotiated } = negotiateFile(
-      file,
-      req,
-    )
+    const {
+      resolvedFile,
+      fileHeaders,
+      etag: negotiated,
+    } = negotiateFile(file, req)
 
     const headers: MapOf<any> = fileHeaders
 
@@ -246,7 +247,12 @@ export namespace ETag {
     status = 200,
   ): MixedPromise<Response> {
     type ||= 'text/plain; charset=utf-8'
-    if (typeof status !== 'number' || isNaN(status) || status < 100 || status > 599) {
+    if (
+      typeof status !== 'number' ||
+      isNaN(status) ||
+      status < 100 ||
+      status > 599
+    ) {
       status = 200
     }
 
@@ -265,7 +271,12 @@ export namespace ETag {
     if (req && text.length > 1024) {
       const acceptEncoding = req.headers.get('Accept-Encoding') || ''
 
-      for (const { encoding, ext, compress, compressAsync } of COMPRESSION_MAP) {
+      for (const {
+        encoding,
+        ext,
+        compress,
+        compressAsync,
+      } of COMPRESSION_MAP) {
         if (acceptEncoding.includes(encoding) && compress) {
           encoder = compress as any
           encoderAsync = compressAsync as any

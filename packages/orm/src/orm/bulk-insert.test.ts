@@ -71,7 +71,9 @@ describe('parseAll() batches at the boundary', () => {
   test('every batch is a complete statement with the same column list', () => {
     const batches = DB.Insert.into('big').values(rows(10)).parseAll()
     for (const b of batches) {
-      expect(b.sql.startsWith('INSERT INTO "big" ("id", "label", "n") VALUES ')).toBe(true)
+      expect(
+        b.sql.startsWith('INSERT INTO "big" ("id", "label", "n") VALUES '),
+      ).toBe(true)
     }
     expect(batches[0]!.sql.split('(?, ?, ?)').length - 1).toBe(4)
     expect(batches[2]!.sql.split('(?, ?, ?)').length - 1).toBe(2)
@@ -94,7 +96,18 @@ describe('parseAll() batches at the boundary', () => {
     // The records without it bind NULL rather than shifting every later value
     // one position left.
     expect(batches[0]!.params).toEqual([
-      0, null, 1, null, 2, null, 3, null, 4, null, 5, null,
+      0,
+      null,
+      1,
+      null,
+      2,
+      null,
+      3,
+      null,
+      4,
+      null,
+      5,
+      null,
     ])
     expect(batches[1]!.params).toEqual([6, 'x'])
   })
@@ -118,7 +131,9 @@ describe('parse() refuses what it cannot represent', () => {
   })
 
   test('an empty insert still fails, and says so', () => {
-    expect(() => DB.Insert.into('big').values([]).parse()).toThrow(/Empty insert/)
+    expect(() => DB.Insert.into('big').values([]).parse()).toThrow(
+      /Empty insert/,
+    )
   })
 })
 
@@ -162,12 +177,16 @@ describe('a batched insert writes every row, exactly once', () => {
     __setTestDb(real)
     try {
       await real
-        .query('CREATE TABLE huge (id INTEGER PRIMARY KEY, label TEXT, n INTEGER)')
+        .query(
+          'CREATE TABLE huge (id INTEGER PRIMARY KEY, label TEXT, n INTEGER)',
+        )
         .run()
       const result = await DB.Insert.into('huge').values(rows(40_000)).run()
       expect(result.changes).toBe(40_000)
 
-      const count: any = await real.query('SELECT COUNT(*) AS c FROM huge').get()
+      const count: any = await real
+        .query('SELECT COUNT(*) AS c FROM huge')
+        .get()
       const sum: any = await real.query('SELECT SUM(n) AS s FROM huge').get()
       expect(Number(count.c)).toBe(40_000)
       expect(Number(sum.s)).toBe(39_999 * 40_000)
@@ -274,7 +293,9 @@ describe('values() takes an array as readily as a spread', () => {
   test('both forms actually write the same rows', async () => {
     await db.query('DELETE FROM big').run()
     await DB.Insert.into('big').values(rows(4)).run()
-    await DB.Insert.into('big').values(...rows(4, 4)).run()
+    await DB.Insert.into('big')
+      .values(...rows(4, 4))
+      .run()
     await DB.Insert.into('big').values(rows(1, 8)[0]!).run()
     const count: any = await db.query('SELECT COUNT(*) AS c FROM big').get()
     expect(Number(count.c)).toBe(9)

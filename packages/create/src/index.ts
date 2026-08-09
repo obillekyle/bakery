@@ -5,8 +5,8 @@ import { basename, resolve } from 'node:path'
 import {
   dependencyRange,
   isValidAppName,
-  templateFiles,
   type TemplateFile,
+  templateFiles,
 } from './template'
 
 /**
@@ -154,9 +154,7 @@ export async function writeTemplate(
  * pinned to the wrong major with every other test still green.
  */
 export async function ownVersion(): Promise<string> {
-  const pkg = await Bun.file(
-    new URL('../package.json', import.meta.url),
-  ).json()
+  const pkg = await Bun.file(new URL('../package.json', import.meta.url)).json()
   return pkg.version
 }
 

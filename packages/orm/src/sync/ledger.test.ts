@@ -10,7 +10,9 @@ import {
   writeLedger,
 } from './ledger'
 
-const SCHEMA: any = { led: { id: Field.Primary(), slug: Field.Varchar(255, '') } }
+const SCHEMA: any = {
+  led: { id: Field.Primary(), slug: Field.Varchar(255, '') },
+}
 
 describe('the schema ledger', () => {
   test('strips itself under every name a constraints object can use', () => {
@@ -26,8 +28,16 @@ describe('the schema ledger', () => {
   })
 
   test('shape comparison ignores metadata keys and column order', () => {
-    expect(shapesMatch({ a: { y: {}, x: {} } } as any, { a: { x: {}, y: {} } } as any).ok).toBe(true)
-    expect(shapesMatch({ a: { x: {}, _view: 'v' } } as any, { a: { x: {} } } as any).ok).toBe(true)
+    expect(
+      shapesMatch(
+        { a: { y: {}, x: {} } } as any,
+        { a: { x: {}, y: {} } } as any,
+      ).ok,
+    ).toBe(true)
+    expect(
+      shapesMatch({ a: { x: {}, _view: 'v' } } as any, { a: { x: {} } } as any)
+        .ok,
+    ).toBe(true)
   })
 
   test('shape comparison names what differs', () => {
@@ -35,7 +45,10 @@ describe('the schema ledger', () => {
     expect(gone.ok).toBe(false)
     if (!gone.ok) expect(gone.reason).toContain('b')
 
-    const col = shapesMatch({ a: { x: {} } } as any, { a: { x: {}, y: {} } } as any)
+    const col = shapesMatch(
+      { a: { x: {} } } as any,
+      { a: { x: {}, y: {} } } as any,
+    )
     expect(col.ok).toBe(false)
     if (!col.ok) expect(col.reason).toContain('a')
   })
@@ -48,7 +61,11 @@ describe('the schema ledger', () => {
 
   test('round-trips the applied schema and prefers it once written', async () => {
     const db = new SQLiteAdapter(':memory:') as any
-    await db.query(`CREATE TABLE ${db.quote('led')} (${db.quote('id')} INTEGER PRIMARY KEY AUTOINCREMENT, ${db.quote('slug')} VARCHAR(255) NOT NULL DEFAULT '')`).run()
+    await db
+      .query(
+        `CREATE TABLE ${db.quote('led')} (${db.quote('id')} INTEGER PRIMARY KEY AUTOINCREMENT, ${db.quote('slug')} VARCHAR(255) NOT NULL DEFAULT '')`,
+      )
+      .run()
 
     const before = await resolveCurrentState(db)
     expect(before.source).toBe('introspection')
@@ -64,11 +81,17 @@ describe('the schema ledger', () => {
 
   test('drift falls back to introspection rather than migrating blind', async () => {
     const db = new SQLiteAdapter(':memory:') as any
-    await db.query(`CREATE TABLE ${db.quote('led')} (${db.quote('id')} INTEGER PRIMARY KEY AUTOINCREMENT, ${db.quote('slug')} TEXT NOT NULL)`).run()
+    await db
+      .query(
+        `CREATE TABLE ${db.quote('led')} (${db.quote('id')} INTEGER PRIMARY KEY AUTOINCREMENT, ${db.quote('slug')} TEXT NOT NULL)`,
+      )
+      .run()
     await writeLedger(db, SCHEMA)
 
     // Someone alters the database outside Bakery.
-    await db.query(`ALTER TABLE ${db.quote('led')} ADD ${db.quote('rogue')} INTEGER`).run()
+    await db
+      .query(`ALTER TABLE ${db.quote('led')} ADD ${db.quote('rogue')} INTEGER`)
+      .run()
 
     const state = await resolveCurrentState(db)
     expect(state.source).toBe('introspection')

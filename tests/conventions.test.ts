@@ -327,7 +327,9 @@ describe('conventions (CLAUDE.md)', () => {
     const ALLOWED = new Set(['packages/core/src/utils/http/response.ts'])
 
     const handRolled = find(
-      packageSources.filter(f => !isTest(f) && !isClient(f) && !ALLOWED.has(f.path)),
+      packageSources.filter(
+        f => !isTest(f) && !isClient(f) && !ALLOWED.has(f.path),
+      ),
       /new Response\s*\(\s*JSON\.stringify|Response\.json\s*\(/,
     )
 
@@ -471,7 +473,7 @@ describe('conventions (CLAUDE.md)', () => {
     // were all absent from their export maps and all resolved fine in-repo
     // through the workspace symlink. A rule that cannot see the import style a
     // package actually uses is not a rule.
-    const IMPORT = new RegExp("(?:from|import\\()\\s*'(@bakery/[^']+)'", 'g')
+    const IMPORT = /(?:from|import\()\s*'(@bakery\/[^']+)'/g
     const offenders: string[] = []
     for (const file of allSources) {
       for (const [, spec] of file.text.matchAll(IMPORT)) {

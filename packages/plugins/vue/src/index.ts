@@ -1,7 +1,7 @@
 import { definePlugin } from '@bakery/core/plugins'
-import { rewriteVueImports } from './utils'
-import type { VuePluginOptions } from './types'
 import { setVuePluginOptions } from './compile'
+import type { VuePluginOptions } from './types'
+import { rewriteVueImports } from './utils'
 
 /**
  * `vuePlugin` is this package's only export, and its parameter type lived in a

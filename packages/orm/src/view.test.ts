@@ -71,7 +71,10 @@ const _noViewKey: Expect<keyof ViewRow, 'id' | 'name'> = true
 // …and the columns are typed exactly as a table's are.
 const _viewRowTyped: Expect<ViewRow['name'], string> = true
 // The name reaches InferViews, which is what Mutation.Tables excludes.
-const _isView: Expect<Extract<InferViews<typeof MODEL>, 'active_users'>, 'active_users'> = true
+const _isView: Expect<
+  Extract<InferViews<typeof MODEL>, 'active_users'>,
+  'active_users'
+> = true
 // A real table is not a view.
 const _notView: Expect<Extract<InferViews<typeof MODEL>, 'users'>, never> = true
 
@@ -88,8 +91,14 @@ const _notView: Expect<Extract<InferViews<typeof MODEL>, 'users'>, never> = true
  * `DB.Delete.from('active_users')` and a typo'd `into('userz')` all fail to
  * compile, while `into('users')` still passes.
  */
-type MockTables = Exclude<keyof { users: 1; active_users: 1 }, InferViews<typeof MODEL>>
-const _viewNotWritable: Expect<Extract<MockTables, 'active_users'>, never> = true
+type MockTables = Exclude<
+  keyof { users: 1; active_users: 1 },
+  InferViews<typeof MODEL>
+>
+const _viewNotWritable: Expect<
+  Extract<MockTables, 'active_users'>,
+  never
+> = true
 const _tableWritable: Expect<Extract<MockTables, 'users'>, 'users'> = true
 
 void [
@@ -104,14 +113,24 @@ void [
 describe('a view reaches the database as a view', () => {
   test('CREATE VIEW, not CREATE TABLE, and it is queryable', async () => {
     const db = new SQLiteAdapter(':memory:')
-    await db.query('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, active INTEGER)').run()
-    await db.query('INSERT INTO users (name, active) VALUES (?, ?)').run('ada', 1)
-    await db.query('INSERT INTO users (name, active) VALUES (?, ?)').run('bob', 0)
+    await db
+      .query(
+        'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, active INTEGER)',
+      )
+      .run()
+    await db
+      .query('INSERT INTO users (name, active) VALUES (?, ?)')
+      .run('ada', 1)
+    await db
+      .query('INSERT INTO users (name, active) VALUES (?, ?)')
+      .run('bob', 0)
 
     // The DDL path the sync engine uses for a `_view` entry.
-    await db.query(
-      `CREATE VIEW active_users AS ${(activeUsers.__columns as any)._view}`,
-    ).run()
+    await db
+      .query(
+        `CREATE VIEW active_users AS ${(activeUsers.__columns as any)._view}`,
+      )
+      .run()
 
     const objs = (await db
       .query("SELECT name, type FROM sqlite_master WHERE name = 'active_users'")
@@ -131,7 +150,11 @@ describe('view() borrowing a source table', () => {
     name: Field.Varchar(64),
     active: Field.Int(0),
   })
-  const derived = view('active_users2', src, 'SELECT * FROM users WHERE active = 1')
+  const derived = view(
+    'active_users2',
+    src,
+    'SELECT * FROM users WHERE active = 1',
+  )
 
   test('takes the source table columns without restating them', () => {
     const cols = derived.__columns as any
@@ -141,15 +164,22 @@ describe('view() borrowing a source table', () => {
 
   test('columns qualify against the view, not the source table', () => {
     // Otherwise a join against the view would emit `users`.`id`.
-    expect(derived.id).toEqual({ __table: 'active_users2', __column: 'id' } as any)
+    expect(derived.id).toEqual({
+      __table: 'active_users2',
+      __column: 'id',
+    } as any)
   })
 
   test('the explicit and borrowed forms agree', () => {
-    const explicit = view('active_users2', 'SELECT * FROM users WHERE active = 1', {
-      id: Field.Primary(),
-      name: Field.Varchar(64),
-      active: Field.Int(0),
-    })
+    const explicit = view(
+      'active_users2',
+      'SELECT * FROM users WHERE active = 1',
+      {
+        id: Field.Primary(),
+        name: Field.Varchar(64),
+        active: Field.Int(0),
+      },
+    )
     expect(derived.__columns).toEqual(explicit.__columns as any)
   })
 })
@@ -209,7 +239,10 @@ describe('RowOf / InsertOf name a declaration without copying it', () => {
 describe('a schema with a view settles', () => {
   async function fixture() {
     const db = new SQLiteAdapter(':memory:')
-    const users = table('users', { id: Field.Primary(), name: Field.Varchar(64) })
+    const users = table('users', {
+      id: Field.Primary(),
+      name: Field.Varchar(64),
+    })
     const posts = table('posts', {
       id: Field.Primary(),
       authorId: Field.Foreign(users.id, { onDelete: 'CASCADE' }),
@@ -253,7 +286,9 @@ describe('a schema with a view settles', () => {
     await db.query('CREATE TABLE users (id INTEGER PRIMARY KEY)').run()
     // Built without the key, exactly as a pre-foreign-key database would be.
     await db
-      .query('CREATE TABLE posts (id INTEGER PRIMARY KEY, author_id INTEGER NOT NULL)')
+      .query(
+        'CREATE TABLE posts (id INTEGER PRIMARY KEY, author_id INTEGER NOT NULL)',
+      )
       .run()
 
     const users = table('users', { id: Field.Primary() })
@@ -269,21 +304,38 @@ describe('a schema with a view settles', () => {
 
     // `executeSyncPlan` rather than `syncSchema`: the plan is the unit under
     // test, and the full path additionally wants a backup, which wants config.
-    const { collectForeignKeys, executeSyncPlan } = await import('./sync/helpers')
+    const { collectForeignKeys, executeSyncPlan } = await import(
+      './sync/helpers'
+    )
     const msgs: any = new Proxy({}, { get: () => () => {} })
     const plan: any = {
-      tablesToDrop: [], tablesToRename: [], columnsToDrop: [], columnsToAdd: [],
-      columnsToRename: [], tablesToRebuild: new Set(['posts']), viewsToUpdate: [],
-      unmappedTsTables: new Set(), dbConstraintsForDiff: {},
+      tablesToDrop: [],
+      tablesToRename: [],
+      columnsToDrop: [],
+      columnsToAdd: [],
+      columnsToRename: [],
+      tablesToRebuild: new Set(['posts']),
+      viewsToUpdate: [],
+      unmappedTsTables: new Set(),
+      dbConstraintsForDiff: {},
     }
     await db.transaction(tx =>
       executeSyncPlan(
-        tx, plan, constraints, new Set(), new Map(), msgs,
-        collectForeignKeys(indexes as any), new Map(), new Map(),
+        tx,
+        plan,
+        constraints,
+        new Set(),
+        new Map(),
+        msgs,
+        collectForeignKeys(indexes as any),
+        new Map(),
+        new Map(),
       ),
     )
 
-    const fks = (await db.query('PRAGMA foreign_key_list(posts)').all()) as any[]
+    const fks = (await db
+      .query('PRAGMA foreign_key_list(posts)')
+      .all()) as any[]
     expect(fks.map(f => `${f.from}->${f.table}.${f.to}`)).toEqual([
       'author_id->users.id',
     ])
@@ -309,7 +361,9 @@ describe('the view lifecycle is planned', () => {
 
   async function fixture(withView: boolean) {
     const db = new SQLiteAdapter(':memory:')
-    await db.query('CREATE TABLE vl_users (id INT, name TEXT, active INT)').run()
+    await db
+      .query('CREATE TABLE vl_users (id INT, name TEXT, active INT)')
+      .run()
     if (withView) await db.createView('vl_active', BODY)
     const live: any = await db.getConstraints()
     const tk = Object.keys(live).find(k => /vlUsers/i.test(k))!
@@ -324,7 +378,10 @@ describe('the view lifecycle is planned', () => {
 
   test('an unchanged view is not touched', async () => {
     const { db, live, tk, vk } = await fixture(true)
-    const p = await plan(db, { [tk]: live[tk], [vk!]: { ...live[vk!], _view: BODY } })
+    const p = await plan(db, {
+      [tk]: live[tk],
+      [vk!]: { ...live[vk!], _view: BODY },
+    })
     expect(p.viewsToUpdate).toEqual([])
     expect(p.tablesToDrop).toEqual([])
     await db.close()
@@ -336,7 +393,10 @@ describe('the view lifecycle is planned', () => {
     const { db, live, tk, vk } = await fixture(true)
     const p = await plan(db, {
       [tk]: live[tk],
-      [vk!]: { ...live[vk!], _view: 'SELECT id, name FROM vl_users WHERE active = 0' },
+      [vk!]: {
+        ...live[vk!],
+        _view: 'SELECT id, name FROM vl_users WHERE active = 0',
+      },
     })
     expect(p.viewsToUpdate).toEqual(['vl_active'])
     await db.close()
@@ -369,13 +429,22 @@ describe('the view lifecycle is planned', () => {
     const { SyncEngine } = await import('./sync/engine')
     const evaluate = (SyncEngine as any).evaluateChanges
     const base = {
-      tablesToDrop: [], tablesToRename: [], columnsToDrop: [], columnsToAdd: [],
-      columnsToRename: [], tablesToRebuild: new Set(), unmappedTsTables: new Set(),
+      tablesToDrop: [],
+      tablesToRename: [],
+      columnsToDrop: [],
+      columnsToAdd: [],
+      columnsToRename: [],
+      tablesToRebuild: new Set(),
+      unmappedTsTables: new Set(),
     }
     const r = evaluate({ ...base, viewsToUpdate: ['v'] }, new Set(), new Map())
     expect(r).toEqual({ isDangerous: false, hasChanges: true })
     // Dropping one still is: that is `tablesToDrop`.
-    const d = evaluate({ ...base, tablesToDrop: ['v'], viewsToUpdate: [] }, new Set(), new Map())
+    const d = evaluate(
+      { ...base, tablesToDrop: ['v'], viewsToUpdate: [] },
+      new Set(),
+      new Map(),
+    )
     expect(d.isDangerous).toBe(true)
   })
 })
@@ -408,49 +477,68 @@ describe('view bodies across dialects', () => {
   ]
 
   for (const [name, skip, open, verbatim] of DIALECTS) {
-    test.skipIf(skip)(`${name}: stable once the ledger records it`, async () => {
-      const db = open()
-      const alive = <T,>(p: T | Promise<T>) => {
-        const t = setTimeout(() => {}, 30_000)
-        return Promise.resolve(p).finally(() => clearTimeout(t))
-      }
-      for (const s of [
-        'DROP VIEW IF EXISTS vd_active',
-        'DROP TABLE IF EXISTS vd_users',
-        'DROP TABLE IF EXISTS __bakery_schema',
-      ]) await alive(db.query(s).run())
-      await alive(db.query('CREATE TABLE vd_users (id INT, name VARCHAR(64), active INT)').run())
-      await alive(db.createView('vd_active', BODY))
+    test.skipIf(skip)(
+      `${name}: stable once the ledger records it`,
+      async () => {
+        const db = open()
+        const alive = <T>(p: T | Promise<T>) => {
+          const t = setTimeout(() => {}, 30_000)
+          return Promise.resolve(p).finally(() => clearTimeout(t))
+        }
+        for (const s of [
+          'DROP VIEW IF EXISTS vd_active',
+          'DROP TABLE IF EXISTS vd_users',
+          'DROP TABLE IF EXISTS __bakery_schema',
+        ])
+          await alive(db.query(s).run())
+        await alive(
+          db
+            .query(
+              'CREATE TABLE vd_users (id INT, name VARCHAR(64), active INT)',
+            )
+            .run(),
+        )
+        await alive(db.createView('vd_active', BODY))
 
-      const { buildSyncPlan } = await import('./sync/helpers')
-      const { writeLedger } = await import('./sync/ledger')
-      const live: any = await alive(db.getConstraints())
-      const tk = Object.keys(live).find(k => /vdUsers|vd_users/i.test(k))!
-      const vk = Object.keys(live).find(k => /vdActive|vd_active/i.test(k))!
-      const schema: any = { [tk]: live[tk], [vk]: { ...live[vk], _view: BODY } }
+        const { buildSyncPlan } = await import('./sync/helpers')
+        const { writeLedger } = await import('./sync/ledger')
+        const live: any = await alive(db.getConstraints())
+        const tk = Object.keys(live).find(k => /vdUsers|vd_users/i.test(k))!
+        const vk = Object.keys(live).find(k => /vdActive|vd_active/i.test(k))!
+        const schema: any = {
+          [tk]: live[tk],
+          [vk]: { ...live[vk], _view: BODY },
+        }
 
-      // Against live introspection: only a dialect that stores the body
-      // verbatim can match an authored SELECT.
-      const first = await alive(buildSyncPlan(db, schema, quiet, msgs))
-      expect({ dialect: name, changed: first.viewsToUpdate.length > 0 }).toEqual({
-        dialect: name,
-        changed: !verbatim,
-      })
+        // Against live introspection: only a dialect that stores the body
+        // verbatim can match an authored SELECT.
+        const first = await alive(buildSyncPlan(db, schema, quiet, msgs))
+        expect({
+          dialect: name,
+          changed: first.viewsToUpdate.length > 0,
+        }).toEqual({
+          dialect: name,
+          changed: !verbatim,
+        })
 
-      // Against the ledger — the normal path — every dialect is stable.
-      await alive(writeLedger(db, schema, {}))
-      const second = await alive(buildSyncPlan(db, schema, quiet, msgs))
-      expect({ dialect: name, source: second.ledgerSource, changed: second.viewsToUpdate }).toEqual(
-        { dialect: name, source: 'ledger', changed: [] },
-      )
+        // Against the ledger — the normal path — every dialect is stable.
+        await alive(writeLedger(db, schema, {}))
+        const second = await alive(buildSyncPlan(db, schema, quiet, msgs))
+        expect({
+          dialect: name,
+          source: second.ledgerSource,
+          changed: second.viewsToUpdate,
+        }).toEqual({ dialect: name, source: 'ledger', changed: [] })
 
-      for (const s of [
-        'DROP VIEW IF EXISTS vd_active',
-        'DROP TABLE IF EXISTS vd_users',
-        'DROP TABLE IF EXISTS __bakery_schema',
-      ]) await alive(db.query(s).run())
-      await db.close?.()
-    })
+        for (const s of [
+          'DROP VIEW IF EXISTS vd_active',
+          'DROP TABLE IF EXISTS vd_users',
+          'DROP TABLE IF EXISTS __bakery_schema',
+        ])
+          await alive(db.query(s).run())
+        await db.close?.()
+      },
+    )
   }
 })
 
@@ -485,7 +573,7 @@ describe('viewsBlockTableRebuild matches what the server does', () => {
 
     test.skipIf(skip)(`${name}: and the server agrees`, async () => {
       const db = open()
-      const alive = <T,>(p: T | Promise<T>) => {
+      const alive = <T>(p: T | Promise<T>) => {
         const t = setTimeout(() => {}, 30_000)
         return Promise.resolve(p).finally(() => clearTimeout(t))
       }
@@ -517,7 +605,10 @@ describe('viewsBlockTableRebuild matches what the server does', () => {
         refused = true
       }
 
-      expect({ dialect: name, refused }).toEqual({ dialect: name, refused: blocks })
+      expect({ dialect: name, refused }).toEqual({
+        dialect: name,
+        refused: blocks,
+      })
       await clean()
       await db.close?.()
     })

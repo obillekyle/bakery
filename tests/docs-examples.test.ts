@@ -1,5 +1,5 @@
-import { rm } from 'node:fs/promises'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rm } from 'node:fs/promises'
 
 /**
  * Every TypeScript example in `docs/` is compiled against the real packages.
@@ -59,7 +59,10 @@ const FENCE = /^```(\w+)([^\n]*)$/
  * That made this file's whole claim — "every example compiles, so a broken one
  * fails on the commit that breaks it" — about one-sixth true, and quietly.
  */
-function extract(doc: string, text: string): {
+function extract(
+  doc: string,
+  text: string,
+): {
   examples: Omit<Example, 'file'>[]
   skippedWithoutReason: string[]
 } {
@@ -149,7 +152,10 @@ beforeAll(async () => {
     // One counter across the whole tree, so `exN.ts` and `examples[N]` are the
     // same N and no document can overwrite another's files.
     for (const found of result.examples) {
-      examples.push({ ...found, file: `${WORK}/ex${examples.length}.${found.lang}` })
+      examples.push({
+        ...found,
+        file: `${WORK}/ex${examples.length}.${found.lang}`,
+      })
     }
     skippedWithoutReason.push(...result.skippedWithoutReason)
   }

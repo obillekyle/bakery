@@ -1,8 +1,15 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from 'bun:test'
 import { Bakery } from '../core/bakery'
-import { fs } from '../utils/fs'
-import { HTMLHandler } from '../handlers/routes/html'
 import { clearHostConfigCache, initConfig } from '../core/config'
+import { HTMLHandler } from '../handlers/routes/html'
+import { fs } from '../utils/fs'
 
 // Self-contained fixtures: the demo `src/*.html` pages this test used to rely on
 // were deleted when the repo was repurposed, which made it fail for reasons that

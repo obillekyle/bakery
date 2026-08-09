@@ -1,11 +1,11 @@
 import { Logger, log } from '../logger'
 import { definePlugin as _definePlugin } from '../plugins/types'
+import type { RouteHandler } from '../types'
 import { Case, is, Math2, match, Try } from '../utils/common'
 import { response } from '../utils/http'
 import Bakery, { getHostname, hostKey, hostStore } from './bakery'
 import { getConfig, NOOP } from './config'
 import { createElement, Fragment, html } from './jsx'
-import type { RouteHandler } from '../types'
 
 export const defineConfig = <T extends AppConfig>(config: T): T => config
 export const definePlugin = _definePlugin

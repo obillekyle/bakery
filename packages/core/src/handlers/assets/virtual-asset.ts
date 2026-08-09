@@ -90,8 +90,7 @@ export class VirtualAssetHandler extends Handler {
   }
 
   static async getRouteInfo(path: string) {
-    if (path.startsWith('/_client/'))
-      return await this.handleClientAsset(path)
+    if (path.startsWith('/_client/')) return await this.handleClientAsset(path)
     if (path.startsWith('/_virtual/'))
       return await this.handleVirtualAsset(path)
   }

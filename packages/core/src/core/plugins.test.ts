@@ -1,7 +1,6 @@
-import { describe, test, expect, beforeEach } from 'bun:test'
-import { initConfig, clearHostConfigCache } from './config'
+import { beforeEach, describe, expect, test } from 'bun:test'
+import { clearHostConfigCache, initConfig } from './config'
 import { PluginHooks } from './plugins'
-import { Bakery } from './bakery'
 
 beforeEach(async () => {
   clearHostConfigCache()

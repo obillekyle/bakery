@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { Bakery } from '../../core/bakery'
 import {
   __resetTestConfig,
@@ -7,8 +7,8 @@ import {
 } from '../../core/config'
 import { hostStore } from '../../core/context'
 import {
-  DOMTools,
   clearHeadBodyCache,
+  DOMTools,
   headBodyCache,
   initHostImportMaps,
   initImportMap,
@@ -54,7 +54,11 @@ describe('DOMTools', () => {
   })
 
   test('params filters out $$ keys', () => {
-    const result = DOMTools.params({ title: 'Hi', $$head: 'skip', $$body: 'skip' })
+    const result = DOMTools.params({
+      title: 'Hi',
+      $$head: 'skip',
+      $$body: 'skip',
+    })
     expect(result).not.toContain('$$head')
     expect(result).not.toContain('$$body')
     expect(result).toContain('title')

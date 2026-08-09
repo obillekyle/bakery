@@ -27,7 +27,9 @@ export const PromptTracker = {
       try {
         unlinkSync(this.getFilePath(pid))
       } catch {
-        Bun.file(this.getFilePath(pid)).delete().catch(() => {})
+        Bun.file(this.getFilePath(pid))
+          .delete()
+          .catch(() => {})
       }
     })
   },

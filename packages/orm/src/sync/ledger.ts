@@ -37,7 +37,11 @@ export const LEDGER_TABLE = '__bakery_schema'
 /** Append-only: each successful sync adds a row, so history comes free. */
 async function ensureTable(adapter: SQLAdapter): Promise<void> {
   const q = (s: string) => adapter.quote(s)
-  const id = adapter.colDef({ type: 'integer', autoIncrement: true, primary: true })
+  const id = adapter.colDef({
+    type: 'integer',
+    autoIncrement: true,
+    primary: true,
+  })
   const at = adapter.colDef({ type: 'integer' })
   const payload = adapter.colDef({ type: 'string' })
   await adapter
@@ -75,7 +79,9 @@ export interface LedgerEntry {
  * and a target with no indexes means "drop every index" — so the payload had to
  * grow before rollback could be honest.
  */
-function parsePayload(raw: unknown): Omit<LedgerEntry, 'id' | 'appliedAt'> | null {
+function parsePayload(
+  raw: unknown,
+): Omit<LedgerEntry, 'id' | 'appliedAt'> | null {
   if (typeof raw !== 'string') return null
   let parsed: any
   try {
@@ -84,7 +90,11 @@ function parsePayload(raw: unknown): Omit<LedgerEntry, 'id' | 'appliedAt'> | nul
     return null
   }
   if (!parsed || typeof parsed !== 'object') return null
-  if (parsed.v === 2 && parsed.constraints && typeof parsed.constraints === 'object') {
+  if (
+    parsed.v === 2 &&
+    parsed.constraints &&
+    typeof parsed.constraints === 'object'
+  ) {
     return {
       constraints: parsed.constraints,
       indexes:
@@ -213,8 +223,13 @@ export function shapesMatch(
 ): { ok: true } | { ok: false; reason: string } {
   const meta = (k: string) => k.startsWith('_')
   const tablesOf = (c: SyncTypes.DBConstraints) =>
-    Object.keys(c).filter(t => !meta(t)).sort()
-  const colsOf = (t: any) => Object.keys(t ?? {}).filter(c => !meta(c)).sort()
+    Object.keys(c)
+      .filter(t => !meta(t))
+      .sort()
+  const colsOf = (t: any) =>
+    Object.keys(t ?? {})
+      .filter(c => !meta(c))
+      .sort()
 
   const a = tablesOf(ledger)
   const b = tablesOf(live)
@@ -268,10 +283,19 @@ export async function resolveCurrentState(
   // hand, and the symptom is `db:sync` insisting a database is perfectly synced
   // against a schema it does not match.
   if (options.ignoreLedger) {
-    return { constraints: live, source: 'introspection', reason: 'ledger ignored (--no-ledger)' }
+    return {
+      constraints: live,
+      source: 'introspection',
+      reason: 'ledger ignored (--no-ledger)',
+    }
   }
   const ledger = await readLedger(adapter)
-  if (!ledger) return { constraints: live, source: 'introspection', reason: 'no ledger yet' }
+  if (!ledger)
+    return {
+      constraints: live,
+      source: 'introspection',
+      reason: 'no ledger yet',
+    }
 
   const match = shapesMatch(ledger, live)
   if (!match.ok) {

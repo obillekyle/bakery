@@ -1,15 +1,15 @@
 import { Bakery } from '@bakery/core/core/bakery'
 import { Handler } from '@bakery/core/handlers'
-import { FileSystem as fs } from '@bakery/core/utils'
-import { response } from '@bakery/core/utils/http'
 import { type PluginRouteTable, routeTable } from '@bakery/core/plugins'
+import { FileSystem as fs } from '@bakery/core/utils'
 import type { JsonResponseData } from '@bakery/core/utils/common'
+import { response } from '@bakery/core/utils/http'
 import * as core from './core'
 import { BOOT_MAX_ITEMS } from './core'
-import * as storageSqlite from './storage-sqlite'
 import type { AnalyticsStats } from './endpoints/stats'
 import { handleResetRequest, handleStatsRequest } from './endpoints/stats'
 import { AnalyticsWSHandler } from './endpoints/websocket'
+import * as storageSqlite from './storage-sqlite'
 
 const PAGE_HITS_BOOT_WINDOW_MS = 24 * 3600 * 1000
 

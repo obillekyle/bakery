@@ -104,7 +104,13 @@ describe('runShutdownSequence', () => {
 
     await runShutdownSequence()
 
-    expect(calls).toEqual(['app', 'framework', 'plugin', 'close-cache', 'close-db'])
+    expect(calls).toEqual([
+      'app',
+      'framework',
+      'plugin',
+      'close-cache',
+      'close-db',
+    ])
   })
 
   test('a throwing app hook does not abort the rest', async () => {
@@ -130,7 +136,13 @@ describe('runShutdownSequence', () => {
 
     await runShutdownSequence()
 
-    expect(calls).toEqual(['app', 'framework', 'plugin', 'close-cache', 'close-db'])
+    expect(calls).toEqual([
+      'app',
+      'framework',
+      'plugin',
+      'close-cache',
+      'close-db',
+    ])
   })
 
   test('awaits an async application hook before moving on', async () => {

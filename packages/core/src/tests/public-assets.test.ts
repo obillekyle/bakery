@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs'
 import { mkdir, readdir, rm, rmdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Bakery } from '../core'
-import { ImageHandler } from '../handlers'
 import { initConfig } from '../core/config'
+import { ImageHandler } from '../handlers'
 import { PublicHandler } from '../handlers/assets/public'
 
 // Dirs the fixtures may create under cwd; only removed in afterAll if the
@@ -75,7 +75,9 @@ describe('ImageHandler publicRoot fallback', () => {
   test('resolves source from publicRoot when serveRoot misses', async () => {
     await placeFile('avatar.png')
     const parsed = await (ImageHandler as any)['path'](`/${testDir}/avatar.png`)
-    expect(parsed.source).toBe(posix(join(Bakery.publicRoot, testDir, 'avatar.png')))
+    expect(parsed.source).toBe(
+      posix(join(Bakery.publicRoot, testDir, 'avatar.png')),
+    )
   })
 
   test('keeps serveRoot source when file exists there', async () => {
@@ -87,7 +89,10 @@ describe('ImageHandler publicRoot fallback', () => {
       const parsed = await (ImageHandler as any)['path'](`/${testDir}/logo.png`)
       expect(parsed.source).toBe(posix(srcFile))
     } finally {
-      await rm(join(Bakery.serveRoot, testDir), { recursive: true, force: true })
+      await rm(join(Bakery.serveRoot, testDir), {
+        recursive: true,
+        force: true,
+      })
     }
   })
 })

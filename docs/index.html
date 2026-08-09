@@ -447,7 +447,7 @@ function inline(s, page) {
 function resolveHref(href, page) {
   if (/^(https?:|mailto:|#)/.test(href)) return href
   const [path, hash] = href.split('#')
-  if (!path) return '#' + hash
+  if (!path) return `#${hash}`
   const dir = page.includes('/') ? page.slice(0, page.lastIndexOf('/')) : ''
   const parts = (dir ? dir.split('/') : []).concat(path.split('/'))
   const stack = []
@@ -459,7 +459,7 @@ function resolveHref(href, page) {
   }
   const joined = stack.join('/')
   if (escaped || !/\.md$/i.test(path)) return `${REPO}/blob/main/${joined}`
-  return `#/${joined.replace(/\.md$/i, '')}${hash ? '#' + hash : ''}`
+  return `#/${joined.replace(/\.md$/i, '')}${hash ? `#${hash}` : ''}`
 }
 
 function render(src, page) {
@@ -505,7 +505,7 @@ function render(src, page) {
       i += 2
       let body = ''
       while (i < lines.length && /^\s*\|/.test(lines[i])) {
-        body += '<tr>' + cells(lines[i++]).map(c => `<td>${inline(c, page)}</td>`).join('') + '</tr>'
+        body += `<tr>${cells(lines[i++]).map(c => `<td>${inline(c, page)}</td>`).join('')}</tr>`
       }
       html += `<table><thead><tr>${head.map(c => `<th>${inline(c, page)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`
       continue
@@ -559,7 +559,7 @@ function buildList(items, start, page) {
     if (items[i].indent > base) {
       const from = i
       while (i < items.length && items[i].indent > base) i++
-      out = out.replace(/<\/li>$/, buildList(items, from, page) + '</li>')
+      out = out.replace(/<\/li>$/, `${buildList(items, from, page)}</li>`)
       continue
     }
     const text = [items[i].text, ...items[i].cont].join('\n')
@@ -601,13 +601,13 @@ async function route() {
 
   const { html, toc } = render(src, page)
   content.innerHTML = html
-  document.title = (content.querySelector('h1')?.textContent || 'Bakery') + ' | Bakery'
+  document.title = `${content.querySelector('h1')?.textContent || 'Bakery'} | Bakery`
 
   // on-page contents
   const aside = document.getElementById('aside')
   aside.innerHTML = toc.length > 2
-    ? `<div class="aside-title">On this page</div>` + toc.map(t =>
-        `<a href="#/${page}#${t.id}" class="${t.lvl === 3 ? 'lvl3' : ''}" data-id="${t.id}">${esc(t.text)}</a>`).join('')
+    ? `<div class="aside-title">On this page</div>${toc.map(t =>
+        `<a href="#/${page}#${t.id}" class="${t.lvl === 3 ? 'lvl3' : ''}" data-id="${t.id}">${esc(t.text)}</a>`).join('')}`
     : ''
 
   // sidebar active state
@@ -765,7 +765,7 @@ async function search() {
   const idx = await buildIndex()
   const terms = q.split(/\s+/)
   const hits = idx.map(e => {
-    const hay = (e.section + ' ' + e.text).toLowerCase()
+    const hay = `${e.section} ${e.text}`.toLowerCase()
     if (!terms.every(t => hay.includes(t))) return null
     let score = 0
     for (const t of terms) {
@@ -785,7 +785,7 @@ async function search() {
         const pos = e.text.toLowerCase().indexOf(terms[0])
         const from = pos >= 0 ? Math.max(0, pos - 40) : 0
         let snip = e.text.slice(from, from + 130)
-        if (from > 0) snip = '…' + snip.slice(snip.indexOf(' ') + 1)
+        if (from > 0) snip = `…${snip.slice(snip.indexOf(' ') + 1)}`
         return `<a href="#/${e.page}#${e.id}"><span class="r-crumb">${esc(e.label)}</span>` +
           `<span class="r-title">${esc(e.section)}</span>` +
           `<span class="r-snip">${esc(snip)}…</span></a>`

@@ -67,8 +67,6 @@ declare global {
   // server both need belongs.
 }
 
-export {}
-
 // A `declare module '@client/utils'` block used to sit here re-exporting
 // '../utils'. It never resolved (TS2307 — relative specifiers inside an
 // ambient module declaration do not resolve from the containing file), and

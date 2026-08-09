@@ -123,15 +123,21 @@ describe('distinct is reachable from every stage of the chain', () => {
    */
   test('off the table, and after where / select / groupBy / orderBy / limit', () => {
     expect(DB.table('users').distinct().parse().sql).toContain('DISTINCT')
-    expect(DB.table('users').where('users.id', 1).distinct().parse().sql).toContain('DISTINCT')
+    expect(
+      DB.table('users').where('users.id', 1).distinct().parse().sql,
+    ).toContain('DISTINCT')
     expect(
       DB.table('users').select({ n: 'users.username' }).distinct().parse().sql,
     ).toContain('DISTINCT')
     expect(
       DB.table('users').groupBy('users.username').distinct().parse().sql,
     ).toContain('DISTINCT')
-    expect(DB.table('users').orderBy('users.id').distinct().parse().sql).toContain('DISTINCT')
-    expect(DB.table('users').limit(5).distinct().parse().sql).toContain('DISTINCT')
+    expect(
+      DB.table('users').orderBy('users.id').distinct().parse().sql,
+    ).toContain('DISTINCT')
+    expect(DB.table('users').limit(5).distinct().parse().sql).toContain(
+      'DISTINCT',
+    )
   })
 
   test('and the chain continues after it', () => {

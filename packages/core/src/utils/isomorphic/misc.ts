@@ -4,10 +4,7 @@ export function throws(message: string | Error): never {
   throw is.string(message) ? new Error(message) : message
 }
 
-export function assert(
-  condition: any,
-  message?: string,
-): asserts condition {
+export function assert(condition: any, message?: string): asserts condition {
   if (!condition) {
     throw new Error(message || 'Assertion failed')
   }

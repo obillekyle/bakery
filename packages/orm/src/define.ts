@@ -26,7 +26,23 @@ import type {
 /** Columns as declared: `{ id: Field.Primary(), name: Field.Text(true) }`. */
 export type ColumnMap = Record<string, unknown>
 
-export interface TableDef<N extends string = string, C extends ColumnMap = ColumnMap> {
+/**
+ * A declared table: the name columns qualify against, the table actually read
+ * from, and the columns themselves.
+ *
+ * **Was `TableDef`, and the rename is the point.** `schema-util.ts` exports a
+ * `TableDef<T, N, O>` describing a *column* — and that is the one every
+ * internal call site, every test and every schema file means. Both were public,
+ * and the root barrel re-exported *this* one, so `import type { TableDef } from
+ * '@bakery/orm'` handed you a table where you asked for a column. Nothing
+ * errored at the import, and nothing errored until you tried to use it.
+ *
+ * `TableRef` also says what it is, and pairs with `TableColumn` below.
+ */
+export interface TableRef<
+  N extends string = string,
+  C extends ColumnMap = ColumnMap,
+> {
   /** The name columns qualify against — the alias, when aliased. */
   readonly __table: N
   /** The real table to read FROM. Differs from `__table` only for an alias. */
@@ -55,7 +71,7 @@ export interface TableColumn<
 export function table<N extends string, C extends ColumnMap>(
   name: N,
   columns: C,
-): TableDef<N, C> & { readonly [K in keyof C]: TableColumn<N, K & string> } {
+): TableRef<N, C> & { readonly [K in keyof C]: TableColumn<N, K & string> } {
   const refs = Object.fromEntries(
     Object.keys(columns).map(key => [key, { __table: name, __column: key }]),
   )
@@ -97,7 +113,7 @@ export function view<N extends string, C extends ColumnMap>(
   name: N,
   body: string,
   columns: C,
-): TableDef<N, C & { _view: string }> & {
+): TableRef<N, C & { _view: string }> & {
   readonly [K in keyof C]: TableColumn<N, K & string>
 }
 /**
@@ -122,9 +138,9 @@ export function view<N extends string, C extends ColumnMap>(
  */
 export function view<N extends string, C extends ColumnMap>(
   name: N,
-  source: TableDef<string, C>,
+  source: TableRef<string, C>,
   body: string,
-): TableDef<N, C & { _view: string }> & {
+): TableRef<N, C & { _view: string }> & {
   readonly [K in keyof C]: TableColumn<N, K & string>
 }
 /**
@@ -161,12 +177,12 @@ export function view<N extends string, C extends ColumnMap>(
 export function view<N extends string, T>(
   name: N,
   body: string,
-): TableDef<N, ViewColumns<T>> & {
+): TableRef<N, ViewColumns<T>> & {
   readonly [K in keyof T]: TableColumn<N, K & string>
 }
 export function view(
   name: string,
-  bodyOrSource: string | TableDef,
+  bodyOrSource: string | TableRef,
   columnsOrBody?: ColumnMap | string,
 ): unknown {
   // Two arguments means the interface form: the columns are type-only, so the
@@ -179,7 +195,7 @@ export function view(
   const derived = typeof bodyOrSource !== 'string'
   const body = derived ? (columnsOrBody as string) : bodyOrSource
   const columns = derived
-    ? (bodyOrSource as TableDef).__columns
+    ? (bodyOrSource as TableRef).__columns
     : (columnsOrBody as ColumnMap)
   return viewImpl(name, body, columns)
 }
@@ -228,7 +244,7 @@ function viewImpl<N extends string, C extends ColumnMap>(
   name: N,
   body: string,
   columns: C,
-): TableDef<N, C & { _view: string }> & {
+): TableRef<N, C & { _view: string }> & {
   readonly [K in keyof C]: TableColumn<N, K & string>
 } {
   // `_view` rides inside `__columns` because that is the object the sync engine
@@ -259,9 +275,9 @@ function viewImpl<N extends string, C extends ColumnMap>(
  * table, which is what lets the builder emit `FROM users AS author`.
  */
 export function alias<N extends string, C extends ColumnMap, A extends string>(
-  base: TableDef<N, C>,
+  base: TableRef<N, C>,
   name: A,
-): TableDef<A, C> & { readonly [K in keyof C]: TableColumn<A, K & string> } {
+): TableRef<A, C> & { readonly [K in keyof C]: TableColumn<A, K & string> } {
   const refs = Object.fromEntries(
     Object.keys(base.__columns).map(key => [
       key,
@@ -276,9 +292,9 @@ export function alias<N extends string, C extends ColumnMap, A extends string>(
   })
 }
 
-/** Every `TableDef` exported by a module, keyed by its declared table name. */
+/** Every `TableRef` exported by a module, keyed by its declared table name. */
 type TablesOf<M> = {
-  [K in keyof M as M[K] extends TableDef<infer N, any> ? N : never]: M[K]
+  [K in keyof M as M[K] extends TableRef<infer N, any> ? N : never]: M[K]
 }
 
 /**
@@ -287,7 +303,7 @@ type TablesOf<M> = {
  * generator and the query builder stay untouched.
  */
 export type InferConstraints<M> = {
-  [N in keyof TablesOf<M>]: TablesOf<M>[N] extends TableDef<any, infer C>
+  [N in keyof TablesOf<M>]: TablesOf<M>[N] extends TableRef<any, infer C>
     ? C
     : never
 }
@@ -311,7 +327,7 @@ export function collectConstraints(module: Record<string, unknown>) {
 
   for (const exported of Object.values(module)) {
     if (!exported || typeof exported !== 'object') continue
-    const def = exported as TableDef
+    const def = exported as TableRef
     if (typeof def.__table !== 'string' || !def.__columns) continue
 
     // Skip aliases. An alias is a query-time view of an existing table, and
@@ -340,7 +356,7 @@ export function collectConstraints(module: Record<string, unknown>) {
  * `_view` is filtered out by `ExtractTableTypes`, so a view's row type is its
  * columns and nothing else.
  */
-export type RowOf<T extends TableDef> = ExtractTableTypes<
+export type RowOf<T extends TableRef> = ExtractTableTypes<
   { t: T['__columns'] },
   't'
 >
@@ -352,7 +368,7 @@ export type RowOf<T extends TableDef> = ExtractTableTypes<
  *     export type NewUser = InsertOf<typeof users>
  *     //     ^ { name: string; id?: number; createdAt?: number }
  */
-export type InsertOf<T extends TableDef> = Omit<
+export type InsertOf<T extends TableRef> = Omit<
   RowOf<T>,
   ExtractOptionals<{ t: T['__columns'] }, 't'> & keyof RowOf<T>
 > &

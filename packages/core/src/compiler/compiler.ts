@@ -7,9 +7,9 @@ import {
   errorWithPosition,
   handlerLog,
 } from '../logger/serve-log'
+import type { MapOf } from '../types'
 import { is, Try } from '../utils/common'
 import { FileSystem as fs } from '../utils/fs'
-import type { MapOf } from '../types'
 
 const RX_IMPORT =
   /import\s+(?:(?:\*\s+as\s+)?([a-zA-Z_$\d\s{},/*]+?)\s+from\s+)?['"]([^'"]+?\.([a-zA-Z0-9]+))['"](?:\s+(?:with|assert)\s*\{[^}]+\})?\s*;?/gm
@@ -33,7 +33,7 @@ let definesPromise: Promise<MapOf<string>> | null = null
 async function buildDefines(): Promise<MapOf<string>> {
   let bakeryVersion = '1.0.0'
   try {
-    const file = await Bun.file(process.cwd() + '/package.json').json()
+    const file = await Bun.file(`${process.cwd()}/package.json`).json()
     if (file && file.version) bakeryVersion = file.version
   } catch {
     // No package.json in cwd, or it is unreadable. The version is cosmetic —
@@ -191,7 +191,7 @@ export async function compileText(source: string, path?: fs.AbsolutePath) {
       },
     ),
   )
-  let result = content.replace(importRegex, () => replacements.shift()!)
+  const result = content.replace(importRegex, () => replacements.shift()!)
   return await PluginHooks.onCompile(result, path)
 }
 

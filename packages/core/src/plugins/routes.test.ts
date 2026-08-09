@@ -10,9 +10,9 @@ describe('routeTable', () => {
       '/api/_x/stats': () => new Response('stats'),
     })
     expect(await (await dispatch(req('/api/_x/stats')))?.text()).toBe('stats')
-    expect(
-      await (await dispatch(req('/api/_x/stats', 'DELETE')))?.text(),
-    ).toBe('stats')
+    expect(await (await dispatch(req('/api/_x/stats', 'DELETE')))?.text()).toBe(
+      'stats',
+    )
   })
 
   test('a method-qualified key only matches that method', async () => {
@@ -78,7 +78,11 @@ describe('routeTable - a plugin cannot forget CSRF', () => {
   const site = 'http://localhost:3000'
   const evil = 'https://evil.example'
 
-  const from = (path: string, method: string, headers: Record<string, string>) =>
+  const from = (
+    path: string,
+    method: string,
+    headers: Record<string, string>,
+  ) =>
     new Request(`${site}${path}`, {
       method,
       headers,
@@ -109,7 +113,9 @@ describe('routeTable - a plugin cannot forget CSRF', () => {
   })
 
   test('a bare key still answers same-origin traffic', async () => {
-    const dispatch = routeTable({ '/api/_x/stats': () => new Response('stats') })
+    const dispatch = routeTable({
+      '/api/_x/stats': () => new Response('stats'),
+    })
     const res = await dispatch(
       from('/api/_x/stats', 'GET', {
         origin: site,
@@ -187,10 +193,12 @@ describe('routeTable - the bundled plugin tables still work', () => {
   })
 
   test('analytics is unchanged for header-less requests', async () => {
-    expect(await (await analytics(req('/_analytics/ping')))?.text()).toBe('pong')
-    expect(
-      await (await analytics(req('/api/_analytics/stats')))?.text(),
-    ).toBe('stats')
+    expect(await (await analytics(req('/_analytics/ping')))?.text()).toBe(
+      'pong',
+    )
+    expect(await (await analytics(req('/api/_analytics/stats')))?.text()).toBe(
+      'stats',
+    )
     expect(
       await (await analytics(req('/api/_analytics/reset', 'POST')))?.text(),
     ).toBe('reset')

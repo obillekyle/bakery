@@ -100,8 +100,7 @@ export function renderStatsPanel() {
         <div class="chart-card glass-effect">
           <span class="card-title">Ping Latency History</span>
           <span class="card-sub">
-            Client-to-server connection latency (last 1 min, 1s
-            resolution)
+            Client-to-server connection latency (last 1 min, 1s resolution)
           </span>
           <canvas id="canvas-ping" class="big-chart"></canvas>
           <div class="chart-stats">

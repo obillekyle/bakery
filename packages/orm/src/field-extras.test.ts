@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from 'bun:test'
+import type { SQLAdapter } from './adapters/base'
 import { MySQLAdapter } from './adapters/mysql'
 import { PGAdapter } from './adapters/pgsql'
 import { SQLiteAdapter } from './adapters/sqlite'
-import type { SQLAdapter } from './adapters/base'
 import { Field } from './field'
 import { poolOptionsFromEnv, withPoolOptions } from './pool'
 import type { ExtractOptionals, ExtractTableTypes } from './schema-util'
@@ -187,9 +187,13 @@ describe('Field.Index and Field.Unique', () => {
   test('several columns make one composite declaration, in order', () => {
     // Order is what decides which queries an index can serve, so it is part of
     // the declaration rather than an implementation detail.
-    expect(Field.Index(col('posts', 'authorId'), col('posts', 'createdAt'))).toEqual(
-      { type: 'index', table: 'posts', cols: ['authorId', 'createdAt'] },
-    )
+    expect(
+      Field.Index(col('posts', 'authorId'), col('posts', 'createdAt')),
+    ).toEqual({
+      type: 'index',
+      table: 'posts',
+      cols: ['authorId', 'createdAt'],
+    })
   })
 })
 
@@ -318,7 +322,10 @@ describe('Field.Uuid', () => {
     const cases: [SQLAdapter, string][] = [
       [new PGAdapter(), 'gen_random_uuid()'],
       [new MySQLAdapter(), 'uuid()'],
-      [new SQLiteAdapter(':memory:'), new SQLiteAdapter(':memory:').uuidExpression],
+      [
+        new SQLiteAdapter(':memory:'),
+        new SQLiteAdapter(':memory:').uuidExpression,
+      ],
     ]
     for (const [db, reported] of cases) {
       expect(db.isUuidDefault(reported)).toBe(true)
@@ -410,74 +417,96 @@ describe('live round-trip', () => {
   ]
 
   for (const [name, skip, open] of dialects) {
-    test.skipIf(skip)(`${name}: uuid and enum survive a round trip`, async () => {
-      const db = open()
-      const table = `bakery_field_${process.pid}`
-      cleanup.push(async () => {
+    test.skipIf(skip)(
+      `${name}: uuid and enum survive a round trip`,
+      async () => {
+        const db = open()
+        const table = `bakery_field_${process.pid}`
+        cleanup.push(async () => {
+          await alive(db.query(`DROP TABLE IF EXISTS ${table}`).run())
+          await db.close?.()
+        })
         await alive(db.query(`DROP TABLE IF EXISTS ${table}`).run())
-        await db.close?.()
-      })
-      await alive(db.query(`DROP TABLE IF EXISTS ${table}`).run())
 
-      const cols = {
-        id: Field.Uuid(),
-        status: Field.Enum(['draft', 'published'] as const, 'draft'),
-      }
-      const ddl = Object.entries(cols)
-        .map(([n, d]) => `${db.quote(n)} ${db.colDef(d, n)}`)
-        .join(', ')
-      await alive(db.query(`CREATE TABLE ${table} (${ddl})`).run())
+        const cols = {
+          id: Field.Uuid(),
+          status: Field.Enum(['draft', 'published'] as const, 'draft'),
+        }
+        const ddl = Object.entries(cols)
+          .map(([n, d]) => `${db.quote(n)} ${db.colDef(d, n)}`)
+          .join(', ')
+        await alive(db.query(`CREATE TABLE ${table} (${ddl})`).run())
 
-      // The database fills both in.
-      await alive(db.query(`INSERT INTO ${table} (${db.quote('status')}) VALUES (?)`).run('published'))
-      const rows = (await alive(
-        db.query(`SELECT ${db.quote('id')}, ${db.quote('status')} FROM ${table}`).all(),
-      )) as any[]
-      expect(rows).toHaveLength(1)
-      expect(String(rows[0].id)).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-      )
-      expect(rows[0].status).toBe('published')
+        // The database fills both in.
+        await alive(
+          db
+            .query(`INSERT INTO ${table} (${db.quote('status')}) VALUES (?)`)
+            .run('published'),
+        )
+        const rows = (await alive(
+          db
+            .query(
+              `SELECT ${db.quote('id')}, ${db.quote('status')} FROM ${table}`,
+            )
+            .all(),
+        )) as any[]
+        expect(rows).toHaveLength(1)
+        expect(String(rows[0].id)).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+        )
+        expect(rows[0].status).toBe('published')
 
-      // The CHECK is real on every dialect, not just the one with native ENUM.
-      let rejected = false
-      try {
-        await alive(db.query(`INSERT INTO ${table} (${db.quote('status')}) VALUES (?)`).run('bogus'))
-      } catch {
-        rejected = true
-      }
-      expect(rejected).toBe(true)
+        // The CHECK is real on every dialect, not just the one with native ENUM.
+        let rejected = false
+        try {
+          await alive(
+            db
+              .query(`INSERT INTO ${table} (${db.quote('status')}) VALUES (?)`)
+              .run('bogus'),
+          )
+        } catch {
+          rejected = true
+        }
+        expect(rejected).toBe(true)
 
-      // And the default reads back as the marker it was written from — this is
-      // the assertion that stands between here and a table rebuilt forever.
-      const constraints: any = await alive(db.getConstraints())
-      const key = Object.keys(constraints).find(
-        k => k.toLowerCase().replace(/_/g, '') === table.toLowerCase().replace(/_/g, ''),
-      )
-      expect(key).toBeDefined()
-      expect(constraints[key!].id.default).toBe('%uuid%')
+        // And the default reads back as the marker it was written from — this is
+        // the assertion that stands between here and a table rebuilt forever.
+        const constraints: any = await alive(db.getConstraints())
+        const key = Object.keys(constraints).find(
+          k =>
+            k.toLowerCase().replace(/_/g, '') ===
+            table.toLowerCase().replace(/_/g, ''),
+        )
+        expect(key).toBeDefined()
+        expect(constraints[key!].id.default).toBe('%uuid%')
 
-      // The decisive one. A column that differs from itself is not a cosmetic
-      // problem: it makes every sync rebuild the table, forever. `length` and
-      // `_enum` are excluded from the diff precisely so this holds, and this is
-      // the assertion that proves the exclusion works against a real server
-      // rather than against the object we just built.
-      // The whole introspected set, not just our table: `buildSyncPlan` diffs
-      // the entire database, so handing it one table makes every *other* table
-      // look unmapped and it stops to ask what to drop.
-      //
-      // Feeding it exactly what it just read is the self-comparison that
-      // matters — if a column differs from itself, it lands in `tablesToRebuild`
-      // and every sync from here to eternity rewrites the table.
-      const { buildSyncPlan } = await import('./sync/helpers')
-      const { Logger, messageLogger } = await import('@bakery/core/logger')
-      const quiet = new Logger('field-test')
-      const plan = await alive(
-        buildSyncPlan(db, constraints, quiet, messageLogger(quiet, {} as any)),
-      )
-      expect([...plan.tablesToRebuild]).toEqual([])
-      expect(plan.columnsToAdd).toEqual([])
-      expect(plan.columnsToDrop).toEqual([])
-    })
+        // The decisive one. A column that differs from itself is not a cosmetic
+        // problem: it makes every sync rebuild the table, forever. `length` and
+        // `_enum` are excluded from the diff precisely so this holds, and this is
+        // the assertion that proves the exclusion works against a real server
+        // rather than against the object we just built.
+        // The whole introspected set, not just our table: `buildSyncPlan` diffs
+        // the entire database, so handing it one table makes every *other* table
+        // look unmapped and it stops to ask what to drop.
+        //
+        // Feeding it exactly what it just read is the self-comparison that
+        // matters — if a column differs from itself, it lands in `tablesToRebuild`
+        // and every sync from here to eternity rewrites the table.
+        const { buildSyncPlan } = await import('./sync/helpers')
+        const { Logger, messageLogger } = await import('@bakery/core/logger')
+        const quiet = new Logger('field-test')
+        const plan = await alive(
+          buildSyncPlan(
+            db,
+            constraints,
+            quiet,
+            messageLogger(quiet, {} as any),
+          ),
+        )
+        expect([...plan.tablesToRebuild]).toEqual([])
+        expect(plan.columnsToAdd).toEqual([])
+        expect(plan.columnsToDrop).toEqual([])
+      },
+    )
   }
 })

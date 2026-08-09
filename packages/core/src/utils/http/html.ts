@@ -429,7 +429,9 @@ async function* bodyEndStage(
  * the next window, and the final carry goes through the shared
  * `rewriteFontsUrls` itself.
  */
-async function* fontsStage(src: AsyncGenerator<string>): AsyncGenerator<string> {
+async function* fontsStage(
+  src: AsyncGenerator<string>,
+): AsyncGenerator<string> {
   let carry = ''
   // Fresh instance: the module-level RX_GFONTS is `/g` and this loop drives it
   // via exec/lastIndex, which must not be shared across interleaved responses.

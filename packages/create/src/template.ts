@@ -300,7 +300,10 @@ export function templateFiles(name: string, range: string): TemplateFile[] {
     { path: 'orm/views.ts', contents: ORM_VIEWS },
     { path: 'orm/indexes.ts', contents: ORM_INDEXES },
     { path: 'orm/index.ts', contents: ORM_INDEX },
-    { path: 'src/index.tsx', contents: INDEX_PAGE.replaceAll('{{name}}', name) },
+    {
+      path: 'src/index.tsx',
+      contents: INDEX_PAGE.replaceAll('{{name}}', name),
+    },
     { path: 'src/api/notes.ts', contents: API_ROUTE },
     { path: 'src/script.ts', contents: CLIENT_SCRIPT },
   ]

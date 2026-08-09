@@ -37,7 +37,9 @@ describe('real SQLite identifier quoting', () => {
       'SELECT "users"."id" AS "teacherId" FROM "users" WHERE "users"."id" = ?',
     )
 
-    await db.query('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)').run()
+    await db
+      .query('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)')
+      .run()
     await db.query('INSERT INTO users (id, name) VALUES (1, ?)').run('ada')
 
     const rows = await db.query(sql).all(1)
@@ -79,7 +81,9 @@ describe('join always qualifies its right-hand column', () => {
   })
 
   test('the emitted join runs against a real database', async () => {
-    await db.query('CREATE TABLE campuses (id INTEGER PRIMARY KEY, name TEXT)').run()
+    await db
+      .query('CREATE TABLE campuses (id INTEGER PRIMARY KEY, name TEXT)')
+      .run()
     await db
       .query(
         'CREATE TABLE teachers (id INTEGER PRIMARY KEY, campus_id INTEGER, surname TEXT)',
@@ -87,7 +91,9 @@ describe('join always qualifies its right-hand column', () => {
       .run()
     await db.query("INSERT INTO campuses (id, name) VALUES (1, 'north')").run()
     await db
-      .query("INSERT INTO teachers (id, campus_id, surname) VALUES (1, 1, 'ada')")
+      .query(
+        "INSERT INTO teachers (id, campus_id, surname) VALUES (1, 1, 'ada')",
+      )
       .run()
 
     const { sql } = DB.table('teachers')
@@ -96,7 +102,9 @@ describe('join always qualifies its right-hand column', () => {
       .parse()
 
     // Previously: SQLiteError, no such column: campuses.
-    expect(await db.query(sql).all()).toEqual([{ surname: 'ada', campus: 'north' }])
+    expect(await db.query(sql).all()).toEqual([
+      { surname: 'ada', campus: 'north' },
+    ])
   })
 
   test('an undotted right column with an alias is unchanged', () => {
@@ -127,7 +135,9 @@ describe('join always qualifies its right-hand column', () => {
 describe('safeColumn hardening', () => {
   test('rejects the old matched-paren bypass', () => {
     // Any string containing "(" and ")" used to be returned unchecked.
-    expect(() => DB.safeColumn('(1) UNION SELECT password FROM users --')).toThrow()
+    expect(() =>
+      DB.safeColumn('(1) UNION SELECT password FROM users --'),
+    ).toThrow()
   })
 
   test('rejects statement injection and stray parens', () => {
@@ -191,9 +201,15 @@ describe('join routes every identifier through safeColumn', () => {
 
   test('leftJoin, rightJoin and innerJoin all inherit the guard', () => {
     const bad = 'a.b = 1 OR 1=1 --' as any
-    expect(() => DB.table('users').leftJoin(bad, 'posts.userId' as any)).toThrow()
-    expect(() => DB.table('users').rightJoin(bad, 'posts.userId' as any)).toThrow()
-    expect(() => DB.table('users').innerJoin(bad, 'posts.userId' as any)).toThrow()
+    expect(() =>
+      DB.table('users').leftJoin(bad, 'posts.userId' as any),
+    ).toThrow()
+    expect(() =>
+      DB.table('users').rightJoin(bad, 'posts.userId' as any),
+    ).toThrow()
+    expect(() =>
+      DB.table('users').innerJoin(bad, 'posts.userId' as any),
+    ).toThrow()
   })
 
   test('nothing unquoted survives into the emitted ON clause', () => {
@@ -247,10 +263,8 @@ describe('returning() validates its column list', () => {
       DB.Insert.into('users').values({ a: 1 }).returning('*').parse().sql,
     ).toContain('RETURNING *')
     expect(
-      DB.Insert.into('users')
-        .values({ a: 1 })
-        .returning('id, userName')
-        .parse().sql,
+      DB.Insert.into('users').values({ a: 1 }).returning('id, userName').parse()
+        .sql,
     ).toContain('RETURNING "id", "user_name"')
   })
 
@@ -275,21 +289,27 @@ describe('orderBy and limit validation', () => {
   })
 
   test('accepts either direction in any casing', () => {
-    expect(DB.table('users').orderBy('id', 'desc' as any).parse().sql).toContain(
-      'ORDER BY "id" DESC',
-    )
+    expect(
+      DB.table('users')
+        .orderBy('id', 'desc' as any)
+        .parse().sql,
+    ).toContain('ORDER BY "id" DESC')
   })
 
   test('rejects a non-numeric limit or offset', () => {
     expect(() => DB.table('users').limit('1; DROP TABLE users' as any)).toThrow(
       /Invalid limit/,
     )
-    expect(() => DB.table('users').limit(10, 'x' as any)).toThrow(/Invalid offset/)
+    expect(() => DB.table('users').limit(10, 'x' as any)).toThrow(
+      /Invalid offset/,
+    )
     expect(() => DB.table('users').limit(-1)).toThrow(/Invalid limit/)
   })
 
   test('coerces a numeric string rather than emitting NaN', () => {
-    const { sql } = DB.table('users').limit('10' as any, '5' as any).parse()
+    const { sql } = DB.table('users')
+      .limit('10' as any, '5' as any)
+      .parse()
     expect(sql).toContain('LIMIT 10 OFFSET 5')
   })
 })
@@ -297,14 +317,17 @@ describe('orderBy and limit validation', () => {
 describe('SELECT DISTINCT', () => {
   test('is emitted straight after SELECT, before the column list', () => {
     expect(
-      DB.from('teachers').select({ surname: 'teachers.surname' }).distinct().parse().sql,
+      DB.from('teachers')
+        .select({ surname: 'teachers.surname' })
+        .distinct()
+        .parse().sql,
     ).toBe('SELECT DISTINCT "teachers"."surname" AS "surname" FROM "teachers"')
   })
 
   test('applies with selectAll and with no select at all', () => {
-    expect(DB.from('teachers').selectAll('teachers').distinct().parse().sql).toBe(
-      'SELECT DISTINCT "teachers".* FROM "teachers"',
-    )
+    expect(
+      DB.from('teachers').selectAll('teachers').distinct().parse().sql,
+    ).toBe('SELECT DISTINCT "teachers".* FROM "teachers"')
     expect(DB.from('teachers').distinct().parse().sql).toBe(
       'SELECT DISTINCT * FROM "teachers"',
     )
@@ -314,7 +337,10 @@ describe('SELECT DISTINCT', () => {
     // `distinct()` sets a flag rather than appending, so the stage it is called
     // at is irrelevant — the alternative would make `.distinct()` before a
     // `.where()` mean something different from after it.
-    const before = DB.from('teachers').distinct().where('teachers.id', 1).parse()
+    const before = DB.from('teachers')
+      .distinct()
+      .where('teachers.id', 1)
+      .parse()
     const after = DB.from('teachers').where('teachers.id', 1).distinct().parse()
     expect(before.sql).toBe(after.sql)
     expect(DB.from('teachers').distinct().distinct().parse().sql).toBe(
@@ -346,8 +372,7 @@ describe('SELECT DISTINCT', () => {
 
 describe('DISTINCT inside an aggregate', () => {
   test('count/sum/avg have a .distinct form', () => {
-    const sql = (fn: any) =>
-      DB.from('teachers').select({ n: fn }).parse().sql
+    const sql = (fn: any) => DB.from('teachers').select({ n: fn }).parse().sql
     expect(sql(DB.count.distinct('teachers.surname'))).toBe(
       'SELECT COUNT(DISTINCT "teachers"."surname") AS "n" FROM "teachers"',
     )
@@ -399,9 +424,13 @@ describe('DISTINCT inside an aggregate', () => {
   test('counts distinct values against a real database', async () => {
     await db.query('DROP TABLE IF EXISTS ad_test').run()
     await db.query('CREATE TABLE ad_test (city TEXT NOT NULL)').run()
-    await db.query("INSERT INTO ad_test (city) VALUES ('a'), ('a'), ('b')").run()
+    await db
+      .query("INSERT INTO ad_test (city) VALUES ('a'), ('a'), ('b')")
+      .run()
 
-    const plain: any = await db.query('SELECT COUNT(city) AS n FROM ad_test').get()
+    const plain: any = await db
+      .query('SELECT COUNT(city) AS n FROM ad_test')
+      .get()
     const dist: any = await db
       .query('SELECT COUNT(DISTINCT city) AS n FROM ad_test')
       .get()
@@ -458,7 +487,10 @@ describe('upsert', () => {
     // Not a special case in the code — it falls out of "everything except the
     // key", and DO NOTHING is the correct statement for it.
     expect(
-      DB.Insert.into('teachers').values({ surname: 'a' }).upsert(['surname']).parse().sql,
+      DB.Insert.into('teachers')
+        .values({ surname: 'a' })
+        .upsert(['surname'])
+        .parse().sql,
     ).toContain('DO NOTHING')
   })
 
@@ -482,11 +514,19 @@ describe('upsert', () => {
 
   test('two upserts leave one row, against a real database', async () => {
     await db.query('DROP TABLE IF EXISTS up_q').run()
-    await db.query('CREATE TABLE up_q (email TEXT NOT NULL, name TEXT NOT NULL)').run()
+    await db
+      .query('CREATE TABLE up_q (email TEXT NOT NULL, name TEXT NOT NULL)')
+      .run()
     await db.query('CREATE UNIQUE INDEX up_q_email ON up_q (email)').run()
 
-    await DB.Insert.into('up_q').values({ email: 'a@b.c', name: 'first' }).upsert(['email']).run()
-    await DB.Insert.into('up_q').values({ email: 'a@b.c', name: 'second' }).upsert(['email']).run()
+    await DB.Insert.into('up_q')
+      .values({ email: 'a@b.c', name: 'first' })
+      .upsert(['email'])
+      .run()
+    await DB.Insert.into('up_q')
+      .values({ email: 'a@b.c', name: 'second' })
+      .upsert(['email'])
+      .run()
 
     const rows: any[] = await db.query('SELECT * FROM up_q').all()
     expect(rows.length).toBe(1)

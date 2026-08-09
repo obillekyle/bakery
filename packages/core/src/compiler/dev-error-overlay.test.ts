@@ -7,9 +7,9 @@ import {
 } from '../core/config'
 import { handleRequestError } from '../router'
 import {
+  DEV_ERROR_PLUGIN,
   registerDevErrorOverlay,
   setDevErrorSink,
-  DEV_ERROR_PLUGIN,
 } from './dev-service'
 
 /**
@@ -64,9 +64,7 @@ describe('request-time errors reach the overlay', () => {
     )
 
     expect(frames).toHaveLength(1)
-    expect(frames[0].title).toBe(
-      '500 Unexpected token, expected ")" — /broken',
-    )
+    expect(frames[0].title).toBe('500 Unexpected token, expected ")" — /broken')
     // `extractErrorData` puts the stack in `errorBody`; losing it here would
     // leave the overlay showing a headline with nothing under it.
     expect(frames[0].body).toContain('Unexpected token')

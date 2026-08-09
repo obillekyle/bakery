@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 // Side effect, before `asDev` captures the DEV descriptor below: init installs
 // the mode accessors, and capturing before it runs captures nothing.
 import '../../core/init'

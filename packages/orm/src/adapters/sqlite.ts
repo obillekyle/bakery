@@ -217,9 +217,9 @@ export class SQLiteAdapter extends SQLAdapter {
   // bound parameter, so there is nothing left to quote; MySQL and Postgres
   // already bind theirs against `information_schema`.
   async hasCol(table: string, column: string): Promise<boolean> {
-    const cols = (await this.query(
-      `SELECT name FROM pragma_table_info(?)`,
-    ).all(table)) as SQLAdapter.NameRow[]
+    const cols = (await this.query(`SELECT name FROM pragma_table_info(?)`).all(
+      table,
+    )) as SQLAdapter.NameRow[]
     return cols.some(c => c.name === column)
   }
 
@@ -539,7 +539,10 @@ export class SQLiteAdapter extends SQLAdapter {
     // is worth doing on a dialect with no real VARCHAR: it is what lets one
     // schema round-trip on all three.
     const declared = String(col.type || '')
-    const length = this.sizedTextLength(declared, /\((\d+)\)/.exec(declared)?.[1])
+    const length = this.sizedTextLength(
+      declared,
+      /\((\d+)\)/.exec(declared)?.[1],
+    )
     if (length !== undefined) cons.length = length
 
     if (primary) cons.primary = true

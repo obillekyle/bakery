@@ -192,7 +192,8 @@ export class DynamicHandler extends Handler {
 
   static validateCachedRoute(path: string, info: Route.Info | null) {
     if (!info) return null
-    if (info.valid && !fs.isForbidden(info.filePath!, Bakery.serveRoot)) return info
+    if (info.valid && !fs.isForbidden(info.filePath!, Bakery.serveRoot))
+      return info
     this.cache.delete(path)
     if (info.regex) this.dynamicCache.delete(info.regex)
     return null
@@ -246,13 +247,9 @@ export class DynamicHandler extends Handler {
     const dir = mounted ? mounted.mount.dir : config.dir || Bakery.serveRoot
     const routePath = mounted ? mounted.rest : path
 
-    const staticInfo = await getRoute(
-      routePath,
-      config.ext,
-      dir,
-      dir,
-      { staticOnly: true },
-    )
+    const staticInfo = await getRoute(routePath, config.ext, dir, dir, {
+      staticOnly: true,
+    })
     if (staticInfo) {
       return this.cacheStaticRoute(path, staticInfo)
     }
@@ -269,13 +266,9 @@ export class DynamicHandler extends Handler {
       return dyn
     }
 
-    const info = await getRoute(
-      routePath,
-      config.ext,
-      dir,
-      dir,
-      { dynamicOnly: true },
-    )
+    const info = await getRoute(routePath, config.ext, dir, dir, {
+      dynamicOnly: true,
+    })
     if (!info) return null
 
     if (info.isDynamic && info.regex) {

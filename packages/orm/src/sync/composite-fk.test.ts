@@ -27,9 +27,9 @@ const col = (table: string, column: string) =>
  */
 describe('Field.Foreign.composite() composite declaration', () => {
   test('single column still produces a single-column key', () => {
-    const fk: any = Field.Foreign.composite(col('posts', 'authorId')).references(
-      col('users', 'id'),
-    )
+    const fk: any = Field.Foreign.composite(
+      col('posts', 'authorId'),
+    ).references(col('users', 'id'))
     expect(fk.cols).toEqual(['authorId'])
     expect(fk.refCols).toEqual(['id'])
     expect(fk.table).toBe('posts')
@@ -37,10 +37,9 @@ describe('Field.Foreign.composite() composite declaration', () => {
   })
 
   test('actions still reach a single-column key', () => {
-    const fk: any = Field.Foreign.composite(col('posts', 'authorId')).references(
-      col('users', 'id'),
-      { onDelete: 'CASCADE' },
-    )
+    const fk: any = Field.Foreign.composite(
+      col('posts', 'authorId'),
+    ).references(col('users', 'id'), { onDelete: 'CASCADE' })
     expect(fk.onDelete).toBe('CASCADE')
   })
 
@@ -70,18 +69,19 @@ describe('Field.Foreign.composite() composite declaration', () => {
     // Silently emitting FOREIGN KEY (a, b) REFERENCES t (x) is a server error
     // much later, with nothing pointing at the schema line that caused it.
     expect(() =>
-      Field.Foreign.composite(col('items', 'orderId'), col('items', 'sku')).references(
-        col('orders', 'id'),
-      ),
+      Field.Foreign.composite(
+        col('items', 'orderId'),
+        col('items', 'sku'),
+      ).references(col('orders', 'id')),
     ).toThrow(/same count on both sides/)
   })
 
   test('columns from two different tables are refused', () => {
     expect(() =>
-      Field.Foreign.composite(col('items', 'orderId'), col('other', 'sku')).references(
-        col('orders', 'id'),
-        col('orders', 'sku'),
-      ),
+      Field.Foreign.composite(
+        col('items', 'orderId'),
+        col('other', 'sku'),
+      ).references(col('orders', 'id'), col('orders', 'sku')),
     ).toThrow(/one table/)
     expect(() =>
       Field.Foreign.composite(col('items', 'a'), col('items', 'b')).references(
@@ -92,9 +92,9 @@ describe('Field.Foreign.composite() composite declaration', () => {
   })
 
   test('no target at all is refused', () => {
-    expect(() => Field.Foreign.composite(col('items', 'orderId')).references()).toThrow(
-      /needs a target/,
-    )
+    expect(() =>
+      Field.Foreign.composite(col('items', 'orderId')).references(),
+    ).toThrow(/needs a target/)
   })
 })
 
@@ -156,10 +156,18 @@ describe('composite foreign keys against a live server', () => {
       )
 
       await alive(
-        db.query(`INSERT INTO ${parent} (${db.quote('id')}, ${db.quote('sku')}) VALUES (?, ?)`).run(1, 'abc'),
+        db
+          .query(
+            `INSERT INTO ${parent} (${db.quote('id')}, ${db.quote('sku')}) VALUES (?, ?)`,
+          )
+          .run(1, 'abc'),
       )
       await alive(
-        db.query(`INSERT INTO ${child} (${db.quote('order_id')}, ${db.quote('sku')}) VALUES (?, ?)`).run(1, 'abc'),
+        db
+          .query(
+            `INSERT INTO ${child} (${db.quote('order_id')}, ${db.quote('sku')}) VALUES (?, ?)`,
+          )
+          .run(1, 'abc'),
       )
 
       // A row matching only *half* the key must be rejected. This is the whole
@@ -168,7 +176,11 @@ describe('composite foreign keys against a live server', () => {
       let rejected = false
       try {
         await alive(
-          db.query(`INSERT INTO ${child} (${db.quote('order_id')}, ${db.quote('sku')}) VALUES (?, ?)`).run(1, 'nope'),
+          db
+            .query(
+              `INSERT INTO ${child} (${db.quote('order_id')}, ${db.quote('sku')}) VALUES (?, ?)`,
+            )
+            .run(1, 'nope'),
         )
       } catch {
         rejected = true
@@ -176,8 +188,12 @@ describe('composite foreign keys against a live server', () => {
       expect(rejected).toBe(true)
 
       // ON DELETE CASCADE across both columns.
-      await alive(db.query(`DELETE FROM ${parent} WHERE ${db.quote('id')} = ?`).run(1))
-      const left = (await alive(db.query(`SELECT * FROM ${child}`).all())) as any[]
+      await alive(
+        db.query(`DELETE FROM ${parent} WHERE ${db.quote('id')} = ?`).run(1),
+      )
+      const left = (await alive(
+        db.query(`SELECT * FROM ${child}`).all(),
+      )) as any[]
       expect(left).toHaveLength(0)
     })
 
@@ -201,10 +217,10 @@ describe('composite foreign keys against a live server', () => {
           )
           .run(),
       )
-      const fk: any = Field.Foreign.composite(col(child, 'orderId'), col(child, 'sku')).references(
-        col(parent, 'id'),
-        col(parent, 'sku'),
-      )
+      const fk: any = Field.Foreign.composite(
+        col(child, 'orderId'),
+        col(child, 'sku'),
+      ).references(col(parent, 'id'), col(parent, 'sku'))
       await alive(
         db
           .query(
@@ -217,7 +233,9 @@ describe('composite foreign keys against a live server', () => {
 
       const keys: any = await alive(db.getForeignKeys())
       const mine = Object.values(keys).find(
-        (k: any) => k.cols?.length === 2 && String(k.table).toLowerCase().includes('cfkr_c'),
+        (k: any) =>
+          k.cols?.length === 2 &&
+          String(k.table).toLowerCase().includes('cfkr_c'),
       ) as any
       expect(mine).toBeDefined()
       expect(mine.cols).toHaveLength(2)

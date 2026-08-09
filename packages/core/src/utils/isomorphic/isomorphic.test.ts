@@ -1,12 +1,19 @@
 import { describe, expect, test } from 'bun:test'
-import { Case as CommonCase, is as commonIs, Math2 as CommonMath2, match as commonMatch, throws as commonThrows, Try as CommonTry } from '../common'
+import {
+  Case as CommonCase,
+  Math2 as CommonMath2,
+  Try as CommonTry,
+  is as commonIs,
+  match as commonMatch,
+  throws as commonThrows,
+} from '../common'
+import { Case } from './case'
 import { escapeHtml, escapeScriptJson } from './escape'
 import { is } from './is'
 import { match } from './match'
 import { Math2 } from './math'
 import { throws } from './misc'
 import { circularReplacer, safeStringify } from './stringify'
-import { Case } from './case'
 import { Try } from './try'
 
 describe('single source of truth', () => {

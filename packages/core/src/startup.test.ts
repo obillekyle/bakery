@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import {
-  __resetTestConfig,
-  __setTestConfig,
-  initConfig,
-} from './core/config'
+import { __resetTestConfig, __setTestConfig, initConfig } from './core/config'
 import { __resetPluginSetup, setupPlugins } from './startup'
 
 /**

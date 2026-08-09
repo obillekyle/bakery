@@ -1,4 +1,4 @@
-import { expect, test, describe, afterAll, beforeEach, beforeAll } from 'bun:test'
+import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import { Bakery, getHostname, hostKey, hostStore } from '../core/bakery'
 import {
   __resetTestConfig,
@@ -21,7 +21,9 @@ describe('Multi-Host Architecture', () => {
       const req = new Request('http://localhost:3000/path', {
         headers: { 'x-forwarded-host': 'tenant.example.com' },
       })
-      expect(getHostname(req, { trustProxy: true } as any)).toBe('tenant.example.com')
+      expect(getHostname(req, { trustProxy: true } as any)).toBe(
+        'tenant.example.com',
+      )
     })
 
     test('extracts hostname from host header when x-forwarded-host is missing', () => {
@@ -53,9 +55,12 @@ describe('Multi-Host Architecture', () => {
 
     test('scopes path with current hostStore hostname', async () => {
       __setTestConfig({ hosts })
-      await hostStore.run({ hostname: 'client-a.com', config: Bakery.config }, async () => {
-        expect(hostKey('/index.html')).toBe('client-a.com:/index.html')
-      })
+      await hostStore.run(
+        { hostname: 'client-a.com', config: Bakery.config },
+        async () => {
+          expect(hostKey('/index.html')).toBe('client-a.com:/index.html')
+        },
+      )
     })
 
     test('returns raw path when outside hostStore scope or hostname is empty', () => {
@@ -64,9 +69,12 @@ describe('Multi-Host Architecture', () => {
 
     test('an unconfigured hostname does not get a namespace of its own', async () => {
       __setTestConfig({ hosts })
-      await hostStore.run({ hostname: 'client-z.com', config: Bakery.config }, async () => {
-        expect(hostKey('/index.html')).toBe('/index.html')
-      })
+      await hostStore.run(
+        { hostname: 'client-z.com', config: Bakery.config },
+        async () => {
+          expect(hostKey('/index.html')).toBe('/index.html')
+        },
+      )
     })
   })
 
@@ -74,15 +82,21 @@ describe('Multi-Host Architecture', () => {
     test('preserves host context across async timeouts and promises', async () => {
       const results: string[] = []
 
-      const taskA = hostStore.run({ hostname: 'host-a.com', config: Bakery.config }, async () => {
-        await new Promise(r => setTimeout(r, 20))
-        results.push(`A:${hostStore.getStore()?.hostname}`)
-      })
+      const taskA = hostStore.run(
+        { hostname: 'host-a.com', config: Bakery.config },
+        async () => {
+          await new Promise(r => setTimeout(r, 20))
+          results.push(`A:${hostStore.getStore()?.hostname}`)
+        },
+      )
 
-      const taskB = hostStore.run({ hostname: 'host-b.com', config: Bakery.config }, async () => {
-        await new Promise(r => setTimeout(r, 10))
-        results.push(`B:${hostStore.getStore()?.hostname}`)
-      })
+      const taskB = hostStore.run(
+        { hostname: 'host-b.com', config: Bakery.config },
+        async () => {
+          await new Promise(r => setTimeout(r, 10))
+          results.push(`B:${hostStore.getStore()?.hostname}`)
+        },
+      )
 
       await Promise.all([taskA, taskB])
       expect(results).toContain('A:host-a.com')
@@ -99,9 +113,12 @@ describe('Multi-Host Architecture', () => {
         }
       })
 
-      await hostStore.run({ hostname: 'paldo.dev', config: Bakery.config }, async () => {
-        Bakery.config.onError({ errorBody: 'Test 404 Error' } as any)
-      })
+      await hostStore.run(
+        { hostname: 'paldo.dev', config: Bakery.config },
+        async () => {
+          Bakery.config.onError({ errorBody: 'Test 404 Error' } as any)
+        },
+      )
 
       await new Promise(r => setTimeout(r, 10))
       expect(loggedBy).toBe('paldo.dev')

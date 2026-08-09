@@ -1,6 +1,6 @@
-import { describe, test, expect } from 'bun:test'
-import { PromptTracker } from './prompt-tracker'
+import { describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
+import { PromptTracker } from './prompt-tracker'
 
 describe('PromptTracker', () => {
   const testPid = 999999

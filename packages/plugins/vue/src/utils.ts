@@ -1,4 +1,8 @@
-import { readdir as nodeReaddir, rename as nodeRename, unlink as nodeUnlink } from 'node:fs/promises'
+import {
+  readdir as nodeReaddir,
+  rename as nodeRename,
+  unlink as nodeUnlink,
+} from 'node:fs/promises'
 import { LRUCache } from '@bakery/core/cache/lru'
 import { Bakery } from '@bakery/core/core/bakery'
 import { Logger } from '@bakery/core/logger'
@@ -51,8 +55,7 @@ export const parsedCache = new LRUCache<string, ParsedCacheEntry>(1000)
  */
 export { escapeHtml, escapeScriptJson } from '@bakery/core/utils/http'
 
-const RX_SERVER_SCRIPT_OPEN =
-  /<script\b(?=[^>]*\bserver(?=[\s/>=]))[^>]*>/gi
+const RX_SERVER_SCRIPT_OPEN = /<script\b(?=[^>]*\bserver(?=[\s/>=]))[^>]*>/gi
 const CLOSING_TAG = '</script'
 
 /**
@@ -168,7 +171,10 @@ export function extractImportsAndBody(code: string) {
  * must be made absolute. `import(` is included because dynamic imports are the
  * normal way a server action pulls in an API handler.
  */
-export function rewriteRelativeImports(code: string, filePath?: string): string {
+export function rewriteRelativeImports(
+  code: string,
+  filePath?: string,
+): string {
   if (!filePath) return code
   const dir = fs.dirname(filePath)
   return code.replace(
@@ -434,7 +440,9 @@ async function pruneServerCache(dir: string, id: string, keepName: string) {
     entries
       .filter(
         name =>
-          name.startsWith(`${id}_`) && name.endsWith('.ts') && name !== keepName,
+          name.startsWith(`${id}_`) &&
+          name.endsWith('.ts') &&
+          name !== keepName,
       )
       .map(name => Try(nodeUnlink(fs.resolve(dir, name)))),
   )
@@ -586,7 +594,9 @@ export function parseVueMeta(raw: string): { meta: VueMeta; clean: string } {
     if (/\bmodule-only\b/i.test(attrs)) meta.moduleOnly = true
     if (/\bpage-only\b/i.test(attrs)) meta.pageOnly = true
 
-    const titleMatch = attrs.match(/\btitle\s*=\s*"([^"]*)"|\btitle\s*=\s*'([^']*)'/i)
+    const titleMatch = attrs.match(
+      /\btitle\s*=\s*"([^"]*)"|\btitle\s*=\s*'([^']*)'/i,
+    )
     if (titleMatch) meta.title = titleMatch[1] ?? titleMatch[2]
 
     index += tag[0].length

@@ -1,8 +1,8 @@
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { initConfig } from '@bakery/core/core/config'
 import { DASHPASS_SESSION_KEY } from '@bakery/core/session'
-import { AnalyticsWSHandler } from './endpoints/websocket'
 import { isAnalyticsAuthorized } from './endpoints/stats'
+import { AnalyticsWSHandler } from './endpoints/websocket'
 
 beforeAll(async () => {
   await initConfig()

@@ -8,7 +8,7 @@ import {
   validateActionRequest,
   validateActionTarget,
 } from './actions'
-import { setVuePluginOptions, resolveIsCustomElement } from './compile'
+import { resolveIsCustomElement, setVuePluginOptions } from './compile'
 import { VueHandler } from './handler'
 import type { VueMeta } from './types'
 import {
@@ -98,7 +98,9 @@ export const message = 'Hello Server'
       file.lastModified,
     )
 
-    expect(parsed.serverScript.trim()).toBe("export const message = 'Hello Server'")
+    expect(parsed.serverScript.trim()).toBe(
+      "export const message = 'Hello Server'",
+    )
     expect(parsed.cleanContent).toContain('__BAKERY_VUE_SERVER_DATA__')
     expect(parsed.cleanContent).not.toContain('globalThis.__vue_server')
   })
@@ -352,7 +354,9 @@ describe('Vue Meta (<meta /> block)', () => {
     expect(resolveIsCustomElement('my-custom-el')).toBe(true)
     expect(resolveIsCustomElement('div')).toBe(false)
 
-    setVuePluginOptions({ customElements: (tag: string) => tag.startsWith('app-') })
+    setVuePluginOptions({
+      customElements: (tag: string) => tag.startsWith('app-'),
+    })
 
     expect(resolveIsCustomElement('app-header')).toBe(true)
     expect(resolveIsCustomElement('iconify-icon')).toBe(true)
@@ -430,8 +434,12 @@ export async function doSomething(val) {
       file.lastModified,
     )
 
-    expect(parsed.cleanContent).toContain('const { title } = __BAKERY_VUE_SERVER_DATA__;')
-    expect(parsed.cleanContent).toContain('const doSomething = async (...args) =>')
+    expect(parsed.cleanContent).toContain(
+      'const { title } = __BAKERY_VUE_SERVER_DATA__;',
+    )
+    expect(parsed.cleanContent).toContain(
+      'const doSomething = async (...args) =>',
+    )
     expect(parsed.cleanContent).toContain('__vue_action=doSomething')
   })
 
@@ -520,9 +528,15 @@ export async function subAction(arg) {
       file.lastModified,
     )
 
-    const res = await VueHandler.handleScript(id, '/test-sub-module.vue', false, parsed, {
-      subData: 'sub-value',
-    })
+    const res = await VueHandler.handleScript(
+      id,
+      '/test-sub-module.vue',
+      false,
+      parsed,
+      {
+        subData: 'sub-value',
+      },
+    )
 
     expect(res).toBeInstanceOf(Response)
     const text = await (res as Response).text()
@@ -552,7 +566,12 @@ describe('Action dispatch is restricted to exported functions', () => {
   })
 
   test('Object.prototype members are not callable as actions', async () => {
-    for (const name of ['constructor', 'toString', 'valueOf', 'hasOwnProperty']) {
+    for (const name of [
+      'constructor',
+      'toString',
+      'valueOf',
+      'hasOwnProperty',
+    ]) {
       const res = await getServerResponse({
         script,
         id: `dispatch-proto-${name}`,
@@ -676,7 +695,9 @@ export const doArrow = async (v) => v
 
     expect(parsed.cleanContent).toContain('const doArrow = async (...args) =>')
     expect(parsed.cleanContent).toContain('__vue_action=doArrow')
-    expect(parsed.cleanContent).toContain('const { label } = __BAKERY_VUE_SERVER_DATA__;')
+    expect(parsed.cleanContent).toContain(
+      'const { label } = __BAKERY_VUE_SERVER_DATA__;',
+    )
   })
 
   test('generated wrapper does not collide with user identifiers', () => {
@@ -709,7 +730,8 @@ describe('Relative import rewriting in server blocks', () => {
   // A describe body runs at collection time, before `beforeAll` — so this has
   // to be resolved per test, after `initConfig()`, for the same reason
   // `ROOT_FIXTURE_PATH` is.
-  const filePath = () => fs.resolve(Bakery.serveRoot, 'teacher/pages/students.vue')
+  const filePath = () =>
+    fs.resolve(Bakery.serveRoot, 'teacher/pages/students.vue')
 
   test('rewrites static relative imports to absolute paths', () => {
     const out = rewriteRelativeImports(
@@ -820,7 +842,9 @@ export const hidden = DB_PASSWORD.length
 
 describe('Script-context escaping', () => {
   test('escapeScriptJson neutralizes a </script> breakout', () => {
-    const payload = escapeScriptJson({ name: '</script><script>alert(1)</script>' })
+    const payload = escapeScriptJson({
+      name: '</script><script>alert(1)</script>',
+    })
     expect(payload).not.toContain('</script>')
     expect(payload).toContain('\\u003c')
     expect(JSON.parse(payload).name).toBe('</script><script>alert(1)</script>')
@@ -877,7 +901,9 @@ export const studentName = '</script><script>alert(document.cookie)</script>'
 
     expect(payload).not.toContain('</script>')
     expect(payload).toContain('\\u003c/script>')
-    expect(html).not.toContain('<title></title><script>alert(1)</script></title>')
+    expect(html).not.toContain(
+      '<title></title><script>alert(1)</script></title>',
+    )
     expect(html).toContain('&lt;/title&gt;')
   })
 
@@ -900,12 +926,23 @@ export const note = 'x'
     )
 
     const tricky = "$' and $& and $` and $$"
-    const res = await VueHandler.handleHtml(id, {}, '/test-dollar', { note: tricky }, parsed)
+    const res = await VueHandler.handleHtml(
+      id,
+      {},
+      '/test-dollar',
+      { note: tricky },
+      parsed,
+    )
     const html = await (res as Response).text()
 
     const start = html.indexOf('globalThis.__vue_server')
     const decl = html.slice(start, html.indexOf('</script>', start))
-    const json = JSON.parse(decl.slice(decl.indexOf('=') + 1).trim().replace(/;$/, ''))
+    const json = JSON.parse(
+      decl
+        .slice(decl.indexOf('=') + 1)
+        .trim()
+        .replace(/;$/, ''),
+    )
 
     expect(json.note).toBe(tricky)
   })
@@ -914,7 +951,9 @@ export const note = 'x'
 describe('Server action request validation (CSRF)', () => {
   const url = new URL('http://localhost:3000/admin/pages/students.vue')
 
-  function makeRequest(init: RequestInit & { headers?: Record<string, string> }) {
+  function makeRequest(
+    init: RequestInit & { headers?: Record<string, string> },
+  ) {
     return new Request(url.href, init)
   }
 
@@ -1119,7 +1158,11 @@ describe('Action target gating (__vue_file)', () => {
     // The bypass in its clearest form: a public page naming an admin page in
     // `__vue_file`. The route's own gates said nothing about this file.
     const res = validateActionTarget(
-      { id: 'admin-page-id', meta: meta({ pageOnly: true }), serverScript: script },
+      {
+        id: 'admin-page-id',
+        meta: meta({ pageOnly: true }),
+        serverScript: script,
+      },
       ROUTE_ID,
       'allowed',
     )
@@ -1161,7 +1204,9 @@ describe('Action target resolution (path traversal)', () => {
   })
 
   test('rejects an absolute path', async () => {
-    expect(await resolveActionTarget('C:/Windows/system32/config.vue')).toBeNull()
+    expect(
+      await resolveActionTarget('C:/Windows/system32/config.vue'),
+    ).toBeNull()
     expect(await resolveActionTarget('/etc/shadow.vue')).toBeNull()
   })
 

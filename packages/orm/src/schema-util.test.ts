@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { MySQLAdapter } from './adapters/mysql'
 import { PGAdapter } from './adapters/pgsql'
 import { SQLiteAdapter } from './adapters/sqlite'
@@ -11,8 +11,8 @@ const mockDb = { quoteChar: '"' }
 beforeAll(() => __setTestDb(mockDb))
 afterAll(() => __resetTestDb())
 
-import { evalOperands, isSafeIdentifier, SQLFunctionRef } from './schema-util'
 import { Field } from './field'
+import { evalOperands, isSafeIdentifier, SQLFunctionRef } from './schema-util'
 
 /**
  * The runtime object, widened.
@@ -23,7 +23,6 @@ import { Field } from './field'
  * has to say it is reading the runtime shape.
  */
 const shape = (d: unknown) => ({ ...(d as Record<string, unknown>) })
-
 
 describe('evalOperands', () => {
   test('pushes scalar values as params', () => {
@@ -87,7 +86,9 @@ describe('evalOperands SQL injection guards', () => {
 
   test('a real SQLFunctionRef with an unknown function name is rejected', () => {
     const evil = new SQLFunctionRef('1 OR 1=1 OR ABS', 'id')
-    expect(() => evalOperands(evil, [], false)).toThrow(/Unsupported SQL function/)
+    expect(() => evalOperands(evil, [], false)).toThrow(
+      /Unsupported SQL function/,
+    )
   })
 
   test('a real SQLFunctionRef with an allow-listed name still works', () => {

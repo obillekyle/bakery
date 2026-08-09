@@ -240,7 +240,8 @@ function connect() {
       sendLog('error', args)
     }
 
-    window.onerror = (m, s, l, c) => sendLog('error', [`${m} at ${s}:${l}:${c}`])
+    window.onerror = (m, s, l, c) =>
+      sendLog('error', [`${m} at ${s}:${l}:${c}`])
     window.addEventListener('unhandledrejection', e =>
       sendLog('error', [`Unhandled Promise: ${e.reason}`]),
     )
@@ -434,5 +435,3 @@ document.addEventListener('visibilitychange', () => {
     location.reload()
   }
 })
-
-export {}

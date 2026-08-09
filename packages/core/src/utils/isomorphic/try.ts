@@ -1,7 +1,14 @@
+import type { MixedPromise, Wrapped } from '../../types'
 import { is } from './is'
 
-type Wrapped<T, Args extends any[] = []> = T | ((...args: Args) => T)
-type MixedPromise<T> = Promise<T> | T
+// These were declared again, here, byte-for-byte identical to `types.d.ts` —
+// the second copy convention 5 exists to prevent. `isomorphic.test.ts` catches
+// a duplicated *value* by reference identity, and a type has no runtime
+// identity to compare, so nothing saw it.
+//
+// A type-only import is safe in an isomorphic module: `verbatimModuleSyntax`
+// makes the compiler reject a value-position import of these, so it cannot
+// become a runtime module edge into the browser bundle.
 
 type CatchReturn<T extends MixedPromise<any>> =
   T extends Promise<infer V>

@@ -1,7 +1,7 @@
 import { Bakery } from '../../core/bakery'
-import { getStatic } from '../core/$static'
 import { response } from '../../utils/http'
 import { Handler } from '../core/$base'
+import { getStatic } from '../core/$static'
 
 export class PublicHandler extends Handler {
   static canHandle(path: string) {

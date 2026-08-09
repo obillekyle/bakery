@@ -16,7 +16,10 @@ function withConfig<T>(overrides: any, fn: () => Promise<T>): Promise<T> {
 }
 
 /** Scope a middleware chain to this test without mutating the frozen global config. */
-function withMiddleware<T>(middleware: any[], fn: () => Promise<T>): Promise<T> {
+function withMiddleware<T>(
+  middleware: any[],
+  fn: () => Promise<T>,
+): Promise<T> {
   return withConfig({ middleware }, fn)
 }
 
@@ -85,7 +88,10 @@ describe('MiddlewareHandler request isolation', () => {
 
   test('returns false when no middleware produces a response', async () => {
     const matched = await withMiddleware([async () => undefined], () =>
-      MiddlewareHandler.canHandle('/open', new Request('http://localhost/open')),
+      MiddlewareHandler.canHandle(
+        '/open',
+        new Request('http://localhost/open'),
+      ),
     )
     expect(matched).toBe(false)
   })
@@ -149,7 +155,10 @@ describe('config.onRequest', () => {
 
   test('no response from onRequest still falls through to the chain', async () => {
     const matched = await withConfig({ onRequest: () => undefined }, () =>
-      MiddlewareHandler.canHandle('/open', new Request('http://localhost/open')),
+      MiddlewareHandler.canHandle(
+        '/open',
+        new Request('http://localhost/open'),
+      ),
     )
 
     expect(matched).toBe(false)

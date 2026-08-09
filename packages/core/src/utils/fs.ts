@@ -1,17 +1,24 @@
-import { existsSync as nodeExistsSync, statSync as nodeStatSync } from 'node:fs'
+import {
+  readFileSync as fsRfs,
+  existsSync as nodeExistsSync,
+  statSync as nodeStatSync,
+} from 'node:fs'
 import { mkdir as fsMkdir, rm as fsRm } from 'node:fs/promises'
-import { readFileSync as fsRfs } from 'node:fs'
-import { dirname as nodeDirname, relative as nodeRelative, resolve } from 'node:path'
+import {
+  dirname as nodeDirname,
+  relative as nodeRelative,
+  resolve,
+} from 'node:path'
 import { parse as parsedPath } from 'node:path/posix'
-import { gzip as zlibGzip } from 'node:zlib'
 import { promisify } from 'node:util'
-import { is, Try } from './common'
+import { gzip as zlibGzip } from 'node:zlib'
 import { LRUCache } from '../cache/lru'
 // A cycle on paper (`core/context` imports this file for `getBakeryVersion`),
 // harmless in practice: neither module touches the other's bindings during
 // evaluation — `hostStore` is only read inside `isForbidden`, at request time.
 import { hostStore } from '../core/context'
 import type { MixedPromise } from '../types'
+import { is, Try } from './common'
 
 type CompressInput = string | Uint8Array | ArrayBuffer
 
@@ -231,12 +238,12 @@ export namespace Glob {
 }
 
 export namespace FileSystem {
+  // Naming, not constraint — `string & {}` is `string`. These document what a
+  // parameter means at its declaration, which earns their keep. Four more
+  // (`RequestPath`, `DirectoryPath`, `FileName`, `FileExtension`) documented
+  // nothing, because nothing ever referenced them.
   export type AbsolutePath = string & {}
   export type RelativePath = string & {}
-  export type RequestPath = string & {}
-  export type DirectoryPath = string & {}
-  export type FileName = string & {}
-  export type FileExtension = string & {}
 
   export async function* glob(pattern: Glob.Pattern, exclude?: Glob.Patterns) {
     const glob = Glob.from(pattern)

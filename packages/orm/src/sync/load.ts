@@ -1,7 +1,6 @@
+import { Case, fs } from '@bakery/core/utils'
 import { Try } from '@bakery/core/utils/common'
-import { fs } from '@bakery/core/utils'
 import { collectConstraints } from '../define'
-import { Case } from '@bakery/core/utils'
 import type * as SyncTypes from './types'
 
 /**

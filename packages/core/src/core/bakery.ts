@@ -1,5 +1,5 @@
-import { fs } from '../utils/fs'
 import { HandlerMap } from '../handlers/core/$registry'
+import { fs } from '../utils/fs'
 import { SharedMemoryPool } from '../utils/shared-pool'
 import { getConfig, resolveHostname } from './config'
 import { getBakeryVersion, hostStore } from './context'
@@ -27,7 +27,10 @@ export function hostKey(path: string): string {
   return host ? `${host}:${path}` : path
 }
 
-export function getHostname(req: Request, config?: Readonly<ProcessedAppConfig>): string {
+export function getHostname(
+  req: Request,
+  config?: Readonly<ProcessedAppConfig>,
+): string {
   if (req.__hostname) return req.__hostname
 
   let hostname = ''

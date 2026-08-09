@@ -1,9 +1,9 @@
-import { Bakery } from './bakery'
 import type { Handler } from '../handlers'
-import { is } from '../utils/common'
-import { injectIfHtml, response } from '../utils/http'
 import { errorMsg, pluginLog, serveLog } from '../logger'
 import { Try } from '../utils'
+import { is } from '../utils/common'
+import { injectIfHtml, response } from '../utils/http'
+import { Bakery } from './bakery'
 
 function getPlugins() {
   return Bakery.config.plugins
@@ -100,7 +100,10 @@ export namespace PluginHooks {
     }
   }
 
-  export async function onCompile(content: string, path: string): Promise<string> {
+  export async function onCompile(
+    content: string,
+    path: string,
+  ): Promise<string> {
     for (const plugin of getPlugins()) {
       if (!plugin.onCompile) continue
       const [err, res] = await Try.catch(() => plugin.onCompile!(content, path))

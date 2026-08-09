@@ -23,10 +23,7 @@ export interface ActionTargetInfo {
  * request. Requiring POST + JSON puts them outside the set of CORS-simple
  * requests a foreign page can issue without a preflight.
  */
-export function validateActionRequest(
-  req: Request,
-  url: URL,
-): Response | null {
+export function validateActionRequest(req: Request, url: URL): Response | null {
   if (req.method !== 'POST') {
     return response.error('Server actions require POST', 405)
   }

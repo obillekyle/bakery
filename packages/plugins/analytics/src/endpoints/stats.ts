@@ -1,7 +1,7 @@
-import { response } from '@bakery/core/utils/http'
-import type { JsonResponseData } from '@bakery/core/utils/common'
 import { Bakery } from '@bakery/core/core/bakery'
 import { DASHPASS_SESSION_KEY, Session } from '@bakery/core/session'
+import type { JsonResponseData } from '@bakery/core/utils/common'
+import { response } from '@bakery/core/utils/http'
 import * as core from '../core'
 import { saveAnalyticsData } from '../storage-sqlite'
 import { timescaleToMs } from '../timescale'
@@ -51,7 +51,7 @@ export function computeStats(
     uptime: `${uptime}s`,
     uptimeSeconds: uptime,
     pid: process.pid,
-    memoryUsed: Math.round(mem.rss / 1024 / 1024) + ' MB',
+    memoryUsed: `${Math.round(mem.rss / 1024 / 1024)} MB`,
     memoryExternal: `${Math.round(mem.external / 1024 / 1024)} MB`,
     bunVersion: Bun.version,
     platform: process.platform,

@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdtemp, mkdir, readdir, writeFile } from 'node:fs/promises'
 import { rmSync } from 'node:fs'
+import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { isScaffoldable, ownVersion, parseArgs, writeTemplate } from './index'
@@ -268,9 +268,10 @@ describe('the generated app', () => {
   test('the orm folder is one file per kind of declaration', async () => {
     const dir = await scaffold()
     for (const f of ['tables.ts', 'views.ts', 'indexes.ts', 'index.ts']) {
-      expect({ f, exists: await Bun.file(join(dir, 'orm', f)).exists() }).toEqual(
-        { f, exists: true },
-      )
+      expect({
+        f,
+        exists: await Bun.file(join(dir, 'orm', f)).exists(),
+      }).toEqual({ f, exists: true })
     }
     // `schema.ts` was the old name for `tables.ts`; a scaffold should not emit
     // both, or `collectConstraints` silently keeps whichever exported last.
@@ -328,7 +329,10 @@ describe('the template only imports enumerated exports', () => {
       const entry = subpath === '' ? '.' : `.${subpath}`
       const map = maps.get(pkg)
 
-      expect(map, `${spec} names a package that is not a dependency`).toBeDefined()
+      expect(
+        map,
+        `${spec} names a package that is not a dependency`,
+      ).toBeDefined()
       expect(
         map!.has(entry),
         `${spec} resolves only through the "./*" wildcard, which is being removed`,

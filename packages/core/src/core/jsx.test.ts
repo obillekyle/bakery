@@ -1,5 +1,5 @@
-import { describe, test, expect, beforeAll, beforeEach } from 'bun:test'
-import { initConfig, clearHostConfigCache } from './config'
+import { beforeAll, describe, expect, test } from 'bun:test'
+import { initConfig } from './config'
 import { createElement, Fragment, html, raw } from './jsx'
 
 beforeAll(async () => {
@@ -23,7 +23,11 @@ describe('createElement', () => {
   })
 
   test('skips false/null/undefined attributes', () => {
-    const result = createElement('div', { id: undefined, class: null } as any, 'text')
+    const result = createElement(
+      'div',
+      { id: undefined, class: null } as any,
+      'text',
+    )
     expect(String(result)).not.toContain('id=')
     expect(String(result)).not.toContain('class=')
     expect(String(result)).toContain('text')
@@ -59,12 +63,19 @@ describe('createElement', () => {
   })
 
   test('raw() opts a string back into being markup', () => {
-    const result = createElement('ul', null, raw('<li>a</li>'), raw('<li>b</li>'))
+    const result = createElement(
+      'ul',
+      null,
+      raw('<li>a</li>'),
+      raw('<li>b</li>'),
+    )
     expect(String(result)).toBe('<ul><li>a</li><li>b</li></ul>')
   })
 
   test('handles nested children', () => {
-    const result = createElement('div', null,
+    const result = createElement(
+      'div',
+      null,
       createElement('span', null, 'one'),
       createElement('span', null, 'two'),
     )
@@ -117,7 +128,10 @@ describe('html', () => {
 
   test('extracts title from content', async () => {
     const render = html(() => '<div><title>My Page</title>content</div>')
-    const result = await render(new Request('http://localhost/'), {}) as string
+    const result = (await render(
+      new Request('http://localhost/'),
+      {},
+    )) as string
     expect(String(result)).toContain('<title>My Page</title>')
     expect(String(result)).not.toContain('<title>Document</title>')
   })

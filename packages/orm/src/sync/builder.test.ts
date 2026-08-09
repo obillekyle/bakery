@@ -1,6 +1,6 @@
+import { describe, expect, test } from 'bun:test'
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { describe, expect, test } from 'bun:test'
 import { Bakery } from '@bakery/core/core/bakery'
 import { fs } from '@bakery/core/utils'
 import { SQLiteAdapter } from '../adapters/sqlite'
@@ -39,9 +39,7 @@ describe('generated schema registers itself', () => {
 
   test('emits the declare module registration block', async () => {
     const source = await generate()
-    expect(source).toContain(
-      "declare module '@bakery/orm/schema-registry'",
-    )
+    expect(source).toContain("declare module '@bakery/orm/schema-registry'")
     expect(source).toContain('interface SchemaRegistry')
   })
 
@@ -193,7 +191,7 @@ describe('the generated shape follows the layout it is written into', () => {
       expect(source).toContain('export namespace DBInfo')
       expect(source).toContain("declare module '@bakery/orm/schema-registry'")
       expect(source).toContain('idxWidgetsLabel')
-      expect(source).not.toContain("export const widgets = table(")
+      expect(source).not.toContain('export const widgets = table(')
     }
   })
 })
@@ -212,7 +210,8 @@ describe('the previous schema is preserved before it is overwritten', () => {
     await db.query('CREATE TABLE widgets (id INTEGER PRIMARY KEY)').run()
 
     const schemaPath = `${Bakery.dataDir}/__preserve-test__.ts`
-    const original = '// hand written, and the only copy — schema.ts is gitignored\n'
+    const original =
+      '// hand written, and the only copy — schema.ts is gitignored\n'
     await Bun.write(schemaPath, original)
 
     const before = await listSchemaBackups()
@@ -228,7 +227,9 @@ describe('the previous schema is preserved before it is overwritten', () => {
     expect(await Bun.file(`${backupDir}/${added}`).text()).toBe(original)
 
     // And the generated file really did replace it.
-    expect(await Bun.file(schemaPath).text()).toContain('export namespace DBInfo')
+    expect(await Bun.file(schemaPath).text()).toContain(
+      'export namespace DBInfo',
+    )
 
     await Bun.file(schemaPath).delete()
     await Bun.file(`${backupDir}/${added}`).delete()
@@ -239,7 +240,9 @@ describe('the previous schema is preserved before it is overwritten', () => {
     await db.query('CREATE TABLE widgets (id INTEGER PRIMARY KEY)').run()
 
     const schemaPath = `${Bakery.dataDir}/__preserve-absent__.ts`
-    await Bun.file(schemaPath).delete().catch(() => {})
+    await Bun.file(schemaPath)
+      .delete()
+      .catch(() => {})
 
     const before = await listSchemaBackups()
     await SchemaBuilder.generate(db as any, schemaPath, silentMessages)
@@ -260,7 +263,9 @@ describe('the previous schema is preserved before it is overwritten', () => {
 describe('the DBInfo layout emits an importable file', () => {
   async function generateFile(): Promise<string> {
     const db = new SQLiteAdapter(':memory:')
-    await db.query('CREATE TABLE widgets (id INTEGER PRIMARY KEY, slug TEXT)').run()
+    await db
+      .query('CREATE TABLE widgets (id INTEGER PRIMARY KEY, slug TEXT)')
+      .run()
     await db.createIndex('widgets_slug_uniq', 'widgets', ['slug'], true)
     await db.createIndex('widgets_slug_idx', 'widgets', ['slug'], false)
     // A ledger, exactly as a synced database has.
@@ -325,11 +330,25 @@ describe('the DBInfo layout emits an importable file', () => {
 describe('views are generated into their own module', () => {
   async function generateInto(dir: string) {
     const db = new SQLiteAdapter(':memory:')
-    await db.query('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, active INTEGER)').run()
-    await db.query('CREATE VIEW active_users AS SELECT id, name FROM users WHERE active = 1').run()
+    await db
+      .query(
+        'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, active INTEGER)',
+      )
+      .run()
+    await db
+      .query(
+        'CREATE VIEW active_users AS SELECT id, name FROM users WHERE active = 1',
+      )
+      .run()
 
     const tablesPath = `${dir}/tables.ts`
-    await SchemaBuilder.generate(db as any, tablesPath, silentMessages, {}, 'folder')
+    await SchemaBuilder.generate(
+      db as any,
+      tablesPath,
+      silentMessages,
+      {},
+      'folder',
+    )
     const tables = await Bun.file(tablesPath).text()
     const viewsFile = Bun.file(`${dir}/views.ts`)
     const views = (await viewsFile.exists()) ? await viewsFile.text() : null
@@ -372,7 +391,13 @@ describe('views are generated into their own module', () => {
     const db = new SQLiteAdapter(':memory:')
     await db.query('CREATE TABLE only_a_table (id INTEGER PRIMARY KEY)').run()
     const tablesPath = `${Bakery.cacheDir}/tables.ts`
-    await SchemaBuilder.generate(db as any, tablesPath, silentMessages, {}, 'folder')
+    await SchemaBuilder.generate(
+      db as any,
+      tablesPath,
+      silentMessages,
+      {},
+      'folder',
+    )
     expect(await Bun.file(`${Bakery.cacheDir}/views.ts`).exists()).toBe(false)
     await Bun.file(tablesPath).delete()
     await db.close()
@@ -384,14 +409,26 @@ describe('views are generated into their own module', () => {
     // knowledge only the author has. Regenerating over it would delete exactly
     // that work — so the generator seeds this file once and then leaves it.
     const db = new SQLiteAdapter(':memory:')
-    await db.query('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)').run()
-    await db.query('CREATE VIEW active_users AS SELECT id, name FROM users').run()
+    await db
+      .query('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)')
+      .run()
+    await db
+      .query('CREATE VIEW active_users AS SELECT id, name FROM users')
+      .run()
 
     const tablesPath = `${Bakery.cacheDir}/tables.ts`
     const viewsPath = `${Bakery.cacheDir}/views.ts`
-    await Bun.file(viewsPath).delete().catch(() => {})
+    await Bun.file(viewsPath)
+      .delete()
+      .catch(() => {})
 
-    await SchemaBuilder.generate(db as any, tablesPath, silentMessages, {}, 'folder')
+    await SchemaBuilder.generate(
+      db as any,
+      tablesPath,
+      silentMessages,
+      {},
+      'folder',
+    )
     const seeded = await Bun.file(viewsPath).text()
     expect(seeded).toContain('ActiveUsersView')
 
@@ -399,7 +436,13 @@ describe('views are generated into their own module', () => {
     const edited = seeded.replace('name: string', 'name: string & { brand: 1 }')
     await Bun.write(viewsPath, edited)
 
-    await SchemaBuilder.generate(db as any, tablesPath, silentMessages, {}, 'folder')
+    await SchemaBuilder.generate(
+      db as any,
+      tablesPath,
+      silentMessages,
+      {},
+      'folder',
+    )
     expect(await Bun.file(viewsPath).text()).toBe(edited)
 
     await Bun.file(tablesPath).delete()

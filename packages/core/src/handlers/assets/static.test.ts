@@ -1,11 +1,11 @@
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import {
-  initConfig,
-  getConfig,
-  __setTestConfig,
   __resetTestConfig,
+  __setTestConfig,
+  getConfig,
+  initConfig,
 } from '../../core/config'
-import { hostStore, type HostContext } from '../../core/context'
+import { type HostContext, hostStore } from '../../core/context'
 import { withEnvFlag } from '../../tests/fixtures'
 import { fs } from '../../utils/fs'
 import { getStatic } from '../core/$static'
@@ -31,11 +31,9 @@ describe('DefaultErrorHandler — errorBody is redacted like every other error s
 
   const render = async (dev: boolean, error: typeof STACKY) => {
     const res = await withEnvFlag('DEV', dev, () =>
-      DefaultErrorHandler.handle(
-        '/x',
-        new Request('http://localhost/x'),
-        { ...error },
-      ),
+      DefaultErrorHandler.handle('/x', new Request('http://localhost/x'), {
+        ...error,
+      }),
     )
     expect(res).toBeInstanceOf(Response)
     expect((res as Response).status).toBe(error.errorCode)
@@ -169,7 +167,10 @@ describe('getStatic — resolution semantics survive the single-stat rewrite', (
     // `hidden/file.txt` exists and would win on order, but sits behind the
     // marker; the answer must fall through to the second root.
     const second = fs.resolve(dir, 'sub')
-    const hit = await getStatic('/file.txt', [fs.resolve(dir, 'hidden'), second])
+    const hit = await getStatic('/file.txt', [
+      fs.resolve(dir, 'hidden'),
+      second,
+    ])
     expect(hit?.file).toBe(fs.resolve(dir, 'sub/file.txt'))
     expect(hit?.root).toBe(second)
   })

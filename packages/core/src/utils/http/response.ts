@@ -33,7 +33,12 @@ responseJson.error = function responseJsonError<T>(
     message = status
     status = 400
   }
-  if (typeof status !== 'number' || isNaN(status) || status < 100 || status > 599) {
+  if (
+    typeof status !== 'number' ||
+    isNaN(status) ||
+    status < 100 ||
+    status > 599
+  ) {
     status = 400
   }
   return responseJson(status, message, data)

@@ -1,13 +1,13 @@
 import { LRUCache } from '@bakery/core/cache/lru'
 import { Bakery, hostKey } from '@bakery/core/core/bakery'
 import type { Handler } from '@bakery/core/handlers'
-import { DynamicHandler } from '@bakery/core/handlers'
 import {
   beginPageRoute,
   DynamicErrorHandler,
+  DynamicHandler,
 } from '@bakery/core/handlers'
 import { Logger } from '@bakery/core/logger'
-import { JsonResponseData, fs, response, toHash } from '@bakery/core/utils'
+import { fs, JsonResponseData, response, toHash } from '@bakery/core/utils'
 import { ETag, injectIfHtml } from '@bakery/core/utils/http'
 
 const logger = new Logger('vue')
@@ -30,9 +30,9 @@ import {
   getServerResponse,
   parsedCache,
   parseVueMeta,
-  rewriteVueImports,
   RX_EXPORT_BRACE,
   RX_EXPORT_HANGING,
+  rewriteVueImports,
   VUE_SERVER_DATA_TOKEN,
 } from './utils'
 
@@ -144,7 +144,7 @@ export class VueHandler extends DynamicHandler {
         const langAttr = langMatch ? ` lang="${langMatch[1]}"` : ''
         cleanContent = `<script${langAttr}>\n${scriptInjections.join(
           '\n',
-        )}\n<\/script>\n${cleanContent}`
+        )}\n</script>\n${cleanContent}`
       }
     }
 
@@ -297,7 +297,8 @@ export class VueHandler extends DynamicHandler {
     parsed: ParsedCacheEntry,
   ) {
     const { hasCss, serverScript } = parsed
-    const hasServerData = Boolean(serverScript) || params?.errorCode !== undefined
+    const hasServerData =
+      Boolean(serverScript) || params?.errorCode !== undefined
 
     const payload =
       typeof serverParams === 'object' && serverParams

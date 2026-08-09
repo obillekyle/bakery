@@ -6,14 +6,14 @@ import { isDevWorker } from '../core/init'
 // Dependency-free by construction (see the note above about not dragging the
 // handler or plugin runtime into this graph): `core/port` imports nothing.
 import { resolvePort } from '../core/port'
-import { Try } from '../utils'
-import { Glob, fs } from '../utils/fs'
-import { compLog, serveLog } from '../logger'
-import { PromptTracker } from './prompt-tracker'
 // Type-only: the compiler must not pull the handler or plugin runtime into the
 // dev worker's module graph, and nothing here needs a value from either.
 import type { Handler } from '../handlers/core/$base'
+import { compLog, serveLog } from '../logger'
 import type { ServerPlugin } from '../plugins/types'
+import { Try } from '../utils'
+import { fs, Glob } from '../utils/fs'
+import { PromptTracker } from './prompt-tracker'
 
 export function notifySockets(server: any, filename: string) {
   const serveRoot = Bakery.serveRoot || '.'

@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { COMPRESSION_MAP, fs } from '../../utils/fs'
 import {
-  GoogleFontHandler,
   __gfCacheIndex,
   __gfMaxEntries,
   __gfTrackCacheEntry,
+  GoogleFontHandler,
 } from './google-font'
 
 /**

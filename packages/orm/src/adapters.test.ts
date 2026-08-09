@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test'
+import type { Driver, SQLAdapter } from './adapters'
 import {
   createDbAdapter,
   getAdapter,
@@ -6,7 +7,6 @@ import {
   registerAdapter,
   resolveDriver,
 } from './adapters'
-import type { Driver, SQLAdapter } from './adapters'
 
 /**
  * The extension point, exercised the way a third-party package would use it.
@@ -61,7 +61,10 @@ describe('driver resolution', () => {
 
   for (const [target, driver] of CASES) {
     test(`${target || '(empty)'} -> ${driver}`, () => {
-      expect({ target, driver: resolveDriver(target) }).toEqual({ target, driver })
+      expect({ target, driver: resolveDriver(target) }).toEqual({
+        target,
+        driver,
+      })
     })
   }
 

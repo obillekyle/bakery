@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'bun:test'
-import { response, redirect } from './response'
+import { describe, expect, test } from 'bun:test'
+import { redirect, response } from './response'
 
 describe('response()', () => {
   test('creates basic Response', () => {

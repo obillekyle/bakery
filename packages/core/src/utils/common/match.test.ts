@@ -1,10 +1,15 @@
-import { describe, test, expect } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 
 describe('match prototype-key safety', () => {
   test('does not resolve inherited Object.prototype members', async () => {
     const { match } = await import('./match')
     // `value in cases` used to find (and invoke) Object.prototype.toString.
-    for (const key of ['toString', 'constructor', 'valueOf', 'hasOwnProperty']) {
+    for (const key of [
+      'toString',
+      'constructor',
+      'valueOf',
+      'hasOwnProperty',
+    ]) {
       expect(match(key, { a: 1 } as any)).toBeUndefined()
     }
   })
@@ -17,6 +22,7 @@ describe('match prototype-key safety', () => {
     )
   })
 })
+
 import { match } from './match'
 
 describe('match', () => {
@@ -40,7 +46,7 @@ describe('match', () => {
 
     test('calls function handler with value', () => {
       const result = match('foo', {
-        foo: (v) => `matched:${v}`,
+        foo: v => `matched:${v}`,
         bar: 'nope',
       })
       expect(result).toBe('matched:foo')
@@ -96,9 +102,7 @@ describe('match', () => {
     })
 
     test('calls result function when predicate matches', () => {
-      const result = match(42, [
-        [42, (v: number) => v * 2],
-      ])
+      const result = match(42, [[42, (v: number) => v * 2]])
       expect(result).toBe(84)
     })
 
@@ -111,9 +115,7 @@ describe('match', () => {
     })
 
     test('returns undefined when no predicate matches', () => {
-      const result = match(99, [
-        [(v: number) => v < 10, 'small'],
-      ]) as any
+      const result = match(99, [[(v: number) => v < 10, 'small']]) as any
       expect(result).toBeUndefined()
     })
   })

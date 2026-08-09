@@ -1,4 +1,11 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from 'bun:test'
 import { JsonResponseData } from '@bakery/core/utils/common'
 import { __resetTestDb, __setTestDb } from '@bakery/orm/connection'
 import {
@@ -169,7 +176,9 @@ describe('dashboard CSRF and method qualification', () => {
 
   test('a same-origin GET still reaches a read endpoint', async () => {
     const res = await handleDashboardRequest(
-      new Request(`http://localhost/api/_dashboard/table-data?tableName=${TABLE}`),
+      new Request(
+        `http://localhost/api/_dashboard/table-data?tableName=${TABLE}`,
+      ),
     )
 
     // getData is absent from the stub, so this fails inside the endpoint — the
@@ -198,7 +207,9 @@ describe('dashboard namespace boundary', () => {
   test('resolveRoute keeps the same boundary', () => {
     expect(DashboardHandler.resolveRoute('/_dashboard-admin')).toBeNull()
     expect(DashboardHandler.resolveRoute('/api/_dashboard-anything')).toBeNull()
-    expect(DashboardHandler.resolveRoute('/_dashboard/style.css')).not.toBeNull()
+    expect(
+      DashboardHandler.resolveRoute('/_dashboard/style.css'),
+    ).not.toBeNull()
   })
 
   test('a look-alike path is not handled by the request pipeline', async () => {

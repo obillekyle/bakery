@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { DEFAULT_PORT, resolvePort } from './port'
 import { fs } from '../utils/fs'
+import { DEFAULT_PORT, resolvePort } from './port'
 
 /**
  * Port resolution used to be written three times with three different rules,
@@ -59,16 +59,21 @@ describe('resolvePort', () => {
     expect(resolvePort(3000)).toBe(0)
   })
 
-  test.each(['3000x', 'abc', '-1', '70000', '3000.5', '0x1f', 'Infinity'])(
-    'PORT=%p is refused loudly rather than guessed at',
-    bad => {
-      setPort(bad)
-      expect(() => resolvePort(3000)).toThrow(/Invalid PORT/)
-      // The message has to be actionable at 3am: it names the variable and
-      // quotes the value that was rejected.
-      expect(() => resolvePort(3000)).toThrow(JSON.stringify(bad))
-    },
-  )
+  test.each([
+    '3000x',
+    'abc',
+    '-1',
+    '70000',
+    '3000.5',
+    '0x1f',
+    'Infinity',
+  ])('PORT=%p is refused loudly rather than guessed at', bad => {
+    setPort(bad)
+    expect(() => resolvePort(3000)).toThrow(/Invalid PORT/)
+    // The message has to be actionable at 3am: it names the variable and
+    // quotes the value that was rejected.
+    expect(() => resolvePort(3000)).toThrow(JSON.stringify(bad))
+  })
 
   test('a config port of 0 still means "unset"', () => {
     setPort(undefined)
@@ -90,12 +95,16 @@ describe('the three port call sites share one rule', () => {
     'packages/cli/src/worker.ts',
   ]
 
-  test.each(CALL_SITES)('%s resolves the port through resolvePort', async rel => {
+  test.each(
+    CALL_SITES,
+  )('%s resolves the port through resolvePort', async rel => {
     const source = await Bun.file(fs.resolve(repo, rel)).text()
     expect(source).toContain('resolvePort(')
   })
 
-  test.each(CALL_SITES)('%s does not read process.env.PORT itself', async rel => {
+  test.each(
+    CALL_SITES,
+  )('%s does not read process.env.PORT itself', async rel => {
     const source = await Bun.file(fs.resolve(repo, rel)).text()
     // Comments are allowed to mention `PORT`; code reading it is not.
     const code = source

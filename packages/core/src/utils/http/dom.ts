@@ -3,8 +3,8 @@ import { Bakery, hostStore } from '../../core/bakery'
 import type { MapOf } from '../../types'
 import { is } from '../common/misc'
 import { Try } from '../common/try'
-import { escapeScriptJson } from '../isomorphic/escape'
 import { fs } from '../fs'
+import { escapeScriptJson } from '../isomorphic/escape'
 
 // Keyed by hostname, which comes from the Host header — bounded so a client
 // cannot grow it without limit by varying that header per request.
@@ -101,7 +101,9 @@ function resolveDepModule(pkgData: PackageJson, baseMod: string): string {
 }
 
 export async function initImportMap() {
-  const pkgContent = await Try(() => Bun.file(fs.resolve(fs.cwd, 'package.json')).json())
+  const pkgContent = await Try(() =>
+    Bun.file(fs.resolve(fs.cwd, 'package.json')).json(),
+  )
   const pkg: any = pkgContent || {}
   const map = Bakery.config.importMap || {}
   const deps = pkg.dependencies || {}

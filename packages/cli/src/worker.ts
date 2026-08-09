@@ -1,9 +1,9 @@
 import { Bakery, getHostname, hostStore } from '@bakery/core/core/bakery'
 import { initConfig, resolveHostConfig } from '@bakery/core/core/config'
-import { log } from '@bakery/core/logger'
-import { deferredValue, is, Try } from '@bakery/core/utils/common'
 import { isDevWorker } from '@bakery/core/core/init'
-import { getClientIp } from '@bakery/core/utils/http'
+import { resolvePort } from '@bakery/core/core/port'
+import type { Handler } from '@bakery/core/handlers'
+import { errorMsg, log, serveLog } from '@bakery/core/logger'
 import {
   handleRequest,
   handleRequestError,
@@ -11,11 +11,10 @@ import {
   serveWebSocket,
 } from '@bakery/core/router'
 import { Session } from '@bakery/core/session'
-import { COUNTER_SLOTS } from '@bakery/core/utils/shared-pool'
 import { runStartupBanner, setupServer } from '@bakery/core/startup'
-import { resolvePort } from '@bakery/core/core/port'
-import type { Handler } from '@bakery/core/handlers'
-import { errorMsg, serveLog } from '@bakery/core/logger'
+import { deferredValue, is, Try } from '@bakery/core/utils/common'
+import { getClientIp } from '@bakery/core/utils/http'
+import { COUNTER_SLOTS } from '@bakery/core/utils/shared-pool'
 import {
   rateLimitSlot,
   retryAfterSeconds,
@@ -74,7 +73,9 @@ try {
   const { initDB } = await import('@bakery/orm/connection')
   await initDB()
 } catch (error: any) {
-  serveLog.UNHANDLED_ERR({ error: `Database initialization failed: ${errorMsg(error)}` })
+  serveLog.UNHANDLED_ERR({
+    error: `Database initialization failed: ${errorMsg(error)}`,
+  })
   process.exit(1)
 }
 

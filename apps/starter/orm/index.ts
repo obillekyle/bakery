@@ -1,10 +1,10 @@
 import type { InferOptionals, InferSchema, InferViews } from '@bakery/orm'
-import * as tables from './tables'
-import * as views from './views'
+import type * as tables from './tables'
+import type * as views from './views'
 
+export * from './indexes'
 export * from './tables'
 export * from './views'
-export * from './indexes'
 
 /**
  * Tables *and* views, because the three inferred types need different halves:

@@ -3,8 +3,8 @@ import { SQLiteAdapter } from '../adapters/sqlite'
 import { Field } from '../field'
 import { diffEntries, formatEntry, formatWhen, isEmptyDiff } from './history'
 import {
-  LEDGER_TABLE,
   detectDrift,
+  LEDGER_TABLE,
   readLedgerEntries,
   writeLedger,
 } from './ledger'
@@ -12,7 +12,11 @@ import { pickTarget } from './rollback'
 
 const V1: any = { led: { id: Field.Primary(), slug: Field.Varchar(255, '') } }
 const V2: any = {
-  led: { id: Field.Primary(), slug: Field.Varchar(255, ''), title: Field.Text() },
+  led: {
+    id: Field.Primary(),
+    slug: Field.Varchar(255, ''),
+    title: Field.Text(),
+  },
   extra: { id: Field.Primary() },
 }
 
@@ -38,7 +42,9 @@ async function writeV1Row(db: any, constraints: any) {
 describe('ledger payload v2', () => {
   test('records the indexes applied alongside the constraints', async () => {
     const db = new SQLiteAdapter(':memory:') as any
-    const indexes = { ledSlug: { table: 'led', columns: ['slug'], type: 'unique' } }
+    const indexes = {
+      ledSlug: { table: 'led', columns: ['slug'], type: 'unique' },
+    }
     expect(await writeLedger(db, V1, indexes as any)).toBe(true)
 
     const [entry] = await readLedgerEntries(db)
@@ -126,7 +132,12 @@ describe('history diffing', () => {
   })
 
   test('the oldest entry is labelled initial rather than diffed against nothing', () => {
-    const entry = { id: 1, appliedAt: 1_700_000_000, constraints: V1, indexes: {} }
+    const entry = {
+      id: 1,
+      appliedAt: 1_700_000_000,
+      constraints: V1,
+      indexes: {},
+    }
     const lines = formatEntry(entry, undefined, false).join('\n')
     expect(lines).toContain('initial schema')
   })

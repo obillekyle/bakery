@@ -1,14 +1,12 @@
-import { describe, test, expect, afterEach, beforeEach } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import {
   __resetTestConfig,
   __setTestConfig,
-  initConfig,
   clearHostConfigCache,
   getConfig,
+  initConfig,
   resolveHostConfig,
 } from './config'
-import { hostStore } from './context'
-import { Bakery } from './bakery'
 
 describe('initConfig', () => {
   beforeEach(() => {

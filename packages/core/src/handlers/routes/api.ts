@@ -2,7 +2,7 @@ import { Bakery } from '../../core/bakery'
 import { handlerLog } from '../../logger/serve-log'
 import { FileSystem } from '../../utils/fs'
 import { checkCsrf, response } from '../../utils/http'
-import type { Handler, Route } from '../core/$base'
+import type { Handler } from '../core/$base'
 import { bustInDev, DynamicHandler } from '../core/$dynamic'
 import { ErrorHandler } from '../core/$error'
 

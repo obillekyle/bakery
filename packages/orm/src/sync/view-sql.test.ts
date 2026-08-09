@@ -13,9 +13,9 @@ import { formatViewBody, normalizeViewBody } from './view-sql'
  * being written down here.
  */
 const CANONICAL =
-  "select `p`.`id` AS `id`,`p`.`name` AS `name`," +
+  'select `p`.`id` AS `id`,`p`.`name` AS `name`,' +
   "coalesce(nullif(`p`.`images`,''),json_array()) AS `images`," +
-  "cast(coalesce(`v`.`stock`,0) as unsigned) AS `stock`," +
+  'cast(coalesce(`v`.`stock`,0) as unsigned) AS `stock`,' +
   "json_arrayagg(json_object('id',`shop`.`variants`.`id`)) AS `variants` " +
   'from ((`shop`.`products` `p` left join (select `shop`.`variants`.`product` AS `product`,' +
   'sum(`shop`.`variants`.`stock`) AS `stock` from `shop`.`variants` ' +
@@ -39,8 +39,12 @@ describe('view body normalisation', () => {
   })
 
   test('drops quoting from plain identifiers', () => {
-    expect(normalizeViewBody('select `a`.`b` from `t`')).toBe('select a.b from t')
-    expect(normalizeViewBody('select "a"."b" from "t"')).toBe('select a.b from t')
+    expect(normalizeViewBody('select `a`.`b` from `t`')).toBe(
+      'select a.b from t',
+    )
+    expect(normalizeViewBody('select "a"."b" from "t"')).toBe(
+      'select a.b from t',
+    )
   })
 
   test('keeps quoting a reserved word needs', () => {

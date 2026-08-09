@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'bun:test'
-import { SharedMemoryPool, COUNTER_SLOTS } from './shared-pool'
+import { describe, expect, test } from 'bun:test'
+import { COUNTER_SLOTS, SharedMemoryPool } from './shared-pool'
 
 describe('SharedMemoryPool', () => {
   test('constructs with default size', () => {

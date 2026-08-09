@@ -1,6 +1,13 @@
-import { afterAll, afterEach, beforeEach, describe, test, expect } from 'bun:test'
-import { ETag } from './etag'
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from 'bun:test'
 import { fs } from '../fs'
+import { ETag } from './etag'
 
 describe('ETag.sendResponse Set-Cookie handling', () => {
   const etag = ETag.fromText('body')
@@ -15,7 +22,10 @@ describe('ETag.sendResponse Set-Cookie handling', () => {
     // `headers.get('Set-Cookie')` joins values with ", "; writing that back as a
     // single header produced one malformed cookie and dropped the rest.
     const req = new Request('http://localhost/')
-    const out = ETag.sendResponse(req, respond(['auth=abc; HttpOnly', 'sId=xyz; Path=/']))
+    const out = ETag.sendResponse(
+      req,
+      respond(['auth=abc; HttpOnly', 'sId=xyz; Path=/']),
+    )
 
     const cookies = out.headers.getSetCookie()
     expect(cookies).toHaveLength(2)
@@ -116,7 +126,9 @@ describe('ETag.sendFile variant negotiation memo', () => {
   test('the remembered etag matches a fresh stat of the served variant', () => {
     negotiate('zstd, gzip')
     const warm = negotiate('zstd, gzip')
-    expect(warm.headers.get('ETag')).toBe(ETag.fromFile(Bun.file(`${base}.zst`)))
+    expect(warm.headers.get('ETag')).toBe(
+      ETag.fromFile(Bun.file(`${base}.zst`)),
+    )
   })
 
   test('a warm hit still answers If-None-Match with 304', () => {
@@ -136,7 +148,7 @@ describe('ETag.sendFile variant negotiation memo', () => {
     const before = negotiate('zstd, gzip')
     // lastModified is millisecond-resolution; make sure the rewrite ticks it.
     await Bun.sleep(20)
-    await writeTrio(CONTENT + '!')
+    await writeTrio(`${CONTENT}!`)
 
     probes = []
     const after = negotiate('zstd, gzip')
@@ -150,14 +162,14 @@ describe('ETag.sendFile variant negotiation memo', () => {
     await Bun.sleep(20)
     await fs.rm(`${base}.zst`, { force: true })
     await fs.rm(`${base}.gz`, { force: true })
-    await Bun.write(base, CONTENT + '?')
+    await Bun.write(base, `${CONTENT}?`)
 
     probes = []
     const res = negotiate('zstd, gzip')
     expect(res.headers.get('Content-Encoding')).toBeNull()
     expect(probes.length).toBe(2)
     // Identity fallback serves the base file itself.
-    expect(await res.text()).toBe(CONTENT + '?')
+    expect(await res.text()).toBe(`${CONTENT}?`)
   })
 
   test('a wiped cache dir does not serve a remembered variant', async () => {
@@ -334,7 +346,9 @@ describe('ETag.sendText compression offload', () => {
     expect(res.headers.get('ETag')).toBe(`${ETag.fromText(LARGE)}.zst`)
 
     const body = Buffer.from(await res.arrayBuffer())
-    expect(Buffer.compare(body, Buffer.from(Bun.zstdCompressSync(LARGE)))).toBe(0)
+    expect(Buffer.compare(body, Buffer.from(Bun.zstdCompressSync(LARGE)))).toBe(
+      0,
+    )
     expect(new TextDecoder().decode(Bun.zstdDecompressSync(body))).toBe(LARGE)
   })
 
@@ -379,7 +393,9 @@ describe('ETag.sendText compression offload', () => {
     expect(sync.headers.get('Content-Encoding')).toBe('zstd')
     expect(sync.headers.get('ETag')).toBe(`${ETag.fromText(SMALL)}.zst`)
     const body = Buffer.from(await sync.arrayBuffer())
-    expect(Buffer.compare(body, Buffer.from(Bun.zstdCompressSync(SMALL)))).toBe(0)
+    expect(Buffer.compare(body, Buffer.from(Bun.zstdCompressSync(SMALL)))).toBe(
+      0,
+    )
   })
 
   test('304 short-circuits before compression, even for an offload-sized body', () => {

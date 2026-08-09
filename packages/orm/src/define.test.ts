@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test'
-import { alias, collectConstraints, type InferOptionals, type InferSchema, table } from './define'
-import type { ExtractOptionals, ExtractTableTypes } from './schema-util'
+import {
+  alias,
+  collectConstraints,
+  type InferOptionals,
+  type InferSchema,
+  table,
+} from './define'
 import { Field } from './field'
+import type { ExtractOptionals, ExtractTableTypes } from './schema-util'
 
 /**
  * The prototype is only worth building if the derived types are
@@ -61,8 +67,12 @@ type DerivedOptionals = InferOptionals<typeof objectModule>
 
 describe('derived schema matches the hand-written one', () => {
   test('row types are identical, table for table', () => {
-    expect(exact<Exact<Derived['users'], HandWritten['users']>>(true)).toBe(true)
-    expect(exact<Exact<Derived['posts'], HandWritten['posts']>>(true)).toBe(true)
+    expect(exact<Exact<Derived['users'], HandWritten['users']>>(true)).toBe(
+      true,
+    )
+    expect(exact<Exact<Derived['posts'], HandWritten['posts']>>(true)).toBe(
+      true,
+    )
   })
 
   test('the whole schema shape is identical', () => {
@@ -70,9 +80,9 @@ describe('derived schema matches the hand-written one', () => {
   })
 
   test('insert-optionality is preserved', () => {
-    expect(
-      exact<Exact<DerivedOptionals, HandWrittenOptionals>>(true),
-    ).toBe(true)
+    expect(exact<Exact<DerivedOptionals, HandWrittenOptionals>>(true)).toBe(
+      true,
+    )
   })
 })
 
@@ -98,7 +108,9 @@ describe('autocomplete sources survive derivation', () => {
 
     const sample: Qualified = 'users.username'
     expect(sample).toBe('users.username')
-    expect(exact<Exact<Extract<Qualified, 'posts.title'>, 'posts.title'>>(true)).toBe(true)
+    expect(
+      exact<Exact<Extract<Qualified, 'posts.title'>, 'posts.title'>>(true),
+    ).toBe(true)
   })
 })
 

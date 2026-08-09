@@ -76,9 +76,7 @@ export function renderSessionsPanel() {
             </button>
           </div>
           <div class="rows-meta">
-            <span id="session-rows-meta">
-              0 sessions matching filters
-            </span>
+            <span id="session-rows-meta">0 sessions matching filters</span>
           </div>
         </div>
       </div>

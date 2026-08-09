@@ -20,7 +20,9 @@ import {
 function sampleKeys(count: number): string[] {
   const keys: string[] = []
   for (let i = 0; i < count; i++) {
-    keys.push(`${10 + (i % 200)}.${(i >> 3) % 256}.${(i >> 5) % 256}.${i % 256}`)
+    keys.push(
+      `${10 + (i % 200)}.${(i >> 3) % 256}.${(i >> 5) % 256}.${i % 256}`,
+    )
   }
   return keys
 }

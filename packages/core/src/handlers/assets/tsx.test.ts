@@ -1,8 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
-import { __resetTestConfig, __setTestConfig, initConfig } from '../../core/config'
-import { JsonResponseData } from '../../utils/common'
+import {
+  __resetTestConfig,
+  __setTestConfig,
+  initConfig,
+} from '../../core/config'
 import { fs } from '../../utils'
+import { JsonResponseData } from '../../utils/common'
 import { TSXHandler } from './tsx'
 
 /**
@@ -17,7 +21,8 @@ const APP_DIR = fs.resolve(process.cwd(), '.cache/__tsx-test__')
  * global bound by core/init.ts, which no test loads; the import produces the
  * same SafeHtml either way, which is the whole point of the fixture.
  */
-const JSX_IMPORT = "import { createElement } from '../../packages/core/src/core/jsx'"
+const JSX_IMPORT =
+  "import { createElement } from '../../packages/core/src/core/jsx'"
 
 beforeAll(async () => {
   await initConfig()
@@ -84,7 +89,10 @@ describe('TSXHandler', () => {
 
   test('a route returning a plain object is still JSON', async () => {
     // The fix must not swallow the object branch: only SafeHtml is unboxed.
-    const res = await TSXHandler.handle('/data', new Request('http://localhost/data'))
+    const res = await TSXHandler.handle(
+      '/data',
+      new Request('http://localhost/data'),
+    )
 
     expect(res).toBeInstanceOf(JsonResponseData)
     expect((res as JsonResponseData).data).toEqual({ ok: true })
