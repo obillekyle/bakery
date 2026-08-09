@@ -39,6 +39,12 @@ bakery/
 
 *.tsbuildinfo
 
+# Registry credentials. `bun publish` authenticates from an `_authToken` line
+# in .npmrc, and the natural place to put one while trying to publish is right
+# here in the repo — where, untracked and unignored, it is one `git add -A`
+# from being a public commit. Prefer ~/.npmrc; this is the backstop.
+.npmrc
+
 # Local-only maintainer/agent context - not published.
 /.claude/
 /CLAUDE.md
