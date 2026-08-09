@@ -108,7 +108,9 @@ async function wipe(dir: string): Promise<string[]> {
   for (const entry of entries) {
     // Errors are deliberately not swallowed *silently* here — each failure is
     // collected and reported by the caller.
-    await Try.catch(() => rm(`${dir}/${entry}`, { recursive: true, force: true }))
+    await Try.catch(() =>
+      rm(`${dir}/${entry}`, { recursive: true, force: true }),
+    )
   }
 
   const [rereadErr, left] = await Try.catch(() => readdir(dir))

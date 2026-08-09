@@ -279,6 +279,9 @@ export class OperatorRef<R = any> {
   ) {}
 }
 
+// Convention 8 makes this the single writer of SQL identifiers, so the arms
+// belong together: splitting by operand kind spreads that responsibility.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: recursive operand evaluator — one arm per operand shape
 export function evalOperands(
   where: unknown,
   params: unknown[],

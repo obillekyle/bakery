@@ -37,13 +37,18 @@ import type { MapOf } from '@bakery/core/types'
 // Augmented by the app; empty until then.
 //
 // **It has to be an `interface`, and the empty body is the point.** Biome's
-// `noBannedTypes` rewrites `interface X {}` to `type X = {}` and calls it a
-// safe fix — it is not one here: a type alias cannot be declaration-merged, so
-// the rewrite turns every app's `declare module '@bakery/orm/schema-registry'`
-// into `TS2300: Duplicate identifier` and the whole schema registry stops
-// working. Caught by `bun run typecheck` during the 2026-08-09 biome sweep,
-// which is the only thing that would have caught it.
-// biome-ignore lint/complexity/noBannedTypes: must stay mergeable — see above
+// **`interface`, not `type`, and the empty body is the point.** A type alias
+// cannot be declaration-merged, so rewriting this to `type X = {}` turns every
+// app's `declare module '@bakery/orm/schema-registry'` into
+// `TS2300: Duplicate identifier` and the whole schema registry stops working.
+//
+// Biome's `noBannedTypes` proposed exactly that rewrite and called it a safe
+// fix; the 2026-08-09 sweep applied it and `bun run typecheck` was the only
+// thing that caught it. That rule is off repo-wide now — it had no true
+// positives here — but `noEmptyInterface` reaches the same construct and
+// offers the same fix, so the suppression stays. The compiler is the real
+// guard: change this line and `apps/starter` fails to typecheck.
+// biome-ignore lint/suspicious/noEmptyInterface: must stay mergeable — above
 export interface SchemaRegistry {}
 
 type Registered = SchemaRegistry extends { schema: infer S } ? S : never

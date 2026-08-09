@@ -93,6 +93,9 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
    * list with an `instanceof` scan per request. `...rest` carries the error
    * registry's error through to `canHandle`/`handle` untouched.
    */
+  // The `probed` bookkeeping exists because middleware has side effects and
+  // must not run twice. That constraint is what the branching encodes.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: cache-path + side-effect-sensitive probe loop
   async resolve(path: string, req?: Request, ...rest: any[]) {
     const host = req?.__hostname || ''
     const pathId = `${this.id}:${host}:${path}`

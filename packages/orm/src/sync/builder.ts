@@ -179,6 +179,7 @@ export class SchemaBuilder {
    * and are not introspected, so the database cannot tell us an enum from a
    * `VARCHAR`, and guessing would silently invent a constraint.
    */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: decision table: column constraints to a Field.* call
   private static asFieldCall(
     cons: any,
     def: string | undefined,

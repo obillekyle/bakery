@@ -1,6 +1,6 @@
 import { Fragment, HTMLBody } from '@bakery/core'
 import { CardHeader, HeroHeader, Layout } from '../Layout.tsx'
-export default HTMLBody((req: any, body: any) => {
+export default HTMLBody((_req: any, _body: any) => {
   return (
     <Layout title="Prioritized Route | Bakery 🚀">
       <main class="container">

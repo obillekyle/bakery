@@ -284,7 +284,7 @@ type Prettify<T> = { [K in keyof T]: T[K] } & {}
 type ExtractArgs<S extends string> =
   S extends `${infer _}{${infer Param}}${infer Rest}`
     ? Prettify<{ [K in Param]: string | number | boolean } & ExtractArgs<Rest>>
-    : // biome-ignore lint/complexity/noBannedTypes: a
+    : // No placeholders in this message, so it takes no arguments.
       {}
 
 type Messages<T extends MapOf<string>> = {

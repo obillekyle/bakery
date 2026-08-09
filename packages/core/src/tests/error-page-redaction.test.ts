@@ -98,6 +98,10 @@ describe('TSX error pages redact the stack outside DEV', () => {
   beforeAll(async () => {
     await Bun.write(
       `${ROOT}/error.tsx`,
+      // The `${...}` is source code being written to a file, not a placeholder
+      // this string forgot to interpolate — the fixture *is* a template literal
+      // in the page it creates.
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: emitted source, not a placeholder
       'export default (_req: any, body: any) => `<html><body>${body.errorBody}</body></html>`\n',
     )
   })

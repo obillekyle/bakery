@@ -20,6 +20,7 @@
     "db:sync": "cd apps/example && bun run db:sync",
     "db:history": "cd apps/example && bun run db:history",
     "db:rollback": "cd apps/example && bun run db:rollback",
+    "release": "bun run scripts/release.ts",
     "test": "bun test ./packages ./tests",
     "typecheck": "bun run typecheck:core && bun run typecheck:orm && bun run typecheck:cli && bun run typecheck:create && bun run typecheck:plugins && bun run typecheck:app && bun run typecheck:tests",
     "typecheck:tests": "bunx tsc -p tests/tsconfig.json --noEmit",

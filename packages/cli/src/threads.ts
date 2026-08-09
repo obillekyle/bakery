@@ -49,6 +49,9 @@ export function requestWorkerFlush(
         Try(() => target.removeEventListener('message', listener))
       }
       listeners.clear()
+      // `resolve` is the enclosing Promise executor's, not a call that returns
+      // one; the rule cannot tell the two apart.
+      // biome-ignore lint/nursery/noFloatingPromises: executor resolve, not a promise
       resolve(flushed)
     }
 

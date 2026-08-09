@@ -6,7 +6,7 @@ import { CardHeader, HeroHeader, Layout } from '../Layout.tsx'
 // /wiki/guides/routing). More specific routes always win — a sibling
 // [id].tsx, a child index.tsx, or a deeper catch-all all outrank it — and
 // /wiki itself is NOT claimed (a catch-all needs at least one rest segment).
-export default HTMLBody<{ page: string }>((req, body) => {
+export default HTMLBody<{ page: string }>((_req, body) => {
   const crumbs = body.page.split('/')
 
   return (

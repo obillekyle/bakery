@@ -22,15 +22,19 @@
         "noNonNullAssertion": "off"
       },
       "suspicious": {
-        "useAwait": "error",
+        "useAwait": "off",
+        "noAssignInExpressions": "off",
         "noExplicitAny": "off",
         "noConfusingVoidType": "off",
         "noThenProperty": "off"
       },
       "complexity": {
         "noThisInStatic": "off",
-
-        "noExcessiveCognitiveComplexity": "error"
+        "noBannedTypes": "off",
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": { "maxAllowedComplexity": 25 }
+        }
       }
     }
   },

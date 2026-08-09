@@ -9,7 +9,6 @@ import {
   DEFAULT_RATE_LIMIT,
 } from '../utils/constants'
 import { fs } from '../utils/fs'
-import { Bakery } from './bakery'
 import { checkCacheVersion } from './cache-version'
 import { hostStore } from './context'
 

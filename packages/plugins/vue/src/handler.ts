@@ -91,6 +91,7 @@ export class VueHandler extends DynamicHandler {
 
   static handle = sharedHandler
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SFC parser
   static async parseVueFile(
     id: string,
     diskFile: Bun.BunFile,
@@ -234,7 +235,7 @@ export class VueHandler extends DynamicHandler {
     serverValues?: Record<string, any>,
   ) {
     const { lastMod, serverScript } = parsed
-    const hasServerScript = Boolean(serverScript && serverScript.trim())
+    const hasServerScript = Boolean(serverScript?.trim())
 
     // Static subcomponent (no server script) or root script: no per-request
     // data, so the built file can live on disk.
@@ -384,6 +385,7 @@ async function serveIfDirect(value: any, req: Request) {
   return (await ETag.sendFile(direct, req)) || new Response(direct as any)
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: request handler — one branch per SFC render path
 async function sharedHandler(
   this: typeof DynamicHandler | typeof DynamicErrorHandler,
   path: string,

@@ -43,7 +43,9 @@ declare global {
     (value: any, type: 'array'): value is any[]
     (value: any, type: 'null'): value is null
     (value: any, type: 'undefined'): value is undefined
-    // biome-ignore lint: allow function overload for better type inference when checking for functions
+    // `Function` is the type being narrowed to, and there is no narrower
+    // spelling of "callable" a predicate can promise. `noBannedTypes` is off
+    // repo-wide, so this needs no suppression — see MONOREPO.md for why.
     (value: any, type: 'function'): value is Function
     (value: any, type?: string): boolean
     string(value: any): value is string
@@ -55,9 +57,7 @@ declare global {
     array(value: any): value is any[]
     null(value: any): value is null
     undefined(value: any): value is undefined
-    // biome-ignore lint: `Function` again, same reason as the overload above —
-    // a narrowing predicate has to name the type it narrows to, and there is no
-    // narrower spelling of "callable" that `is()` can honestly promise.
+    // `Function` again, same reason as the overload above.
     function(value: any): value is Function
   }
 }
