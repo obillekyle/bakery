@@ -1,5 +1,5 @@
-import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
-import { clearHostConfigCache, initConfig } from './config'
+import { beforeAll, describe, expect, test } from 'bun:test'
+import { initConfig } from './config'
 import { createElement, Fragment, html, raw } from './jsx'
 
 beforeAll(async () => {

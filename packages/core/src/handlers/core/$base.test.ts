@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { getDynamicRoute, Handler, RouteData } from './$base'
+import { getDynamicRoute, RouteData } from './$base'
 
 describe('getDynamicRoute', () => {
   test('returns null for static path', () => {

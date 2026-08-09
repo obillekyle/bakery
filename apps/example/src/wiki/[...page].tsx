@@ -1,4 +1,4 @@
-import { createElement, Fragment, HTMLBody } from '@bakery/core'
+import { Fragment, HTMLBody } from '@bakery/core'
 import { CardHeader, HeroHeader, Layout } from '../Layout.tsx'
 
 // A catch-all segment: this one file answers /wiki/<anything>, however deep.

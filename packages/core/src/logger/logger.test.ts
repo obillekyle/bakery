@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { Logger, log, messageLogger, setLogCallback } from './logger'
 
 describe('Logger class', () => {

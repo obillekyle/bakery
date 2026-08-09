@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { Bakery } from './bakery'
 import { clearHostConfigCache, initConfig } from './config'
 import { PluginHooks } from './plugins'
 

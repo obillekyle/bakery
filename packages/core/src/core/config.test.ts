@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { Bakery } from './bakery'
 import {
   __resetTestConfig,
   __setTestConfig,
@@ -8,7 +7,6 @@ import {
   initConfig,
   resolveHostConfig,
 } from './config'
-import { hostStore } from './context'
 
 describe('initConfig', () => {
   beforeEach(() => {

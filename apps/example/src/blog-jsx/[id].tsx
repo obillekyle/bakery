@@ -1,4 +1,4 @@
-import { createElement, Fragment, HTMLBody, log } from '@bakery/core'
+import { Fragment, HTMLBody, log } from '@bakery/core'
 import { CardHeader, HeroHeader, Layout } from '../Layout.tsx'
 
 // The [id] segment from the filename, declared once — body.id is a string

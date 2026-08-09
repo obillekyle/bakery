@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { Case } from '../utils/isomorphic/case'
 import { Try } from '../utils/isomorphic/try'
-import { randomId, request } from './utils'
+// `request` is deliberately not imported: every use below is
+// `globalThis.request`, because the point of this file is to pin the *global*
+// against the implementation. `randomId` is imported because line 87 calls it
+// bare, to check the value the global is derived from.
+import { randomId } from './utils'
 
 /**
  * Compile-time pins for the browser globals declared in `globals.d.ts`.

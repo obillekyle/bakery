@@ -1,4 +1,4 @@
-import { createElement, Fragment, HTMLBody } from '@bakery/core'
+import { HTMLBody } from '@bakery/core'
 import { CardHeader, HeroHeader, Layout } from './Layout.tsx'
 export default HTMLBody(() => {
   const features = [

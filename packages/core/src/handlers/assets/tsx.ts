@@ -1,6 +1,5 @@
 import { Bakery } from '../../core/bakery'
 import { isSafeHtml } from '../../core/jsx'
-import type { MapOf, MixedPromise } from '../../types'
 import { is, jsonResponse } from '../../utils/common'
 import { fs } from '../../utils/fs'
 import { injectIfHtml, response } from '../../utils/http'
