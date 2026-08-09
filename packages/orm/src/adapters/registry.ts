@@ -24,9 +24,9 @@ import type { SQLAdapter } from './base'
  * instead declares a second, unrelated interface and leaves every driver name
  * rejected with nothing pointing at the cause.
  *
- * The value type is `true` and carries nothing: only the *keys* are read. It is
- * a set spelled as an interface, because interfaces are what TypeScript lets you
- * merge into.
+ * The value type is `true` and carries nothing: only the *keys* are read. It
+ * is a set spelled as an interface, because interfaces are what TypeScript
+ * lets you merge into.
  */
 export interface DriverRegistry {
   sqlite: true

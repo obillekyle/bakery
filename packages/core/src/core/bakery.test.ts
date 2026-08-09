@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 import { Bakery, getHostname, hostKey } from './bakery'
 import { __resetTestConfig, __setTestConfig, initConfig } from './config'
-import { getBakeryVersion, hostStore } from './context'
+import { getAppVersion, hostStore } from './context'
 
 beforeAll(async () => {
   await initConfig()
@@ -143,9 +143,9 @@ describe('hostKey', () => {
   })
 })
 
-describe('getBakeryVersion', () => {
+describe('getAppVersion', () => {
   test('returns a version string', () => {
-    const version = getBakeryVersion()
+    const version = getAppVersion()
     expect(typeof version).toBe('string')
     expect(version.length).toBeGreaterThan(0)
   })

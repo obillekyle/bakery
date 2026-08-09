@@ -59,6 +59,12 @@ const serveMsgs = {
   // its local pool rather than deadlock.
   SHARED_POOL_TIMEOUT:
     'W [Cluster] No shared memory pool from the master within %y{timeout}%*ms — serving on a worker-local pool; cross-worker counters and rate limits will not be shared until it arrives.',
+  // The version wipe could not empty the cache directory, so no "current"
+  // marker was written and the next boot will try again. Worth a line rather
+  // than silence: something is holding those files open, and a stale compiled
+  // page surviving an upgrade is the failure the wipe exists to prevent.
+  CACHE_WIPE_INCOMPLETE:
+    'W Cache directory could not be cleared for the version change — %y{dir}%* still contains %y{files}%*. Retrying on next start; close anything holding those files.',
 } as const
 
 export const serveLog = messageLogger(new Logger('serve'), serveMsgs)

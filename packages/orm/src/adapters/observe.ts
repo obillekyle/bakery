@@ -95,7 +95,9 @@ export function setQueryObserver(
   }
 }
 
-/** The observer currently installed, if any. Mainly for tests and diagnostics. */
+/**
+ * The observer currently installed, if any. For tests and diagnostics.
+ */
 export function getQueryObserver(): QueryObserver | null {
   return observer
 }

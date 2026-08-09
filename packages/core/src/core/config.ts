@@ -10,7 +10,8 @@ import {
 } from '../utils/constants'
 import { fs } from '../utils/fs'
 import { Bakery } from './bakery'
-import { getBakeryVersion, hostStore } from './context'
+import { checkCacheVersion } from './cache-version'
+import { hostStore } from './context'
 
 export const NOOP = () => {}
 
@@ -89,39 +90,6 @@ export function clearHostConfigCache(): void {
   cachedConfig = null
   hostConfigCache.clear()
   hostLookup = null
-}
-
-async function checkCacheVersion(): Promise<void> {
-  if (import.meta.env.WORKER) return
-
-  // Read from `Bakery.cacheDir`, never re-derived from `fs.cwd`. This value is
-  // handed straight to a recursive, forced `fs.rm` below, and it used to be a
-  // hand-written copy of the constant in `core/bakery.ts` — two sources of
-  // truth for a `rm -rf`. Renaming the cache directory in one place and not the
-  // other would have pointed this delete at whatever the stale literal named.
-  const cacheDir = Bakery.cacheDir
-  const serverJsonPath = `${cacheDir}/server.json`
-  const currentMode = import.meta.env.DEV ? 'development' : 'production'
-  const currentVersion = getBakeryVersion()
-
-  const [err, prev] = await Try.catch(() => Bun.file(serverJsonPath).json())
-  if (
-    err ||
-    !prev ||
-    prev.mode !== currentMode ||
-    prev.version !== currentVersion
-  ) {
-    if (fs.exists(cacheDir)) {
-      await fs.rm(cacheDir, { recursive: true, force: true })
-    }
-    if (!fs.exists(cacheDir)) {
-      await fs.mkdir(cacheDir)
-    }
-    await Bun.write(
-      serverJsonPath,
-      JSON.stringify({ mode: currentMode, version: currentVersion }, null, 2),
-    )
-  }
 }
 
 export async function initConfig(): Promise<Readonly<ProcessedAppConfig>> {

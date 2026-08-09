@@ -51,15 +51,53 @@ export function matchBlockedCached(
   return verdict
 }
 
-let _bakeryVersion: string | null = null
-export function getBakeryVersion() {
-  if (_bakeryVersion) return _bakeryVersion
+/**
+ * The **application's** version, from `<cwd>/package.json`.
+ *
+ * Named `getBakeryVersion` until 2026-08-09, which is exactly the wrong name:
+ * it reads the package.json of whatever is being served, not the framework's.
+ * That misnomer hid a real bug for as long as it existed — see
+ * {@link getFrameworkVersion}.
+ */
+let _appVersion: string | null = null
+export function getAppVersion() {
+  if (_appVersion) return _appVersion
   try {
     const content = fs.readFileSync(fs.resolve(fs.cwd, 'package.json'))
-    if (content) _bakeryVersion = JSON.parse(content).version || '1.0.0'
+    if (content) _appVersion = JSON.parse(content).version || '1.0.0'
   } catch {
     // Missing or malformed package.json. The version is cosmetic and the
     // '1.0.0' fallback below is the answer either way.
   }
-  return _bakeryVersion || '1.0.0'
+  return _appVersion || '1.0.0'
+}
+
+/**
+ * The **framework's** version, from `@bakery/core`'s own package.json.
+ *
+ * Resolved from this module's location rather than by package specifier: a
+ * package self-referencing by name works only via the `exports` field and is
+ * one config edit away from breaking, while `../../package.json` is the same
+ * relative path in the repo and in the published tarball (`files` keeps both
+ * `src/` and the manifest).
+ *
+ * This exists because `.cache/` invalidation was keyed on the *app's* version
+ * alone, so upgrading `@bakery/*` left a cache compiled by the previous
+ * framework version in place. In-repo that was invisible: `apps/example`'s
+ * version tracks the framework's, so bumping both wiped it anyway.
+ */
+let _frameworkVersion: string | null = null
+export function getFrameworkVersion() {
+  if (_frameworkVersion) return _frameworkVersion
+  try {
+    const content = fs.readFileSync(
+      fs.resolve(import.meta.dir, '../../package.json'),
+    )
+    if (content) _frameworkVersion = JSON.parse(content).version || '0.0.0'
+  } catch {
+    // Same reasoning as above, with one addition: a fallback that never
+    // changes would silently stop invalidating the cache, so it is a distinct
+    // value from the app fallback rather than a shared '1.0.0'.
+  }
+  return _frameworkVersion || '0.0.0'
 }
