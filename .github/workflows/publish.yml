@@ -136,7 +136,11 @@ jobs:
 
       # Guards the paragraph above. If a future Bun stops rewriting the
       # protocol, this fails here rather than shipping unresolvable manifests.
-      - name: Refuse if any tarball still carries workspace:
+      # The name deliberately avoids a trailing colon. `name: … workspace:`
+      # parses as a nested mapping key, and GitHub rejects the whole file with
+      # "Invalid workflow file" — while `js-yaml` locally accepts it, so the
+      # error is invisible until the workflow refuses to run at all.
+      - name: Refuse if any tarball still carries a workspace range
         run: |
           set -e
           for tgz in dist/*.tgz; do
