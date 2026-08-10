@@ -155,14 +155,37 @@ const API_ROUTE = `import { defineRoute, response } from '@bakery-framework/core
 import DB from '@bakery-framework/orm'
 
 // The type parameter declares the body's shape: body.title / body.slug /
-// body.body are strings below, while undeclared keys stay reachable. It states
-// the contract — it does not validate it. The body is still client input.
+// body.body are strings below, while undeclared keys stay reachable.
+//
+// It states the contract; it does not enforce it. To enforce it, pass a
+// validator and the handler only runs on a body that satisfies it:
+//
+//   export default defineRoute({ body: mySchema }, async (req, body) => …)
+//
+// The body option takes a Standard Schema (zod, valibot, arktype — Bakery
+// bundles none of them), or a plain function returning the parsed value or
+// throwing. A rejection answers 400 through the same JSON envelope as
+// everything else.
+// posts.authorId is a foreign key into users, so a post cannot be inserted
+// before its author exists — the database refuses a dangling id, which is the
+// entire point of the constraint. A real app takes the author from the session;
+// this creates one on demand so the route works on a freshly synced database.
+async function authorId(): Promise<number> {
+  const [existing] = await DB.from('users').selectAll('users').limit(1).array()
+  if (existing) return Number(existing.id)
+
+  const created = await DB.Insert.into('users')
+    .values({ username: 'demo', email: 'demo@example.com' })
+    .run()
+  return Number(created.lastInsertRowid)
+}
+
 export default defineRoute<{ title: string; slug: string; body: string }>(
   async (req, body) => {
     if (req.method === 'POST') {
       await DB.Insert.into('posts')
         .values({
-          authorId: 1,
+          authorId: await authorId(),
           title: body.title,
           slug: body.slug,
           body: body.body,
@@ -191,8 +214,8 @@ const API_ROUTE_NO_ORM = `import { defineRoute, response } from '@bakery-framewo
 // with it, or add @bakery-framework/orm later.
 const posts: { title: string }[] = []
 
-// The type parameter declares the body's shape. It states the contract — it
-// does not validate it. The body is still client input.
+// The type parameter declares the body's shape. It states the contract; to
+// enforce it, pass a validator: defineRoute({ body: schema }, handler).
 export default defineRoute<{ title: string }>(async (req, body) => {
   if (req.method === 'POST') {
     posts.push({ title: body.title })
@@ -436,6 +459,7 @@ export function templateFiles(
     scripts: {
       dev: 'bakery --dev',
       start: 'bakery',
+      typecheck: 'tsc --noEmit',
       ...(orm ? { 'db:sync': 'bun run scripts/db-sync.ts' } : {}),
     },
     // Sorted, because the key order here is otherwise "whichever plugin was
@@ -444,6 +468,22 @@ export function templateFiles(
     dependencies: Object.fromEntries(
       Object.entries(dependencies).sort(([a], [b]) => a.localeCompare(b)),
     ),
+    // `bun-types` is not optional, and its absence is invisible until you run
+    // tsc. `@bakery-framework/core/tsconfig.server.json` sets
+    // `"types": ["bun-types"]` — it has to, that is what makes `Bun.*` a type
+    // error in browser code — but core declares no dependencies at all, so
+    // nothing installs the package the setting names. In this repo it resolves
+    // from a *root* devDependency, which is why the gap was invisible from
+    // inside the workspace: a generated app typechecked here and died with
+    // `TS2688: Cannot find type definition file for 'bun-types'` anywhere else.
+    //
+    // An app owning its own toolchain is the right shape regardless — the
+    // alternative is core taking a dependency, and having none is a property
+    // worth more than this convenience.
+    devDependencies: {
+      'bun-types': '^1.3.14',
+      typescript: '^7.0.0',
+    },
   }
 
   const files: TemplateFile[] = [

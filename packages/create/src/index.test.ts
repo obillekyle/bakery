@@ -17,7 +17,12 @@ import {
   type MultiselectState,
   renderMultiselect,
 } from './prompt'
-import { dependencyRange, isValidAppName, templateFiles } from './template'
+import {
+  dependencyRange,
+  isValidAppName,
+  type PluginId,
+  templateFiles,
+} from './template'
 
 const dirs: string[] = []
 afterAll(() => {
@@ -491,6 +496,32 @@ describe('templateFiles with choices', () => {
     expect(pkgOf(files).dependencies['@bakery-framework/orm']).toBe(range)
     expect(pkgOf(files).scripts['db:sync']).toBeDefined()
     expect(fileOf(files, 'server.config.ts')).not.toContain('plugins:')
+  })
+
+  test('ships the type toolchain the generated tsconfig needs', () => {
+    // `@bakery-framework/core/tsconfig.server.json` sets `types: ["bun-types"]`
+    // and core declares no dependencies, so nothing else installs it. In this
+    // workspace it resolves from a root devDependency; a generated app anywhere
+    // else failed with TS2688 the first time anyone ran tsc.
+    for (const options of [
+      { orm: true, plugins: [] as PluginId[] },
+      { orm: false, plugins: [] as PluginId[] },
+    ]) {
+      const pkg = pkgOf(templateFiles('app', range, options))
+      expect(pkg.devDependencies['bun-types']).toBeDefined()
+      expect(pkg.devDependencies.typescript).toBeDefined()
+      expect(pkg.scripts.typecheck).toBe('tsc --noEmit')
+    }
+  })
+
+  test('the example API route respects its own foreign key', () => {
+    // posts.authorId references users.id, and the route used to insert a
+    // hardcoded `authorId: 1` into a freshly synced database with no users in
+    // it — so the first POST any reader tried, following the generated README,
+    // answered 500 with `FOREIGN KEY constraint failed`.
+    const route = fileOf(templateFiles('app', range), 'src/api/notes.ts')
+    expect(route).not.toContain('authorId: 1')
+    expect(route).toContain("DB.Insert.into('users')")
   })
 
   test('--no-orm drops the files, the dependency and the script', () => {
