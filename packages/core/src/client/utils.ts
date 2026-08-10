@@ -161,7 +161,17 @@ Object.assign(globalThis, {
   request,
   randomId,
   Bakery: {
-    version: import.meta.env.BAKERY_VERSION,
+    // **Cast rather than `import.meta.env` directly.** `ImportMeta.env` is
+    // declared by `bun-types`, and this file is compiled by the *client*
+    // tsconfig, which deliberately has none — reaching for a Bun-provided type
+    // here would undo the split it exists to enforce.
+    //
+    // Declaring `ImportMeta` in client/globals.d.ts instead would clash with
+    // bun-types inside core's own project, which is the incompatible
+    // redeclaration this repo has already had once. The value is substituted by
+    // the compiler at build time, so the cast describes what is actually there.
+    version: (import.meta as { env?: Record<string, string | undefined> }).env
+      ?.BAKERY_VERSION,
     async virtual(path: string) {
       const response = await fetch(path)
       if (!response.ok) {
