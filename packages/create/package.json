@@ -1,6 +1,6 @@
 {
   "name": "create-bakery",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Scaffold a Bakery app: bun create bakery <directory>",
   "keywords": [
     "bakery",

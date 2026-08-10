@@ -36,6 +36,8 @@ gates, bumps all seven, and rolls the `Unreleased` section into the new heading.
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-08-10
+
 ## [1.0.0] — unreleased
 
 First published release, and **the version number restarts here.** Bakery had
