@@ -21,6 +21,13 @@ const defaultConfig: Required<AppConfig> = {
   middleware: [],
   backups: DEFAULT_DB_BACKUPS,
   blocked: [],
+  // No CORS by default. Not even permissive in development: a framework
+
+  // that quietly allows every origin teaches people it works, then
+
+  // surprises them in production.
+
+  cors: null,
   head: '',
   body: '',
   plugins: [],
