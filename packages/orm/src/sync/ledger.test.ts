@@ -53,6 +53,35 @@ describe('the schema ledger', () => {
     if (!col.ok) expect(col.reason).toContain('a')
   })
 
+  test('a snake_case declared name is not drift against camelCase introspection', () => {
+    // The ledger stores the keys of the TypeScript schema; getConstraints()
+    // camelCases everything it reads back. `view('published_posts', …)` — which
+    // is what `bun create bakery` generates — therefore appeared on both sides
+    // under different spellings, and every sync of every scaffolded app
+    // reported a drifted database and fell back to introspection for good.
+    const ledger = { users: { id: {} }, published_posts: { id: {} } } as any
+    const live = { users: { id: {} }, publishedPosts: { id: {} } } as any
+    expect(shapesMatch(ledger, live).ok).toBe(true)
+  })
+
+  test('columns compare on the normalised spelling too', () => {
+    expect(
+      shapesMatch(
+        { a: { created_at: {} } } as any,
+        { a: { createdAt: {} } } as any,
+      ).ok,
+    ).toBe(true)
+  })
+
+  test('a genuinely missing table is still drift, whatever its spelling', () => {
+    // The fix must not turn the check off. Normalising both sides is the whole
+    // change; a table that is absent stays absent under any casing.
+    const gone = shapesMatch({ published_posts: {} } as any, {} as any)
+    expect(gone.ok).toBe(false)
+    // Reported under the name the reader declared, not the normalised key.
+    if (!gone.ok) expect(gone.reason).toContain('published_posts')
+  })
+
   test('a database with no ledger reads back null, it does not throw', async () => {
     const db = new SQLiteAdapter(':memory:')
     expect(await readLedger(db as any)).toBeNull()

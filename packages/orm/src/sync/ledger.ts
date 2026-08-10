@@ -216,26 +216,50 @@ export function stripLedger(
  * same normalisation the ledger exists to avoid, and a disagreement there is
  * exactly what the ledger is more trustworthy about. Names are names in every
  * dialect, so this check cannot itself be wrong in the way the others were.
+ *
+ * **But a name has two spellings, and the two sides do not use the same one.**
+ * The ledger stores the keys of your TypeScript schema — whatever you passed to
+ * `table()` / `view()` — while `getConstraints()` camelCases everything it reads
+ * back. So a table declared `view('published_posts', …)` is `published_posts` in
+ * the ledger and `publishedPosts` from introspection, and this check called that
+ * a drifted database: *"tables differ (+publishedPosts; -published_posts)"*, on
+ * a database nothing had touched. Permanently — the spellings never converge, so
+ * every later sync re-reported it and the ledger was never used again. Every app
+ * `bun create bakery` generated hit it on the first `db:sync`, because the
+ * generated schema declares exactly that view.
+ *
+ * The damage is quieter than the warning. Falling back to introspection is
+ * *safe*, so nothing breaks loudly — it just silently withdraws the thing the
+ * ledger is for. Enum member changes, for one, only migrate when the diff runs
+ * against the ledger (`plan.ledgerSource === 'ledger'`), so on any such app that
+ * feature was inert.
+ *
+ * Comparing camel-normalised names fixes it at the one place the two spellings
+ * meet. `LEDGER_ALIASES` below is the same bug, found earlier and patched for a
+ * single known name; this is the general form of it.
  */
 export function shapesMatch(
   ledger: SyncTypes.DBConstraints,
   live: SyncTypes.DBConstraints,
 ): { ok: true } | { ok: false; reason: string } {
   const meta = (k: string) => k.startsWith('_')
-  const tablesOf = (c: SyncTypes.DBConstraints) =>
-    Object.keys(c)
-      .filter(t => !meta(t))
-      .sort()
-  const colsOf = (t: any) =>
-    Object.keys(t ?? {})
-      .filter(c => !meta(c))
-      .sort()
+  // Compare on the normalised spelling, report the declared one — a diff that
+  // named tables the reader cannot find in either their schema or their database
+  // would trade one confusion for another.
+  const namesOf = (o: object) => {
+    const out = new Map<string, string>()
+    for (const k of Object.keys(o ?? {})) {
+      if (!meta(k)) out.set(Case.camel(k), k)
+    }
+    return out
+  }
+  const keysOf = (o: object) => [...namesOf(o).keys()].sort()
 
-  const a = tablesOf(ledger)
-  const b = tablesOf(live)
-  if (a.join() !== b.join()) {
-    const added = b.filter(t => !a.includes(t))
-    const gone = a.filter(t => !b.includes(t))
+  const a = namesOf(ledger)
+  const b = namesOf(live)
+  if (keysOf(ledger).join() !== keysOf(live).join()) {
+    const added = [...b].filter(([k]) => !a.has(k)).map(([, name]) => name)
+    const gone = [...a].filter(([k]) => !b.has(k)).map(([, name]) => name)
     return {
       ok: false,
       reason: `tables differ (${added.length ? `+${added.join(', ')}` : ''}${
@@ -244,14 +268,50 @@ export function shapesMatch(
     }
   }
 
-  for (const t of a) {
-    const lc = colsOf((ledger as any)[t])
-    const dc = colsOf((live as any)[t])
+  for (const [key, name] of a) {
+    const lc = keysOf((ledger as any)[name])
+    const dc = keysOf((live as any)[b.get(key) as string])
     if (lc.join() !== dc.join()) {
-      return { ok: false, reason: `columns of ${t} differ` }
+      return { ok: false, reason: `columns of ${name} differ` }
     }
   }
   return { ok: true }
+}
+
+/**
+ * Re-key a ledger payload the way introspection keys its own.
+ *
+ * The ledger stores the keys of your TypeScript schema verbatim; every consumer
+ * of "current state" downstream looks tables up by `Case.camel(name)`, because
+ * that is what `getConstraints()` produces. Handing the raw ledger to the
+ * planner therefore made every lookup miss — `diffViews` asked for
+ * `publishedPosts`, the ledger held `published_posts`, and a miss reads as "the
+ * database does not have this view", so the view was recreated on every single
+ * sync. Silent and harmless-looking; a view holds no data, so the only symptom
+ * is churn in the log.
+ *
+ * Normalising on read rather than on write is deliberate: it repairs the ledgers
+ * already written by earlier versions, which a write-side fix could not.
+ *
+ * Meta keys (`_view`, `_references`, …) are values, not identifiers, and are
+ * copied through untouched.
+ */
+function normalizeLedgerKeys(
+  constraints: SyncTypes.DBConstraints,
+): SyncTypes.DBConstraints {
+  const out: any = {}
+  for (const [table, cols] of Object.entries(constraints)) {
+    if (table.startsWith('_') || !cols || typeof cols !== 'object') {
+      out[table] = cols
+      continue
+    }
+    const next: any = {}
+    for (const [col, def] of Object.entries(cols)) {
+      next[col.startsWith('_') ? col : Case.camel(col)] = def
+    }
+    out[Case.camel(table)] = next
+  }
+  return out
 }
 
 /**
@@ -289,14 +349,15 @@ export async function resolveCurrentState(
       reason: 'ledger ignored (--no-ledger)',
     }
   }
-  const ledger = await readLedger(adapter)
-  if (!ledger)
+  const raw = await readLedger(adapter)
+  if (!raw)
     return {
       constraints: live,
       source: 'introspection',
       reason: 'no ledger yet',
     }
 
+  const ledger = normalizeLedgerKeys(raw)
   const match = shapesMatch(ledger, live)
   if (!match.ok) {
     return { constraints: live, source: 'introspection', reason: match.reason }

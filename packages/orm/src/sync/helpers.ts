@@ -260,10 +260,36 @@ function diffColumnMismatch(
   const lengthDiffers =
     typeof tsCol.length === 'number' && tsCol.length !== dbCol.length
 
+  // Enum members join the diff, so changing them migrates instead of silently
+  // doing nothing — but **only when the current state came from the ledger**.
+  //
+  // `_enum` is emitted as an inline `CHECK (col IN (...))` by all three
+  // dialects, and all three *will* report that constraint back — in three
+  // incompatible shapes. Measured:
+  //
+  //   sqlite  CHECK (status IN ('draft','live'))            in the table DDL
+  //   mysql   (`status` in (_utf8mb4'draft',_utf8mb4'live'))  charset prefixes
+  //   pgsql   CHECK (((status)::text = ANY ((ARRAY[...])))    re-rendered
+  //
+  // Postgres does not store the text it was given, it re-renders a parsed
+  // expression — the same trap that turned `EXTRACT` into `date_part` and
+  // rebuilt a table on every sync forever. Three parsers, each an opportunity
+  // for that bug, is the wrong trade when the ledger already holds the members
+  // exactly as declared.
+  //
+  // So under introspection this stays out of the diff. A schema-side-only
+  // comparison would find `_enum` on one side and nothing on the other, differ
+  // every time, and rebuild the table on every sync — which is precisely what
+  // the `length` note above says it waited to rule out before shipping.
+  const enumDiffers =
+    plan.ledgerSource === 'ledger' &&
+    !Bun.deepEquals(tsCol._enum ?? null, dbCol._enum ?? null)
+
   if (
     !isTypeMatch ||
     tsNullable !== dbNullable ||
     lengthDiffers ||
+    enumDiffers ||
     norm(tsDefault) !== norm(dbDefault)
   ) {
     MESSAGES.COL_MISMATCH({ table: dbName, column: camelCol })
