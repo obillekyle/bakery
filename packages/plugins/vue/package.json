@@ -25,7 +25,8 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./vue.d.ts": "./src/vue.d.ts"
   },
   "files": [
     "src",

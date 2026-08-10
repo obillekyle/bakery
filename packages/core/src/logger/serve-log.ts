@@ -25,6 +25,17 @@ const serveMsgs = {
   WATCHER_ERR: 'E Watcher error: %r{error}%*',
   TSCONFIG_SYNCED:
     'I Synced %ytsconfig.json%* paths with %yserver.config.ts%*!',
+  TSCONFIG_PROJECTS_WRITTEN:
+    'I Wrote %y{count}%* tsconfig project(s) to %y.cache/tsconfig/%*',
+  // A plugin asking for a project name that is taken. Named rather than
+  // silent: the symptom otherwise is one plugin's types quietly not applying,
+  // discovered much later and blamed on the wrong thing.
+  TSCONFIG_PROJECT_CLASH:
+    'W Plugin %y{plugin}%* wants tsconfig project %y{project}%*, which already exists — %rskipped%*',
+  // Degrades to "no types" rather than failing the boot: a missing declaration
+  // is a worse editor experience, not a broken server.
+  TSCONFIG_FILE_UNRESOLVED:
+    'W Could not resolve tsconfig files entry %y{entry}%* — %rskipped%*',
   MANUAL_RELOAD: 'I %yManual reload%* triggered from client logger!',
   CONFIG_IMPORT_ERR: 'E Failed to import %yserver.config.ts%*: %r{error}%*',
   // Multi-line on purpose: a present-but-broken config booting on defaults is

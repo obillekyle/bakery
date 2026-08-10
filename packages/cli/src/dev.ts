@@ -16,7 +16,7 @@ try {
     '@bakery-framework/core/utils/http'
   )
   const { setupPlugins } = await import('@bakery-framework/core/startup')
-  const { syncTSConfigPaths } = await import(
+  const { syncTSConfigPaths, syncTSConfigProjects } = await import(
     '@bakery-framework/core/compiler/tsconfig-sync'
   )
 
@@ -27,6 +27,9 @@ try {
   await initImportMap()
   initHostImportMaps()
   await syncTSConfigPaths()
+  // After setupPlugins(), so the plugin list is populated and each plugin
+  // contributing a project has been loaded.
+  await syncTSConfigProjects()
 } catch (error: any) {
   // errorMsg() already yields the stack, so the structured line below carries
   // everything the raw console.error used to duplicate.
