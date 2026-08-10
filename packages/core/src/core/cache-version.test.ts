@@ -1,6 +1,12 @@
 import { Database } from 'bun:sqlite'
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { __wipeCacheDir } from './cache-version'
 import { getAppVersion, getFrameworkVersion } from './context'
@@ -128,6 +134,68 @@ describe('wiping the cache directory', () => {
     rmSync(base, { recursive: true, force: true })
   })
 
+  /**
+   * Plant an entry inside `dir` that the operating system will refuse to
+   * delete, and return its name plus a release function.
+   *
+   * **The fixture has to differ by platform, and that is the point.** These
+   * tests originally used an open `bun:sqlite` handle everywhere, because that
+   * is the real shape of the bug on Windows: the process opens
+   * `.cache/shared-cache.db` at import time and `EBUSY` makes it undeletable.
+   *
+   * On POSIX an open file unlinks perfectly happily — so on Linux the sqlite
+   * fixture deleted cleanly, the survivor list came back empty, and both tests
+   * failed. They passed on the maintainer's Windows machine and had never run
+   * on Linux until the full suite reached CI for the first time.
+   *
+   * The POSIX equivalent is a directory without write permission: unlinking a
+   * child requires write on the *parent*, so a `0o500` directory containing a
+   * file cannot be removed.
+   */
+  function plantUndeletable(dir: string): {
+    name: string
+    release: () => void
+  } {
+    if (process.platform === 'win32') {
+      const db = new Database(`${dir}/shared-cache.db`)
+      db.run('CREATE TABLE t (a INT)')
+      db.run('INSERT INTO t VALUES (1)')
+      return { name: 'shared-cache.db', release: () => db.close() }
+    }
+
+    const sub = `${dir}/shared-cache.db`
+    mkdirSync(sub, { recursive: true })
+    writeFileSync(`${sub}/child`, 'x')
+    chmodSync(sub, 0o500)
+    return { name: 'shared-cache.db', release: () => chmodSync(sub, 0o700) }
+  }
+
+  /**
+   * True when the fixture actually resists deletion.
+   *
+   * Root ignores directory permissions, so in a container running as root the
+   * POSIX fixture is deletable and these tests would fail for a reason that has
+   * nothing to do with the code. Skipping beats a red build that means nothing
+   * — but it is asserted rather than assumed, so the tests still run wherever
+   * they can.
+   */
+  function fixtureHolds(): boolean {
+    const probe = `${base}/probe-${Math.random().toString(36).slice(2)}`
+    mkdirSync(probe, { recursive: true })
+    const planted = plantUndeletable(probe)
+    let held = true
+    try {
+      rmSync(`${probe}/${planted.name}`, { recursive: true, force: true })
+      held = readdirSync(probe).includes(planted.name)
+    } catch {
+      held = true
+    } finally {
+      planted.release()
+      rmSync(probe, { recursive: true, force: true })
+    }
+    return held
+  }
+
   test('removes plain files and nested directories alike', async () => {
     const dir = `${base}/plain`
     mkdirSync(`${dir}/nested/deeper`, { recursive: true })
@@ -140,46 +208,53 @@ describe('wiping the cache directory', () => {
     expect(readdirSync(dir)).toEqual([])
   })
 
-  test('a locked file does not shield the entries beside it', async () => {
-    // The exact shape of the bug: an open sqlite handle inside the directory.
-    const dir = `${base}/locked`
-    mkdirSync(dir, { recursive: true })
-    writeFileSync(`${dir}/a-before.txt`, 'a')
-    writeFileSync(`${dir}/z-after.txt`, 'z')
-    mkdirSync(`${dir}/html`, { recursive: true })
-    writeFileSync(`${dir}/html/page.html`, '<p>stale</p>')
+  const undeletableHolds = fixtureHolds()
 
-    const db = new Database(`${dir}/shared-cache.db`)
-    db.run('CREATE TABLE t (a INT)')
-    db.run('INSERT INTO t VALUES (1)')
+  test.skipIf(!undeletableHolds)(
+    'a locked file does not shield the entries beside it',
+    async () => {
+      // The exact shape of the bug: an entry inside the directory that the OS
+      // refuses to remove — an open sqlite handle on Windows, a permission-
+      // locked directory on POSIX.
+      const dir = `${base}/locked`
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(`${dir}/a-before.txt`, 'a')
+      writeFileSync(`${dir}/z-after.txt`, 'z')
+      mkdirSync(`${dir}/html`, { recursive: true })
+      writeFileSync(`${dir}/html/page.html`, '<p>stale</p>')
 
-    try {
-      const survivors = await __wipeCacheDir(dir)
-      // Everything except the locked file is gone — including `html/`, which
-      // is the entry that actually matters and which used to survive purely
-      // because of where it sat in readdir order.
-      expect(survivors).toEqual(['shared-cache.db'])
-      const left = readdirSync(dir)
-      expect(left).toEqual(['shared-cache.db'])
-    } finally {
-      db.close()
-    }
-  })
+      const planted = plantUndeletable(dir)
 
-  test('a non-empty survivor list is what withholds the marker', async () => {
-    // Not a test of the writer — a statement of the contract the writer reads.
-    // `checkCacheVersion` writes the "cache is current" marker only when this
-    // is empty, so anything that makes it non-empty must keep it withheld.
-    const dir = `${base}/contract`
-    mkdirSync(dir, { recursive: true })
-    const db = new Database(`${dir}/shared-cache.db`)
-    try {
-      const survivors = await __wipeCacheDir(dir)
-      expect(survivors.length).toBeGreaterThan(0)
-    } finally {
-      db.close()
-    }
-  })
+      try {
+        const survivors = await __wipeCacheDir(dir)
+        // Everything except the locked entry is gone — including `html/`,
+        // which is the one that actually matters and which used to survive
+        // purely because of where it sat in readdir order.
+        expect(survivors).toEqual([planted.name])
+        expect(readdirSync(dir)).toEqual([planted.name])
+      } finally {
+        planted.release()
+      }
+    },
+  )
+
+  test.skipIf(!undeletableHolds)(
+    'a non-empty survivor list is what withholds the marker',
+    async () => {
+      // Not a test of the writer — a statement of the contract the writer
+      // reads. `checkCacheVersion` writes the "cache is current" marker only
+      // when this is empty, so anything non-empty must keep it withheld.
+      const dir = `${base}/contract`
+      mkdirSync(dir, { recursive: true })
+      const planted = plantUndeletable(dir)
+      try {
+        const survivors = await __wipeCacheDir(dir)
+        expect(survivors.length).toBeGreaterThan(0)
+      } finally {
+        planted.release()
+      }
+    },
+  )
 
   test('an absent directory is not an error', async () => {
     expect(await __wipeCacheDir(`${base}/never-existed`)).toEqual([])
