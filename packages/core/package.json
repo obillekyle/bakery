@@ -55,11 +55,15 @@
     "./router": "./src/router.ts",
     "./utils/shared-pool": "./src/utils/shared-pool.ts",
     "./global.d.ts": "./src/global.d.ts",
-    "./core/bakery": "./src/core/bakery.ts"
+    "./core/bakery": "./src/core/bakery.ts",
+    "./tsconfig.server.json": "./tsconfig.server.json",
+    "./tsconfig.vue.json": "./tsconfig.vue.json"
   },
   "files": [
     "src",
     "tsconfig.app.json",
+    "tsconfig.server.json",
+    "tsconfig.vue.json",
     "!src/**/*.test.ts",
     "!src/tests"
   ],

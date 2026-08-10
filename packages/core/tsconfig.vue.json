@@ -1,0 +1,39 @@
+{
+  "$comment": [
+    "Vue single-file components. Extend it:",
+    "  { \"extends\": \"@bakery-framework/core/tsconfig.vue.json\" }",
+    "",
+    "SFCs get `bun-types` like server code does, because @bakery-framework/",
+    "plugin-vue compiles and can render them on the server — a `<script>` block",
+    "is not browser-only the way a plain `.ts` under the source root is.",
+    "",
+    "**`tsc` cannot parse `.vue`.** This config is for `vue-tsc`, which wraps tsc",
+    "and understands SFCs. Pointing plain `tsc` at a project whose `include`",
+    "matches `**/*.vue` gets you either silence or a parse error, depending on",
+    "version — neither of which is a typecheck.",
+    "",
+    "`jsx: preserve` rather than Bakery's classic runtime: inside an SFC, JSX (if",
+    "used at all) belongs to Vue's own transform, not to `createElement`."
+  ],
+  "_files_note": "Server ambients, same as tsconfig.server.json — an SFC can reach Bakery, AppConfig and the JSX namespace.",
+  "files": ["./src/global.d.ts", "./src/shared.d.ts", "./src/types.d.ts"],
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "types": ["bun-types"],
+
+    "jsx": "preserve",
+
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}

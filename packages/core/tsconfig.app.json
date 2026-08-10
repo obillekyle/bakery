@@ -1,26 +1,36 @@
 {
   "$comment": [
-    "Base tsconfig for applications built on Bakery. Extend it:",
+    "**Client-side code** — the plain `.ts` under your source root that ends up",
+    "in the browser bundle. Extend it:",
     "  { \"extends\": \"@bakery-framework/core/tsconfig.app.json\" }",
     "",
-    "The JSX settings are not optional. Bakery renders JSX server-side to a",
-    "string through its own `createElement`, so without these Bun falls back to",
-    "the automatic runtime and every .tsx page fails with",
-    "'Cannot find module react/jsx-dev-runtime'."
+    "BREAKING, 2.0.0: this file used to be the single config every app",
+    "extended, and it carried `bun-types` and the JSX settings. It is now the",
+    "*browser* half of a three-way split — server code extends",
+    "tsconfig.server.json, Vue SFCs extend tsconfig.vue.json.",
+    "",
+    "**`types` is deliberately empty.** That is the entire reason the split",
+    "exists: without `bun-types` there is no `Bun` global, so `Bun.hash()` in a",
+    "file bound for the browser is a type error instead of a runtime one. Adding",
+    "bun-types back here re-opens the hole quietly.",
+    "",
+    "No JSX settings either. `.tsx` is server-rendered in Bakery and belongs to",
+    "tsconfig.server.json; a `.tsx` file compiled under this config would pick up",
+    "the automatic runtime and fail at request time while typechecking clean."
   ],
-  "_files_note": "Paths in an extended config resolve relative to THIS file, so extending packages inherit core ambient declarations (createElement, Fragment, the JSX namespace, Bakery, AppConfig) without naming a node_modules path. shared.d.ts carries the handful of types the browser runtime needs too (MapOf, Wrapped, JsonResponse, ISFunction) and is declared there exactly once.",
-  "files": ["./src/global.d.ts", "./src/shared.d.ts", "./src/types.d.ts"],
+  "_files_note": "client/globals.d.ts declares the globals the browser runtime binds onto globalThis (request, escapeHTML, is, Try, Case, match, …). It states each as `typeof import(...)` of the isomorphic module that implements it, so the declaration cannot drift from the value. Those modules are pure by convention — no Bun, no node builtins, no DOM — which is what makes them safe to pull into a project that has no bun-types.",
+  "files": [
+    "./src/client/globals.d.ts",
+    "./src/shared.d.ts",
+    "./src/types.d.ts"
+  ],
   "compilerOptions": {
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "target": "ESNext",
     "module": "Preserve",
     "moduleDetection": "force",
     "moduleResolution": "bundler",
-    "types": ["bun-types"],
-
-    "jsx": "react",
-    "jsxFactory": "createElement",
-    "jsxFragmentFactory": "Fragment",
+    "types": [],
 
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,

@@ -45,7 +45,7 @@ mkdir -p apps/notes/src/api apps/notes/orm
 
 ```json
 {
-  "extends": "@bakery-framework/core/tsconfig.app.json",
+  "extends": "@bakery-framework/core/tsconfig.server.json",
   "compilerOptions": {
     "jsx": "react",
     "jsxFactory": "createElement",

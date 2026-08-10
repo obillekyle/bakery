@@ -370,7 +370,7 @@ ${pluginSection}
  * The three JSX options are repeated here on purpose, and removing them breaks
  * every page in the generated app.
  *
- * `@bakery-framework/core/tsconfig.app.json` already sets them, and `tsc` picks them up
+ * `@bakery-framework/core/tsconfig.server.json` already sets them, and `tsc` picks them up
  * from there — but **Bun's runtime does not follow `extends` into a package
  * specifier**, only a relative path. So at runtime the app is transpiled with
  * Bun's default automatic JSX runtime instead of Bakery's classic
@@ -391,8 +391,8 @@ function tsconfig(orm: boolean): string {
     .join(',\n')
 
   return `{
-  "$comment": "The three jsx* options are also set by @bakery-framework/core/tsconfig.app.json, and tsc reads them from there — but Bun's runtime does not follow 'extends' into a package specifier, only a relative path. Without them here, every .tsx page fails at runtime with \\"Cannot find module 'react/jsx-dev-runtime'\\" while typecheck stays clean. Keep them.",
-  "extends": "@bakery-framework/core/tsconfig.app.json",
+  "$comment": "The three jsx* options are also set by @bakery-framework/core/tsconfig.server.json, and tsc reads them from there — but Bun's runtime does not follow 'extends' into a package specifier, only a relative path. Without them here, every .tsx page fails at runtime with \\"Cannot find module 'react/jsx-dev-runtime'\\" while typecheck stays clean. Keep them.",
+  "extends": "@bakery-framework/core/tsconfig.server.json",
   "compilerOptions": {
     "jsx": "react",
     "jsxFactory": "createElement",

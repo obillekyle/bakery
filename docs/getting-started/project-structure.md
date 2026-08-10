@@ -13,7 +13,7 @@ layout, see [the last section](#the-framework-repo).
 apps/notes/
   package.json          scripts + the three @bakery-framework/* dependencies
   server.config.ts      optional; `root` is the only option most apps set
-  tsconfig.json         extends @bakery-framework/core/tsconfig.app.json
+  tsconfig.json         extends @bakery-framework/core/tsconfig.server.json
   orm/
     tables.ts           table() declarations — the generator owns this file
     views.ts            view() declarations

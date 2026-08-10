@@ -1,0 +1,41 @@
+{
+  "$comment": [
+    "Server-side code: API routes, `.tsx` pages, server.config.ts, schema.ts,",
+    "orm/. Extend it:",
+    "  { \"extends\": \"@bakery-framework/core/tsconfig.server.json\" }",
+    "",
+    "This is the only one of the three that gets `bun-types`, and that is the",
+    "point of the split: `Bun.*` is a type error in browser code, because",
+    "browser code cannot call it. Before the split every app extended a single",
+    "config and `Bun.hash()` typechecked happily inside a file destined for the",
+    "browser bundle, where it fails at runtime.",
+    "",
+    "The JSX settings are not optional. Bakery renders JSX server-side to a",
+    "string through its own `createElement`, so without these Bun falls back to",
+    "the automatic runtime and every .tsx page fails with",
+    "'Cannot find module react/jsx-dev-runtime'."
+  ],
+  "_files_note": "Paths in an extended config resolve relative to THIS file, so extending packages inherit core's server ambient declarations (createElement, Fragment, the JSX namespace, Bakery, AppConfig) without naming a node_modules path. shared.d.ts carries the handful of types the browser needs too and is declared exactly once.",
+  "files": ["./src/global.d.ts", "./src/shared.d.ts", "./src/types.d.ts"],
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "types": ["bun-types"],
+
+    "jsx": "react",
+    "jsxFactory": "createElement",
+    "jsxFragmentFactory": "Fragment",
+
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}

@@ -357,7 +357,7 @@ describe('the template only imports enumerated exports', () => {
 
   test('the JSX options are inline, not only inherited', () => {
     // Bun's runtime does not follow tsconfig `extends` into a package
-    // specifier, so inheriting these from @bakery-framework/core/tsconfig.app.json is not
+    // specifier, so inheriting these from @bakery-framework/core/tsconfig.server.json is not
     // enough: the app transpiles with Bun's default automatic JSX runtime and
     // every .tsx route 500s with `Cannot find module 'react/jsx-dev-runtime'`.
     //

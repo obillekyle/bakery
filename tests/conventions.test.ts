@@ -588,6 +588,53 @@ describe('release versions', () => {
     })
   })
 
+  test('the client tsconfig has no bun-types', async () => {
+    // The whole point of splitting one app tsconfig into three. `Bun.hash()`
+    // in a file destined for the browser used to typecheck happily and fail at
+    // runtime; it is a type error now only because `types` is empty here.
+    //
+    // Adding "bun-types" back — or dropping the key, which lets TypeScript
+    // include every @types package it can find — re-opens the hole silently,
+    // and nothing else in the suite would notice.
+    const client = await Bun.file(
+      `${ROOT}/packages/core/tsconfig.app.json`,
+    ).json()
+    expect(client.compilerOptions.types).toEqual([])
+
+    // The other half: server and Vue code *may* call Bun, so their configs
+    // must keep it. A split where nothing has bun-types would also make the
+    // assertion above pass.
+    for (const name of ['tsconfig.server.json', 'tsconfig.vue.json']) {
+      const cfg = await Bun.file(`${ROOT}/packages/core/${name}`).json()
+      expect({ name, types: cfg.compilerOptions.types }).toEqual({
+        name,
+        types: ['bun-types'],
+      })
+    }
+  })
+
+  test('all three tsconfigs are published', async () => {
+    // They are resolved by consumers as `@bakery-framework/core/tsconfig.X.json`,
+    // which needs both an `exports` entry and inclusion in `files` — miss
+    // either and `extends` fails only for someone who installed from npm, never
+    // in this repo, where the workspace symlink resolves any path.
+    const pkg = await Bun.file(`${ROOT}/packages/core/package.json`).json()
+    for (const name of [
+      'tsconfig.app.json',
+      'tsconfig.server.json',
+      'tsconfig.vue.json',
+    ]) {
+      expect({ name, exported: `./${name}` in pkg.exports }).toEqual({
+        name,
+        exported: true,
+      })
+      expect({ name, packed: pkg.files.includes(name) }).toEqual({
+        name,
+        packed: true,
+      })
+    }
+  })
+
   test('the CLI keeps the ORM an optional peer', async () => {
     // Stated as a test because the natural edit — "the CLI uses orm, so it
     // should depend on orm" — is wrong here and looks right. A hard dependency

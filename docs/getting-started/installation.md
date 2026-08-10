@@ -196,7 +196,7 @@ An app extends the tsconfig that ships with core:
 
 ```json
 {
-  "extends": "@bakery-framework/core/tsconfig.app.json",
+  "extends": "@bakery-framework/core/tsconfig.server.json",
   "compilerOptions": {
     "jsx": "react",
     "jsxFactory": "createElement",
@@ -225,7 +225,7 @@ carries everything else.
 That everything else is worth having: it pulls in core's ambient declarations,
 which is where the global `createElement`, `Fragment` and `html` come from — you
 do not import them in a page
-([packages/core/tsconfig.app.json](../../packages/core/tsconfig.app.json),
+([packages/core/tsconfig.server.json](../../packages/core/tsconfig.server.json),
 [packages/core/src/global.d.ts](../../packages/core/src/global.d.ts)).
 
 > **The dev server rewrites your `tsconfig.json`.** On every dev boot,

@@ -44,7 +44,7 @@ Pages are rendered server-side through Bakery's own `createElement`, so an app's
 
 ```json
 {
-  "extends": "@bakery-framework/core/tsconfig.app.json",
+  "extends": "@bakery-framework/core/tsconfig.server.json",
   "compilerOptions": {
     "jsx": "react",
     "jsxFactory": "createElement",
