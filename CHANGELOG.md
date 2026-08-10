@@ -36,6 +36,8 @@ gates, bumps all seven, and rolls the `Unreleased` section into the new heading.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-08-10
+
 ### Changed
 
 - **`@bakery-framework/core/tsconfig.app.json` now means client-side code only**

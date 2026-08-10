@@ -1,6 +1,6 @@
 {
   "name": "@bakery-framework/plugin-analytics",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Bakery analytics plugin.",
   "keywords": [
     "bakery",
