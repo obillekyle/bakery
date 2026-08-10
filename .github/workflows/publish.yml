@@ -1,9 +1,21 @@
 name: Publish
 
-# The only thing in this repository that touches the registry, and the only one
-# that cannot be undone: npm never allows a version number to be reused, by
-# anyone, ever. So it fires on a tag rather than on a push — `version.yml`
-# creates the tag, and a human can also create one by hand.
+# The only thing here that touches the registry, and the only one that cannot
+# be undone: npm never allows a version number to be reused, by anyone, ever.
+# So it fires on a tag rather than on a push — `version.yml` creates the tag,
+# and a human can also create one by hand.
+#
+# Authentication is **npm Trusted Publishing (OIDC)**: no long-lived token
+# exists anywhere, not in this repository's secrets and not on anyone's laptop.
+# npm mints a short-lived credential for this exact workflow in this exact
+# repository. Two consequences worth knowing before editing this file:
+#
+#   - Trusted publishing is configured **per package** on npmjs.com, and it
+#     names *this file*. Renaming publish.yml, or moving the job, breaks the
+#     trust relationship and every publish 403s until the config is updated.
+#   - It cannot perform a package's *first* publish — npm has nowhere to attach
+#     the trusted publisher until the package exists. Release one is done by
+#     hand with a local token; everything after comes through here.
 on:
   push:
     tags:
@@ -17,6 +29,9 @@ concurrency:
 
 permissions:
   contents: read
+  # The whole point. Without it the runner cannot mint the OIDC token and npm
+  # falls back to looking for a credential that does not exist.
+  id-token: write
 
 jobs:
   publish:
@@ -31,6 +46,18 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      # npm does the publishing, so it needs a Node it supports. The runner's
+      # bundled npm predates OIDC support often enough that pinning is cheaper
+      # than debugging a 401 that claims to be about permissions.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Use an npm that speaks OIDC
+        run: |
+          npm install -g npm@latest
+          npm --version
 
       - run: bun install --frozen-lockfile
 
@@ -48,10 +75,11 @@ jobs:
           fi
           echo "tag and manifests agree on $manifest"
 
-      # The dist-tag is derived from the version, never passed in. A
-      # prerelease published without one becomes `latest`, and then every plain
+      # The dist-tag is derived from the version, never passed in. A prerelease
+      # published without one becomes `latest`, and then every plain
       # `bun add @bakery-framework/core` in the world resolves to a beta —
       # silently, and only fixable by re-tagging after people have installed it.
+      # An unrecognised prerelease is refused rather than defaulted.
       - name: Work out the dist-tag
         id: disttag
         env:
@@ -68,35 +96,31 @@ jobs:
           echo "value=$tag" >> "$GITHUB_OUTPUT"
           echo "publishing $version under dist-tag $tag"
 
-      # The gates run again here rather than being trusted from the tagged
-      # commit's earlier run. A tag can be moved; a branch can be force-pushed.
-      # This is the last point at which anything can still be stopped.
+      # Run again rather than trusted from the tagged commit's earlier run: a
+      # tag can be moved, a branch force-pushed. Last point anything stops.
       - name: Test
         run: bun run test
 
       - name: Typecheck
         run: bun run typecheck
 
-      - name: Authenticate
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "$NPM_TOKEN" ]; then
-            echo "NPM_TOKEN secret is not set" >&2
-            exit 1
-          fi
-          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
-          echo "authenticated as $(bun pm whoami)"
-
-      # Dependency order: core, then everything that depends on it, then the
-      # scaffolder that references all of them. It does not affect whether a
-      # publish succeeds — npm does not check that a dependency exists — but it
-      # decides what a consumer sees if they install while this is half done.
-      - name: Publish
-        env:
-          DIST_TAG: ${{ steps.disttag.outputs.value }}
+      # **Bun packs, npm publishes, and the split is load-bearing.**
+      #
+      # `workspace:^` is a Bun/pnpm protocol that npm does not understand. Bun
+      # rewrites it to a real range when it builds a tarball; npm does not.
+      # Measured on @bakery-framework/orm:
+      #
+      #   npm pack     -> "@bakery-framework/core": "workspace:^"   (broken)
+      #   bun pm pack  -> "@bakery-framework/core": "^1.0.0"        (correct)
+      #
+      # So publishing straight from the working tree with npm would ship seven
+      # manifests that no consumer can resolve, permanently. Packing with Bun
+      # and handing npm a finished tarball keeps Bun's rewriting *and* gets
+      # OIDC, because npm publishes the bytes it is given.
+      - name: Pack every package with Bun
         run: |
           set -e
+          mkdir -p dist
           for pkg in \
             packages/core \
             packages/orm \
@@ -106,8 +130,44 @@ jobs:
             packages/plugins/dashboard \
             packages/create
           do
-            echo "::group::$pkg"
-            ( cd "$pkg" && bun publish --tag "$DIST_TAG" )
+            ( cd "$pkg" && bun pm pack --destination "$GITHUB_WORKSPACE/dist" )
+          done
+          ls -l dist
+
+      # Guards the paragraph above. If a future Bun stops rewriting the
+      # protocol, this fails here rather than shipping unresolvable manifests.
+      - name: Refuse if any tarball still carries workspace:
+        run: |
+          set -e
+          for tgz in dist/*.tgz; do
+            if tar -xzOf "$tgz" package/package.json | grep -q '"workspace:'; then
+              echo "$tgz still contains a workspace: range" >&2
+              exit 1
+            fi
+          done
+          echo "no workspace: ranges in any tarball"
+
+      # Dependency order: core, then everything depending on it, then the
+      # scaffolder that references them all. It does not affect whether a
+      # publish succeeds — npm does not check that a dependency exists — but it
+      # decides what a consumer sees if they install while this is half done.
+      - name: Publish
+        env:
+          DIST_TAG: ${{ steps.disttag.outputs.value }}
+        run: |
+          set -e
+          for name in \
+            bakery-framework-core \
+            bakery-framework-orm \
+            bakery-framework-cli \
+            bakery-framework-plugin-vue \
+            bakery-framework-plugin-analytics \
+            bakery-framework-plugin-dashboard \
+            create-bakery
+          do
+            tgz=$(ls dist/${name}-*.tgz)
+            echo "::group::$name"
+            npm publish "$tgz" --tag "$DIST_TAG"
             echo "::endgroup::"
           done
 
@@ -118,6 +178,8 @@ jobs:
         run: |
           {
             echo "### Published $TAG under \`$DIST_TAG\`"
+            echo
+            echo "Authenticated by OIDC — no token was used."
             echo
             if [ "$DIST_TAG" = latest ]; then
               echo '```'
