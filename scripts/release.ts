@@ -233,6 +233,29 @@ if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)) {
   die(`'${version}' is not a semver version (no leading 'v')`)
 }
 
+// A computed version equal to the current one means there is nothing to
+// release — that number is already spent, and npm will never accept it twice.
+//
+// This is not hypothetical. `version.yml` pushes the branch and the tag in one
+// command, but workflows trigger per ref, so the run can start before the tag
+// is visible. `lastStableTag()` then finds nothing, measures from 0.0.0 across
+// the whole history, and lands back on the version already in the manifests.
+// Every manifest is left untouched — correctly — but the CHANGELOG heading was
+// still rolled, which dirtied the tree and made CI believe a release had
+// happened. It then tried to create a tag that already existed and failed.
+//
+// Guarding on the version rather than on a clean tree also makes the check
+// immune to unrelated dirt, which is what CI was really tripping over.
+if (version === rootPkg.version) {
+  const nothing = `${version} is already the current version — nothing to release.`
+  if (ifNeeded) {
+    console.log(`release: ${nothing}`)
+    console.log('release: --if-needed, so this is fine. Nothing written.')
+    process.exit(0)
+  }
+  die(`${nothing}\n        Pass a higher version explicitly to override.`)
+}
+
 // 1. A dirty tree means the release would capture edits nobody reviewed.
 const status = await capture(['git', 'status', '--porcelain'])
 if (status && !dryRun) {

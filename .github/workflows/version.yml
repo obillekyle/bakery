@@ -56,20 +56,31 @@ jobs:
       # `--if-needed` because most pushes here are docs or chores and warrant no
       # release. Without it every ordinary merge ends in a red cross, and a
       # workflow that is usually red is a workflow nobody reads.
+      - name: Note the version before
+        id: before
+        run: echo "value=$(bun -e 'console.log(require("./package.json").version)')" >> "$GITHUB_OUTPUT"
+
       - name: Compute the version and bump every manifest
         run: bun run release --if-needed --branch='${{ github.ref_name }}'
 
-      # Whether anything was actually written is the signal — not the exit
-      # code, which is 0 in both cases now.
-      - name: Did it produce a release?
+      # **Whether the version moved is the signal — not whether the tree is
+      # dirty.** `git status` was the obvious check and it was wrong twice
+      # over: it reports any unrelated change (a stray formatter edit, a file a
+      # test wrote) as "a release happened", and it reported exactly that on the
+      # first real run, which then tried to create a tag that already existed.
+      - name: Did the version move?
         id: check
+        env:
+          BEFORE: ${{ steps.before.outputs.value }}
         run: |
-          if [ -n "$(git status --porcelain)" ]; then
+          after=$(bun -e 'console.log(require("./package.json").version)')
+          if [ "$after" != "$BEFORE" ]; then
             echo "released=true" >> "$GITHUB_OUTPUT"
-            echo "value=$(bun -e 'console.log(require("./package.json").version)')" >> "$GITHUB_OUTPUT"
+            echo "value=$after" >> "$GITHUB_OUTPUT"
+            echo "$BEFORE -> $after"
           else
             echo "released=false" >> "$GITHUB_OUTPUT"
-            echo "no release warranted by these commits"
+            echo "still $after — no release warranted by these commits"
           fi
 
       - name: Commit and tag
