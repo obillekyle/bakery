@@ -18,7 +18,7 @@
     "url": "git+https://github.com/obillekyle/bakery.git",
     "directory": "packages/create"
   },
-  "homepage": "https://github.com/obillekyle/bakery#readme",
+  "homepage": "https://bakery.okyle.dev",
   "bugs": "https://github.com/obillekyle/bakery/issues",
   "publishConfig": {
     "access": "public"

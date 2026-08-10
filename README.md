@@ -176,10 +176,13 @@ ignored — `bakery --port 8080` starts a production server. See
 
 ## Documentation
 
-Everything lives in [`docs/`](docs/README.md), from installation to the
-architecture reference. Every TypeScript example in it is compiled against the
-real packages by `tests/docs-examples.test.ts`, so an example that stops
-working fails CI rather than the reader.
+**[bakery.okyle.dev](https://bakery.okyle.dev)** — installation through to the
+architecture reference.
+
+The source is [`docs/`](docs/README.md) in this repository, and the site is
+built from it, so the two cannot drift. Every TypeScript example is compiled
+against the real packages by `tests/docs-examples.test.ts`, which means an
+example that stops working fails CI rather than the reader.
 
 ## License
 
