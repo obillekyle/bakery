@@ -189,7 +189,12 @@ jobs:
             bakery-framework-plugin-dashboard \
             create-bakery
           do
-            tgz=$(ls dist/${name}-*.tgz)
+            # **Absolute path, not `dist/…`.** npm parses a bare `a/b` as a
+            # GitHub shorthand, so `npm publish dist/pkg-1.0.2.tgz` tries to
+            # fetch `github:dist/pkg-1.0.2.tgz` and dies with EALLOWGIT —
+            # "Fetching packages of type git have been disabled". It is not a
+            # missing-file error, which is what makes it confusing.
+            tgz=$(ls "$GITHUB_WORKSPACE"/dist/${name}-*.tgz)
             echo "::group::$name"
             npm publish "$tgz" --tag "$DIST_TAG"
             echo "::endgroup::"
