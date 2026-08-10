@@ -36,6 +36,8 @@ gates, bumps all seven, and rolls the `Unreleased` section into the new heading.
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-08-10
+
 ### Added
 
 - **CORS.** `cors` in `server.config.ts`. Preflights are answered before
