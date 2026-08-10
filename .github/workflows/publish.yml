@@ -175,30 +175,58 @@ jobs:
       # scaffolder that references them all. It does not affect whether a
       # publish succeeds — npm does not check that a dependency exists — but it
       # decides what a consumer sees if they install while this is half done.
+      # **Resumable on purpose.** Seven publishes are seven chances to fail
+      # partway, and the first real run did exactly that: six succeeded and
+      # `create-bakery` failed, leaving the set split across two versions. A
+      # loop that cannot be re-run leaves you hand-publishing the remainder,
+      # because a second attempt dies on the first already-published package
+      # before it reaches the one that failed.
+      #
+      # So each package is skipped if that exact version is already on the
+      # registry. Idempotent, and safe: npm would refuse the duplicate anyway,
+      # this just refuses it earlier and keeps going.
       - name: Publish
         env:
           DIST_TAG: ${{ steps.disttag.outputs.value }}
         run: |
           set -e
-          for name in \
-            bakery-framework-core \
-            bakery-framework-orm \
-            bakery-framework-cli \
-            bakery-framework-plugin-vue \
-            bakery-framework-plugin-analytics \
-            bakery-framework-plugin-dashboard \
-            create-bakery
+          published=0
+          skipped=0
+          for pkg in \
+            packages/core \
+            packages/orm \
+            packages/cli \
+            packages/plugins/vue \
+            packages/plugins/analytics \
+            packages/plugins/dashboard \
+            packages/create
           do
+            name=$(bun -e "console.log(require('./$pkg/package.json').name)")
+            version=$(bun -e "console.log(require('./$pkg/package.json').version)")
+
+            # `@scope/pkg` -> `scope-pkg`, which is how the tarball is named.
+            fname=$(printf '%s' "$name" | sed 's|^@||; s|/|-|')
+            # `@scope/pkg` -> `@scope%2Fpkg` for the registry URL.
+            enc=$(printf '%s' "$name" | sed 's|/|%2F|')
+
+            if curl -fsS -o /dev/null "https://registry.npmjs.org/$enc/$version" 2>/dev/null; then
+              echo "  $name@$version already published — skipping"
+              skipped=$((skipped + 1))
+              continue
+            fi
+
             # **Absolute path, not `dist/…`.** npm parses a bare `a/b` as a
             # GitHub shorthand, so `npm publish dist/pkg-1.0.2.tgz` tries to
             # fetch `github:dist/pkg-1.0.2.tgz` and dies with EALLOWGIT —
             # "Fetching packages of type git have been disabled". It is not a
             # missing-file error, which is what makes it confusing.
-            tgz=$(ls "$GITHUB_WORKSPACE"/dist/${name}-*.tgz)
-            echo "::group::$name"
+            tgz="$GITHUB_WORKSPACE/dist/${fname}-${version}.tgz"
+            echo "::group::$name@$version"
             npm publish "$tgz" --tag "$DIST_TAG"
             echo "::endgroup::"
+            published=$((published + 1))
           done
+          echo "published=$published skipped=$skipped"
 
       - name: Summary
         env:
