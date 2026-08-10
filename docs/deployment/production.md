@@ -17,8 +17,8 @@ destructive plan on a production host falls through to the interactive
 bunx bakery
 ```
 
-That is `@bakery-framework/cli`'s `bin`. In the example app the same thing is wrapped as
-`bun run serve`.
+That is `@bakery-framework/cli`'s `bin`. A generated app wraps it as
+`bun run start`; this repo's example app wraps it as `bun run serve`.
 
 ## What starts, in what order
 
@@ -96,8 +96,8 @@ page.
 
 | Path | Contents | Redeploy |
 | --- | --- | --- |
-| **`bakery/`** | `server.db`, `backups/` | **Must survive.** This is your database. |
-| `.cache/` | compiled assets, static cache, `server.json`, `shared-cache.db` | Disposable. Rebuilt on demand — including sessions, which do not survive a framework upgrade. |
+| **`bakery/`** | `server.db`, `sessions.db`, `backups/` | **Must survive.** Your database, and the sessions that would otherwise log every user out on deploy. |
+| `.cache/` | compiled assets, static cache, generated tsconfigs, `server.json` | Disposable. Emptied and rebuilt whenever the app version, framework version or mode changes. |
 
 The visible one is the precious one, deliberately: the framework deletes
 `.cache/` wholesale on its own, so the directory it can never reach is the one
@@ -107,14 +107,16 @@ resolved against the working directory, and both are in the default blocked-path
 list so neither is ever served
 (`packages/core/src/utils/constants.ts`).
 
-`.cache` is wiped automatically whenever the mode or the app version
-changes (`packages/core/src/core/config.ts`), so a stale cache after a
-deploy is not a failure mode you have to plan for. The process does need write
-access to it: a fully read-only filesystem will not work.
+`.cache` is wiped automatically whenever the mode, the app version or the
+framework version changes
+(`packages/core/src/core/cache-version.ts`), so a stale cache after a deploy is
+not a failure mode you have to plan for. The wipe is per entry and the
+"cache is current" marker is written **only if nothing survived** — a success
+marker after a partial delete is what once made a retryable problem permanent.
+The process does need write access: a fully read-only filesystem will not work.
 
-If you point the ORM at Postgres or MySQL, `bakery/` holds only `backups/` —
-the session store lives in `.cache/` and is rebuilt from empty after any
-framework upgrade.
+If you point the ORM at Postgres or MySQL, `bakery/` still holds `sessions.db`
+and `backups/`, so it must persist either way.
 
 ## Docker
 

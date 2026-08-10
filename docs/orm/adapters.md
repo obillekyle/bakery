@@ -66,7 +66,7 @@ returns the current transaction when one is open (via `AsyncLocalStorage`) and
 `connection` otherwise — it is what every builder calls, and why
 `DB.transaction()` needs no argument passing.
 
-You rarely call any of this. `bun run dev`, `bun run serve` and `db:sync` all
+You rarely call any of this. `bun run dev`, `bun run start` and `db:sync` all
 open the connection themselves.
 
 ## What differs per dialect

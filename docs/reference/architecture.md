@@ -8,7 +8,7 @@ How a Bakery process starts, and how a request becomes a response.
 | --- | --- | --- |
 | `@bakery-framework/core` | nothing at runtime | handlers, router, config, sessions, caches, logger, compiler, JSX |
 | `@bakery-framework/orm` | core | query builder, mutations, adapters, schema sync, backup |
-| `@bakery-framework/cli` | core, orm | the `bakery` binary; process-mode dispatch |
+| `@bakery-framework/cli` | core; orm as an *optional peer* | the `bakery` binary; process-mode dispatch |
 | `@bakery-framework/plugin-vue` | core | `.vue` components with server blocks |
 | `@bakery-framework/plugin-analytics` | core | request telemetry |
 | `@bakery-framework/plugin-dashboard` | core, orm | the admin console |
@@ -28,7 +28,7 @@ off to one of four files.
 | --- | --- | --- |
 | dev master | `bun run dev` | `index.ts` → `watcher.ts` → `compiler/dev-service.ts` |
 | dev worker | `--dev-worker` (spawned by the master) | `index.ts` → `dev.ts` → `worker.ts` |
-| production | `bun run serve` | `index.ts` → `prod.ts` → `worker.ts` |
+| production | `bun run start` | `index.ts` → `prod.ts` → `worker.ts` |
 | cluster | `--threads N` (production only) | `index.ts` → `threads.ts` → N × `worker.ts` |
 
 Flags:
@@ -65,9 +65,9 @@ initDB()              production only here; the worker calls it again
 → worker.ts
 ```
 
-`bun run dev` and `bun run serve` are thin wrappers: the example app's scripts
-invoke `packages/cli/src/index.ts`, with `--dev` for the first. Run them from
-the application directory, not the repo root — `Bakery.root` is the process cwd.
+`bun run dev` and `bun run start` are thin wrappers over the `bakery` bin, with
+`--dev` for the first. Run them from the application directory — `Bakery.root`
+is the process cwd, so running from a parent silently serves a different app.
 
 `worker.ts` then calls `setupServer()` ([`startup.ts`](../../packages/core/src/startup.ts)),
 which populates the three handler registries, runs plugin `setup()`, and warms

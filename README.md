@@ -13,29 +13,25 @@ and, for most edits, no restart.
 
 ## Quick start
 
-Bakery is **not on npm yet**. Package names and export maps are still free to
-change, so today you use it by cloning the repo and working inside the Bun
-workspace:
-
 ```bash
-git clone https://github.com/obillekyle/bakery bakery
-cd bakery && bun install
-
-# the example app's schema is gitignored; create it from the template
-cp packages/orm/templates/schema.example.ts apps/example/schema.ts
-
+bun create bakery my-app
+cd my-app
+bun run db:sync
 bun run dev
 ```
 
-That starts the bundled example app on port 3000. `bun run dev`,
-`bun run serve` and `bun run db:sync` are thin wrappers that `cd` into
-`apps/example` first — for your own app, create a directory under `apps/` (the
-workspace links it as a consumer automatically) and run the CLI from there.
-[`apps/starter`](apps/starter) is a minimal second consumer to copy from, and
-[Your first app](docs/getting-started/first-app.md) walks through every file.
+That scaffolds an app, creates its SQLite database and serves it on port 3000.
+The scaffolder asks what to include — the ORM, and any of the three plugins —
+and every answer is also a flag (`--no-orm`, `--plugins vue,dashboard`, `--yes`),
+so it drives from a Dockerfile as well as from a terminal.
 
-Requires a current Bun (1.3 or newer). TypeScript is only needed for
-typechecking — Bun transpiles everything at runtime.
+Requires Bun 1.3.14 or newer, which every package declares as its floor.
+TypeScript is only needed for typechecking — Bun transpiles everything at
+runtime — and a generated app installs it for you.
+
+[Installation](docs/getting-started/installation.md) covers the flags, adding
+Bakery to an existing project, and working on the framework itself;
+[Your first app](docs/getting-started/first-app.md) walks through every file.
 
 ## What's in the box
 
@@ -101,8 +97,9 @@ states your contract — it does not validate the request, so validate anyway.
 | `apps/example` | the bundled demo app |
 | `apps/starter` | a minimal app written against public entry points only |
 
-`@bakery-framework/core` has no runtime dependencies; the ORM depends only on core, and
-the CLI on core and the ORM.
+`@bakery-framework/core` has no runtime dependencies; the ORM depends only on
+core; the CLI depends on core and takes the ORM as an **optional peer**, so an
+app scaffolded without a database does not install one.
 
 ## How a request is served
 

@@ -55,6 +55,7 @@ one of four files. Reading it alone will not tell you where requests are served.
 
 | Flag | Effect |
 | --- | --- |
+| `--port N`, `-p N` | bind this port. Also `--port=N` / `-p=N` |
 | `--dev` | development mode: file watcher, live reload, schema sync when the schema changed |
 | `--threads N`, `-t N` | fork a cluster of N workers. **Production only** |
 | `--threads=N`, `-t=N` | same, `=` form |
@@ -67,21 +68,41 @@ That is the entire list.
 
 > **Unknown flags are silently ignored, and there is no `--help`.** The parser
 > only looks for the strings above; anything else falls through to the default
-> branch, which is *production mode*. So `bakery --help` and `bakery --port 8080`
-> both start a production server
-> ([packages/cli/src/index.ts](../../packages/cli/src/index.ts)).
+> branch, which is *production mode*. So `bakery --help` starts a production
+> server ([packages/cli/src/index.ts](../../packages/cli/src/index.ts)).
 
 ### Port and host
 
-**There is no port flag.** The port is resolved as
-`process.env.PORT` → `port` in `server.config.ts` → `3000`, by one shared
-resolver so that what the server binds and what the startup banner prints
-cannot disagree
+The port resolves in this order, through one shared resolver so that what the
+server binds and what the startup banner prints cannot disagree
 ([packages/core/src/core/port.ts](../../packages/core/src/core/port.ts)):
+
+`--port` → `process.env.PORT` → `port` in `server.config.ts` → `3000`
+
+```bash
+bunx bakery --port 8080
+```
 
 ```bash
 PORT=8080 bunx bakery
 ```
+
+`--port`, `--port=`, `-p` and `-p=` are all accepted, and the flag beats an
+inherited `PORT` — which is both what the flag means everywhere else a developer
+has met it and the recoverable order: a shell with a stale exported `PORT` is
+fixed by typing the flag, while the reverse leaves you working out which variable
+is winning.
+
+It works by folding into `process.env.PORT` in the CLI entry, before any mode
+takes over. That is deliberate rather than incidental: the port is read in three
+places across up to three *processes* — the dev master, the dev worker it spawns,
+and N cluster workers — and the spawn sites build their argv explicitly while
+already passing the environment through. One normalisation covers all of them.
+
+**A malformed port is a boot error, not a fallback**, and the flag is checked by
+the same rule as the variable rather than a second one — so `--port 0x1f` is
+refused exactly as `PORT=0x1f` is. `bakery --port` with nothing after it is also
+an error: a flag typed and then ignored is worse than one that complains.
 
 **A malformed `PORT` is a boot error, not a fallback.** It must be digits in
 `0..65535`; `PORT=3000x`, `0x1f`, `1e3` and `+80` are all refused with
@@ -316,10 +337,26 @@ them ([packages/core/src/core/init.ts](../../packages/core/src/core/init.ts)).
 These are booleans, not the strings `process.env` usually holds. Compare them
 with `if (import.meta.env.DEV)`, never against `'true'`.
 
-## Running from the repo root
+## The scripts a generated app gets
 
-The root `package.json` scripts `cd apps/example` first. They are shorthand for
-the demo app, not general-purpose commands:
+`bun create bakery` writes these, and each is a thin wrapper over the `bin`:
+
+| Script | Actually runs |
+| --- | --- |
+| `bun run dev` | `bakery --dev` |
+| `bun run start` | `bakery` |
+| `bun run typecheck` | `tsc --noEmit` |
+| `bun run db:sync` | `bun run scripts/db-sync.ts` (with the ORM) |
+
+`db:sync` is a script rather than `bakery --sync` because those are different
+things: `--sync` syncs and then *boots the server*, which is the wrong shape for
+a deploy step. The generated script calls `SyncService.run()` and exits.
+
+## Running from this repo's root
+
+Only relevant when working on the framework. The root `package.json` scripts
+`cd apps/example` first — they are shorthand for the demo app, not
+general-purpose commands:
 
 | Root script | Actually runs |
 | --- | --- |
@@ -327,7 +364,7 @@ the demo app, not general-purpose commands:
 | `bun run serve` | `apps/example` → the same without `--dev` |
 | `bun run db:sync` | `apps/example` → `bun --smol run ../../packages/orm/src/sync` |
 | `bun run test` | `bun test ./packages ./tests` |
-| `bun run typecheck` | `tsc --noEmit` across all nine projects |
+| `bun run typecheck` | `tsc --noEmit` across all ten projects |
 
 `--smol` is Bun's reduced-memory mode. Nothing depends on it; drop it if you
 would rather trade memory for throughput.

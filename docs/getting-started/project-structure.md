@@ -10,8 +10,8 @@ layout, see [the last section](#the-framework-repo).
 ## An application
 
 ```
-apps/notes/
-  package.json          scripts + the three @bakery-framework/* dependencies
+notes/
+  package.json          scripts + the @bakery-framework/* dependencies
   server.config.ts      optional; `root` is the only option most apps set
   tsconfig.json         extends @bakery-framework/core/tsconfig.server.json
   orm/
@@ -19,6 +19,7 @@ apps/notes/
     views.ts            view() declarations
     indexes.ts          Field.Index() / Field.Unique() declarations
     index.ts            re-exports the three + the schema type registration
+  scripts/db-sync.ts    what `bun run db:sync` runs
   src/                  ← the serve root. Everything here is web-reachable.
     index.tsx           /
     about.html          /about
@@ -29,13 +30,13 @@ apps/notes/
     styles/app.css      /styles/app.css
     script.ts           /script.js  (and /script.ts)
   public/               ← served at /uploads/, NOT under the serve root
-  bakery/               generated: database and backups (must persist)
-  .cache/               generated: compiled assets, session store (disposable)
-  .cache/        generated: compiled and assembled output
+  bakery/               generated: database, sessions, backups (must persist)
+  .cache/               generated: compiled and assembled output (disposable)
 ```
 
-Only `package.json` is strictly required. With no `server.config.ts` at all the
-app still boots on the defaults.
+This is what `bun create bakery` writes, minus the routes added to illustrate
+resolution. Only `package.json` is strictly required — with no
+`server.config.ts` at all the app still boots on the defaults.
 
 ## The roots, and where they come from
 
@@ -66,9 +67,11 @@ is a different thing entirely.
 wholesale on every version bump and dev/production switch, so the data lives
 where a `rm -rf .*` — or a "clean the dotfiles" habit — cannot reach it.
 
-Because everything resolves against `process.cwd()`, running the CLI from the
-repo root instead of the app directory silently gives you a different app. The
-root `package.json` scripts `cd apps/example` for exactly this reason.
+Because everything resolves against `process.cwd()`, running the CLI from
+somewhere other than the app directory silently gives you a different app. A
+generated app's `dev` and `start` scripts run the `bakery` bin with no path
+argument for exactly this reason, and this repo's own root scripts `cd
+apps/example` first.
 
 ## How a path becomes a file
 
@@ -194,7 +197,8 @@ error that exits 1, deliberately — a silent fallback on a typo would have the
 generator write a fresh schema at the wrong path while your real model sat
 untouched somewhere else.
 
-Prefer the folder layout for anything non-trivial. `db:sync --choose=db`
+The folder layout is what `bun create bakery` generates, and it is the one to
+prefer for anything non-trivial. `db:sync --choose=db`
 regenerates `schema.ts` from the database; in the folder layout it writes only
 `orm/schema.ts` and never touches `orm/index.ts` or `orm/indexes.ts`, so
 hand-written declarations survive.
@@ -213,19 +217,31 @@ Both are gitignored and neither should be committed.
 | `nm_cache/` | bundled node modules served under `/_nm/` |
 | `gf_cache/` | fetched Google Fonts CSS and font binaries |
 | `virtual/` | the compiled client runtime |
-| `server.json` | the mode and framework version the cache was built for |
+| `tsconfig/` | the generated tsconfig projects, including any a plugin contributed |
+| `server.json` | the mode, app version and framework version the cache was built for |
 
-That last file is the invalidation key: on boot, if either value differs from
-the current process, the whole cache directory is deleted and recreated
-([packages/core/src/core/config.ts](../../packages/core/src/core/config.ts)).
+That last file is the invalidation key: on boot, if any of the three differs from
+the current process, the cache directory is emptied and recreated
+([packages/core/src/core/cache-version.ts](../../packages/core/src/core/cache-version.ts)).
+The wipe is per entry and the marker is rewritten **only if nothing survived** —
+a success marker written after a partial delete is what once turned a retryable
+problem into a permanent one, because the next boot then believed the cache was
+current.
 
 **`bakery/`** — not disposable:
 
 | Path | Contents |
 | --- | --- |
 | `server.db` | the SQLite database, when no `DB_URL` is set |
-| `shared-cache.db` | the tiered cache's persistent tier |
+| `sessions.db` | cookie sessions, plus the tiered cache's spill tier |
 | `backups/` | database and schema copies taken before a destructive sync |
+
+`sessions.db` sits here rather than under `.cache/` deliberately, and it used not
+to: a framework version bump wiped the cache directory and logged out every user
+of every app. It now carries its own schema version, so a format change still
+drops sessions and a release no longer does
+([packages/core/src/cache/shared-db.ts](../../packages/core/src/cache/shared-db.ts)).
+The consequence is that even an app with no ORM creates a `bakery/` directory.
 
 ## The framework repo
 

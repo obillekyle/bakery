@@ -4,8 +4,8 @@ Middleware in Bakery is a `Handler` like everything else. `MiddlewareHandler`
 sits at priority 100 in the `fetch` registry — the top — and runs the functions
 you declared in config (`packages/core/src/startup.ts`).
 
-Read the [route cache](#the-route-cache-skips-middleware) section before you use
-middleware for authorisation. It does not do what you will assume.
+It runs on **every** request, including ones an earlier request to the same path
+was allowed through — see [the route cache](#the-route-cache-does-not-skip-middleware).
 
 ## Declaring it
 
@@ -36,43 +36,78 @@ function isAdmin(_req: Request) {
 
 Two hooks, and they do not behave the same way:
 
-- `config.onRequest(req)` runs first, before the array. See the warning below —
-  it can only short-circuit with an **HTML** response.
-- `config.middleware` is an array of `(req, server) => Response | void`, run in
-  declaration order. **Only a `Response` stops the chain** — returning a string,
-  an object or `true` is ignored and the next middleware runs
-  (`$middleware.ts`).
+- `config.onRequest(req)` runs first, before the array. Any truthy return stops
+  the request; HTML gets injected, anything else is passed through as-is.
+- `config.middleware` is an array of
+  `(req, server) => Response | JsonResponseData | void`, run in declaration
+  order.
 
-If nothing returns a `Response`, `canHandle` reports false and the request
-continues down the registry to the page, API or asset handler that owns it.
+If nothing stops the chain, `canHandle` reports false and the request continues
+down the registry to the page, API or asset handler that owns it.
 
 Returned responses go through HTML injection, so a middleware that returns a full
 HTML document still gets the import map, live-reload script and configured
 `head`/`body` fragments.
 
-### `onRequest` drops non-HTML responses
+### What stops the chain
 
-```ts no-check — an excerpt of framework internals, quoted for reference
-const intercepted = await Bakery.config.onRequest(req!)
-if (intercepted) return (await injectIfHtml(intercepted)) || undefined
+Exactly two shapes, and the second is the `response.json.*` envelope every other
+part of the framework speaks:
+
+```ts
+import { defineConfig, response } from '@bakery-framework/core'
+
+export default defineConfig({
+  middleware: [
+    req => {
+      const path = new URL(req.url).pathname
+      if (!path.startsWith('/admin')) return // continue
+
+      // Both of these stop the request.
+      if (req.headers.get('accept')?.includes('application/json')) {
+        return response.json.error(401, 'Sign in required')
+      }
+      return new Response('Unauthorized', { status: 401 })
+    },
+  ],
+})
 ```
 
-`injectIfHtml` returns `null` for anything that is not HTML
-(`utils/http/html.ts`), and the `|| undefined` turns that into "no
-response" — so the request **continues** as if the hook had returned nothing
-(`$middleware.ts`).
-
-Confirmed by running the handler directly:
-
-| `config.onRequest` returns | result |
+| middleware returns | result |
 | --- | --- |
-| `new Response('Forbidden', { status: 403 })` | `undefined` — request proceeds |
-| the same response with `content-type: text/html` | 403, request stops |
+| `new Response(…)` | stops the chain, status preserved |
+| `response.json.error(401, …)` | stops the chain, `401` + the `{time, status, message, data}` envelope |
+| `response.json.success(…)` | stops the chain, same envelope |
+| a string, a bare object, `true` | **ignored** — the next middleware runs |
+| `undefined` / no return | continue |
 
-A plain-text 403, a JSON error, a redirect — all silently discarded. This is a
-fail-open bug in a hook shaped exactly like an auth check. Use `config.middleware`
-for anything that must reject a request; the array path keeps the original
-response when injection declines it (`$middleware.ts`).
+The ignored row is deliberate. Returning a value is how plenty of ordinary code
+signals nothing at all — an implicit arrow return, an assignment expression, a
+`.map` callback — so only the two shapes that unambiguously mean "I am the
+response" halt the request.
+
+The envelope used to be in that ignored row, which made an auth guard written
+the documented way fail **open**: the value was not a `Response`, the chain
+carried on, and the protected page was served with a `200`. On a path with no
+route it surfaced instead as a puzzling `404` — the framework's own error page,
+with the `401` and the message gone. Pinned by `$middleware.test.ts`.
+
+### A `Response` with a 4xx/5xx status gets the error page
+
+Worth knowing before you debug it. Any `Response` with `status >= 400` — from
+middleware or anywhere else — is routed through `handleRequestError`
+(`packages/cli/src/worker.ts`), which **keeps the status and replaces the
+body** with the app's error page, or the framework's built-in one:
+
+```
+new Response('Unauthorized', { status: 401 })
+  →  401, but the body is the Bakery 401 error page, not "Unauthorized"
+```
+
+A `response.json.*` envelope does not go through that path — `handleRequestError`
+keys on `errorCode`, which an envelope does not carry — so it reaches the client
+exactly as written. If you want your own message on the wire, that is the reason
+to prefer the envelope.
 
 ## A throw is a 500, deliberately
 
@@ -101,60 +136,32 @@ through — the framework fails closed instead.
 This matches the wider convention: guards return the rejection, they do not throw
 for an expected denial, and an indeterminate state is a denial.
 
-## The route cache skips middleware
-
-**Your middleware runs on the first request to a given path and then stops
-running for that path.** This is a bug in the framework, not a design choice, but
-it is the behaviour today and it is silent.
+## The route cache does not skip middleware
 
 `HandlerMap.resolve` (`packages/core/src/handlers/core/$registry.ts`)
-remembers which handler won for a `(registry, hostname, path)` key. On a later
-request it asks *only that handler* whether it still applies, and returns it
-without consulting anything above it:
+remembers which handler won for a `(registry, hostname, path)` key, and on a
+later request it asks only that handler whether it still applies. Middleware is
+exempt: `MiddlewareHandler` sets `alwaysResolve = true`, and the registry
+consults every `alwaysResolve` handler before it looks at the cache
+(`$registry.ts`, pinned by `$registry.test.ts`).
 
-```ts no-check — an excerpt of framework internals, quoted for reference
-const cached = HandlerMap.routeCache.get(pathId)
-if (cached) {
-  if (await cached.canHandle(path, ...params)) return cached
-  HandlerMap.routeCache.delete(pathId)
-}
-```
+That exemption is load-bearing, because without it the cache would defeat a
+guard in the one direction that matters. `MiddlewareHandler` is only cacheable
+when it actually produces a response, so a guard that rejects would stay cached
+and keep working — and the *first request it let through* would install the page
+handler in its place, after which nobody was checked again. A guard that tests
+green, works in staging, and stops the moment one legitimate user signs in.
 
-`MiddlewareHandler` only gets cached when it actually produces a response. So the
-common case — middleware inspects the request and lets it through — caches
-whatever handler served the page, and from then on `MiddlewareHandler.canHandle`
-is never called for that path.
+Measured on a running server, with a counter in the middleware: three requests
+to a denied path and three to an allowed one increment it six times.
 
-Confirmed directly: with a middleware-like handler at 100 and a page handler at
-60, three requests to the same path invoke the first handler's `canHandle`
-exactly once.
+Two things the exemption does not buy you:
 
-The failure mode is worse than "runs once", because a guard that *rejects* keeps
-working. While every request to `/admin` is denied, `MiddlewareHandler` stays the
-cached handler and is re-consulted each time. The first request it lets through
-evicts it and installs the page handler — after which nobody is checked again.
-So the guard tests green, works in staging, and stops the moment one legitimate
-user signs in.
-
-`HandlerMap.routeCache` is a plain LRU with no TTL (`cache/lru.ts`), 5000 entries
-(500 in a thread worker), and nothing clears it — `initRoutes()` clears the
-per-handler caches only (`packages/core/src/cache/index.ts`). An entry survives
-until it is evicted by volume or the process restarts.
-
-What this means for you:
-
-- **Do not put authorisation in `config.middleware`.** Put it in the route that
-  needs it, or in a plugin `onRequest` hook — `PluginHooks.onRequest` is called
-  by `handleRequest` directly on every request (`router.ts`) and is not
-  subject to the registry cache. Registering your own `Handler` does not help;
-  it is in the same registry and behind the same cache.
-- Middleware that only needs to run once per path — priming a cache, logging a
-  first hit — is unaffected.
-- In development the problem hides: edits to `server.config.ts` or anything
-  under the api directory restart the dev worker
-  (`compiler/dev-service.ts`), which empties the cache. `.tsx` edits no longer
-  restart the process, so they no longer mask it. It reappears the moment you
-  stop editing, and in production it is permanent.
+- Middleware that wants to run **once** per path — priming a cache, logging a
+  first hit — has to track that itself.
+- It costs a `canHandle` per request, which for middleware means running the
+  whole chain. Keep the chain cheap; it is on every request including static
+  assets.
 
 ## WebSocket upgrades never reach middleware
 
@@ -226,13 +233,18 @@ function adminGuard(_req: Request): Response | void {}
 The same replace-don't-merge rule applies to `onRequest`, `onError`, `proxy` and
 `blocked`. `importMap` is the exception; it merges.
 
-## The alternative that does run every time
+## The other hook that runs every time
 
-Registering your own `Handler` does not help — it lives in the same registry and
-is skipped by the same cache. The hook that runs unconditionally on every request
-is a plugin's `onRequest`, called directly by `handleRequest`
-(`packages/core/src/router.ts`, `core/plugins.ts`) with no caching in
-between:
+A plugin's `onRequest` is called directly by `handleRequest`
+(`packages/core/src/router.ts`, `core/plugins.ts`), before the `fetch`
+registry is consulted at all. Reach for it when the guard belongs to a
+redistributable plugin rather than to one app's config; for an app's own auth
+check, `config.middleware` is the simpler place and runs just as unconditionally.
+
+Note that a plain `Handler` of your own is **not** an alternative — it lives in
+the same registry as everything else and is subject to the route cache, which
+`MiddlewareHandler` is exempt from and yours would not be unless you set
+`alwaysResolve` yourself.
 
 ```ts
 // src/plugins/admin-guard.ts

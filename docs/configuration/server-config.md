@@ -60,6 +60,7 @@ the default from `packages/core/src/core/config.ts`.
 | `proxy` | `Record<string, string>` | `{}` |
 | `blocked` | `string[]` | `[]` (added to the built-in list) |
 | `rateLimit` | `{ max, refill, keyBy? } \| false` | `{ max: 100, refill: 10 }` |
+| `cors` | `CorsOptions \| null` | `null` — no header is ever written |
 | `trustProxy` | `boolean` | `false` |
 | `maxBodySize` | `number` | `20971520` (20 MiB) |
 | `backups` | `number` | `10` |
@@ -152,6 +153,31 @@ export default defineConfig({
   },
 })
 ```
+
+## `cors`
+
+`null` by default, and absent means no `Access-Control-Allow-*` header is ever
+written — the browser's own default. There is deliberately no permissive
+development default.
+
+```ts
+import { defineConfig } from '@bakery-framework/core'
+
+export default defineConfig({
+  cors: {
+    origin: ['https://app.example'],
+    credentials: true,
+    exposeHeaders: ['X-Total-Count'],
+    maxAge: 600,
+  },
+})
+```
+
+Preflights are answered before routing; the headers are appended in the one
+funnel every response passes through. `origin: '*'` combined with
+`credentials: true` is refused rather than silently downgraded. Per-host entries
+may carry their own `cors`. Full option table and the reasoning in
+[CORS](../guides/cors.md).
 
 ## `trustProxy`
 

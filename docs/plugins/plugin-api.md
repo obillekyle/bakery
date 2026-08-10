@@ -37,6 +37,7 @@ dashboard plugins use.
 export interface ServerPlugin {
   name: string
   setup?(config: ProcessedAppConfig): MixedPromise<void>
+  tsconfig?: PluginTsConfig
   onStart?(server: Bun.Server<any>): MixedPromise<void>
   onRequest?(req: Request): ValidResponses
   onRoute?(req: Request): MixedPromise<void>
@@ -45,6 +46,11 @@ export interface ServerPlugin {
   onCompile?(content: string, path: string): MixedPromise<string>
 }
 ```
+
+`tsconfig` is the odd one out: **declarative, and read by the tsconfig generator
+at dev boot rather than by the running server.** Everything else in that
+interface is a hook. See
+[Contributing a tsconfig project](#contributing-a-tsconfig-project).
 
 | Hook | Runs | Called from |
 | --- | --- | --- |
@@ -253,6 +259,74 @@ One catch, and it is the dashboard's worked example: a handler you register at
 a high priority intercepts paths *before* the mount is consulted. Keep
 `canHandle` narrow, or your own assets will never reach the mount
 ([`plugins/dashboard/src/setup.ts`](../../packages/plugins/dashboard/src/setup.ts)).
+
+## Contributing a tsconfig project
+
+On every dev boot the framework writes a TypeScript project per concern into
+`.cache/tsconfig/` and adds a `references` entry for each to the app's root
+`tsconfig.json`
+([packages/core/src/compiler/tsconfig-sync.ts](../../packages/core/src/compiler/tsconfig-sync.ts)).
+Core always writes two:
+
+| Project | Extends | Covers |
+| --- | --- | --- |
+| `server.json` | `core/tsconfig.server.json` | `<root>/**/api/**/*.ts`, `<root>/**/*.tsx`, `server.config.ts`, `orm/**` |
+| `client.json` | `core/tsconfig.app.json` | `<root>/**/*.ts` except the api directory |
+
+The split is the point: only `server` carries `bun-types`, so `Bun.hash()` in a
+file bound for the browser is a **type error** rather than a runtime one.
+
+A plugin that brings its own file type or its own ambient globals needs a project
+to typecheck them under:
+
+```ts no-check — an excerpt of @bakery-framework/plugin-vue's own definition
+export default definePlugin({
+  name: 'vue',
+  tsconfig: {
+    project: {
+      name: 'vue',
+      extends: '@bakery-framework/core/tsconfig.vue.json',
+      include: ['src/**/*.vue'],
+      // A package specifier, not a path: the plugin does not know where it was
+      // installed, and the generator resolves it before writing.
+      files: ['@bakery-framework/plugin-vue/vue.d.ts'],
+    },
+  },
+})
+```
+
+| Field | Meaning |
+| --- | --- |
+| `name` | File name under `.cache/tsconfig/`, and the project's identity |
+| `extends` | Usually one of core's three bases; written through as-is |
+| `include` / `exclude` | Globs **relative to the app root** — the generator rewrites them |
+| `files` | Ambient declarations the plugin owns. Package specifiers allowed |
+| `compilerOptions` | Merged into the generated project |
+| `importMapPaths` | Opt in to `paths` derived from `importMap`. Off by default |
+
+Four things are easy to get wrong here, and each was:
+
+- **`include` globs are app-relative, and the generator rewrites them.** The
+  generated file sits two levels down, and `Bakery.config.root` is *absolute* —
+  a first version emitted `../../C:/…/src/**`, a glob matching nothing. A project
+  matching nothing typechecks clean, so it reported zero errors and looked
+  perfect.
+- **`files` takes package specifiers**, unlike TypeScript, which resolves `files`
+  as paths and would call `@scope/pkg/x.d.ts` a missing file. Resolution failure
+  is logged and skipped, never fatal — a plugin whose declarations cannot be found
+  should degrade to "no types", not stop the dev server.
+- **`importMapPaths` is off by default**, because an import map is resolved *by
+  the browser*. The generator used to write those aliases into every project, so
+  a server file could import an alias only the browser can satisfy and typecheck
+  clean doing it. Set it only if your project compiles browser code.
+- **A name collision is skipped, with a log.** A plugin cannot replace `server`,
+  `client`, or another plugin's project — silently winning would present as "my
+  types stopped working" three plugins later.
+
+The root config is **merged**, not replaced: only `references` belongs to the
+generator. That matters more than it sounds — see
+[Troubleshooting](../reference/troubleshooting.md#tsconfigjson-keeps-getting-rewritten)
+for what happened when it was not.
 
 ## Reserved namespaces
 

@@ -75,7 +75,7 @@ the two never drift.
 
 ### Persistence
 
-State goes to the shared SQLite cache database (`bakery/shared-cache.db`) in two
+State goes to the shared SQLite store (`bakery/sessions.db`) in two
 tables, `page_hits` and `core`, written at most once a minute and again on
 shutdown. On boot, page hits older than 24 hours are dropped and at most 5000
 are restored.
@@ -140,7 +140,7 @@ Deciding what should replace it — most likely the same `AuthorizeFn` the
 dashboard takes ([`plugins/dashboard/src/authorize.ts`](../../packages/plugins/dashboard/src/authorize.ts))
 — is a security decision rather than a cleanup, and is deliberately not being
 made in passing. Until then: collection is live and persisted, and the data is
-readable only by querying `bakery/shared-cache.db` directly, or in-process via
+readable only by querying `bakery/sessions.db` directly, or in-process via
 the export below.
 
 ## Programmatic access

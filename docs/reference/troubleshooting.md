@@ -9,11 +9,12 @@ troubleshooting note is usually the mechanism rather than the fix.
 ### The app boots on defaults and ignores `server.config.ts`
 
 `server.config.ts` is resolved against `process.cwd()`, not against the
-framework or the repo root (`packages/core/src/core/config.ts`). So is `root`,
+framework or any repo root (`packages/core/src/core/config.ts`). So is `root`,
 so are `bakery` and the cache directory, and so is the schema. Running the CLI
-from the repo root instead of the application directory silently gives you a
-*different application* — one with no config at all. That is why the root
-`package.json` scripts `cd apps/example` first.
+from a parent directory instead of the application directory silently gives you
+a *different application* — one with no config at all. That is why a generated
+app's scripts invoke the `bakery` bin bare, and why this repo's root scripts
+`cd apps/example` first.
 
 Absence is tolerated on purpose: zero-config boot is a supported feature, and
 the defaults (`root: 'src'`, port 3000, host `0.0.0.0`) are a working config. So
@@ -36,12 +37,12 @@ dashboard rather than the config that never parsed.
 
 ### `EADDRINUSE` / the port is already taken
 
-The port is `process.env.PORT` → `port` in `server.config.ts` → `3000`
-(`packages/cli/src/worker.ts`). **There is no port flag** — the parser only
-recognises `--dev`, `--sync`/`-s`, `--threads`/`-t` and the internal worker
-markers, and anything else falls through to the *production* branch. `bakery
---port 8080` starts a production server on the configured port and tells you
-nothing (`packages/cli/src/index.ts`). Use the environment variable:
+The port is `--port` → `process.env.PORT` → `port` in `server.config.ts` →
+`3000` (`packages/core/src/core/port.ts`). Move off the busy one with either:
+
+```bash
+bunx bakery --port 8080
+```
 
 ```bash
 PORT=8080 bunx bakery
@@ -123,20 +124,46 @@ socket appear as a dismissable overlay (click or Esc).
 
 ### `tsconfig.json` keeps getting rewritten
 
-The dev worker syncs `compilerOptions.paths` from `config.importMap` into the
-application's own `tsconfig.json` on every boot
-(`packages/core/src/compiler/tsconfig-sync.ts`). Three things about it are worth
-knowing:
+Two separate syncs touch it on every dev boot
+(`packages/core/src/compiler/tsconfig-sync.ts`):
 
-- It writes **only** when the computed `paths` differ from what is on disk, so a
-  repeated `TSConfig paths synced` line means something is genuinely flapping —
-  usually an `importMap` entry computed from a path that moves.
-- `paths` is **replaced**, not merged. Hand-written path aliases in that file
-  will be removed. Put them in a base config the app's `tsconfig.json` extends.
-- `compilerOptions.baseUrl` is deleted unconditionally.
+- `syncTSConfigPaths` writes `compilerOptions.paths` from `config.importMap`. It
+  writes **only** when the computed paths differ from disk, so a repeated
+  `TSConfig paths synced` line means something is genuinely flapping — usually an
+  `importMap` entry computed from a path that moves. `paths` is **replaced**, not
+  merged, so hand-written aliases there are removed; put them in a base config
+  the app's `tsconfig.json` extends. `compilerOptions.baseUrl` is deleted
+  unconditionally.
+- `syncTSConfigProjects` writes `.cache/tsconfig/{server,client,…}.json` and adds
+  a `references` array pointing at them. **It only sets `references`** — every
+  other key you wrote is preserved.
+
+That last sentence is a fix, not a description of how it always was. It used to
+replace the root with a references-only stub, which removed the `jsx`,
+`jsxFactory` and `jsxFragmentFactory` options — and **Bun's runtime reads those
+from the root `tsconfig.json` and does not follow `references`.** Every `.tsx`
+page then transpiled against the automatic JSX runtime. The symptom is not a 500:
+the page answers **200** with a JSON body like
+`{"type":"html","props":{…},"_owner":null,"_store":{}}`, because the handler
+received a React element tree where it expects a rendered string.
+
+If you see that, your root config lost its JSX options — restore the three and
+the page renders again.
 
 Comments and trailing commas are fine — the file is read with a JSONC parser.
 Failures are logged as `TSConfig sync error: …` and never abort the boot.
+
+### My editor flags `Bun.*` in a browser file, or an `importMap` alias in a server file
+
+Working as intended. `.cache/tsconfig/server.json` carries `bun-types`;
+`client.json` does not, so `Bun.hash()` in a file bound for the browser is a type
+error rather than a runtime one. And `importMap` aliases only reach `client.json`,
+because an import map is resolved *by the browser* — an alias that typechecked in
+server code would be an import the server cannot satisfy.
+
+A plugin can contribute a project of its own; `@bakery-framework/plugin-vue` owns
+`.cache/tsconfig/vue.json`. See
+[the plugin API](../plugins/plugin-api.md#contributing-a-tsconfig-project).
 
 ## Routing
 

@@ -125,6 +125,22 @@ where security bugs hide:
 `maxBodySize` (20 MiB by default) is enforced by Bun before your code runs
 (`packages/cli/src/worker.ts`).
 
+## Provided, but off until you configure them
+
+Neither has a default, deliberately — a permissive default teaches people it
+works and then surprises them in production.
+
+- **CORS.** `cors` in `server.config.ts`. Preflights are answered before routing
+  and the headers are appended in the one funnel every response passes through.
+  Absent, no `Access-Control-Allow-*` header is ever written. See
+  [CORS](../guides/cors.md).
+- **Request body validation.** `defineRoute({ body: schema }, handler)`, taking
+  any [Standard Schema](https://standardschema.dev) — zod, valibot, arktype — or
+  a plain function. Bakery bundles and depends on none of them. Without it a
+  body reaches your handler as parsed data with no schema check, and the type
+  parameter states a contract it does not enforce. See
+  [API routes](../guides/api-routes.md#validating-the-body).
+
 ## Not provided
 
 Bakery does not do these. If you need them, they are yours to add.
@@ -133,12 +149,11 @@ Bakery does not do these. If you need them, they are yours to add.
 - **Authentication and identity.** There is no user model, no password
   handling, no login. The dashboard deliberately gave up having one so that it
   composes with yours.
-- **CORS.** No `Access-Control-Allow-*` header is ever emitted. Cross-origin
-  browser clients will not work until you add one in middleware.
 - **Security headers.** No CSP, HSTS, `X-Frame-Options`, `X-Content-Type-Options`
   or `Referrer-Policy`. Nothing sets them.
-- **Input validation.** Request bodies reach your handler as parsed data with no
-  schema check.
+- **Authorization.** There is no role model and no permission check. The rate
+  limiter and the CSRF guard are about *traffic*, not about who is allowed to do
+  what.
 - **Encryption at rest.** The SQLite database and the session store are plain
   files under `bakery/`.
 - **Authentication on WebSocket upgrades.** Cross-origin handshakes *are*
@@ -174,7 +189,9 @@ client.
 
 ## Adding what is missing
 
-Security headers and CORS belong in middleware, which runs before routing:
+Security headers belong in middleware, which runs before routing. **CORS does
+not** — it has a config option now, and hand-rolling it in middleware will not
+answer preflights before the forbidden-path check the way `cors` does:
 
 ```ts
 import { defineConfig } from '@bakery-framework/core'
@@ -218,9 +235,11 @@ back with credentials enabled is the same as having no check.
       is on.
 - [ ] Rate limit tuned rather than duplicated — or deliberately disabled with
       something else doing the job.
-- [ ] Security headers and CORS added if you need them; nothing sets them for
-      you.
-- [ ] Request bodies validated in your handlers.
+- [ ] Security headers added if you need them; nothing sets them for you.
+- [ ] `cors` configured if a browser on another origin calls you — and not
+      configured at all if none does.
+- [ ] Request bodies validated, with `defineRoute({ body })` or by hand. A
+      `defineRoute<T>` type parameter is a contract, not a check.
 - [ ] `bakery/` not web-reachable (it is blocked by default — do not remove that
       pattern) and not in a public volume.
 - [ ] WebSocket handlers authenticate their own connections.

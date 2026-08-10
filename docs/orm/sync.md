@@ -18,7 +18,7 @@ the app directory, not the repo root.
 | Mode | Runs sync? |
 | --- | --- |
 | `bun run dev` | **Yes, when the schema changed** — skipped when a hash of the schema sources matches the one recorded after the last successful sync |
-| `bun run serve` (production) | **No** |
+| `bun run start` (production) | **No** |
 | `bakery --sync` / `-s` | Yes, before the server boots — and forces the dev sync past the hash check |
 | `bun run db:sync` | Yes, and then exits |
 

@@ -67,9 +67,70 @@ export default defineRoute<{ title?: string }>(async (req, body) => {
 `body.title` is `string | undefined` inside the handler; keys you did not
 declare stay reachable as `any`, because the parse rules below mean the
 framework cannot enumerate every key. Declaring a shape states your contract —
-it does not validate the request, so validate anyway. There is no
-filename-based inference: `[id].ts` does not conjure `{ id: string }` on its
-own.
+it does not validate the request, so validate anyway, either by hand or with the
+two-argument form below. There is no filename-based inference: `[id].ts` does not
+conjure `{ id: string }` on its own.
+
+## Validating the body
+
+Pass a validator and the handler only runs on a body that satisfies it:
+
+```ts no-check — `mySchema` stands in for a Standard Schema the reader supplies
+import { defineRoute, response } from '@bakery-framework/core'
+
+export default defineRoute({ body: mySchema }, async (req, body) => {
+  // `body` is the *parsed* value — whatever the schema produced, not the raw
+  // input — and a rejection answered 400 before you got here.
+  return response.json.success('ok', body)
+})
+```
+
+`body` accepts either shape:
+
+- **A [Standard Schema](https://standardschema.dev)** — the common interface zod,
+  valibot and arktype all implement. Bakery bundles none of them and depends on
+  none of them; it reads the `~standard` property they each expose, so any
+  library implementing that spec works without an adapter.
+- **A plain function** returning the parsed value, or throwing. Enough for one
+  field, and it keeps a dependency out of an app that does not want one.
+
+```ts
+import { defineRoute, response } from '@bakery-framework/core'
+
+export default defineRoute(
+  {
+    body: (input: any) => {
+      const title = String(input?.title ?? '').trim()
+      if (!title) throw new Error('title is required')
+      return { title }
+    },
+  },
+  async (req, body) => response.json.success('created', body),
+)
+```
+
+A rejection answers **400** through the same JSON envelope as everything else,
+with the issues in `data`:
+
+```json
+{
+  "time": 0.4,
+  "status": 400,
+  "message": "Invalid request body",
+  "data": { "issues": [{ "path": "title", "message": "Required" }] }
+}
+```
+
+Nested paths render as `user.address.city`, and array indices as `items.0.id`.
+
+**The one-argument form is unchanged**, and the two forms cannot be confused:
+`defineRoute(fn)` types the body, `defineRoute({ body }, fn)` validates it. Both
+are identity functions at runtime — the second returns a wrapped handler, the
+first returns yours untouched.
+
+Validation runs on the already-parsed body, so it sees the same merged object
+the handler would have: query string for `GET`/`HEAD`, otherwise JSON or form
+data, with dynamic route parameters merged in.
 
 The older ambient `ApiCallback` type still exists and still describes the same
 calling convention, untyped.
@@ -146,8 +207,13 @@ Things that trip it in practice:
 - A `fetch` with `mode: 'no-cors'` from another origin.
 
 There is no configuration switch to disable it. If a third party genuinely needs
-to POST to you, give them an endpoint that does not rely on cookie auth and
-expect to write the CORS handling yourself in middleware.
+to POST to you, give them an endpoint that does not rely on cookie auth — that
+is what makes it safe to expose, and it is why the guard can stay unconditional.
+
+**Configuring [`cors`](cors.md) does not turn this off, and is not meant to.**
+The two answer different questions: CORS tells the browser whether it may *read*
+a cross-origin response, and the CSRF guard decides whether an unsafe method
+carrying the user's cookie is allowed to run at all.
 
 Note the check is not applied to page routes, only to `/api/`.
 

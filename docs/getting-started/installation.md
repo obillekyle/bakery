@@ -7,47 +7,28 @@ adapter: `Bun.serve` is the server, `Bun.SQL` is the database driver,
 `Bun.Glob` is the router's file matcher and `Bun.build` is the compiler. There
 is no Node fallback for any of them.
 
-- **Bun.** `package.json` declares `"bun": ">=1.0.0"`, but that field
-  understates it. The SQLite adapter opens connections with
-  `new SQL(filename, { adapter: 'sqlite' })`
-  ([packages/orm/src/adapters/sqlite.ts](../../packages/orm/src/adapters/sqlite.ts)),
-  and the sync engine uses `await using`. The repo pins `bun-types ^1.3.14`.
-  Use a current Bun (1.3 or newer); older releases will fail at runtime rather
-  than at install.
-- **TypeScript ^6.0.3**, declared as a peer dependency. Only needed for
-  typechecking and editor support — Bun transpiles TypeScript itself, so there
-  is no build step and no `tsc` in the run path.
+- **Bun 1.3.14 or newer.** Every package declares `"bun": ">=1.3.14"`, and that
+  floor is not a guess — it names the lowest Bun the suite has actually run
+  against. Raising it is a major release, because an install that previously
+  resolved would stop.
+- **Nothing else.** `@bakery-framework/core` has **no runtime dependencies**;
+  `@bakery-framework/orm` and `@bakery-framework/cli` depend only on core.
 
-Nothing else. `@bakery-framework/core` has **no runtime dependencies**; `@bakery-framework/orm` and
-`@bakery-framework/cli` depend only on core.
+TypeScript is needed for typechecking and editor support, never at runtime —
+Bun transpiles TypeScript itself, so there is no build step and no `tsc` in the
+run path. A generated app installs it, along with `bun-types`, as dev
+dependencies.
 
-`@bakery-framework/orm` is an **optional peer** of the CLI rather than a dependency, so an
-app that does not want a database does not install one — see
-[the CLI reference](../reference/cli.md#the-orm-is-optional) for what the server
-does without it.
-
-## Bakery is not on npm yet
-
-There is no `bun add bakery`, and **`bun create bakery` does not work yet** —
-not because the scaffolder is missing, but because `bun create x` fetches
-`create-x` from npm and nothing here is published. The packages are
-unpublished — the package names and the `@bakery-framework/orm/schema-registry` module
-name that your `schema.ts` writes into are still free to change, and publishing
-freezes them.
-
-The export maps were the sharpest of those, and they are now settled. The
-packages no longer carry a `"./*"` wildcard, so only the enumerated subpaths
-exist and everything else is private: `@bakery-framework/core/cache/tiered` does not
-resolve for you, whatever your editor suggests. Adding a subpath later is easy;
-taking one away once someone imports it is a breaking change, which is why it
-was closed before the first publish rather than after.
-
-`create-bakery` itself exists, in `packages/create`, and you can run it from a
-clone today:
+## Create an app
 
 ```bash
-bun run packages/create/src/index.ts ../my-app --no-install
+bun create bakery my-app
 ```
+
+`bun create x` fetches `create-x` from npm and runs it, which is why the
+scaffolder is a separate unscoped package rather than another verb on the
+`bakery` bin — `@bakery-framework/cli` owns that bin, and it is a dependency of
+the app you are trying to create.
 
 At a terminal it asks what to include — the ORM, and any of the three plugins —
 the way `bun create vite` does. Every answer is also a flag, because a
@@ -55,144 +36,171 @@ scaffolder that can only be driven by a human cannot be put in a Dockerfile:
 
 ```bash
 bun create bakery my-app --no-orm --plugins vue
-bun create bakery my-app --plugins dashboard,analytics
-bun create bakery my-app --yes          # defaults, no questions
 ```
+
+```bash
+bun create bakery my-app --plugins dashboard,analytics
+```
+
+```bash
+bun create bakery my-app --yes
+```
+
+| Flag | Effect |
+| --- | --- |
+| `--orm` / `--no-orm` | Include `orm/`, `db:sync` and `@bakery-framework/orm`, or leave them out |
+| `--plugins <list>` | Comma-separated from `vue`, `analytics`, `dashboard`. `--plugins none` is an explicit empty set |
+| `--name <name>` | Package name, when it should differ from the directory |
+| `--yes`, `-y` | Take the defaults for anything not passed |
+| `--no-install` | Write the files and stop, without running `bun install` |
 
 `--yes` and a non-interactive shell take the same defaults — the ORM in, no
-plugins — which is exactly what the command produced before it learned to ask,
-so no existing invocation changed. Without the ORM there is no `orm/` and no
-`db:sync`; the example API route keeps its posts in memory instead, and
-`@bakery-framework/orm` is not installed at all — the CLI treats it as optional.
+plugins. Passing a flag stops it asking about that one thing only.
 
-It emits real `^`-ranged dependencies on the published package names, so the
-app it writes only installs once the first publish lands. `--no-install` is
-what you want until then.
+The directory argument is a **path**, and `.` means the current directory. It
+doubles as the package name unless `--name` says otherwise, so
+`bun create bakery @co/app` creates a nested `@co/app/` directory rather than a
+scoped package — use `--name` for a scope.
 
-So today you install Bakery by cloning the repo and working inside the Bun
-workspace. The workspace covers `packages/*`, `packages/plugins/*` and `apps/*`,
-so any directory you create under `apps/` becomes a linked consumer.
+Without the ORM there is no `orm/` and no `db:sync`; the example API route keeps
+its posts in memory instead, and `@bakery-framework/orm` is not installed at all
+— the CLI treats it as an optional peer, so an app that does not want a database
+does not carry one. See
+[the CLI reference](../reference/cli.md#the-orm-is-optional) for what the server
+does without it.
 
-## Get it
+The dependency ranges it writes are derived from the scaffolder's own version,
+so `create-bakery` and the framework it scaffolds can never disagree about which
+release you are on.
 
-```bash
-git clone https://github.com/obillekyle/bakery bakery
+## What it generates
+
+```
+my-app/
+  package.json          dev / start / typecheck / db:sync
+  tsconfig.json         extends @bakery-framework/core/tsconfig.server.json
+  server.config.ts      root, port, and any plugins you chose
+  .gitignore
+  README.md
+  src/                  ← the serve root. Everything here is web-reachable.
+    index.tsx           /
+    script.ts           /script.js
+    api/notes.ts        /api/notes
+  orm/                  (with --orm)
+    tables.ts           table() declarations — the generator owns this file
+    views.ts            view() declarations
+    indexes.ts          Field.Index() / Field.Unique() declarations
+    index.ts            re-exports the three + the schema type registration
+  scripts/db-sync.ts    (with --orm) what `bun run db:sync` runs
 ```
 
-```bash
-cd bakery && bun install
-```
-
-`bun install` links the workspace packages into each app's `node_modules` and
-puts the `bakery` binary (owned by `@bakery-framework/cli`) on each app's path as
-`node_modules/.bin/bakery`.
-
-## Create the schema files a fresh clone is missing
-
-The root `.gitignore` ignores `schema.ts` **at any depth**
-([.gitignore:7](../../.gitignore)). That is deliberate — the file belongs to
-the application and `db:sync --choose=db` rewrites it — but it means a fresh
-clone does not contain:
-
-- `apps/example/schema.ts`
-- `apps/starter/orm/schema.ts`
-
-Neither app will typecheck or boot until you create them. `@bakery-framework/orm` ships
-the template:
+## Run it
 
 ```bash
-cp packages/orm/templates/schema.example.ts apps/example/schema.ts
-```
-
-For `apps/starter`, which uses the newer `orm/` folder layout, write
-`apps/starter/orm/schema.ts` with the two tables its `orm/indexes.ts` imports
-(`users` with `username`, `posts` with `authorId`, `slug`, `createdAt`). See
-[Your first app](first-app.md) for the shape.
-
-> This is a genuine rough edge, not a documentation quirk. `bun run typecheck`
-> includes `apps/starter/tsconfig.json`, whose `include` covers `orm/**/*.ts`,
-> and `orm/index.ts` does `import * as model from './schema'`. A clone with no
-> `orm/schema.ts` fails that typecheck with TS2307.
-
-## Run the bundled example
-
-The root `package.json` scripts are thin wrappers that `cd` into
-`apps/example` and run its scripts. They are not generic — running them changes
-directory into the example app, whatever you were working on.
-
-```bash
-bun run dev
-```
-
-```bash
-bun run serve
+cd my-app
 ```
 
 ```bash
 bun run db:sync
 ```
 
-Under the hood, `apps/example/package.json` runs the CLI entry directly:
+That creates `bakery/server.db`, applies the schema and prints what it did.
+Skip it without the ORM.
 
-| Script | Command |
+```bash
+bun run dev
+```
+
+```
+[I] process Starting server (PID: 12656)...
+[I] serve   Starting server in development mode...
+[I] db-sync schema.ts is perfectly synced with Database!
+[I] serve   Server running at:
+[I] serve     ➜ Local  : http://localhost:3000
+[I] serve     ➜ Network: http://10.0.0.6:3000
+[I] serve   Rate limit: 100 burst / 10 req/s per IP (default) — set rateLimit: false to disable
+```
+
+| Script | What it runs |
 | --- | --- |
-| `dev` | `bun --smol run ../../packages/cli/src/index.ts --dev` |
-| `serve` | `bun --smol run ../../packages/cli/src/index.ts` |
-| `db:sync` | `bun --smol run ../../packages/orm/src/sync` |
+| `bun run dev` | `bakery --dev` — watcher, live reload, schema check on boot |
+| `bun run start` | `bakery` — production mode, no watcher, no implicit sync |
+| `bun run typecheck` | `tsc --noEmit` |
+| `bun run db:sync` | `bun run scripts/db-sync.ts` (with the ORM) |
 
-Once installed, the binary works too, from inside an app directory:
-
-```bash
-cd apps/example && bunx bakery --dev
-```
-
-`bun run dev` prints the port it bound and the LAN addresses it is reachable on.
-The example is configured for port 3000, the starter for 3100. **There is no
-`--port` flag** — the port comes from `PORT` in the environment, then
-`port` in `server.config.ts`, then 3000
-([packages/cli/src/worker.ts](../../packages/cli/src/worker.ts)):
+The port resolves `--port` → `PORT` in the environment → `port` in
+`server.config.ts` → 3000
+([packages/core/src/core/port.ts](../../packages/core/src/core/port.ts)):
 
 ```bash
-PORT=8080 bunx bakery --dev
+bun run dev --port 8080
 ```
 
-Development mode checks the schema on every boot and runs the full sync
-whenever the schema sources changed since the last successful one — a content
-hash under `.cache/` gates it, and `--sync` forces it
+```bash
+PORT=8080 bun run dev
+```
+
+Development mode checks the schema on every boot and runs the full sync whenever
+the schema sources changed since the last successful one — a content hash under
+`.cache/` gates it, and `--sync` forces it
 ([packages/cli/src/dev.ts](../../packages/cli/src/dev.ts)) — so you rarely need
-to run `db:sync` by hand while developing. Production does not sync at boot;
-see [the CLI reference](../reference/cli.md).
+to run `db:sync` by hand while developing. Production does not sync at boot; see
+[the CLI reference](../reference/cli.md).
 
 ## What it writes to disk
 
-Two directories appear next to the app you ran, both gitignored:
+Two directories appear next to the app, both gitignored:
 
-- **`bakery/`** — `server.db` (the SQLite database) and `backups/`. It is deliberately *not*
-  hidden: the framework deletes `.cache/` on its own, so the directory holding
-  your data is the one a `rm -rf .*` cannot reach
+- **`bakery/`** — `server.db`, `sessions.db` and `backups/`. It is deliberately
+  *not* hidden: the framework deletes `.cache/` on its own, so the directory
+  holding your data is the one a `rm -rf .*` cannot reach
   ([packages/core/src/core/bakery.ts](../../packages/core/src/core/bakery.ts)).
-- **`.cache/`** — compiled TypeScript, assembled HTML, bundled node
-  modules, fetched Google Fonts. Safe to delete at any time. Bakery clears it
-  itself whenever the framework version or the mode (dev/production) changes
-  ([packages/core/src/core/config.ts](../../packages/core/src/core/config.ts)).
+- **`.cache/`** — compiled TypeScript, assembled HTML, bundled node modules,
+  fetched Google Fonts, generated tsconfig projects. Safe to delete at any time.
+  Bakery clears it itself whenever the app version, the framework version or the
+  mode (dev/production) changes
+  ([packages/core/src/core/cache-version.ts](../../packages/core/src/core/cache-version.ts)).
 
-## Verify
+An app scaffolded without the ORM still gets a `bakery/` directory, because the
+session store lives there — so "no `bakery/` directory" is not evidence that no
+database was opened.
+
+## Choosing a database
+
+SQLite is the default and needs no configuration — the file is created at
+`bakery/server.db` on first run. To use something else, set `DB_URL` (or
+`DATABASE_URL`); the driver is inferred from the URL scheme
+([packages/orm/src/adapters.ts](../../packages/orm/src/adapters.ts)):
 
 ```bash
-bun run test
+DB_URL=postgres://user:pass@localhost:5432/app bun run start
+```
+
+All three adapters are tested against real servers in CI, MySQL 8 and Postgres
+16 included — see [Adapters](../orm/adapters.md).
+
+## Adding Bakery to an existing project
+
+The scaffolder is the supported path, and three of the details below are load-
+bearing in ways that are invisible until something breaks. If you are wiring it
+up by hand anyway:
+
+```bash
+bun add @bakery-framework/core @bakery-framework/cli @bakery-framework/orm
 ```
 
 ```bash
-bun run typecheck
+bun add -d bun-types typescript
 ```
 
-The baseline for both is zero: no failures, no type errors across all nine
-projects. Two ORM tests skip unless `MYSQL_TEST_URL` / `PGSQL_TEST_URL` are set,
-which is expected locally.
+**`bun-types` is not optional.** `@bakery-framework/core/tsconfig.server.json`
+sets `"types": ["bun-types"]` — that is what makes `Bun.*` a type error in
+browser code — but core declares no dependencies, so nothing installs the
+package the setting names. Without it, `tsc` stops at
+`TS2688: Cannot find type definition file for 'bun-types'` before it checks a
+single line of yours.
 
-## Editor and typechecking setup
-
-An app extends the tsconfig that ships with core:
+Then `tsconfig.json`:
 
 ```json
 {
@@ -209,24 +217,26 @@ An app extends the tsconfig that ships with core:
 **The three `jsx*` options are repeated on purpose. Remove them and every page
 in your app returns 500.**
 
-`tsconfig.app.json` already sets them, because Bakery renders JSX to a string on
-the server through its own `createElement` — but **Bun's runtime does not follow
-`extends` into a package specifier**, only a relative path. So inheriting them
-is enough for `tsc` and not enough for the server: your pages get transpiled
-against Bun's default automatic JSX runtime and each one dies with
+`tsconfig.server.json` already sets them, because Bakery renders JSX to a string
+on the server through its own `createElement` — but **Bun's runtime does not
+follow `extends` into a package specifier**, only a relative path. So inheriting
+them is enough for `tsc` and not enough for the server: your pages get
+transpiled against Bun's default automatic JSX runtime and each one dies with
 `Cannot find module react/jsx-dev-runtime`.
 
 The failure is nastier than it sounds because typecheck stays perfectly clean —
-`tsc` *does* follow the extends. `apps/starter` in this repo shipped with
-exactly this bug, green on both gates, until an app generated by the scaffolder
-was actually requested from. Setting them locally is the fix; `extends` still
-carries everything else.
+`tsc` *does* follow the extends. `apps/starter` in this repo shipped with exactly
+this bug, green on both gates, until a page was actually requested.
 
-That everything else is worth having: it pulls in core's ambient declarations,
-which is where the global `createElement`, `Fragment` and `html` come from — you
-do not import them in a page
+That everything else `extends` carries is worth having: it pulls in core's
+ambient declarations, which is where the global `createElement`, `Fragment` and
+`html` come from — you do not import them in a page
 ([packages/core/tsconfig.server.json](../../packages/core/tsconfig.server.json),
 [packages/core/src/global.d.ts](../../packages/core/src/global.d.ts)).
+
+There are two sibling configs for code that is not server code:
+`tsconfig.app.json` for browser code, which deliberately has no `bun-types` and
+no JSX, and `tsconfig.vue.json` for `.vue` SFCs under `vue-tsc`.
 
 > **The dev server rewrites your `tsconfig.json`.** On every dev boot,
 > `syncTSConfigPaths()` replaces `compilerOptions.paths` wholesale with paths
@@ -236,22 +246,35 @@ do not import them in a page
 > It skips the write when the computed paths already match, which is why an app
 > with an empty `importMap` is left alone. Do not hand-maintain `paths` there.
 
-## Choosing a database
+## Working on Bakery itself
 
-SQLite is the default and needs no configuration — the file is created at
-`bakery/server.db` on first run. To use something else, set `DB_URL` (or
-`DATABASE_URL`); the driver is inferred from the URL scheme
-([packages/orm/src/adapters.ts](../../packages/orm/src/adapters.ts)):
+Only needed if you are changing the framework. Contributors work inside the Bun
+workspace, which covers `packages/*`, `packages/plugins/*` and `apps/*`:
 
 ```bash
-DB_URL=postgres://user:pass@localhost:5432/app bunx bakery
+git clone https://github.com/obillekyle/bakery bakery
 ```
 
-Only SQLite is exercised without a live server. MySQL and Postgres have DDL and
-round-trip tests, and CI runs them against real containers, but they are the
-less-travelled paths — see [Adapters](../orm/adapters.md).
+```bash
+cd bakery && bun install
+```
+
+The example app's schema is gitignored — `.gitignore` ignores `schema.ts` at any
+depth, deliberately, because `db:sync --choose=db` rewrites it — so a fresh clone
+needs one created from the template before anything will boot or typecheck:
+
+```bash
+cp packages/orm/templates/schema.example.ts apps/example/schema.ts
+```
+
+The root scripts are thin wrappers that `cd` into `apps/example` first: `bun run
+dev`, `bun run serve`, `bun run db:sync`. `bun run test` and `bun run typecheck`
+are the two gates, and the baseline for both is zero — no failures, no type
+errors across all ten projects. Set `MYSQL_TEST_URL` and `PGSQL_TEST_URL` to
+exercise the live-server tests, which skip without them.
 
 ## Next
 
-- [Your first app](first-app.md) — build one from an empty directory.
+- [Your first app](first-app.md) — build one, file by file.
 - [Project structure](project-structure.md) — what each directory means.
+</content>
