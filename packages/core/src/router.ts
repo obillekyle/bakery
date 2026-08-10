@@ -18,6 +18,7 @@ import {
   response,
   withStatus,
 } from './utils/http'
+import { applyCors, preflightResponse } from './utils/http/cors'
 
 /**
  * Resolve a WebSocket upgrade, refusing cross-origin handshakes first.
@@ -97,6 +98,19 @@ export async function handleRequest(req: Request) {
   // itself, so that was a second full path resolution of the same string on
   // every request.
   const config = Bakery.config
+
+  // Before anything else, including the forbidden-path check: a preflight names
+  // the route it is asking about in a *header*, not the path, so running it
+  // through routing would answer a question nobody asked. The browser sends no
+  // credentials with it either, which is why it cannot be authorised.
+  //
+  // Only when `cors` is configured. Absent, this is not reached at all and the
+  // browser's own default applies.
+  if (config.cors) {
+    const preflight = preflightResponse(config.cors, req)
+    if (preflight) return preflight
+  }
+
   const serveRoot = config.root
   if (fs.isForbidden(serveRoot + path, serveRoot)) {
     return new Response('Forbidden', { status: 403 })
@@ -338,6 +352,14 @@ export async function processResponse(
   // append, not set: a handler may already have issued its own Set-Cookie
   // (e.g. an auth cookie from a login route) that must not be overwritten.
   sess && resp.headers.append('Set-Cookie', sess)
+
+  // Every response funnels through here — pages, API JSON, static files, error
+  // pages — so this is the one place that cannot miss one. Applied before ETag
+  // so the negotiated `Vary` sees the `Origin` entry and merges with it rather
+  // than either overwriting the other.
+  const cors = Bakery.config.cors
+  if (cors) applyCors(cors, req, resp)
+
   const final = ETag.sendResponse(req, resp)
   if (!(final instanceof Response)) {
     log({

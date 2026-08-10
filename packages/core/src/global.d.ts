@@ -44,15 +44,30 @@ declare global {
     inBody?: boolean
   }
 
+  /**
+   * What a middleware may return to stop the chain: a `Response`, or a
+   * `response.json.*` envelope. Anything else — including a bare object or a
+   * string — is ignored and the next middleware runs. See `$middleware.ts`.
+   */
+  type MiddlewareResponse =
+    | Response
+    | import('./utils/common/json').JsonResponseData
+
   type HostEntry = {
     root?: string
     importMap?: Record<string, string>
     middleware?: ((
       req: Request,
       server: Bun.Server<any>,
-    ) => MixedPromise<Response | void>)[]
+    ) => MixedPromise<MiddlewareResponse | void>)[]
     onRequest?(req: Request): MixedPromise<any>
     onError?(error: Handler.Error.Data): MixedPromise<any>
+    /**
+     * Cross-origin resource sharing. Absent means no CORS headers at all,
+     * which is the browser default and the safe one — there is deliberately no
+     * permissive default, not even in development.
+     */
+    cors?: import('./utils/http/cors').CorsOptions | null
     head?: string
     body?: string
     proxy?: Record<string, string>
@@ -79,6 +94,12 @@ declare global {
 
     proxy?: Record<string, string>
 
+    /**
+     * Cross-origin resource sharing. Absent means no CORS headers at all,
+     * which is the browser default and the safe one — there is deliberately no
+     * permissive default, not even in development.
+     */
+    cors?: import('./utils/http/cors').CorsOptions | null
     head?: string
 
     body?: string
@@ -94,7 +115,7 @@ declare global {
     middleware?: ((
       req: Request,
       server: Bun.Server<any>,
-    ) => MixedPromise<Response | void>)[]
+    ) => MixedPromise<MiddlewareResponse | void>)[]
 
     plugins?: ServerPlugin[]
 
