@@ -71,3 +71,58 @@ export function resolvePort(configPort?: number | null): number {
   // Changing that is a separate decision from unifying the three call sites.
   return configPort || DEFAULT_PORT
 }
+
+/**
+ * `--port 8080`, `--port=8080`, `-p 8080`, `-p=8080`.
+ *
+ * Returns the raw string so the caller can validate it through the one rule
+ * above rather than a second one — a flag that accepted `0x1f` where `PORT`
+ * rejects it would be exactly the drift this module exists to end.
+ */
+function portFlagValue(argv: string[]): string | null {
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]
+    if (arg === '--port' || arg === '-p') return argv[i + 1] ?? ''
+    if (arg.startsWith('--port=')) return arg.slice('--port='.length)
+    if (arg.startsWith('-p=')) return arg.slice('-p='.length)
+  }
+  return null
+}
+
+/**
+ * Fold a `--port` flag into `process.env.PORT`, before anything reads it.
+ *
+ * **Why the env rather than a parameter.** The port is read in three places
+ * (see the note at the top of this file) across up to three *processes*: the
+ * dev master, the dev worker it spawns, and N cluster workers. The spawn sites
+ * pass `env: {...process.env}` and build their argv explicitly — `dev-service`
+ * forwards `--dev`, `--dev-worker` and `--sync`, and nothing else — so a flag
+ * would have to be threaded through each of them and kept in step forever,
+ * while an environment variable already propagates to all of them. Normalising
+ * once, in the entry, means every existing reader is already correct.
+ *
+ * **Precedence: flag beats `PORT` beats config.** That is what `--port` means
+ * everywhere else a developer has met it (Vite, Next, Astro, Nuxt), and an
+ * explicit argument losing to an inherited environment variable would be the
+ * surprising order. It is also the recoverable one: a shell with a stale
+ * exported `PORT` is fixed by typing the flag, whereas the reverse needs the
+ * developer to work out which variable is winning.
+ *
+ * @throws if the flag is present but its value is not an integer in `0..65535`,
+ *   including when it is missing entirely (`bakery --port` with nothing after
+ *   it). A flag typed and then ignored is worse than one that complains.
+ */
+export function applyPortFlag(argv: string[] = process.argv.slice(2)): void {
+  const raw = portFlagValue(argv)
+  if (raw === null) return
+
+  const trimmed = raw.trim()
+  const parsed = RE_DECIMAL.test(trimmed) ? Number(trimmed) : Number.NaN
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > MAX_PORT) {
+    throw new Error(
+      `Invalid --port: ${JSON.stringify(raw)} is not an integer between 0 and ${MAX_PORT}`,
+    )
+  }
+
+  process.env.PORT = String(parsed)
+}

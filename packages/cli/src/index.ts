@@ -1,6 +1,9 @@
 #!/usr/bin/env bun
 
 import '@bakery-framework/core/core/init'
+// Safe as a static import: `core/port` reads `process.env` and imports nothing,
+// so it cannot be the edge that closes core's barrel cycle.
+import { applyPortFlag } from '@bakery-framework/core/core/port'
 
 const isDev = import.meta.env.DEV
 const isDevWorker = import.meta.env.DEV_WORKER
@@ -29,6 +32,13 @@ function getThreadsOption(): number | null {
 }
 
 const threadsOption = getThreadsOption()
+
+// Before any mode takes over, and before the config is read: `applyPortFlag`
+// writes `process.env.PORT`, which is what the worker, the startup banner and
+// the dev master's advertised URL all resolve from — and what the spawned dev
+// worker and the cluster Workers inherit. Doing it here means none of them
+// needed changing.
+applyPortFlag()
 
 if (
   (process.argv.includes('--sync') || process.argv.includes('-s')) &&
