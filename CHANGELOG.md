@@ -36,9 +36,21 @@ gates, bumps all seven, and rolls the `Unreleased` section into the new heading.
 
 ## [Unreleased]
 
+### Fixed
+
+- The release pipeline itself, in three ways that only a real run could find: a
+  workflow file GitHub rejected outright, a cache-wipe test whose fixture only
+  worked on Windows, and a tag push that could never trigger the publish it was
+  supposed to gate.
+
 ## [1.0.1] — 2026-08-10
 
-## [1.0.0] — unreleased
+**Tagged but never published.** The automated release worked up to the last
+step and stopped silently: a tag pushed with the default `GITHUB_TOKEN` cannot
+trigger a workflow, so `publish.yml` never ran. The tag is kept as the record
+of what was cut; npm goes 1.0.0 → 1.0.2.
+
+## [1.0.0] — 2026-08-10
 
 First published release, and **the version number restarts here.** Bakery had
 reached 4.x as a single package living inside the app it served — private
@@ -103,5 +115,6 @@ Stated here rather than discovered later:
   the disposable `.cache/`, which is cleared whenever the framework version
   changes.
 
-[Unreleased]: https://github.com/obillekyle/bakery/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/obillekyle/bakery/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/obillekyle/bakery/releases/tag/v1.0.1
 [1.0.0]: https://github.com/obillekyle/bakery/releases/tag/v1.0.0
