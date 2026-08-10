@@ -50,26 +50,48 @@ describe('fromProjectDir', () => {
     expect(fromProjectDir('./schema.ts')).toBe('../../schema.ts')
   })
 
+  /**
+   * The inputs are **per platform**, and the first version of this was not.
+   *
+   * A Windows drive path is only absolute on Windows. On Linux, `C:/…` has no
+   * leading slash, so `path.relative` resolves it against the cwd and returns
+   * exactly the `../../C:/…` shape this test forbids — which is correct
+   * behaviour for a nonsense input and a red CI job. These globs come from
+   * `Bakery.config.root`, produced by the OS the process is running on, so a
+   * drive letter cannot reach a Linux host in the first place.
+   *
+   * Passed on Windows and failed on Linux for as long as it existed, and only
+   * met a Linux runner when the branch was first pushed.
+   */
+  const ABSOLUTE =
+    process.platform === 'win32'
+      ? [
+          'C:/WebDAV/SHARED/ecr/src/**/*.ts',
+          'C:\\WebDAV\\SHARED\\ecr\\src\\**\\*.ts',
+        ]
+      : ['/home/user/app/src/**/*.ts', '/var/www/app/src/**/*.tsx']
+
   test('an absolute glob is made relative, never prefixed', () => {
-    // The exact failure: `../../` glued onto a full path.
-    for (const abs of [
-      'C:/WebDAV/SHARED/ecr/src/**/*.ts',
-      'C:\\WebDAV\\SHARED\\ecr\\src\\**\\*.ts',
-      '/home/user/app/src/**/*.ts',
-    ]) {
+    for (const abs of ABSOLUTE) {
       const out = fromProjectDir(abs)
+      // The exact failure: `../../` glued onto a full path.
       expect(out.startsWith('../../C:')).toBe(false)
       expect(out.startsWith('../..//')).toBe(false)
       // A drive letter surviving anywhere but the very start means the path was
       // concatenated rather than resolved.
       expect(/\.\.\/[A-Za-z]:/.test(out)).toBe(false)
+      // Deliberately *not* asserting that `out` no longer contains `abs`. On
+      // POSIX the two share no prefix beyond `/`, so relativising `/home/user/x`
+      // correctly yields `../../../../../home/user/x` — which contains it. That
+      // assertion passes on Windows and fails on Linux, which is the same trap
+      // this block was rewritten to remove.
     }
   })
 
   test('the result always looks like a path TypeScript will follow', () => {
     // Relative or explicitly `./`-prefixed; never bare, which TypeScript would
     // resolve against the project directory rather than the app.
-    for (const input of ['src/**/*.ts', 'C:/app/src/**/*.ts', './x.ts']) {
+    for (const input of ['src/**/*.ts', ...ABSOLUTE, './x.ts']) {
       const out = fromProjectDir(input)
       expect(out.startsWith('.') || out.startsWith('/')).toBe(true)
     }
