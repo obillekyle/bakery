@@ -36,6 +36,8 @@ gates, bumps all seven, and rolls the `Unreleased` section into the new heading.
 
 ## [Unreleased]
 
+## [1.0.2] — 2026-08-10
+
 ### Fixed
 
 - The release pipeline itself, in three ways that only a real run could find: a
