@@ -1,7 +1,31 @@
 import { Bakery } from '../../core/bakery'
 import { errorMsg, handlerLog } from '../../logger/serve-log'
+import { JsonResponseData } from '../../utils/common/json'
 import { injectIfHtml, response } from '../../utils/http'
 import { Handler } from './$base'
+
+/**
+ * What a middleware may return to stop the chain.
+ *
+ * A `Response` and a `response.json.*` envelope, and deliberately nothing
+ * else. `JsonResponseData` is the framework's one-envelope idiom (convention
+ * 7) and `processResponse` already renders it with its own `status`, so an
+ * `ApiHandler` route returning `response.json.error(401, …)` answered 401
+ * while the identical line in a middleware did not — the value was not a
+ * `Response`, so the chain ignored it and the request carried on.
+ *
+ * Widening further, to "anything truthy", is the tempting version and is
+ * wrong: a middleware that returns a stray string or object would then halt
+ * the request by accident, and returning a value is how middleware signals
+ * *nothing* in plenty of code (`arr.map`, an assignment expression, an
+ * implicit arrow return). Two named shapes, both of which mean "I am the
+ * response".
+ */
+type MiddlewareResult = Response | JsonResponseData
+
+function isMiddlewareResult(value: unknown): value is MiddlewareResult {
+  return value instanceof Response || value instanceof JsonResponseData
+}
 
 /**
  * Per-request slot for the response produced during `canHandle`, so `handle`
@@ -9,7 +33,7 @@ import { Handler } from './$base'
  * field, which meant two concurrent requests could swap responses — including
  * each other's `Set-Cookie` headers — at any `await` boundary.
  */
-const pending = new WeakMap<Request, Response>()
+const pending = new WeakMap<Request, MiddlewareResult>()
 
 export class MiddlewareHandler extends Handler {
   /** Answers from app code, not from disk. See `Handler.servesFiles`. */
@@ -48,12 +72,12 @@ export class MiddlewareHandler extends Handler {
       return (await injectIfHtml(intercepted)) || intercepted
     }
 
-    let data: any
+    let data: MiddlewareResult | undefined
 
     for (const middleware of config.middleware) {
       try {
         const result = await middleware(req, Bakery.server!)
-        if (result instanceof Response) {
+        if (isMiddlewareResult(result)) {
           data = result
           break
         }
@@ -65,7 +89,12 @@ export class MiddlewareHandler extends Handler {
       }
     }
 
-    const injectedRes = await injectIfHtml(data)
+    // An envelope is JSON by construction, so it skips injection rather than
+    // paying `DOMTools.isHTML` to be told so. `processResponse` reads its
+    // `status` and serialises it.
+    if (data instanceof JsonResponseData) return data
+
+    const injectedRes = await injectIfHtml(data!)
     return injectedRes || data
   }
 }

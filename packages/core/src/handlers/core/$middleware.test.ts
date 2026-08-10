@@ -1,6 +1,9 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
 import { hostStore } from '../../core/bakery'
 import { getConfig, initConfig } from '../../core/config'
+import { processResponse } from '../../router'
+import { JsonResponseData } from '../../utils'
+import { response } from '../../utils/http'
 import { MiddlewareHandler } from './$middleware'
 
 beforeAll(async () => {
@@ -93,6 +96,107 @@ describe('MiddlewareHandler request isolation', () => {
         new Request('http://localhost/open'),
       ),
     )
+    expect(matched).toBe(false)
+  })
+})
+
+describe('a response.json envelope from middleware stops the chain', () => {
+  // `if (result instanceof Response)` used to be the only accepted shape, so a
+  // guard returning the framework's own one-envelope idiom was silently
+  // ignored and the request carried on. On a path with no route that surfaced
+  // as a confusing 404; on a path that *does* exist — which is every path a
+  // guard is written for — the protected page was served with a 200.
+  const deny = () => response.json.error(401, 'Sign in required')
+
+  test('the envelope is returned, not dropped', async () => {
+    const res = await withMiddleware([deny], () =>
+      Promise.resolve(
+        MiddlewareHandler.handle(
+          '/admin',
+          new Request('http://localhost/admin'),
+        ),
+      ),
+    )
+
+    expect(res).toBeInstanceOf(JsonResponseData)
+    expect((res as JsonResponseData).status).toBe(401)
+    expect((res as JsonResponseData).message).toBe('Sign in required')
+  })
+
+  test('canHandle reports a match, so the page handler never runs', async () => {
+    const matched = await withMiddleware([deny], () =>
+      MiddlewareHandler.canHandle(
+        '/admin',
+        new Request('http://localhost/admin'),
+      ),
+    )
+
+    expect(matched).toBe(true)
+  })
+
+  test('later middleware does not run once one has denied', async () => {
+    let reached = false
+    const after = () => {
+      reached = true
+      return undefined
+    }
+
+    await withMiddleware([deny, after], () =>
+      Promise.resolve(
+        MiddlewareHandler.handle(
+          '/admin',
+          new Request('http://localhost/admin'),
+        ),
+      ),
+    )
+
+    expect(reached).toBe(false)
+  })
+
+  test('the status and envelope survive processResponse', async () => {
+    // The end-to-end shape the reporter saw: a 401 that arrived as a 404 HTML
+    // error page. `processResponse` is what turns the envelope into the wire
+    // response, so this is the assertion that pins the reported symptom.
+    const req = new Request('http://localhost/admin')
+    req.startNs = Bun.nanoseconds()
+
+    const res = await withMiddleware(
+      [deny],
+      async () =>
+        (await processResponse(
+          MiddlewareHandler.handle('/admin', req),
+          req,
+        )) as Response,
+    )
+
+    expect(res.status).toBe(401)
+    expect(res.headers.get('content-type')).toBe('application/json')
+    expect(await res.json()).toMatchObject({
+      status: 401,
+      message: 'Sign in required',
+    })
+  })
+
+  test('a success envelope stops the chain too', async () => {
+    // Not an error-path special case: `canHandle` asks whether middleware
+    // answered, not whether it denied.
+    const matched = await withMiddleware(
+      [() => response.json.success('handled here')],
+      () =>
+        MiddlewareHandler.canHandle('/x', new Request('http://localhost/x')),
+    )
+
+    expect(matched).toBe(true)
+  })
+
+  test('a bare object still falls through', async () => {
+    // The widening is to `JsonResponseData` specifically, not to "anything
+    // truthy" — a middleware that returns a stray value must not halt the
+    // chain by accident.
+    const matched = await withMiddleware([() => ({ status: 401 }) as any], () =>
+      MiddlewareHandler.canHandle('/y', new Request('http://localhost/y')),
+    )
+
     expect(matched).toBe(false)
   })
 })
