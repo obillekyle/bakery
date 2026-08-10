@@ -24,6 +24,10 @@ concurrency:
 
 permissions:
   contents: write
+  # To dispatch publish.yml. A tag pushed with the default GITHUB_TOKEN cannot
+  # start a workflow — GitHub blocks that to prevent recursion — so the tag
+  # alone is not enough and this has to ask explicitly.
+  actions: write
 
 jobs:
   version:
@@ -98,6 +102,20 @@ jobs:
           # publish.yml never fires for a version that is not on the branch.
           git push origin HEAD
           git push origin "v$VERSION"
+
+      # The tag is pushed above, but a tag pushed by GITHUB_TOKEN does not
+      # trigger `push: tags` anywhere. `workflow_dispatch` is one of the two
+      # documented exemptions, so publish.yml is asked directly.
+      #
+      # Deliberately after the push, not before: if the tag failed to land,
+      # this never runs and nothing tries to publish a version that is not
+      # tagged.
+      - name: Hand off to publish.yml
+        if: steps.check.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.check.outputs.value }}
+        run: gh workflow run publish.yml -f tag="v$VERSION"
 
       - name: Summary
         env:

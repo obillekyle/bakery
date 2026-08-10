@@ -16,10 +16,26 @@ name: Publish
 #   - It cannot perform a package's *first* publish — npm has nowhere to attach
 #     the trusted publisher until the package exists. Release one is done by
 #     hand with a local token; everything after comes through here.
+# Two triggers, and the second is not a convenience.
+#
+# **A tag pushed by `version.yml` cannot start this workflow.** GitHub refuses
+# to create workflow runs from events made with the default `GITHUB_TOKEN`, to
+# prevent recursion — so the `push: tags` trigger only ever fires for a tag a
+# human pushes. The first automated release proved it: v1.0.1 was tagged and
+# nothing ran.
+#
+# `workflow_dispatch` is one of the two documented exemptions (with
+# `repository_dispatch`), so version.yml calls this explicitly instead.
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish, e.g. v1.2.3'
+        required: true
+        type: string
 
 concurrency:
   # Two runs publishing the same tag would race, and the loser would fail
@@ -38,10 +54,18 @@ jobs:
     name: seven packages
     runs-on: ubuntu-latest
 
+    # One name for the tag whichever trigger fired. On a tag push `ref_name` is
+    # the tag; on a dispatch it is the branch, so the input has to win.
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Explicit, because a dispatched run would otherwise check out the
+          # branch and publish whatever is on it rather than what was tagged.
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -65,8 +89,6 @@ jobs:
       # commit. Publishing then ships whatever the manifests happen to say
       # under a tag claiming something else — and both are permanent.
       - name: Refuse if the tag and the manifests disagree
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
           manifest=$(bun -e 'console.log(require("./package.json").version)')
           if [ "v$manifest" != "$TAG" ]; then
@@ -82,8 +104,6 @@ jobs:
       # An unrecognised prerelease is refused rather than defaulted.
       - name: Work out the dist-tag
         id: disttag
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
           version="${TAG#v}"
           case "$version" in
@@ -177,7 +197,6 @@ jobs:
 
       - name: Summary
         env:
-          TAG: ${{ github.ref_name }}
           DIST_TAG: ${{ steps.disttag.outputs.value }}
         run: |
           {
