@@ -106,7 +106,6 @@ export class SchemaBuilder {
     const nul = cons.nullable ?? false
 
     const hasDefault = def !== undefined && def !== null && def !== 'NULL'
-    const isExplicitNull = def === null || def === 'NULL' || (!isView && nul)
 
     if (hasDefault) {
       const isStr = typeof def === 'string'
@@ -119,7 +118,22 @@ export class SchemaBuilder {
           : String(def)
     }
 
-    if (isExplicitNull) return 'null'
+    // **A null default is only spellable on a nullable column**, and conflating
+    // the two turned every NOT NULL column without a default into a nullable
+    // one. `Field`'s convention — stated in `asFieldCall` below — is that a null
+    // default *means* nullable, so `Field.Int(null)` does not describe
+    // `author_id integer NOT NULL`; it redefines it.
+    //
+    // Introspection is not the problem and reports this correctly: a NOT NULL
+    // column with no default comes back as `{type, default: null}` with no
+    // `nullable` key, and a genuinely nullable one carries `nullable: true`.
+    // This function was reading only the default and ignoring the flag beside
+    // it, so `--choose=db` on a real database produced a schema whose very next
+    // sync proposed rebuilding the table it had just been generated from.
+    if (!isView && nul) return 'null'
+    // A view has no NOT NULL to speak of, so there the null-ish default is all
+    // there is to go on.
+    if (isView && (def === null || def === 'NULL')) return 'null'
     return undefined
   }
 
@@ -163,7 +177,70 @@ export class SchemaBuilder {
     if (n) parts.push('nullable: true')
     if (a) parts.push('autoIncrement: true')
     if (p) parts.push('primary: true')
+    if (cons._references) {
+      const r = cons._references
+      const opts = [`table: '${r.table}'`, `column: '${r.column}'`]
+      if (r.onDelete) opts.push(`onDelete: '${r.onDelete}'`)
+      if (r.onUpdate) opts.push(`onUpdate: '${r.onUpdate}'`)
+      parts.push(`_references: { ${opts.join(', ')} }`)
+    }
     return `${indent}${colName}: { ${parts.join(', ')} },\n`
+  }
+
+  /**
+   * Copy introspected foreign keys onto the columns that carry them.
+   *
+   * `getConstraints()` describes columns and `getForeignKeys()` describes
+   * references, and the generator only ever read the first — so a database whose
+   * `posts.author_id` references `users.id ON DELETE CASCADE` regenerated as a
+   * plain integer. The constraint stayed in the database, the schema stopped
+   * mentioning it, and the next sync therefore planned to rebuild the table to
+   * *remove* a key nobody asked to remove.
+   *
+   * Single-column keys only. A composite key cannot be a property of one column
+   * — it is declared with `foreign()` alongside the indexes — and inventing a
+   * per-column half of one would be worse than omitting it, so it is counted and
+   * reported rather than silently dropped.
+   */
+  private static attachReferences(
+    constraints: Record<string, any>,
+    fks: SyncTypes.DBForeignKeys,
+  ): { attached: number; composite: number } {
+    let attached = 0
+    let composite = 0
+
+    for (const fk of Object.values(fks)) {
+      if (fk.cols.length !== 1 || fk.refCols.length !== 1) {
+        composite++
+        continue
+      }
+      // Introspection reports SQL identifiers; the constraints map is keyed the
+      // way the schema declares them.
+      const table = Object.keys(constraints).find(
+        t => Case.camel(t) === Case.camel(fk.table),
+      )
+      const cols = table ? constraints[table] : undefined
+      if (!cols) continue
+
+      const col = Object.keys(cols).find(
+        c => Case.camel(c) === Case.camel(fk.cols[0]),
+      )
+      if (!col) continue
+
+      cols[col]._references = {
+        table: fk.refTable,
+        column: fk.refCols[0],
+        ...(fk.onDelete && fk.onDelete !== 'NO ACTION'
+          ? { onDelete: fk.onDelete }
+          : {}),
+        ...(fk.onUpdate && fk.onUpdate !== 'NO ACTION'
+          ? { onUpdate: fk.onUpdate }
+          : {}),
+      }
+      attached++
+    }
+
+    return { attached, composite }
   }
 
   /**
@@ -186,6 +263,13 @@ export class SchemaBuilder {
     nullable: boolean,
   ): string | null {
     if (cons.primary || cons.autoIncrement) return null
+    // A referencing column has no `Field.*` spelling that also carries the
+    // reference — `Field.Foreign` needs the parent table's column *value* in
+    // scope, which the generated file cannot guarantee (introspection order is
+    // not declaration order, and the single-file layout has no table values at
+    // all). Fall through to the object literal, which spells `_references`
+    // exactly as the loader reads it.
+    if (cons._references) return null
     const hasLen = typeof cons.length === 'number'
     // `undefined` from getDefaultValue means "no default", which is a different
     // column from one defaulting to null.
@@ -354,6 +438,39 @@ ${body}`
     return `${result}  } as const;\n`
   }
 
+  /**
+   * `orm/indexes.ts`: one exported declaration per index in the database.
+   *
+   * The folder layout's counterpart to the `indexes` block `DBInfo` carries, and
+   * the reason a regenerated folder schema no longer arms the next sync to drop
+   * every index it just read.
+   */
+  private static buildIndexModule(dbIndexes: Record<string, any>): string {
+    let body = ''
+    for (const [idxName, idx] of Object.entries(dbIndexes)) {
+      const cols =
+        idx.cols.length === 1
+          ? `'${idx.cols[0]}'`
+          : `[${idx.cols.map((c: string) => `'${c}'`).join(', ')}]`
+      const fn = idx.type === 'unique' ? 'Field.Unique' : 'Field.Index'
+      body += `export const ${Case.camel(idxName)} = ${fn}('${idx.table}', ${cols})\n`
+    }
+
+    return `/**
+ * Generated from the database by \`db:sync\`.
+ *
+ * Seeded once and never overwritten — unlike \`tables.ts\`. An index this file
+ * does not declare is dropped by the next TS-wins sync, so add new ones here
+ * rather than only in the database.
+ *
+ * Composite foreign keys belong here too, declared with \`foreign()\`: a
+ * reference on a single column cannot express them.
+ */
+import { Field } from '@bakery-framework/orm'
+
+${body}`
+  }
+
   private static buildIndexesString(dbIndexes: Record<string, any>): string {
     let result = '{\n'
     for (const [idxName, idx] of Object.entries(dbIndexes)) {
@@ -517,6 +634,16 @@ declare module '@bakery-framework/orm/schema-registry' {
     const { stripLedger } = await import('./ledger')
     const constraints = stripLedger(await adapter.getConstraints())
 
+    // Before nullability is reconciled, so a referencing column is described
+    // completely by the time anything decides how to spell it.
+    const refs = SchemaBuilder.attachReferences(
+      constraints,
+      await adapter.getForeignKeys(),
+    )
+    if (refs.composite) {
+      messages.GEN_COMPOSITE_FK({ count: String(refs.composite) })
+    }
+
     SchemaBuilder.syncNullableConstraints(constraints, existingConstraints)
 
     // The write target and the shape written have to agree. `folder` means
@@ -562,6 +689,25 @@ declare module '@bakery-framework/orm/schema-registry' {
         } else {
           await Bun.write(viewsPath, viewsSource)
           messages.VIEWS_SEEDED?.({ file: viewsPath })
+        }
+      }
+
+      // And `indexes.ts`, on the same seed-once terms.
+      //
+      // Nothing wrote this file before, which made the folder layout lossy in a
+      // way the single-file layout is not: `DBInfo` carries an `indexes` block,
+      // so `--choose=db` there round-trips them, while the folder layout left
+      // every index undeclared. A TS-wins sync then drops what the schema does
+      // not mention — so regenerating a folder-layout schema from a database
+      // armed the *next* sync to delete every index in it.
+      const indexes = await adapter.getIndexes()
+      if (Object.keys(indexes).length) {
+        const indexesPath = `${schemaPath.replace(/[^/\\]+$/, '')}indexes.ts`
+        if (await Bun.file(indexesPath).exists()) {
+          messages.INDEXES_KEPT?.({ file: indexesPath })
+        } else {
+          await Bun.write(indexesPath, SchemaBuilder.buildIndexModule(indexes))
+          messages.INDEXES_SEEDED?.({ file: indexesPath })
         }
       }
     }

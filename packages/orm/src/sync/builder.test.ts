@@ -109,11 +109,18 @@ describe('the generated shape follows the layout it is written into', () => {
       "qty: { type: 'integer', default: 0, nullable: true },",
     )
 
-    // `label` is NOT NULL with no default and comes back as nullable. That is
-    // the column formatter's long-standing round-trip loss, shared with the
-    // DBInfo form and unchanged by the move to `Field`; pinned so the vocabulary
-    // change is not blamed for it.
-    expect(source).toContain('label: Field.String(null),')
+    // `label` is NOT NULL with no default, and it now says so.
+    //
+    // **This assertion used to read `Field.String(null)`, pinning the loss as
+    // known behaviour** — the comment beside it called it "the column
+    // formatter's long-standing round-trip loss". It was not merely cosmetic:
+    // `Field`'s convention is that a null default *means* nullable, so the
+    // generated schema redefined the column, and the next sync planned to
+    // rebuild the table to apply the change it had invented. Fixed by reading
+    // the `nullable` flag introspection already reports beside the default
+    // rather than the default alone.
+    expect(source).toContain('label: Field.Text(),')
+    expect(source).not.toContain('label: Field.String(null),')
   })
 
   test('a folder layout never emits a second registration block', async () => {
@@ -178,9 +185,11 @@ describe('the generated shape follows the layout it is written into', () => {
       expect(collectConstraints(module)).toEqual({
         widgets: {
           id: { type: 'integer', autoIncrement: true, primary: true },
-          // `nullable` on the first two is the round-trip loss noted above,
-          // not something this layout introduced.
-          label: { type: 'string', default: null, nullable: true },
+          // This is now a real round trip, and the DDL is the thing to compare
+          // against: `label TEXT NOT NULL` (no default) and `note TEXT`
+          // (nullable). Both used to come back as nullable-with-a-null-default
+          // — the loss the comment here used to excuse.
+          label: { type: 'string' },
           note: { type: 'string', default: null, nullable: true },
           qty: { type: 'integer', default: 0, nullable: true },
           madeAt: { type: 'integer', default: '%dateNow%' },
@@ -456,5 +465,109 @@ describe('views are generated into their own module', () => {
     await Bun.file(tablesPath).delete()
     await Bun.file(viewsPath).delete()
     await db.close()
+  })
+})
+
+/**
+ * A schema generated from a database must round-trip: the next sync should have
+ * nothing to do. It did not, and both defects pointed the same way — toward a
+ * destructive plan against a database the schema had just been read from.
+ *
+ * Measured before the fix, on a two-table SQLite database:
+ *
+ *     DANGER ZONE: Destructive or major changes detected!
+ *     Tables to rebuild (schema modified): posts
+ *
+ * because `posts.author_id integer NOT NULL REFERENCES users(id)` regenerated as
+ * `Field.Int(null)` — nullable, and no reference.
+ */
+describe('generation is faithful enough to round-trip', () => {
+  async function generateFrom(ddl: string[]): Promise<string> {
+    const db = new SQLiteAdapter(':memory:')
+    for (const s of ddl) await db.query(s).run()
+
+    const path = `${Bakery.cacheDir}/__gen-fidelity-test.ts`
+    await SchemaBuilder.generate(db as any, path, silentMessages)
+    const source = await Bun.file(path).text()
+    await Bun.file(path).delete()
+    return source
+  }
+
+  const SCHEMA = [
+    'CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT)',
+    'CREATE TABLE posts (' +
+      'id INTEGER PRIMARY KEY AUTOINCREMENT, ' +
+      'author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, ' +
+      'title TEXT, ' +
+      "body TEXT NOT NULL DEFAULT ''" +
+      ')',
+  ]
+
+  test('a NOT NULL column with no default is not made nullable', async () => {
+    const source = await generateFrom(SCHEMA)
+    // `Field`'s convention is that a null default *means* nullable, so
+    // `Field.Int(null)` here would redefine the column rather than describe it.
+    expect(source).not.toContain('Field.Int(null)')
+    // And the column is still emitted — the fix must not drop it.
+    expect(source).toContain('authorId')
+  })
+
+  test('a genuinely nullable column still reads as nullable', async () => {
+    // The other direction, so the fix is not "never emit null".
+    const source = await generateFrom(SCHEMA)
+    expect(source).toMatch(/title: Field\.\w+\([^)]*null\)/)
+  })
+
+  test('a foreign key survives as a column reference', async () => {
+    const source = await generateFrom(SCHEMA)
+    expect(source).toContain('_references')
+    expect(source).toContain("table: 'users'")
+    expect(source).toContain("column: 'id'")
+    expect(source).toContain("onDelete: 'CASCADE'")
+  })
+
+  test('a default that is not null is unaffected', async () => {
+    // The fix reads the `nullable` flag; it must not touch a real default.
+    const source = await generateFrom(SCHEMA)
+    expect(source).toMatch(/body: Field\.String\(""\)/)
+  })
+})
+
+/**
+ * The folder layout never seeded `indexes.ts`, while the single-file layout
+ * carries an `indexes` block inside `DBInfo`. So a folder-layout schema
+ * regenerated from a database declared no indexes at all — and a TS-wins sync
+ * drops what the schema does not mention. Measured: adopting a database with
+ * three indexes armed the next sync to drop all three.
+ */
+describe('the folder layout seeds indexes.ts', () => {
+  test('one export per index, and none of them dropped', async () => {
+    const db = new SQLiteAdapter(':memory:')
+    for (const s of [
+      'CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT)',
+      'CREATE UNIQUE INDEX username_uniq ON users (username)',
+      'CREATE INDEX users_by_id ON users (id)',
+    ])
+      await db.query(s).run()
+
+    const dir = `${Bakery.cacheDir}/__gen-folder-test`
+    await SchemaBuilder.generate(
+      db as any,
+      `${dir}/tables.ts`,
+      silentMessages,
+      {},
+      'folder',
+    )
+
+    const indexes = await Bun.file(`${dir}/indexes.ts`).text()
+    expect(indexes).toContain('Field.Unique')
+    expect(indexes).toContain('Field.Index')
+    expect(indexes).toContain('usernameUniq')
+    expect(indexes).toContain('usersById')
+    // Imports what it uses — the single-file block once referenced identifiers
+    // it never imported, invisible because only the tables are round-tripped.
+    expect(indexes).toContain("import { Field } from '@bakery-framework/orm'")
+
+    rmSync(dir, { recursive: true, force: true })
   })
 })
