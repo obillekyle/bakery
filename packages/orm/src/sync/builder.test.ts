@@ -105,8 +105,13 @@ describe('the generated shape follows the layout it is written into', () => {
     // would quietly turn a nullable column NOT NULL, so it falls through to a
     // plain object literal — constraints *are* objects, so this needs no helper
     // and imports nothing.
+    // `as const` matters and is not cosmetic. `table()` takes
+    // `C extends Record<string, unknown>`, which does not preserve literals, so
+    // without it `type: 'integer'` widens to `type: string` and `InferSchema`
+    // has nothing to match — every column spelled this way infers as a string.
+    // Invisible in the `DBInfo` layout, whose whole object is already `as const`.
     expect(source).toContain(
-      "qty: { type: 'integer', default: 0, nullable: true },",
+      "qty: { type: 'integer', default: 0, nullable: true } as const,",
     )
 
     // `label` is NOT NULL with no default, and it now says so.
@@ -569,5 +574,86 @@ describe('the folder layout seeds indexes.ts', () => {
     expect(indexes).toContain("import { Field } from '@bakery-framework/orm'")
 
     rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+/**
+ * A referencing column reads as `Field.Foreign(parent.id)` in the folder layout.
+ *
+ * It used to be emitted as the object literal — correct, and four times the
+ * width:
+ *
+ *     sectionId: { type: 'integer', default: null, nullable: true,
+ *                  _references: { table: 'sections', column: 'id' } } as const,
+ *
+ * The literal is still the fallback, and has to be: `Field.Foreign` names the
+ * parent's *table value*, so the parent must already be declared. Tables are
+ * emitted parents-first for exactly that reason, and a reference cycle falls
+ * back rather than emitting a `const` used before its declaration.
+ */
+describe('foreign keys read as Field.Foreign in the folder layout', () => {
+  async function folderModule(ddl: string[]): Promise<string> {
+    const db = new SQLiteAdapter(':memory:')
+    for (const s of ddl) await db.query(s).run()
+    const dir = `${Bakery.cacheDir}/__gen-fk-form-test`
+    await SchemaBuilder.generate(
+      db as any,
+      `${dir}/tables.ts`,
+      silentMessages,
+      {},
+      'folder',
+    )
+    const source = await Bun.file(`${dir}/tables.ts`).text()
+    rmSync(dir, { recursive: true, force: true })
+    return source
+  }
+
+  test('emits the call, not the literal', async () => {
+    const source = await folderModule([
+      'CREATE TABLE sections (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)',
+      'CREATE TABLE students (id INTEGER PRIMARY KEY AUTOINCREMENT, section_id INTEGER REFERENCES sections(id))',
+    ])
+    expect(source).toContain('Field.Foreign(sections.id')
+    expect(source).not.toContain('_references')
+  })
+
+  test('the parent is declared before the child that references it', async () => {
+    // Declaration order is load-bearing: `Field.Foreign(sections.id)` reads a
+    // `const` at module evaluation, so a child emitted first is a TDZ error.
+    const source = await folderModule([
+      // Created child-first, so source order alone would get this wrong.
+      'CREATE TABLE students (id INTEGER PRIMARY KEY AUTOINCREMENT, section_id INTEGER REFERENCES sections(id))',
+      'CREATE TABLE sections (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)',
+    ])
+    expect(source.indexOf('const sections')).toBeLessThan(
+      source.indexOf('const students'),
+    )
+  })
+
+  test('onDelete and nullability come along', async () => {
+    const source = await folderModule([
+      'CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT)',
+      'CREATE TABLE posts (id INTEGER PRIMARY KEY AUTOINCREMENT, author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE)',
+    ])
+    expect(source).toContain("onDelete: 'CASCADE'")
+    // NOT NULL, so no `nullable: true` — the flag that would redefine it.
+    expect(source).toMatch(/authorId: Field\.Foreign\(users\.id, \{ onDelete/)
+  })
+
+  test('a reference cycle falls back rather than emitting a forward const', async () => {
+    // Legal SQL, and the one case the call form cannot express.
+    const source = await folderModule([
+      'CREATE TABLE a (id INTEGER PRIMARY KEY AUTOINCREMENT, b_id INTEGER REFERENCES b(id))',
+      'CREATE TABLE b (id INTEGER PRIMARY KEY AUTOINCREMENT, a_id INTEGER REFERENCES a(id))',
+    ])
+    // One direction resolves, the other keeps the literal. Whichever way round,
+    // nothing may reference a const declared later in the file.
+    const first = source.indexOf('const a =')
+    const second = source.indexOf('const b =')
+    const earlier = Math.min(first, second)
+    const laterName = first < second ? 'b' : 'a'
+    expect(source.slice(earlier, Math.max(first, second))).not.toContain(
+      `Field.Foreign(${laterName}.`,
+    )
   })
 })

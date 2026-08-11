@@ -16,6 +16,8 @@ const syncMsgs = {
   SCHEMA_NOT_FOUND:
     'E %rConfigured schema path not found%*: {path}. %yschema%* in server.config.ts must name a file or an orm/ folder that exists; remove it to auto-detect. Generating one from the database? Create the (empty) file first, or run %ydb:sync --migrate%*.',
   MIGRATE_SCAFFOLDED: 'I Created %y{dir}%* — the generator owns tables.ts.',
+  MIGRATE_RETIRED:
+    'I Converted to the orm/ folder. The previous %yschema.ts%* was moved to %y{to}%*, not deleted.',
 } as const
 
 const MESSAGES = messageLogger(logger, syncMsgs)
@@ -134,6 +136,31 @@ Flags:
     MESSAGES.MIGRATE_SCAFFOLDED({ dir: 'orm/' })
   }
 
+  /**
+   * Move the old single-file `schema.ts` out of the way after a conversion.
+   *
+   * Moved, never deleted: it goes to `bakery/backups/`, beside the copies the
+   * generator already keeps there. `loadSchema` prefers `orm/index.ts`, so a
+   * leftover `schema.ts` would be *ignored* rather than used — which is the
+   * quiet kind of wrong, since it looks like the file still describes the app
+   * while nothing reads it.
+   */
+  static async retireSingleFileSchema(
+    cwd: string,
+    previous: 'folder' | 'file' | 'none',
+  ): Promise<void> {
+    if (previous !== 'file') return
+
+    const from = `${cwd}/schema.ts`
+    const file = Bun.file(from)
+    if (!(await file.exists())) return
+
+    const to = `${cwd}/bakery/backups/schema.pre-migrate.${Date.now()}.ts`
+    await Bun.write(to, await file.text())
+    await file.delete()
+    MESSAGES.MIGRATE_RETIRED({ to: to.slice(cwd.length + 1) })
+  }
+
   static async run() {
     // Before initConfig/initDB/loadSchema: help must not depend on a working
     // connection, a loadable schema, or the absence of a `foreign()`.
@@ -185,7 +212,13 @@ Flags:
     // cannot touch the views, indexes and registration beside it — which for an
     // adopted database is the difference between re-running the command and
     // hand-restoring what it overwrote.
-    const adopting = SyncService.migrateRequested() && loaded.layout === 'none'
+    // `--migrate` always lands on the folder layout, including from an existing
+    // single-file `schema.ts`. It used to convert only from *nothing*, which
+    // read as an arbitrary distinction: the reason to prefer the folder is that
+    // the generator owns `tables.ts` and cannot touch the views, indexes and
+    // registration beside it — and that is worth exactly as much to a project
+    // that already has a schema as to one that does not.
+    const adopting = SyncService.migrateRequested()
     const layout = adopting ? 'folder' : loaded.layout
     const targetPath = adopting ? `${process.cwd()}/orm/tables.ts` : schemaPath
 
@@ -195,7 +228,10 @@ Flags:
     // `indexes.ts`, which the generator writes only when the database has views
     // or indexes to write. Deciding what to import before knowing which files
     // exist is how the first version produced a barrel pointing at nothing.
-    if (adopting) await SyncService.writeOrmIndex(process.cwd())
+    if (adopting) {
+      await SyncService.writeOrmIndex(process.cwd())
+      await SyncService.retireSingleFileSchema(process.cwd(), loaded.layout)
+    }
 
     await closeDB()
   }

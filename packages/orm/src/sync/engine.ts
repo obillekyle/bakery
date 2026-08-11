@@ -334,7 +334,15 @@ export class SyncEngine {
     // ledger, so the first real sync afterwards diffs against introspection
     // instead: the one place enum changes are invisible.
     if (process.argv.includes('--migrate')) {
-      await genLocal(constraints)
+      // `{}`, not `constraints`: adoption generates from the **database alone**.
+      //
+      // Passing the loaded schema in makes `syncNullableConstraints` reconcile
+      // view column nullability against it, which is right for a regeneration of
+      // a schema you are keeping and wrong for this — the point of `--migrate`
+      // is that the database is the source of truth, and quietly carrying a
+      // detail over from the file being replaced would make the result depend on
+      // what happened to be there.
+      await genLocal({})
       await SyncEngine.seedLedger(adapter)
       MESSAGES.MIGRATE_DONE()
       return

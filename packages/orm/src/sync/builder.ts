@@ -184,7 +184,20 @@ export class SchemaBuilder {
       if (r.onUpdate) opts.push(`onUpdate: '${r.onUpdate}'`)
       parts.push(`_references: { ${opts.join(', ')} }`)
     }
-    return `${indent}${colName}: { ${parts.join(', ')} },\n`
+    // `as const`, and without it the folder layout loses these columns' types.
+    //
+    // `table()` takes `C extends ColumnMap`, which is `Record<string, unknown>`
+    // — a constraint that does not preserve literals, so `{ type: 'integer' }`
+    // widens to `{ type: string }` and `InferSchema` has no `'integer'` left to
+    // match. Every column the `Field` vocabulary cannot name — which since
+    // foreign keys round-trip includes *every referencing column* — then infers
+    // as a string.
+    //
+    // Invisible in the single-file layout, where `DBInfo.constraints` is already
+    // `as const`, and that is why it took a real app on the folder layout to
+    // surface: 28 errors of the form `number is not assignable to string` on
+    // inserts into tables whose foreign keys are integers.
+    return `${indent}${colName}: { ${parts.join(', ')} } as const,\n`
   }
 
   /**
@@ -505,12 +518,106 @@ ${body}`
    * neither is the generator's to rewrite. That separation is the reason the
    * folder layout exists (see `load.ts`).
    */
+  /**
+   * The constraints key a `_references.table` names, or `undefined`.
+   *
+   * Introspection reports SQL identifiers while the constraints map is keyed the
+   * way the schema declares them, so the two are compared through `Case.camel`.
+   */
+  private static tableKeyFor(
+    constraints: Record<string, any>,
+    sqlName: string,
+  ): string | undefined {
+    return Object.keys(constraints).find(
+      k => Case.camel(k) === Case.camel(sqlName),
+    )
+  }
+
+  /**
+   * Table names ordered so every table follows the ones it references.
+   *
+   * A depth-first walk with a visiting set, which is also the cycle break: a
+   * table already on the stack is left where it is, and the column pointing back
+   * at it falls through to the object literal — correct, just not pretty.
+   * Circular references between tables are legal SQL and this must not fail on
+   * them or, worse, emit a forward reference that is `undefined` at module
+   * evaluation.
+   */
+  private static tablesParentsFirst(
+    constraints: Record<string, any>,
+  ): string[] {
+    const order: string[] = []
+    const done = new Set<string>()
+    const visiting = new Set<string>()
+
+    const visit = (name: string) => {
+      if (done.has(name) || visiting.has(name)) return
+      visiting.add(name)
+
+      const cols = constraints[name]
+      if (cols && !cols._view) {
+        for (const cons of Object.values<any>(cols)) {
+          const parent = cons?._references?.table
+          if (!parent) continue
+          const key = SchemaBuilder.tableKeyFor(constraints, parent)
+          if (key && key !== name) visit(key)
+        }
+      }
+
+      visiting.delete(name)
+      done.add(name)
+      order.push(name)
+    }
+
+    for (const name of Object.keys(constraints)) visit(name)
+    return order
+  }
+
+  /**
+   * `Field.Foreign(parent.column, …)` when the parent is already in scope.
+   *
+   * Returns null when it is not — the cycle case above — so the caller falls
+   * back to the literal rather than emitting a reference to a `const` declared
+   * further down the file, which is a TDZ error at import time.
+   */
+  private static asForeignCall(
+    cons: any,
+    constraints: Record<string, any>,
+    declared: Set<string>,
+  ): string | null {
+    const ref = cons?._references
+    if (!ref) return null
+
+    const key = SchemaBuilder.tableKeyFor(constraints, ref.table)
+    if (!key || !declared.has(key)) return null
+
+    const opts: string[] = []
+    // The literal form spells nullability as `nullable: true, default: null`;
+    // `Field.Foreign` takes the one flag and writes both.
+    if (cons.nullable) opts.push('nullable: true')
+    if (ref.onDelete) opts.push(`onDelete: '${ref.onDelete}'`)
+    if (ref.onUpdate) opts.push(`onUpdate: '${ref.onUpdate}'`)
+
+    const target = `${exportNameFor(key)}.${ref.column}`
+    return opts.length
+      ? `Field.Foreign(${target}, { ${opts.join(', ')} })`
+      : `Field.Foreign(${target})`
+  }
+
   private static buildTableModule(
     constraints: Record<string, any>,
     adapter: SQLAdapter,
   ): string {
+    // Parents before children, so a referencing column can name the table value
+    // it points at. `Field.Foreign(sections.id)` is the form a person writes and
+    // the one the scaffolder's own template uses; the alternative is the object
+    // literal below, which states the same thing in four times the width.
+    const order = SchemaBuilder.tablesParentsFirst(constraints)
+    const declared = new Set<string>()
+
     let body = ''
-    for (const [tableName, cols] of Object.entries(constraints)) {
+    for (const tableName of order) {
+      const cols = constraints[tableName]
       // Views are left to `views.ts`, exactly as indexes are left to
       // `indexes.ts`. This file is the only one the generator owns; emitting a
       // view here as well would leave the same declaration in two files after
@@ -521,15 +628,19 @@ ${body}`
       for (const [colName, cons] of Object.entries(
         cols as Record<string, SyncTypes.ColumnConstraint>,
       )) {
-        colsStr += SchemaBuilder.formatColumnConstraint(
-          colName,
-          cons,
-          adapter,
-          // Never a view here — those were skipped above.
-          false,
-          '  ',
-        )
+        const ref = SchemaBuilder.asForeignCall(cons, constraints, declared)
+        colsStr += ref
+          ? `  ${colName}: ${ref},\n`
+          : SchemaBuilder.formatColumnConstraint(
+              colName,
+              cons,
+              adapter,
+              // Never a view here — those were skipped above.
+              false,
+              '  ',
+            )
       }
+      declared.add(tableName)
       body += `export const ${exportNameFor(tableName)} = table('${tableName}', {\n${colsStr}})\n\n`
     }
 
