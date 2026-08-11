@@ -36,6 +36,8 @@ gates, bumps all seven, and rolls the `Unreleased` section into the new heading.
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-08-11
+
 ### Fixed
 
 - **A schema generated from a database round-trips.** `db:sync --choose=db`
