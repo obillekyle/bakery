@@ -36,6 +36,41 @@ gates, bumps all seven, and rolls the `Unreleased` section into the new heading.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A schema generated from a database round-trips.** `db:sync --choose=db`
+  produced a schema whose very next sync proposed rebuilding the table it had
+  just been read from — `DANGER ZONE … Tables to rebuild: posts`. Three losses,
+  all in the generator, none in introspection:
+
+  - a NOT NULL column with no default regenerated as nullable, because the
+    default was read without the `nullable` flag beside it, and in `Field`'s
+    vocabulary a null default *means* nullable;
+  - a foreign key vanished, because `getForeignKeys()` was never consulted — the
+    key stayed in the database while the schema stopped mentioning it, so the
+    next sync planned to remove it;
+  - in the folder layout, **no indexes were declared at all**, because nothing
+    ever wrote `orm/indexes.ts`. A TS-wins sync drops what the schema does not
+    mention, so three indexes in meant three queued for dropping.
+
+  A pre-existing test had pinned the first of these as known behaviour, calling
+  it a "long-standing round-trip loss".
+
+- **`db:sync --migrate`** — one command for a database Bakery did not create. It
+  writes the schema from what is there, creates the `orm/` folder if there is
+  none, seeds the ledger, and **changes no tables**. Distinct from
+  `--choose=db`, which sits after the "no changes" early return (so it does
+  nothing on a database that already matches, the usual case when adopting one)
+  and never records the ledger, leaving the next sync to diff against
+  introspection — the one place enum member changes are invisible.
+
+  **A new flag is a minor by the policy at the top of this file, and this ships
+  as a patch** at the maintainer's explicit direction. Recorded rather than done
+  quietly, which is what the 1.1.0 entry below asks of every later deviation.
+  The argument for it: the flag is additive, nothing existing changes behaviour,
+  and the fixes it travels with are repairs to a command that was already
+  documented as working.
+
 ## [1.2.0] — 2026-08-10
 
 ### Added
