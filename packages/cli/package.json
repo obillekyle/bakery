@@ -1,6 +1,6 @@
 {
   "name": "@bakery-framework/cli",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Bakery entry point and process supervision: mode dispatch, dev watcher, cluster.",
   "keywords": [
     "bakery",
