@@ -18,6 +18,18 @@ import type * as SyncTypes from './types'
 // prettier-ignore
 export const syncMsgs = {
   GEN_TYPES: 'I Generating types...',
+  // Counted rather than silently dropped: a composite key is not a property of
+  // one column, so the generator cannot spell it — but a reader who is not told
+  // will believe the generated schema is complete.
+  GEN_COMPOSITE_FK:
+    'W %y{count}%* composite foreign key(s) could not be generated as column references — declare them with %yforeign()%* beside the indexes.',
+  INDEXES_SEEDED: 'I Seeded %y{file}%* from the database.',
+  INDEXES_KEPT:
+    'I Left %y{file}%* alone: index declarations are hand-owned once seeded. Delete it and re-run to reseed.',
+  MIGRATE_DONE:
+    'I %gAdopted the existing database%*. No tables were changed; run %ydb:sync%* to confirm nothing is pending.',
+  MIGRATE_NO_LEDGER:
+    'W Schema written, but the ledger could not be recorded — the next sync will diff against live introspection instead.',
   SYNC_SUCCESS: 'I %gschema.ts successfully synced%* to Database!',
   INVALID_SCHEMA: 'W %yschema.ts is invalid or corrupt. Treating as new.%*',
   NO_DBINFO: 'W %yDBInfo namespace not found in schema.ts!%*',
@@ -121,6 +133,28 @@ class SyncSession implements AsyncDisposable {
 
 export class SyncEngine {
   protected constructor() {}
+
+  /**
+   * Record the adopted database as the schema Bakery last applied.
+   *
+   * Without this, the first sync after an adoption falls back to introspection —
+   * safe, but it withdraws the thing the ledger is for, and enum member changes
+   * only migrate when the diff runs against the ledger.
+   *
+   * Seeded from introspection rather than from the generated file, deliberately:
+   * the ledger's job is to record *what is in the database*, and reading it back
+   * from a file that was itself just derived from the database would add a
+   * lossy hop for no gain.
+   */
+  private static async seedLedger(adapter: SQLAdapter): Promise<void> {
+    const { writeLedger, stripLedger } = await import('./ledger')
+    const wrote = await writeLedger(
+      adapter,
+      stripLedger(await adapter.getConstraints()),
+      await adapter.getIndexes(),
+    )
+    if (!wrote) MESSAGES.MIGRATE_NO_LEDGER()
+  }
 
   private static async checkEmptyConstraints(
     adapter: SQLAdapter,
@@ -290,6 +324,22 @@ export class SyncEngine {
   ): Promise<void> {
     const genLocal = (c: any = {}) =>
       SchemaBuilder.generate(adapter, schemaPath, MESSAGES, c, layout)
+
+    // `--migrate` runs before every other branch, and changes no tables.
+    //
+    // It is not `--choose=db` with a nicer name. `--choose=db` sits *after* the
+    // "no changes" early return, so on a database that already matches it does
+    // nothing — which is the common case when adopting one, since the schema
+    // being written is derived from that same database. And it never writes the
+    // ledger, so the first real sync afterwards diffs against introspection
+    // instead: the one place enum changes are invisible.
+    if (process.argv.includes('--migrate')) {
+      await genLocal(constraints)
+      await SyncEngine.seedLedger(adapter)
+      MESSAGES.MIGRATE_DONE()
+      return
+    }
+
     const isEmpty = await SyncEngine.checkEmptyConstraints(
       adapter,
       constraints,
