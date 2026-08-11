@@ -98,6 +98,12 @@ const handlerMsgs = {
   PROXY_REQ: 'I Proxying %y{path}%* -> %b{target}%*',
   MIDDLEWARE_ERR: 'E Middleware error: %r{error}%*',
   BUNDLE_ERR: 'E Failed to bundle module (%y{file}%*): %r{error}%*',
+  // The bundle *succeeded*. That is the problem: the failure it leads to is a
+  // browser-side `SyntaxError` with no server-side trace at all.
+  BUNDLE_CJS_INTEROP:
+    'I Generated named exports for the CommonJS package %y{file}%*, so a named import of it works in the browser.',
+  BUNDLE_CJS_DEFAULT_ONLY:
+    'W %y{file}%* assigns %ymodule.exports%* wholesale, so its browser bundle exports only %ydefault%* — a named import from it fails in the browser with "does not provide an export named …", and nothing fails here. Import the default and read the property off it, or use an ESM build. (CommonJS that assigns %yexports.name%* individually keeps its named exports and is fine.)',
 } as const
 
 export const handlerLog = messageLogger(new Logger('handlers'), handlerMsgs)

@@ -8,7 +8,7 @@ import {
   handlerLog,
 } from '../logger/serve-log'
 import type { MapOf } from '../types'
-import { is, Try } from '../utils/common'
+import { is, Try, toHash } from '../utils/common'
 import { FileSystem as fs } from '../utils/fs'
 
 const RX_IMPORT =
@@ -175,7 +175,24 @@ export async function compileText(source: string, path?: fs.AbsolutePath) {
 
         const prefix = mapKeys.find(k => importPath.startsWith(k))
 
-        if (!prefix && !importPath.startsWith('.')) return fullMatch
+        if (!prefix && !importPath.startsWith('.')) {
+          // A bare specifier the import map does not cover.
+          //
+          // The map is built from the app's *declared* dependencies, so an
+          // undeclared or transitive package reaches the browser verbatim and
+          // dies there with `Failed to resolve module specifier "pkg". Relative
+          // references must start with either "/", "./", or "../"` — a message
+          // that names the browser's rule rather than the missing entry, and
+          // arrives with nothing in the server log.
+          //
+          // `/_nm/` is exactly the right target: `NMHandler` does Node
+          // resolution, so `/_nm/pkg` and `/_nm/pkg/sub` both resolve the way
+          // the import did, without this needing to know the package layout.
+          if (RE_REWRITABLE_BARE.test(importPath)) {
+            return `${keyword}${spacing}${quote}/_nm/${importPath}${quote}${closing}`
+          }
+          return fullMatch
+        }
 
         const targetPath = prefix
           ? fs.resolve(
@@ -211,6 +228,138 @@ type CompileResult = {
   errors?: string[]
 }
 
+/**
+ * A CommonJS package that assigns `module.exports` wholesale bundles to
+ * `export default …` and nothing else.
+ *
+ * Not all CJS: `exports.greet = …` is statically analysable and Bun emits a real
+ * named export for it. It is the whole-object form — `module.exports = { … }` —
+ * whose members cannot be known without running the module, and that is the one
+ * that breaks.
+ *
+ * That is correct output and a silent trap. The import map points a bare
+ * specifier at `/_nm/<pkg>`, so `import { greet } from 'pkg'` in browser code
+ * compiles happily, the bundle is served with a **200**, and the only sign of
+ * trouble is in the browser:
+ *
+ *     SyntaxError: The requested module 'pkg' does not provide an export
+ *     named 'greet'
+ *
+ * Nothing reaches the server log, so the developer has a runtime error in the
+ * browser and a perfectly healthy-looking server.
+ *
+ * It cannot simply be fixed here. ESM named exports must be statically known,
+ * and a CJS module's are not: `Bun.Transpiler().scan()` reports `exports: []`
+ * for the very file whose runtime interop yields `['default', 'greet']`.
+ * Bridging that means either executing the package during the build — arbitrary
+ * `node_modules` code, with side effects, in the server process — or carrying a
+ * CJS lexer, which core cannot do while it declares no runtime dependencies.
+ * Both are decisions rather than details, so for now this names the package
+ * instead of guessing.
+ *
+ * The check is deliberately conservative: it fires only when the output has a
+ * default export and no named one, *and* the bundle carries Bun's CJS wrapper.
+ * An ESM package with only a default export is normal and says nothing.
+ */
+/**
+ * A specifier that should be routed to `/_nm/` when the import map misses it.
+ *
+ * Everything with its own meaning is excluded rather than rewritten. A URL and a
+ * protocol-relative `//host/x` are already resolvable by the browser; `/` and
+ * `./` are the two forms it accepts natively; and `node:`/`bun:`/`data:` are
+ * schemes, not packages — turning `node:fs` into `/_nm/node:fs` would replace a
+ * clear "this is server-only" failure with a 404 that names nothing.
+ */
+const RE_REWRITABLE_BARE =
+  /^(?!\.{0,2}\/|\/\/|\/|[a-zA-Z][a-zA-Z0-9+.-]*:)[^\s]/
+
+function isCjsDefaultOnly(content: string): boolean {
+  if (!content.includes('__commonJS')) return false
+
+  // `export {` covers the named-export block Bun emits; `export default` alone
+  // is the shape that breaks a named import.
+  const hasNamed = /\bexport\s*\{[^}]*\b(?!default\b)\w+/.test(content)
+  if (hasNamed) return false
+
+  return /\bexport\s+default\b|\bexport\s*\{\s*\w+\s+as\s+default\s*\}/.test(
+    content,
+  )
+}
+
+/** A key that can be written as `export const <name> =`. */
+const RE_IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
+const RESERVED_EXPORT_NAMES = new Set(['default', '__esModule'])
+
+/**
+ * Re-bundle a `module.exports = { … }` package with real named exports.
+ *
+ * **The names are discovered by importing the module, because there is no other
+ * way.** `Bun.Transpiler().scan()` reports `exports: []` for the very file whose
+ * runtime interop yields `['default', 'greet']` — the members of a
+ * whole-object assignment are not knowable without evaluating it. So the module
+ * is imported here, its keys read, and a shim generated that states them
+ * statically:
+ *
+ *     import __cjs from '<abs>'
+ *     export default __cjs
+ *     export const greet = __cjs.greet
+ *
+ * That shim is what gets bundled, and the browser gets a module that really does
+ * provide `greet`.
+ *
+ * **Importing means executing**, which is the cost and the reason this is not
+ * attempted speculatively: it runs only for a package already shown to be
+ * default-only CJS, which the app has already asked for by importing it from
+ * browser code. A package that throws on import — one touching `window` at
+ * module scope, say — is caught, and the caller keeps the plain bundle it
+ * already has. Degrading to today's behaviour is always available.
+ *
+ * Non-identifier keys are skipped rather than mangled: `module.exports['a-b']`
+ * is legal CJS and is not a legal export name, and inventing one would be worse
+ * than omitting it.
+ */
+async function bundleCjsWithNamedExports(
+  path: string,
+  defines: MapOf<string>,
+): Promise<string | null> {
+  const [importErr, mod] = await Try.catch(() => import(path))
+  if (importErr || !mod) return null
+
+  const names = Object.keys(mod).filter(
+    key => !RESERVED_EXPORT_NAMES.has(key) && RE_IDENTIFIER.test(key),
+  )
+  if (!names.length) return null
+
+  const spec = JSON.stringify(path)
+  const shim = [
+    `import __cjs from ${spec}`,
+    'export default __cjs',
+    ...names.map(
+      name => `export const ${name} = __cjs[${JSON.stringify(name)}]`,
+    ),
+    '',
+  ].join('\n')
+
+  const shimPath = fs.resolve(
+    Bakery.cacheDir,
+    'nm_cache',
+    `${toHash(path)}.interop.mjs`,
+  )
+  const [writeErr] = await Try.catch(() => Bun.write(shimPath, shim))
+  if (writeErr) return null
+
+  const build = await Bun.build({
+    entrypoints: [shimPath],
+    target: 'browser',
+    format: 'esm',
+    minify: Boolean(import.meta.env.PROD),
+    define: defines,
+  })
+
+  if (!build.success || !build.outputs.length) return null
+  return await build.outputs[0].text()
+}
+
 export async function bundleModule(
   path: fs.AbsolutePath,
 ): Promise<CompileResult> {
@@ -234,7 +383,20 @@ export async function bundleModule(
   })
 
   if (build.success && build.outputs.length > 0) {
-    return { success: true, content: await build.outputs[0].text() }
+    const content = await build.outputs[0].text()
+
+    // Only for the shape that breaks, and only after the cheap build has proved
+    // it is that shape — so nothing is imported speculatively.
+    if (isCjsDefaultOnly(content)) {
+      const interop = await bundleCjsWithNamedExports(path, await getDefines())
+      if (interop) {
+        handlerLog.BUNDLE_CJS_INTEROP({ file: path })
+        return { success: true, content: interop }
+      }
+      handlerLog.BUNDLE_CJS_DEFAULT_ONLY({ file: path })
+    }
+
+    return { success: true, content }
   }
 
   const errors = build.logs
