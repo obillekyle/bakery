@@ -16,16 +16,6 @@ export function clearHeadBodyCache() {
 
 export { headBodyCache }
 
-type PackageJson = {
-  name: string
-  version: string
-  main?: string
-  module?: string
-  browser?: string | MapOf<string>
-  dependencies?: MapOf<string>
-  devDependencies?: MapOf<string>
-}
-
 let depMap = ''
 
 const hostDepMaps = new Map<string, string>()
@@ -85,21 +75,38 @@ export function initHostImportMaps() {
   }
 }
 
-function resolveDepModule(pkgData: PackageJson, baseMod: string): string {
-  if (is.string(pkgData.browser)) return pkgData.browser as string
+// `resolveDepModule` stood here: a hand-rolled `browser`/`module`/`main` pick,
+// deleted rather than kept "just in case". `Bun.build` behind `/_nm/` does the
+// same job against the real resolution algorithm — `exports` maps and
+// conditions included, which this understood not at all — and the import map no
+// longer names an entry point for it to compute. See `initImportMap`.
 
-  if (is.object(pkgData.browser)) {
-    const cleanBase = baseMod.replace(/^\.\//, '')
-    const browserField = pkgData.browser as MapOf<string>
-    const lookupKeys = [baseMod, `./${cleanBase}`, cleanBase]
-    const matchedOverride = lookupKeys.find(key => browserField[key])
-
-    return matchedOverride ? browserField[matchedOverride] : baseMod
-  }
-
-  return baseMod
-}
-
+/**
+ * Build the browser import map from the app's dependencies.
+ *
+ * **It maps a package to `/_nm/<name>` and stops there.** It used to read every
+ * dependency's `package.json` and pick an entry point itself — `module`, then
+ * `main`, then a `browser` override — producing `/_nm/<name>/<entry>`. That
+ * duplicated, less well, what the other end of the URL already does:
+ * `NMHandler` hands the path to `Bun.build`, which applies real browser
+ * resolution including `exports` maps, conditions and the `browser` field. The
+ * hand-rolled version understood none of those, so a package whose entry lives
+ * behind an `exports` map resolved to the wrong file or to nothing.
+ *
+ * Verified with a package whose `main`, `module` and `browser` point at three
+ * different files: with no map entry at all, `/_nm/<name>` serves the **browser**
+ * one. The resolution was never needed here.
+ *
+ * Two consequences worth stating. It no longer reads N `package.json` files on
+ * every boot. And an app-declared `importMap` entry still wins — those are
+ * aliases the app means, and one of them (`@client/utils`) does not point into
+ * `node_modules` at all.
+ *
+ * **The map still exists, and removing it entirely would be a regression.** Code
+ * the compiler never sees — an inline `<script type="module">` in an `.html`
+ * page — reaches the browser with its bare specifiers intact, and the map is the
+ * only thing that resolves them there.
+ */
 export async function initImportMap() {
   const pkgContent = await Try(() =>
     Bun.file(fs.resolve(fs.cwd, 'package.json')).json(),
@@ -110,28 +117,9 @@ export async function initImportMap() {
 
   const resolvedMap: MapOf<string> = {}
 
-  const imports = await Promise.all(
-    Object.keys(deps).map(async dep => {
-      const pkgData = await Try(
-        Bun.file(`./node_modules/${dep}/package.json`).json(),
-      )
-
-      return { dep, pkgData: pkgData as PackageJson | null }
-    }),
-  )
-
-  for (const { dep, pkgData } of imports) {
-    if (!pkgData) continue
-
-    const actualName = pkgData.name || dep
-    resolvedMap[`${actualName}/`] = `/_nm/${actualName}/`
-
-    const baseMod = pkgData.module || pkgData.main || 'index.js'
-    const mod = resolveDepModule(pkgData, baseMod)
-
-    const finalMod = typeof mod === 'string' ? mod : 'index.js'
-    resolvedMap[actualName] =
-      `/_nm/${actualName}/${finalMod.replace(/^\.\//, '')}`
+  for (const dep of Object.keys(deps)) {
+    resolvedMap[`${dep}/`] = `/_nm/${dep}/`
+    resolvedMap[dep] = `/_nm/${dep}`
   }
 
   for (const [k, v] of Object.entries(map)) {
