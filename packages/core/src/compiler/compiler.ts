@@ -277,6 +277,15 @@ const RE_IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 const RESERVED_EXPORT_NAMES = new Set(['default', '__esModule'])
 
 /**
+ * How long the export probe may take before it is killed.
+ *
+ * Generous, because it pays a process start and a module evaluation, and it runs
+ * once per package — the result is cached with the bundle. Short enough that a
+ * package which hangs on import costs a pause rather than a wedged server.
+ */
+const CJS_PROBE_TIMEOUT_MS = 5_000
+
+/**
  * Re-bundle a `module.exports = { … }` package with real named exports.
  *
  * **The names are discovered by importing the module, because there is no other
@@ -304,16 +313,70 @@ const RESERVED_EXPORT_NAMES = new Set(['default', '__esModule'])
  * is legal CJS and is not a legal export name, and inventing one would be worse
  * than omitting it.
  */
+/**
+ * The export names of a CommonJS module, read **in a throwaway subprocess**.
+ *
+ * There is no static answer: `Bun.Transpiler().scan()` reports `exports: []` for
+ * the very file whose runtime interop yields `['default', 'greet']`, because the
+ * members of `module.exports = { … }` are not knowable without evaluating it.
+ * And `Bun.build` does not evaluate — measured with a package that writes a file
+ * at module scope, the file appears on `import()` and never on `build()`.
+ *
+ * So something has to run the module, and the question is only *where*. It used
+ * to be here, which meant an arbitrary `node_modules` package executing inside
+ * the server process — in production as well as dev — free to start a timer,
+ * open a socket, or mutate a global that then outlives the request that caused
+ * it. A child process keeps all of that in something that exits.
+ *
+ * It does not make execution safe, and nothing can: a module-scope side effect
+ * on the filesystem still happens. What it buys is containment of everything
+ * *in-process* — crashes, hangs, globals, listeners — and a package that hangs
+ * on import is killed by the timeout rather than wedging a bundle.
+ */
+async function cjsExportNames(path: string): Promise<string[]> {
+  // `process.stdout.write`, not `console.log`: this is a machine-read value on
+  // a pipe, not a log line, and the repo bans `console.*` in server code —
+  // a rule `tests/conventions.test.ts` enforces by grep, so even this string
+  // literal would trip it.
+  const code =
+    'const m = await import(process.argv[1]); ' +
+    'process.stdout.write(JSON.stringify(Object.keys(m)))'
+
+  const [spawnErr, names] = await Try.catch(async () => {
+    const proc = Bun.spawn(['bun', '-e', code, path], {
+      stdout: 'pipe',
+      stderr: 'ignore',
+    })
+
+    const timer = setTimeout(() => proc.kill(), CJS_PROBE_TIMEOUT_MS)
+    const out = await new Response(proc.stdout).text()
+    clearTimeout(timer)
+    // Killed or not, it must not outlive this call.
+    proc.kill()
+
+    // **The exit code is deliberately not consulted.** A package that leaves a
+    // timer or a listener running — which plenty do at module scope — has
+    // already printed its answer and then simply fails to exit, so the probe
+    // kills it and the exit code reports the kill. Requiring a clean exit threw
+    // away a correct result and fell back to default-only, which is the very
+    // failure this exists to prevent. Valid JSON on stdout is the signal;
+    // anything else falls back.
+    const [, parsed] = await Try.catch(() => JSON.parse(out.trim()))
+    return Array.isArray(parsed) ? (parsed as string[]) : []
+  })
+
+  if (spawnErr || !names) return []
+
+  return names.filter(
+    key => !RESERVED_EXPORT_NAMES.has(key) && RE_IDENTIFIER.test(key),
+  )
+}
+
 async function bundleCjsWithNamedExports(
   path: string,
   defines: MapOf<string>,
 ): Promise<string | null> {
-  const [importErr, mod] = await Try.catch(() => import(path))
-  if (importErr || !mod) return null
-
-  const names = Object.keys(mod).filter(
-    key => !RESERVED_EXPORT_NAMES.has(key) && RE_IDENTIFIER.test(key),
-  )
+  const names = await cjsExportNames(path)
   if (!names.length) return null
 
   const spec = JSON.stringify(path)
