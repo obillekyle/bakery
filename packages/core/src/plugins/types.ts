@@ -43,6 +43,22 @@ export interface PluginTsProject {
    * A plugin whose project compiles browser code should set it.
    */
   importMapPaths?: boolean
+  /**
+   * Does code in this project run on the server?
+   *
+   * Declared, not inferred. The first version read `bun-types` out of the base
+   * config and treated that as the marker — true today, and an inference about
+   * intent drawn from a detail that exists for another reason. A plugin saying
+   * what its project *is* cannot drift out of step with itself.
+   *
+   * What it controls: the app's schema registration, so the ORM's tables are the
+   * app's own rather than the permissive `any` fallback. Off for browser code on
+   * purpose — `@bakery-framework/orm` is server-only, so a `.ts` bound for the
+   * browser importing `DB` should fail to typecheck rather than be helpfully
+   * typed, and the package ships TypeScript source calling `Bun.*`, which a
+   * client config cannot compile anyway.
+   */
+  server?: boolean
 }
 
 /** What a plugin contributes to the generated tsconfig projects. */

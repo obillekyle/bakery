@@ -293,3 +293,69 @@ describe('plugin-vue', () => {
     expect(source).toContain('importMapPaths: true')
   })
 })
+
+/**
+ * A project that declares `files` keeps the base's ambients.
+ *
+ * TypeScript's rule is that a child's `files` *replaces* the parent's, and it
+ * quietly disarmed every project a plugin contributes.
+ * `@bakery-framework/plugin-vue` declares one entry for its `vue.d.ts`, which
+ * replaced `tsconfig.vue.json`'s list of core's three ambient declarations.
+ *
+ * Measured on a real Vue app with `tsc --listFiles`: **`shared.d.ts` was absent
+ * from the program**, so `JsonResponse` and `ISFunction` did not resolve in a
+ * `.vue` file. `global.d.ts` and `types.d.ts` survived only because something
+ * else imports them transitively — which is luck, not design, and is why the
+ * loss went unnoticed.
+ */
+describe('generated projects keep the base config files', () => {
+  test('a project declaring files merges rather than replaces', async () => {
+    __setTestConfig({
+      plugins: [
+        {
+          name: 'sfc',
+          tsconfig: {
+            project: {
+              name: 'sfc',
+              // A relative path, not the `@bakery-framework/core/...` specifier
+              // a real plugin writes: the workspace links core into the *apps*,
+              // not into `packages/core` itself, so the specifier does not
+              // resolve from the repo root. Same file either way.
+              extends: './packages/core/tsconfig.vue.json',
+              include: ['src/**/*.sfc'],
+              // A relative path, which `resolveFilesEntry` takes as-is. A
+              // package specifier would exercise `Bun.resolveSync` instead, and
+              // this test is about the *merge*, not about resolution.
+              files: ['./plugin-owned.d.ts'],
+            },
+          },
+        },
+      ] as any,
+    })
+
+    try {
+      const names = await writeProjects({})
+      const file = fs.resolve(process.cwd(), '.cache/tsconfig', 'sfc.json')
+      const config = JSON.parse(await Bun.file(file).text())
+
+      expect(names).toContain('sfc')
+      // The base's three, plus the plugin's own — not the plugin's alone.
+      expect(config.files.length).toBeGreaterThan(1)
+      expect(config.files.some((f: string) => f.includes('shared.d.ts'))).toBe(
+        true,
+      )
+    } finally {
+      __resetTestConfig()
+    }
+  })
+
+  test('a project declaring none still inherits, and stays untouched', async () => {
+    // `files: []` would be worse than absent — it would tell TypeScript the
+    // project contains nothing, rather than letting the base's list stand.
+    const names = await writeProjects({})
+    const file = fs.resolve(process.cwd(), '.cache/tsconfig', 'server.json')
+    const config = JSON.parse(await Bun.file(file).text())
+    expect(names).toContain('server')
+    expect(config.files).toBeUndefined()
+  })
+})

@@ -25,6 +25,11 @@ export default function vuePlugin(options?: VuePluginOptions) {
     tsconfig: {
       project: {
         name: 'vue',
+        // An SFC's `<script>` is rendered on the server, so it reaches the ORM
+        // and the app's schema registration the way an API route does. Without
+        // this the tables fall back to `any` in every `.vue` file — silently,
+        // because the untyped mode is a supported state and does not error.
+        server: true,
         extends: '@bakery-framework/core/tsconfig.vue.json',
         include: ['src/**/*.vue'],
         // A package specifier rather than a path: the plugin does not know

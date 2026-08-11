@@ -482,7 +482,15 @@ export function templateFiles(
     // worth more than this convenience.
     devDependencies: {
       'bun-types': '^1.3.14',
-      typescript: '^7.0.0',
+      // **`^5`, not `^7`, and the reason is `vue-tsc`.** TypeScript 7 is the
+      // native port and does not ship `typescript/lib/tsc`, which `vue-tsc`
+      // requires to patch — so a Vue app that installs TS 7 gets
+      // `Cannot find module 'typescript/lib/tsc'` the first time it typechecks
+      // an SFC. Measured on a real app: 7.0.2 crashes, 5.9.3 runs.
+      //
+      // A generated app has no reason to be on the newest major the day it is
+      // released, and the floor here decides what every Bakery app installs.
+      typescript: '^5.9.0',
     },
   }
 

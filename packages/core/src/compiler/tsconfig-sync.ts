@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { Bakery } from '../core/bakery'
 import { errorMsg, serveLog } from '../logger'
 import type { PluginTsProject } from '../plugins/types'
@@ -69,6 +70,7 @@ export function coreProjects(): PluginTsProject[] {
   return [
     {
       name: 'server',
+      server: true,
       extends: '@bakery-framework/core/tsconfig.server.json',
       // Repeated rather than inherited: Bun's runtime does not follow
       // `extends` into a package specifier, only a relative path.
@@ -138,6 +140,77 @@ function resolveFilesEntry(entry: string): string | null {
   }
 }
 
+/**
+ * The `files` the extended base config declares, resolved for the generated one.
+ *
+ * **TypeScript's rule is that a child's `files` *replaces* the parent's, and
+ * that rule silently disarmed every project a plugin contributes.**
+ * `tsconfig.vue.json` lists core's three ambient declarations — `global.d.ts`,
+ * `shared.d.ts`, `types.d.ts` — which is where `Bakery`, `AppConfig`, the JSX
+ * namespace and `Request.session` come from. `@bakery-framework/plugin-vue`
+ * declares one `files` entry of its own for `vue.d.ts`, and that one entry
+ * replaced all three: measured on a real app, the generated `vue` project loaded
+ * **zero** of them.
+ *
+ * It hid because `vue.d.ts` happens to declare `req` and `body` itself, so the
+ * globals an SFC reaches for most still resolved. Everything else — `Bakery`,
+ * `MapOf`, the JSX namespace — was quietly missing.
+ *
+ * So the base's list is read and merged rather than inherited. Paths inside it
+ * are relative to *that* file, which is the property the whole arrangement rests
+ * on and the reason they cannot simply be copied across.
+ */
+function readBase(extendsSpecifier: string): string[] {
+  try {
+    const base = Bun.resolveSync(extendsSpecifier, APP_DIR)
+    const parsed = parseJSONC(readFileSync(base, 'utf8'))
+    const list: string[] = Array.isArray(parsed?.files) ? parsed.files : []
+    const baseDir = fs.dirname(base)
+
+    return list.map(entry => {
+      const abs = fs.resolve(baseDir, entry)
+      const rel = fs.relative(PROJECT_DIR, abs).replace(/\\/g, '/')
+      return RE_RELATIVE.test(rel) ? rel : `./${rel}`
+    })
+  } catch {
+    // A base that cannot be read is not fatal: the project still compiles, it
+    // just loses the ambients — which is the status quo this repairs, not a
+    // regression. Assume client-side, which is the conservative half.
+    return []
+  }
+}
+
+/**
+ * The app file carrying `declare module '@bakery-framework/orm/schema-registry'`.
+ *
+ * Declaration merging only happens if the declaring file is in the program, and
+ * it reached exactly one project: `server`, because that is the only one whose
+ * `include` covers `orm/**`. Everywhere else `SchemaRegistry` stayed empty,
+ * `Registered` resolved to `never`, and every table fell back to
+ * `MapOf<MapOf<any>>` — the ORM's documented untyped mode, arrived at by
+ * accident. It does not error; it just stops checking.
+ *
+ * **Server-side projects only.** The client project deliberately does not get
+ * it: the ORM is server-only, so a browser file importing `DB` should fail to
+ * typecheck rather than be helpfully typed. That is not only a preference —
+ * `@bakery-framework/orm` ships TypeScript source that calls `Bun.*`, so pulling
+ * it into a config without `bun-types` produces errors from inside the package
+ * rather than types for the app. Measured when this was applied to every
+ * project: 187 new errors in `client`.
+ */
+function schemaRegistrationFile(): string | null {
+  const configured = Bakery.config.schema
+  const candidates = configured
+    ? [configured, `${configured}/index.ts`]
+    : ['orm/index.ts', 'schema.ts']
+
+  for (const rel of candidates) {
+    const abs = fs.resolve(APP_DIR, rel)
+    if (fs.isFileSync(abs)) return abs
+  }
+  return null
+}
+
 /** Every project: core's two, plus whatever the loaded plugins contribute. */
 function allProjects(): PluginTsProject[] {
   const projects = coreProjects()
@@ -174,9 +247,16 @@ function allProjects(): PluginTsProject[] {
  */
 export async function writeProjects(paths: MapOf<string[]>): Promise<string[]> {
   const written: string[] = []
+  const found = schemaRegistrationFile()
+  const registrationFile = found
+    ? (() => {
+        const rel = fs.relative(PROJECT_DIR, found).replace(/\\/g, '/')
+        return RE_RELATIVE.test(rel) ? rel : `./${rel}`
+      })()
+    : null
 
   for (const project of allProjects()) {
-    const files = (project.files ?? [])
+    const own = (project.files ?? [])
       .map(entry => {
         const resolved = resolveFilesEntry(entry)
         if (!resolved) {
@@ -185,6 +265,24 @@ export async function writeProjects(paths: MapOf<string[]>): Promise<string[]> {
         return resolved
       })
       .filter((f): f is string => f !== null)
+
+    const baseFiles = readBase(project.extends)
+
+    // The schema registration goes to every server-side project, so an SFC's
+    // `<script>` gets the app's real tables rather than the `any` fallback. The
+    // server project already reaches it through `include: ['orm/**']`; adding it
+    // to `files` there is a harmless duplicate and keeps the rule in one place.
+    const registration =
+      project.server && registrationFile ? [registrationFile] : []
+
+    // The base's own `files` are merged back in whenever this project declares
+    // any of its own, because a child's `files` *replaces* the parent's — see
+    // `readBase`. Left entirely empty, TypeScript inherits correctly and there
+    // is nothing to repair.
+    const declared = [...own, ...registration]
+    const files = declared.length
+      ? [...new Set([...baseFiles, ...declared])]
+      : []
 
     const config: Record<string, unknown> = {
       $comment:
