@@ -36,6 +36,29 @@ gates, bumps all seven, and rolls the `Unreleased` section into the new heading.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`--migrate` converts an existing `schema.ts`**, not only a project with no
+  schema at all. The old file is *moved* to `bakery/backups/`, not deleted —
+  `loadSchema` prefers `orm/index.ts`, so a leftover `schema.ts` would be ignored
+  rather than used, which is the quiet kind of wrong. Generation is from the
+  database alone now: passing the loaded schema in made view nullability
+  reconcile against the very file being replaced, so the result depended on what
+  happened to be there.
+- **Foreign keys read as `Field.Foreign(sections.id, { nullable: true })`** in
+  the folder layout, rather than a hundred-character object literal. That needs
+  the parent's table value in scope, so tables are emitted parents-first; a
+  reference cycle — legal SQL — falls back to the literal rather than emitting a
+  `const` used before its declaration.
+- **A generated object-literal column carries `as const`.** `table()` takes
+  `C extends Record<string, unknown>`, a constraint that does not preserve
+  literals, so `type: 'integer'` widened to `type: string` and `InferSchema` had
+  nothing to match — every column spelled that way, which since 1.2.1 meant every
+  referencing column, inferred as a string. Invisible in the single-file layout,
+  whose whole object is already `as const`. It surfaced as 28 "number is not
+  assignable to string" errors in an app that had typechecked clean minutes
+  earlier on the same data.
+
 ## [1.2.1] — 2026-08-11
 
 ### Fixed
