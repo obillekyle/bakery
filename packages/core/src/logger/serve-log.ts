@@ -100,10 +100,19 @@ const handlerMsgs = {
   BUNDLE_ERR: 'E Failed to bundle module (%y{file}%*): %r{error}%*',
   // The bundle *succeeded*. That is the problem: the failure it leads to is a
   // browser-side `SyntaxError` with no server-side trace at all.
+  // **Each message must stay one unbroken string literal.** Splitting a long one
+  // into `'…' + '…'` type-checks as `string`, so `as const` preserves nothing,
+  // `messageLogger` finds no `{placeholder}` to extract, and every call site
+  // fails with "Expected 0 arguments, but got 1" — which reads as a mysterious
+  // signature change rather than a line-length edit. Happened here while these
+  // three were being added. Wrapping the value onto its own line, as the entries
+  // above do, is fine; joining with `+` is not.
   BUNDLE_CJS_INTEROP:
     'I Generated named exports for the CommonJS package %y{file}%*, so a named import of it works in the browser.',
+  BUNDLE_CJS_PROBED:
+    'I Could not read %y{file}%* export names statically, so they were probed by importing it in a short-lived child process.',
   BUNDLE_CJS_DEFAULT_ONLY:
-    'W %y{file}%* assigns %ymodule.exports%* wholesale, so its browser bundle exports only %ydefault%* — a named import from it fails in the browser with "does not provide an export named …", and nothing fails here. Import the default and read the property off it, or use an ESM build. (CommonJS that assigns %yexports.name%* individually keeps its named exports and is fine.)',
+    'W %y{file}%* assigns %ymodule.exports%* wholesale and its members could not be read, so its browser bundle exports only %ydefault%* — a named import from it fails in the browser with "does not provide an export named …", and nothing fails here. Import the default and read the property off it, or use an ESM build.',
 } as const
 
 export const handlerLog = messageLogger(new Logger('handlers'), handlerMsgs)

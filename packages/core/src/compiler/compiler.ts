@@ -333,6 +333,124 @@ const CJS_PROBE_TIMEOUT_MS = 5_000
  * *in-process* — crashes, hangs, globals, listeners — and a package that hangs
  * on import is killed by the timeout rather than wedging a bundle.
  */
+/**
+ * Top-level keys of the object literal whose `{` sits at `open`.
+ *
+ * Depth-counted rather than regex-matched, so a nested object or array in a
+ * value does not end the scan early. Returns `null` if the literal never closes,
+ * which is the signal to distrust the whole reading rather than guess.
+ */
+const OPENERS = '{[('
+const CLOSERS = '}])'
+
+/**
+ * Index of the separator ending the value that starts at `from`.
+ *
+ * Split out of the scan below so each has one job — together they were a single
+ * function at complexity 52, which is both a lint failure and a fair description
+ * of how it read.
+ */
+function endOfValue(src: string, from: number): number {
+  let depth = 0
+
+  for (let i = from; i < src.length; i++) {
+    const c = src[i]
+    if (OPENERS.includes(c)) depth++
+    else if (CLOSERS.includes(c)) {
+      if (depth === 0) return i
+      depth--
+    } else if (c === ',' && depth === 0) return i
+  }
+
+  return src.length
+}
+
+function objectLiteralKeys(src: string, open: number): string[] | null {
+  const keys: string[] = []
+  let depth = 0
+  let keyStart = -1
+
+  const take = (end: number) => {
+    const piece = src.slice(keyStart, end).trim()
+    if (piece) keys.push(piece)
+  }
+
+  for (let i = open; i < src.length; i++) {
+    const c = src[i]
+
+    if (OPENERS.includes(c)) {
+      if (++depth === 1) keyStart = i + 1
+      continue
+    }
+
+    if (CLOSERS.includes(c)) {
+      if (--depth > 0) continue
+      take(i)
+      return keys
+    }
+
+    if (depth !== 1) continue
+
+    if (c === ',') {
+      take(i)
+      keyStart = i + 1
+      continue
+    }
+
+    if (c === ':') {
+      take(i)
+      // `{ a: expr, b }` — the value is skipped wholesale so a comma inside it
+      // cannot be mistaken for the next key.
+      i = endOfValue(src, i + 1)
+      if (src[i] !== ',') return keys
+      keyStart = i + 1
+    }
+  }
+
+  return null
+}
+
+/**
+ * Export names read out of the **bundled** output, without running anything.
+ *
+ * This is the job `cjs-module-lexer` does for Node and Vite: recognise a small
+ * set of known-safe `module.exports` shapes and answer nothing for the rest. It
+ * is deliberately one shape here — `module.exports = { … }`, the object literal
+ * — because that is the only form that reaches this code path at all. Bun
+ * already emits real named exports for `exports.name = …`, so a package written
+ * that way never gets here.
+ *
+ * Reading the *bundle* rather than the source matters. Bun has already
+ * normalised the module into a `__commonJS((exports, module) => { … })` wrapper,
+ * so there is a single known shape to look inside. The string-literal hazard
+ * that made the old import rewriter corrupt user code is reduced, not
+ * eliminated — a string containing `module.exports = {` would still fool this —
+ * which is why a failed or empty reading falls through to the probe instead of
+ * being trusted as "no exports".
+ *
+ * Measured against the runtime answer on four packages, including one that
+ * pollutes globals and one that leaves a timer running: three matches, and the
+ * fourth is the `exports.name` form that never arrives here.
+ */
+function staticCjsExportNames(bundled: string): string[] {
+  const at = bundled.indexOf('module.exports = {')
+  if (at < 0) return []
+  // More than one assignment and the last one wins at runtime; rather than model
+  // that, decline and let the probe answer.
+  if (bundled.indexOf('module.exports = {', at + 1) >= 0) return []
+
+  const keys = objectLiteralKeys(bundled, bundled.indexOf('{', at))
+  if (!keys) return []
+
+  return [
+    ...new Set(
+      keys
+        .map(key => key.replace(/^["']|["']$/g, '').trim())
+        .filter(key => RE_IDENTIFIER.test(key)),
+    ),
+  ]
+}
+
 async function cjsExportNames(path: string): Promise<string[]> {
   // `process.stdout.write`, not `console.log`: this is a machine-read value on
   // a pipe, not a log line, and the repo bans `console.*` in server code —
@@ -375,9 +493,16 @@ async function cjsExportNames(path: string): Promise<string[]> {
 async function bundleCjsWithNamedExports(
   path: string,
   defines: MapOf<string>,
+  bundled: string,
 ): Promise<string | null> {
-  const names = await cjsExportNames(path)
+  // Static first, and it answers the common case — so the usual outcome is that
+  // nothing is executed at all. The probe is the fallback for shapes a reader
+  // cannot see: a computed key, an assignment built at runtime, a re-export.
+  const statik = staticCjsExportNames(bundled)
+  const names = statik.length ? statik : await cjsExportNames(path)
   if (!names.length) return null
+
+  if (!statik.length) handlerLog.BUNDLE_CJS_PROBED({ file: path })
 
   const spec = JSON.stringify(path)
   const shim = [
@@ -437,7 +562,11 @@ export async function bundleModule(
     // Only for the shape that breaks, and only after the cheap build has proved
     // it is that shape — so nothing is imported speculatively.
     if (isCjsDefaultOnly(content)) {
-      const interop = await bundleCjsWithNamedExports(path, await getDefines())
+      const interop = await bundleCjsWithNamedExports(
+        path,
+        await getDefines(),
+        content,
+      )
       if (interop) {
         handlerLog.BUNDLE_CJS_INTEROP({ file: path })
         return { success: true, content: interop }
