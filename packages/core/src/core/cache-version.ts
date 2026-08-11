@@ -100,12 +100,37 @@ async function run(): Promise<void> {
  */
 export const __wipeCacheDir = wipe
 
+/**
+ * The one thing in `.cache/` the wipe must not take.
+ *
+ * **The app's committed `tsconfig.json` *references* `.cache/tsconfig/*.json`,
+ * so deleting them breaks the editor for the whole project** — not one setting,
+ * everything. TypeScript reports `TS6053: File '…/server.json' not found` for
+ * each reference, has no project left to put a file in, and falls back to an
+ * inferred one with no ambients: `req.session`, `Bakery`, the JSX namespace and
+ * the app's own schema types all stop resolving at once.
+ *
+ * That happens on every framework upgrade, because the version wipe is keyed on
+ * the framework version among others. The developer sees their editor lose every
+ * type the moment they bump a patch, and nothing says why — the files come back
+ * only on the next `bun run dev`, which is not an obvious remedy for "my types
+ * vanished".
+ *
+ * Keeping them is safe in the direction that matters. A stale project is
+ * regenerated on the next dev boot and is, in the meantime, *approximately
+ * right* — while a missing one is catastrophically wrong. Nothing is executed
+ * from these files either: they configure a typechecker, so the "never read a
+ * cache an older framework wrote" rule the wipe exists to enforce does not apply.
+ */
+const WIPE_KEEP = new Set(['tsconfig'])
+
 async function wipe(dir: string): Promise<string[]> {
   if (!fs.exists(dir)) return []
   const [readErr, entries] = await Try.catch(() => readdir(dir))
   if (readErr || !entries) return ['<unreadable>']
 
   for (const entry of entries) {
+    if (WIPE_KEEP.has(entry)) continue
     // Errors are deliberately not swallowed *silently* here — each failure is
     // collected and reported by the caller.
     await Try.catch(() =>
@@ -115,5 +140,7 @@ async function wipe(dir: string): Promise<string[]> {
 
   const [rereadErr, left] = await Try.catch(() => readdir(dir))
   if (rereadErr) return ['<unreadable>']
-  return left ?? []
+  // Kept entries are not survivors of a failed delete, and reporting them as
+  // such would make the caller withhold the "cache is current" marker forever.
+  return (left ?? []).filter(entry => !WIPE_KEEP.has(entry))
 }

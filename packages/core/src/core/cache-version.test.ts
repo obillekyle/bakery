@@ -260,3 +260,39 @@ describe('wiping the cache directory', () => {
     expect(await __wipeCacheDir(`${base}/never-existed`)).toEqual([])
   })
 })
+
+/**
+ * The generated tsconfig projects survive the wipe.
+ *
+ * The app's *committed* `tsconfig.json` references `.cache/tsconfig/*.json`, so
+ * deleting them does not degrade the editor — it removes the project entirely.
+ * Reproduced on a real app: `tsc -p tsconfig.json` reports
+ * `TS6053: File '…/.cache/tsconfig/server.json' not found` once per reference,
+ * and every ambient goes with it — `req.session`, `Bakery`, the app's own schema
+ * types, all unresolved at once.
+ *
+ * It fires on every framework upgrade, since the wipe is keyed on the framework
+ * version, and the developer is given no reason for it.
+ */
+describe('the wipe keeps what the editor points at', () => {
+  const root = `${tmpdir()}/bakery-wipe-keep-${process.pid}`
+  afterAll(() => rmSync(root, { recursive: true, force: true }))
+
+  test('.cache/tsconfig survives, everything beside it does not', async () => {
+    const dir = `${root}/keeps-tsconfig`
+    mkdirSync(`${dir}/tsconfig`, { recursive: true })
+    mkdirSync(`${dir}/html`, { recursive: true })
+    writeFileSync(`${dir}/tsconfig/server.json`, '{}')
+    writeFileSync(`${dir}/html/page.html`, '<p>x</p>')
+    writeFileSync(`${dir}/server.json`, '{}')
+
+    const survivors = await __wipeCacheDir(dir)
+
+    // `html/` is precisely what an upgrade must discard.
+    expect(readdirSync(dir).sort()).toEqual(['tsconfig'])
+    expect(readdirSync(`${dir}/tsconfig`)).toEqual(['server.json'])
+    // And a kept entry is not a *survivor*: reported as one, the caller would
+    // withhold the "cache is current" marker and re-wipe on every boot forever.
+    expect(survivors).toEqual([])
+  })
+})
