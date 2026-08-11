@@ -228,3 +228,33 @@ describe('clearHeadBodyCache', () => {
     expect(headBodyCache.get('probe.example')).toBeUndefined()
   })
 })
+
+/**
+ * The import map covers what is *installed*, not what is declared.
+ *
+ * A package can be installed and imported without appearing in `dependencies` —
+ * a transitive one, or a dependency someone forgot to add. Reading `node_modules`
+ * is what lets the browser resolve those, and it is what replaced a compile-time
+ * rewrite that corrupted string literals to achieve the same coverage.
+ */
+describe('initImportMap covers installed packages', () => {
+  test('maps a package to /_nm/<name>, not to an entry file', async () => {
+    await initImportMap()
+    const tag = DOMTools.importMap()
+    const json = tag.slice(tag.indexOf('{'), tag.lastIndexOf('}') + 1)
+    const { imports } = JSON.parse(json)
+
+    const names = Object.keys(imports).filter(k => !k.endsWith('/'))
+    expect(names.length).toBeGreaterThan(0)
+
+    // The entry file is resolved by NMHandler/Bun.build, not named here — the
+    // previous version wrote `/_nm/<name>/<main-or-module>` and got it wrong for
+    // anything behind an `exports` map.
+    for (const name of names) {
+      const target = imports[name]
+      // App-declared aliases are exempt: they are whatever the app said.
+      if (!target.startsWith('/_nm/')) continue
+      expect(target).toBe(`/_nm/${name}`)
+    }
+  })
+})

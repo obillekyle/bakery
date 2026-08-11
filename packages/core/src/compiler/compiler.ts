@@ -175,24 +175,21 @@ export async function compileText(source: string, path?: fs.AbsolutePath) {
 
         const prefix = mapKeys.find(k => importPath.startsWith(k))
 
-        if (!prefix && !importPath.startsWith('.')) {
-          // A bare specifier the import map does not cover.
-          //
-          // The map is built from the app's *declared* dependencies, so an
-          // undeclared or transitive package reaches the browser verbatim and
-          // dies there with `Failed to resolve module specifier "pkg". Relative
-          // references must start with either "/", "./", or "../"` — a message
-          // that names the browser's rule rather than the missing entry, and
-          // arrives with nothing in the server log.
-          //
-          // `/_nm/` is exactly the right target: `NMHandler` does Node
-          // resolution, so `/_nm/pkg` and `/_nm/pkg/sub` both resolve the way
-          // the import did, without this needing to know the package layout.
-          if (RE_REWRITABLE_BARE.test(importPath)) {
-            return `${keyword}${spacing}${quote}/_nm/${importPath}${quote}${closing}`
-          }
-          return fullMatch
-        }
+        // A bare specifier is left exactly as written. The import map resolves
+        // it in the browser, and it covers every installed package — see
+        // `initImportMap`.
+        //
+        // **It used to be rewritten to `/_nm/<pkg>` here, and that was a
+        // mistake.** This runs a regular expression over *transpiled JavaScript*
+        // with no idea what is code and what is data, so a string that merely
+        // reads like an import was rewritten too:
+        //
+        //     const docs = "run: import thing from 'some-package'"
+        //     -> const docs = "run: import thing from '/_nm/some-package'"
+        //
+        // Silent corruption of a string literal, in user code, at compile time.
+        // Resolving in the map instead touches nothing.
+        if (!prefix && !importPath.startsWith('.')) return fullMatch
 
         const targetPath = prefix
           ? fs.resolve(
@@ -261,17 +258,6 @@ type CompileResult = {
  * default export and no named one, *and* the bundle carries Bun's CJS wrapper.
  * An ESM package with only a default export is normal and says nothing.
  */
-/**
- * A specifier that should be routed to `/_nm/` when the import map misses it.
- *
- * Everything with its own meaning is excluded rather than rewritten. A URL and a
- * protocol-relative `//host/x` are already resolvable by the browser; `/` and
- * `./` are the two forms it accepts natively; and `node:`/`bun:`/`data:` are
- * schemes, not packages — turning `node:fs` into `/_nm/node:fs` would replace a
- * clear "this is server-only" failure with a 404 that names nothing.
- */
-const RE_REWRITABLE_BARE =
-  /^(?!\.{0,2}\/|\/\/|\/|[a-zA-Z][a-zA-Z0-9+.-]*:)[^\s]/
 
 function isCjsDefaultOnly(content: string): boolean {
   if (!content.includes('__commonJS')) return false

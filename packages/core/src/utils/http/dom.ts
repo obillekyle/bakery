@@ -1,3 +1,4 @@
+import { readdir } from 'node:fs/promises'
 import { LRUCache } from '../../cache/lru'
 import { Bakery, hostStore } from '../../core/bakery'
 import type { MapOf } from '../../types'
@@ -107,19 +108,76 @@ export function initHostImportMaps() {
  * page — reaches the browser with its bare specifiers intact, and the map is the
  * only thing that resolves them there.
  */
-export async function initImportMap() {
-  const pkgContent = await Try(() =>
-    Bun.file(fs.resolve(fs.cwd, 'package.json')).json(),
-  )
-  const pkg: any = pkgContent || {}
-  const map = Bakery.config.importMap || {}
-  const deps = pkg.dependencies || {}
+/**
+ * Every installed package, top level and scoped, as `name` and `name/`.
+ *
+ * Read from `node_modules` rather than from `dependencies`, and the difference
+ * is the whole point: a package can be installed and imported without being
+ * declared — a transitive one, or a dependency someone forgot to add — and the
+ * browser's failure for a specifier the map misses names its own rule rather
+ * than the missing entry: *"Failed to resolve module specifier 'pkg'. Relative
+ * references must start with either "/", "./", or "../"."*
+ *
+ * Cheap enough to be worth the completeness: one `readdir` per scope, no
+ * `package.json` reads, and the emitted map is ~790 bytes gzipped for a 47
+ * package app. It scales with what is installed, not with what is imported —
+ * which is the trade — but only *directly imported* packages ever need an
+ * entry, because anything deeper is resolved inside the bundle.
+ */
+async function installedPackages(): Promise<string[]> {
+  const root = fs.resolve(fs.cwd, 'node_modules')
+  const [err, entries] = await Try.catch(() => readdir(root))
+  if (err || !entries) return []
 
+  const names: string[] = []
+  for (const entry of entries) {
+    // `.bin`, `.cache` and friends are not packages.
+    if (entry.startsWith('.')) continue
+
+    if (!entry.startsWith('@')) {
+      names.push(entry)
+      continue
+    }
+
+    const [scopeErr, scoped] = await Try.catch(() =>
+      readdir(`${root}/${entry}`),
+    )
+    if (scopeErr || !scoped) continue
+    for (const name of scoped) {
+      if (!name.startsWith('.')) names.push(`${entry}/${name}`)
+    }
+  }
+
+  return names
+}
+
+/**
+ * Build the browser import map.
+ *
+ * **Resolution happens at the other end of the URL, and rewriting happens
+ * nowhere.** An entry maps a package to `/_nm/<name>`; `NMHandler` hands that to
+ * `Bun.build`, which applies real browser resolution — `exports` maps,
+ * conditions, the `browser` field. This used to read every dependency's
+ * `package.json` and pick the entry file itself, understanding none of those.
+ *
+ * The compiler used to rewrite bare specifiers to `/_nm/` as a fallback for
+ * whatever the map missed. That is gone: it was a regular expression over
+ * transpiled JavaScript, so it also rewrote strings that merely *looked* like
+ * imports, corrupting user data. Covering every installed package here removes
+ * the need for it, and the map resolves the same specifiers in code the compiler
+ * never sees — an inline `<script type="module">` in an `.html` page, which
+ * reaches the browser with its imports intact.
+ *
+ * App-declared `importMap` entries are applied last and win. One of them,
+ * `@client/utils`, does not point into `node_modules` at all.
+ */
+export async function initImportMap() {
+  const map = Bakery.config.importMap || {}
   const resolvedMap: MapOf<string> = {}
 
-  for (const dep of Object.keys(deps)) {
-    resolvedMap[`${dep}/`] = `/_nm/${dep}/`
-    resolvedMap[dep] = `/_nm/${dep}`
+  for (const name of await installedPackages()) {
+    resolvedMap[`${name}/`] = `/_nm/${name}/`
+    resolvedMap[name] = `/_nm/${name}`
   }
 
   for (const [k, v] of Object.entries(map)) {
