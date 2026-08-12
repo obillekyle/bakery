@@ -1,3 +1,4 @@
+import { randomId } from '../utils/isomorphic/misc'
 import { createElement, Fragment, html } from './jsx'
 
 const hasDevWorkerArg = process.argv.includes('--dev-worker')
@@ -84,6 +85,11 @@ Object.assign(globalThis, {
   createElement,
   Fragment,
   html,
+  // The same value the browser runtime binds (`client/utils.ts`), so code
+  // that moves between an SFC's browser script and its server block — where
+  // it runs as a bare global either way — does not lose the name. Declared
+  // once, in `shared.d.ts`.
+  randomId,
 })
 
 process.on('SIGHUP', () => {})

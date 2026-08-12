@@ -46,13 +46,14 @@ function processGetBody(
 // declare the globals as `typeof import('./utils').randomId` / `.request`
 // instead of restating their signatures — which is how both had drifted from
 // this file. Nothing imports them; the bundle entry's exports are inert.
-export function randomId(length = 8) {
-  const arr = new Uint8Array(Math.ceil(length / 2))
-  crypto.getRandomValues(arr)
-  return Array.from(arr, dec => dec.toString(16).padStart(2, '0'))
-    .join('')
-    .slice(0, length)
-}
+//
+// `randomId` moved to `utils/isomorphic/misc.ts` — it was never
+// browser-specific, and a server block calling the "browser global" got a
+// ReferenceError. Imported (not re-exported directly) because the globals
+// object below needs the local binding too.
+import { randomId } from '../utils/isomorphic/misc'
+
+export { randomId }
 
 type RequestJson = RequestInit & { body?: any }
 

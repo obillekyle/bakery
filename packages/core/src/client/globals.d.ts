@@ -49,7 +49,6 @@ declare global {
 
   var request: typeof import('./utils').request
   var RequestError: typeof import('./utils').RequestError
-  var randomId: typeof import('./utils').randomId
 
   // Not derivable: written inline in client/utils.ts's Object.assign call
   // rather than exported, so there is no module member to take `typeof` of.

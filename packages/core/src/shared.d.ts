@@ -25,6 +25,13 @@ import type { MapOf } from './types'
  */
 
 declare global {
+  /**
+   * Bound by `client/utils.ts` in the browser and `core/init.ts` on the
+   * server — the same isomorphic implementation either side, so code moving
+   * between an SFC browser script and a server block keeps the name.
+   */
+  var randomId: typeof import('./utils/isomorphic/misc').randomId
+
   /** The one JSON envelope — see convention 7. */
   type JsonResponse<T = any> = {
     time: number
