@@ -143,7 +143,14 @@ async function getCatchAllRoute(
 
   const file = fs.resolve(found.value)
   if (fs.isForbidden(file, root)) return null
-  return new RouteData.Info(file, fs.relative(root, file))
+  const info = new RouteData.Info(file, fs.relative(root, file))
+
+  // A bare-directory request (`/docs` with no index) reaches here with no
+  // rest segments, and only the `[...name!]` spelling opted into claiming
+  // it — the plain form keeps requiring at least one segment.
+  if (!restSegments.length && !info.optionalCatchAll) return null
+
+  return info
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: request-to-route dispatcher
@@ -214,12 +221,17 @@ export async function getRoute(
       if (route) return route
     }
 
-    // `first === 'index'` covers the bare-directory request (`/docs` arrives
-    // here as an injected 'index' segment): the catch-all pattern requires at
-    // least one rest segment, so it cannot match that request — returning the
-    // Info anyway would claim the route with null params.
-    if (!options.staticOnly && first !== 'index') {
-      return await getCatchAllRoute(ext, dir, root, [first])
+    // `first === 'index'` is the bare-directory request (`/docs` arrives here
+    // as an injected 'index' segment, after no index file matched). The plain
+    // `[...name]` pattern requires at least one rest segment and cannot claim
+    // it; `[...name!]` exists to — `getCatchAllRoute` tells them apart.
+    if (!options.staticOnly) {
+      return await getCatchAllRoute(
+        ext,
+        dir,
+        root,
+        first === 'index' ? [] : [first],
+      )
     }
   }
 

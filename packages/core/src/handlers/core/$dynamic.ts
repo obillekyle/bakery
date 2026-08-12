@@ -10,6 +10,7 @@ import {
   type Route,
   RX_CATCHALL,
   RX_DYNAMIC,
+  RX_OPT_CATCHALL,
 } from './$base'
 import { resolveMount } from './$mounts'
 import { getRoute, servedSourceExists } from './$routing'
@@ -73,9 +74,17 @@ export class DynamicHandler extends Handler {
 
   static canHandle(path: string, req?: Request): MixedPromise<boolean>
   static async canHandle(path: string) {
-    // A request path spelled like a route template ('/blog/[id]' or
-    // '/docs/[...slug]') addresses the template file, not a route.
-    if (RX_DYNAMIC.test(path) || RX_CATCHALL.test(path)) return false
+    // A request path spelled like a route template ('/blog/[id]',
+    // '/docs/[...slug]' or '/docs/[...slug!]') addresses the template file,
+    // not a route. `RX_OPT_CATCHALL` is tested too because the `!` keeps the
+    // optional spelling from matching `RX_CATCHALL`.
+    if (
+      RX_DYNAMIC.test(path) ||
+      RX_CATCHALL.test(path) ||
+      RX_OPT_CATCHALL.test(path)
+    ) {
+      return false
+    }
     if (this.cache.has(hostKey(path))) return true
     // The dynamic half of the line above. A dynamic route is never written to
     // `this.cache`, so without this every request to one ran `resolveRoute`

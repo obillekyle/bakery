@@ -17,8 +17,9 @@ src/api/[...path].ts      →  /api/<anything deeper nothing else claims>
 ```
 
 A terminal `[...name]` segment is a catch-all: it matches one or more remaining
-segments and binds the joined rest (`path = "users/42/posts"`). Every more
-specific route — exact files, `[param]` siblings, child indexes, deeper
+segments and binds them as an array (`path = ["users", "42", "posts"]`). The
+`[...name!]` spelling also claims its bare directory, binding `[]` there. Every
+more specific route — exact files, `[param]` siblings, child indexes, deeper
 catch-alls — wins first; see the routing guide for the precedence ladder.
 
 There is no root-level `api/` directory. If you put one there it will never be

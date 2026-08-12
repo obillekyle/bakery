@@ -23,6 +23,10 @@ beforeAll(async () => {
   // No single-param sibling here: isolates child-index vs catch-all.
   await write('pages/[...slug].tsx')
   await write('pages/a/index.tsx')
+  // The `!` form: claims its bare directory, unless an index exists.
+  await write('admin/[...slug!].tsx')
+  await write('shop/[...slug!].tsx')
+  await write('shop/index.tsx')
 })
 
 afterAll(async () => {
@@ -38,7 +42,7 @@ describe('getRoute — catch-all discovery', () => {
     expect(info).not.toBeNull()
     expect(info!.path).toBe('w/[...page].tsx')
     expect(info!.catchAll).toBe(true)
-    expect(info!.getParams('/w/a/b/c')).toEqual({ page: 'a/b/c' })
+    expect(info!.getParams('/w/a/b/c')).toEqual({ page: ['a', 'b', 'c'] })
   })
 
   test('staticOnly never returns a catch-all', async () => {
@@ -70,6 +74,25 @@ describe('getRoute — catch-all discovery', () => {
     // /w has no index; the catch-all requires at least one rest segment.
     expect(await find('/w')).toBeNull()
   })
+
+  test('[...slug!] claims its bare directory and binds []', async () => {
+    const info = await find('/admin')
+    expect(info).not.toBeNull()
+    expect(info!.path).toBe('admin/[...slug!].tsx')
+    expect(info!.optionalCatchAll).toBe(true)
+    expect(info!.getParams('/admin')).toEqual({ slug: [] })
+  })
+
+  test('[...slug!] still answers deeper paths, as segments', async () => {
+    const info = await find('/admin/users/7')
+    expect(info!.path).toBe('admin/[...slug!].tsx')
+    expect(info!.getParams('/admin/users/7')).toEqual({ slug: ['users', '7'] })
+  })
+
+  test('an index sibling still wins the bare directory over [...slug!]', async () => {
+    const info = await find('/shop')
+    expect(info!.path).toBe('shop/index.tsx')
+  })
 })
 
 describe('getRoute — catch-alls yield to real files', () => {
@@ -91,13 +114,13 @@ describe('getRoute — catch-alls yield to real files', () => {
   test('a directory path (not a file) still falls to the catch-all', async () => {
     const info = await find('/q3/sub')
     expect(info!.path).toBe('q3/[...rest].tsx')
-    expect(info!.getParams('/q3/sub')).toEqual({ rest: 'sub' })
+    expect(info!.getParams('/q3/sub')).toEqual({ rest: ['sub'] })
   })
 
   test('paths with no on-disk counterpart still serve', async () => {
     const info = await find('/q3/anything/else')
     expect(info!.getParams('/q3/anything/else')).toEqual({
-      rest: 'anything/else',
+      rest: ['anything', 'else'],
     })
   })
 })

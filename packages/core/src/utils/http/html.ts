@@ -80,7 +80,7 @@ export const STREAM_THRESHOLD_BYTES = 64 * 1024
 
 export async function injectIfHtml(
   data: string | Response | Blob,
-  params?: MapOf<string>,
+  params?: MapOf<unknown>,
   injects?: HtmlInjects,
 ): Promise<Response | null> {
   if (data instanceof Response && isInjected(data)) return data
@@ -127,7 +127,7 @@ export async function injectIfHtml(
  * streamed path's fallback both come through here. */
 function bufferedResponse(
   content: string,
-  params: MapOf<string> | undefined,
+  params: MapOf<unknown> | undefined,
   injects: HtmlInjects | undefined,
   responseInit: ResponseInit & { headers?: any },
 ): Response {
@@ -182,7 +182,7 @@ function getConfigInjects() {
  * into a pull callback, where the AsyncLocalStorage host context that
  * `getConfigInjects` and `DOMTools.importMap` read may no longer be live.
  */
-function computeInjects(params: MapOf<string>, injects: HtmlInjects) {
+function computeInjects(params: MapOf<unknown>, injects: HtmlInjects) {
   const configInjects = getConfigInjects()
   const paramsStr = DOMTools.params(params)
 
@@ -235,7 +235,7 @@ function rewriteFontsUrls(html: string): string {
 
 export function assembleHtml(
   content: string,
-  params: MapOf<string> = {},
+  params: MapOf<unknown> = {},
   injects: HtmlInjects = {},
 ) {
   const frags = computeInjects(params, injects)

@@ -164,8 +164,8 @@ export namespace DOMTools {
     return `<script type="importmap">${map}</script>`
   }
 
-  export function params(params: MapOf<string>) {
-    const newParams: MapOf<string> = {}
+  export function params(params: MapOf<unknown>) {
+    const newParams: MapOf<unknown> = {}
 
     for (const [k, v] of Object.entries(params)) {
       if (k.startsWith('$$')) continue

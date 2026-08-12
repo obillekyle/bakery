@@ -249,7 +249,7 @@ describe('findDynamicRoute — catch-all ordering', () => {
     expect(OrderingHandler.findDynamicRoute('/gone/x/y')).toBeNull()
     const hit = OrderingHandler.findDynamicRoute('/docs/a/b/c')
     expect(hit!.path).toBe(fs.relative(CA_ROOT, files.catchAll))
-    expect(hit!.getParams('/docs/a/b/c')).toEqual({ slug: 'a/b/c' })
+    expect(hit!.getParams('/docs/a/b/c')).toEqual({ slug: ['a', 'b', 'c'] })
   })
 })
 
@@ -283,7 +283,9 @@ describe('findDynamicRoute — catch-alls yield to real files', () => {
   test('and still answers when it does not', () => {
     const hit = YieldHandler.findDynamicRoute('/site/some/page')
     expect(hit).not.toBeNull()
-    expect(hit!.getParams('/site/some/page')).toEqual({ rest: 'some/page' })
+    expect(hit!.getParams('/site/some/page')).toEqual({
+      rest: ['some', 'page'],
+    })
   })
 })
 

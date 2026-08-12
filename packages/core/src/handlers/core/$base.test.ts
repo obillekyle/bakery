@@ -81,7 +81,7 @@ describe('getDynamicRoute — catch-all segments', () => {
     expect(route!.pattern.test('/other/a')).toBe(false)
   })
 
-  test('the captured value is the joined rest of the path', () => {
+  test('the captured value is the rest of the path, as segments', () => {
     const info = new RouteData.Info(
       '/x/docs/[...slug].tsx' as any,
       'docs/[...slug].tsx',
@@ -89,9 +89,50 @@ describe('getDynamicRoute — catch-all segments', () => {
     expect(info.isDynamic).toBe(true)
     expect(info.catchAll).toBe(true)
     expect(info.getParams('/docs/guides/routing')).toEqual({
-      slug: 'guides/routing',
+      slug: ['guides', 'routing'],
     })
-    expect(info.getParams('/docs/a')).toEqual({ slug: 'a' })
+    expect(info.getParams('/docs/a')).toEqual({ slug: ['a'] })
+  })
+
+  /**
+   * `[...name!]` — the `!` opts into the bare directory. The plain form's
+   * "never claims its own directory" rule is load-bearing for index siblings,
+   * so the two spellings are tested against each other.
+   */
+  test('[...slug!] also matches the bare directory', () => {
+    const route = getDynamicRoute('docs/[...slug!].tsx')
+    expect(route).not.toBeNull()
+    expect(route!.params).toEqual(['slug'])
+    expect(route!.catchAll).toBe(true)
+    expect(route!.optionalCatchAll).toBe(true)
+    expect(route!.pattern.test('/docs')).toBe(true)
+    expect(route!.pattern.test('/docs/a')).toBe(true)
+    expect(route!.pattern.test('/docs/a/b/c')).toBe(true)
+    expect(route!.pattern.test('/other')).toBe(false)
+    expect(route!.pattern.test('/docsx')).toBe(false)
+  })
+
+  test('the bare directory binds an empty array, deeper paths bind segments', () => {
+    const info = new RouteData.Info(
+      '/x/docs/[...slug!].tsx' as any,
+      'docs/[...slug!].tsx',
+    )
+    expect(info.optionalCatchAll).toBe(true)
+    expect(info.getParams('/docs')).toEqual({ slug: [] })
+    expect(info.getParams('/docs/a/b')).toEqual({ slug: ['a', 'b'] })
+  })
+
+  test('[...slug!] at the root matches / and binds []', () => {
+    const info = new RouteData.Info(
+      '/x/[...slug!].tsx' as any,
+      '[...slug!].tsx',
+    )
+    expect(info.getParams('/')).toEqual({ slug: [] })
+    expect(info.getParams('/a/b')).toEqual({ slug: ['a', 'b'] })
+  })
+
+  test('the ! form is terminal-only, like the plain form', () => {
+    expect(getDynamicRoute('docs/[...slug!]/extra.tsx')).toBeNull()
   })
 
   test('a catch-all may follow single-param segments', () => {

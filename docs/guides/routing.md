@@ -149,9 +149,9 @@ or the `[...name]` catch-all form (`$dynamic.ts`) — so a client cannot request
 
 **6. `[...name]` catches every deeper path.** A terminal `[...name]` segment
 matches one *or more* remaining segments: `docs/[...slug].tsx` answers
-`/docs/a` and `/docs/a/b/c`, binding `slug = "a"` and `slug = "a/b/c"` — the
-joined rest of the path, split it yourself if you want segments. Three rules
-keep it predictable (`$base.ts`, `$routing.ts`, `$dynamic.ts`):
+`/docs/a` and `/docs/a/b/c`, binding `slug = ["a"]` and
+`slug = ["a", "b", "c"]` — an array of the remaining segments, in order.
+Three rules keep it predictable (`$base.ts`, `$routing.ts`, `$dynamic.ts`):
 
 - **It is always the weakest route.** An exact file, a single-param sibling
   (`docs/[id].tsx`), a child index (`docs/a/index.tsx`) and a deeper catch-all
@@ -166,9 +166,13 @@ keep it predictable (`$base.ts`, `$routing.ts`, `$dynamic.ts`):
   catch-alls: a single-param `[id].tsx` keeps the documented behavior and
   does claim `/docs/style.css`. Directories are not files — a path naming a
   directory with no index still falls to the catch-all.
-- **It never claims its own directory.** `/docs` is not matched by
-  `docs/[...slug].tsx` — the pattern requires at least one rest segment, so a
-  bare `/docs` still means `docs/index.*` or a 404.
+- **It never claims its own directory — unless you ask with `!`.** `/docs` is
+  not matched by `docs/[...slug].tsx`: the pattern requires at least one rest
+  segment, so a bare `/docs` still means `docs/index.*` or a 404. The
+  `docs/[...slug!].tsx` spelling opts into the bare directory, binding
+  `slug = []` there — and an `index` sibling still wins it, because static
+  discovery runs before dynamic. The empty array is also what makes "no rest"
+  distinguishable from any real path.
 - **Only terminal, and only a filename.** `[...slug]` anywhere but the last
   segment makes the file inert (nothing may follow a catch-all), and a
   *directory* named `[...slug]/` routes nothing at all — discovery matches
