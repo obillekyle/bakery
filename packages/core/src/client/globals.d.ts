@@ -48,6 +48,7 @@ declare global {
   var escapeHTML: typeof import('../utils/isomorphic/escape').escapeHtml
 
   var request: typeof import('./utils').request
+  var RequestError: typeof import('./utils').RequestError
   var randomId: typeof import('./utils').randomId
 
   // Not derivable: written inline in client/utils.ts's Object.assign call
