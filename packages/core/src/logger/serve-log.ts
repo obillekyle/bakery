@@ -98,15 +98,11 @@ const handlerMsgs = {
   PROXY_REQ: 'I Proxying %y{path}%* -> %b{target}%*',
   MIDDLEWARE_ERR: 'E Middleware error: %r{error}%*',
   BUNDLE_ERR: 'E Failed to bundle module (%y{file}%*): %r{error}%*',
-  // The bundle *succeeded*. That is the problem: the failure it leads to is a
-  // browser-side `SyntaxError` with no server-side trace at all.
-  // **Each message must stay one unbroken string literal.** Splitting a long one
-  // into `'…' + '…'` type-checks as `string`, so `as const` preserves nothing,
-  // `messageLogger` finds no `{placeholder}` to extract, and every call site
-  // fails with "Expected 0 arguments, but got 1" — which reads as a mysterious
-  // signature change rather than a line-length edit. Happened here while these
-  // three were being added. Wrapping the value onto its own line, as the entries
-  // above do, is fine; joining with `+` is not.
+  // **Keep each message one unbroken string literal.** Splitting a long one into
+  // `'…' + '…'` types as `string`, so `as const` preserves nothing,
+  // `messageLogger` extracts no `{placeholder}`, and every call site fails with
+  // "Expected 0 arguments, but got 1". Wrapping the value onto its own line, as
+  // below, is fine; joining with `+` is not.
   BUNDLE_CJS_INTEROP:
     'I Generated named exports for the CommonJS package %y{file}%*, so a named import of it works in the browser.',
   BUNDLE_CJS_PROBED:

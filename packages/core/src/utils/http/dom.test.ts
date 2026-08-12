@@ -233,9 +233,8 @@ describe('clearHeadBodyCache', () => {
  * The import map covers what is *installed*, not what is declared.
  *
  * A package can be installed and imported without appearing in `dependencies` —
- * a transitive one, or a dependency someone forgot to add. Reading `node_modules`
- * is what lets the browser resolve those, and it is what replaced a compile-time
- * rewrite that corrupted string literals to achieve the same coverage.
+ * a transitive one, or a dependency someone forgot to add — and reading
+ * `node_modules` is what lets the browser resolve those.
  */
 describe('initImportMap covers installed packages', () => {
   test('maps a package to /_nm/<name>, not to an entry file', async () => {

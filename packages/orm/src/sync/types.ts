@@ -61,14 +61,6 @@ export interface IndexConstraint {
 }
 
 /**
- * A foreign key as the database reports it.
- *
- * Identity is the tuple, not the name: SQLite's `PRAGMA foreign_key_list`
- * does not return a constraint name at all, so keying on one would make every
- * SQLite foreign key look new on every sync — the perpetual-rebuild failure
- * this project keeps hitting.
- */
-/**
  * Referential actions, normalised to the SQL spelling.
  *
  * One vocabulary for three dialects: MySQL and SQLite report these words back
@@ -83,6 +75,13 @@ export type ForeignKeyAction =
   | 'SET NULL'
   | 'SET DEFAULT'
 
+/**
+ * A foreign key as the database reports it.
+ *
+ * Identity is the tuple, not the name: SQLite's `PRAGMA foreign_key_list` does
+ * not return a constraint name at all, so keying on one would make every SQLite
+ * foreign key look new on every sync.
+ */
 export interface ForeignKeyInfo {
   table: string
   cols: string[]

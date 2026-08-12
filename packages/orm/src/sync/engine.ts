@@ -95,22 +95,14 @@ export const MESSAGES = messageLogger(logger, syncMsgs)
 /**
  * Whether a destructive sync in this process needs an explicit `--force-sync`.
  *
- * The second half used to read `process.env.PROD === 'true'`, which could
- * never be true: `core/init.ts` installs `PROD` on `process.env` with
- * `Object.defineProperties` as a getter returning a **boolean**, so the guard
- * on the most destructive operation the framework performs rested entirely on
- * `NODE_ENV`. `import.meta.env` is the same object as `process.env` and
- * `import.meta.env.PROD` is the framework's idiom for reading these flags.
- *
- * The dead term was **deleted rather than repaired**, and that is the whole
- * decision here. `import.meta.env.PROD` means only "`--dev` is absent", and
- * `db:sync` is a separate CLI invocation that never passes `--dev` — so for
- * this caller the flag is a constant `true`, carrying no information about the
- * environment at all. Activating it would not have made the guard smarter; it
- * would have made the `isProd` branch unconditional and left `handleSafetyChecks`'s
- * interactive `Proceed with sync?` unreachable for the one workflow it exists
- * for. That is dead code traded for different dead code, plus a silent UX
- * change to the documented way of applying a schema.
+ * **`NODE_ENV` is the only term, deliberately — do not add a `PROD` check back.**
+ * There used to be a `process.env.PROD === 'true'` half that could never be
+ * true, since `core/init.ts` installs `PROD` as a getter returning a *boolean*.
+ * Repairing it rather than deleting it would have been worse: `PROD` means only
+ * "`--dev` is absent", and `db:sync` is a separate CLI invocation that never
+ * passes `--dev`, so for this caller it is a constant `true`. That would make
+ * the `isProd` branch unconditional and leave `handleSafetyChecks`'s interactive
+ * `Proceed with sync?` unreachable for the one workflow it exists for.
  *
  * `NODE_ENV` is the only term that actually says "deployment", which is what
  * the guard is protecting against. Set it, and a destructive plan requires

@@ -1,8 +1,3 @@
-import { Case, fs } from '@bakery-framework/core/utils'
-import { Try } from '@bakery-framework/core/utils/common'
-import { collectConstraints } from '../define'
-import type * as SyncTypes from './types'
-
 /**
  * Where a project's data model lives, and how it is read.
  *
@@ -33,6 +28,12 @@ import type * as SyncTypes from './types'
  * a fresh one at the typo'd path while the real model sits untouched
  * somewhere else.
  */
+
+import { Case, fs } from '@bakery-framework/core/utils'
+import { Try } from '@bakery-framework/core/utils/common'
+import { collectConstraints } from '../define'
+import type * as SyncTypes from './types'
+
 /**
  * Which shape the generator must write back.
  *

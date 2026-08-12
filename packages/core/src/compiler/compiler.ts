@@ -175,20 +175,15 @@ export async function compileText(source: string, path?: fs.AbsolutePath) {
 
         const prefix = mapKeys.find(k => importPath.startsWith(k))
 
-        // A bare specifier is left exactly as written. The import map resolves
-        // it in the browser, and it covers every installed package — see
-        // `initImportMap`.
+        // A bare specifier is left exactly as written — the import map resolves
+        // it in the browser and covers every installed package (`initImportMap`).
         //
-        // **It used to be rewritten to `/_nm/<pkg>` here, and that was a
-        // mistake.** This runs a regular expression over *transpiled JavaScript*
-        // with no idea what is code and what is data, so a string that merely
-        // reads like an import was rewritten too:
+        // **Do not rewrite it to `/_nm/<pkg>` here.** This is a regular
+        // expression over transpiled JavaScript with no idea what is code and
+        // what is data, so it corrupts a string that merely reads like an import:
         //
         //     const docs = "run: import thing from 'some-package'"
         //     -> const docs = "run: import thing from '/_nm/some-package'"
-        //
-        // Silent corruption of a string literal, in user code, at compile time.
-        // Resolving in the map instead touches nothing.
         if (!prefix && !importPath.startsWith('.')) return fullMatch
 
         const targetPath = prefix
@@ -237,28 +232,14 @@ type CompileResult = {
  * That is correct output and a silent trap. The import map points a bare
  * specifier at `/_nm/<pkg>`, so `import { greet } from 'pkg'` in browser code
  * compiles happily, the bundle is served with a **200**, and the only sign of
- * trouble is in the browser:
+ * trouble is a browser-side `SyntaxError: The requested module 'pkg' does not
+ * provide an export named 'greet'`. Nothing reaches the server log.
  *
- *     SyntaxError: The requested module 'pkg' does not provide an export
- *     named 'greet'
- *
- * Nothing reaches the server log, so the developer has a runtime error in the
- * browser and a perfectly healthy-looking server.
- *
- * It cannot simply be fixed here. ESM named exports must be statically known,
- * and a CJS module's are not: `Bun.Transpiler().scan()` reports `exports: []`
- * for the very file whose runtime interop yields `['default', 'greet']`.
- * Bridging that means either executing the package during the build — arbitrary
- * `node_modules` code, with side effects, in the server process — or carrying a
- * CJS lexer, which core cannot do while it declares no runtime dependencies.
- * Both are decisions rather than details, so for now this names the package
- * instead of guessing.
- *
- * The check is deliberately conservative: it fires only when the output has a
+ * Detecting the shape is what lets `bundleCjsWithNamedExports` repair it. The
+ * check is deliberately conservative: it fires only when the output has a
  * default export and no named one, *and* the bundle carries Bun's CJS wrapper.
  * An ESM package with only a default export is normal and says nothing.
  */
-
 function isCjsDefaultOnly(content: string): boolean {
   if (!content.includes('__commonJS')) return false
 
@@ -285,71 +266,10 @@ const RESERVED_EXPORT_NAMES = new Set(['default', '__esModule'])
  */
 const CJS_PROBE_TIMEOUT_MS = 5_000
 
-/**
- * Re-bundle a `module.exports = { … }` package with real named exports.
- *
- * **The names are discovered by importing the module, because there is no other
- * way.** `Bun.Transpiler().scan()` reports `exports: []` for the very file whose
- * runtime interop yields `['default', 'greet']` — the members of a
- * whole-object assignment are not knowable without evaluating it. So the module
- * is imported here, its keys read, and a shim generated that states them
- * statically:
- *
- *     import __cjs from '<abs>'
- *     export default __cjs
- *     export const greet = __cjs.greet
- *
- * That shim is what gets bundled, and the browser gets a module that really does
- * provide `greet`.
- *
- * **Importing means executing**, which is the cost and the reason this is not
- * attempted speculatively: it runs only for a package already shown to be
- * default-only CJS, which the app has already asked for by importing it from
- * browser code. A package that throws on import — one touching `window` at
- * module scope, say — is caught, and the caller keeps the plain bundle it
- * already has. Degrading to today's behaviour is always available.
- *
- * Non-identifier keys are skipped rather than mangled: `module.exports['a-b']`
- * is legal CJS and is not a legal export name, and inventing one would be worse
- * than omitting it.
- */
-/**
- * The export names of a CommonJS module, read **in a throwaway subprocess**.
- *
- * There is no static answer: `Bun.Transpiler().scan()` reports `exports: []` for
- * the very file whose runtime interop yields `['default', 'greet']`, because the
- * members of `module.exports = { … }` are not knowable without evaluating it.
- * And `Bun.build` does not evaluate — measured with a package that writes a file
- * at module scope, the file appears on `import()` and never on `build()`.
- *
- * So something has to run the module, and the question is only *where*. It used
- * to be here, which meant an arbitrary `node_modules` package executing inside
- * the server process — in production as well as dev — free to start a timer,
- * open a socket, or mutate a global that then outlives the request that caused
- * it. A child process keeps all of that in something that exits.
- *
- * It does not make execution safe, and nothing can: a module-scope side effect
- * on the filesystem still happens. What it buys is containment of everything
- * *in-process* — crashes, hangs, globals, listeners — and a package that hangs
- * on import is killed by the timeout rather than wedging a bundle.
- */
-/**
- * Top-level keys of the object literal whose `{` sits at `open`.
- *
- * Depth-counted rather than regex-matched, so a nested object or array in a
- * value does not end the scan early. Returns `null` if the literal never closes,
- * which is the signal to distrust the whole reading rather than guess.
- */
 const OPENERS = '{[('
 const CLOSERS = '}])'
 
-/**
- * Index of the separator ending the value that starts at `from`.
- *
- * Split out of the scan below so each has one job — together they were a single
- * function at complexity 52, which is both a lint failure and a fair description
- * of how it read.
- */
+/** Index of the separator ending the value that starts at `from`. */
 function endOfValue(src: string, from: number): number {
   let depth = 0
 
@@ -365,6 +285,13 @@ function endOfValue(src: string, from: number): number {
   return src.length
 }
 
+/**
+ * Top-level keys of the object literal whose `{` sits at `open`.
+ *
+ * Depth-counted rather than regex-matched, so a nested object or array in a
+ * value does not end the scan early. Returns `null` if the literal never closes,
+ * which is the signal to distrust the whole reading rather than guess.
+ */
 function objectLiteralKeys(src: string, open: number): string[] | null {
   const keys: string[] = []
   let depth = 0
@@ -427,10 +354,6 @@ function objectLiteralKeys(src: string, open: number): string[] | null {
  * eliminated — a string containing `module.exports = {` would still fool this —
  * which is why a failed or empty reading falls through to the probe instead of
  * being trusted as "no exports".
- *
- * Measured against the runtime answer on four packages, including one that
- * pollutes globals and one that leaves a timer running: three matches, and the
- * fourth is the `exports.name` form that never arrives here.
  */
 function staticCjsExportNames(bundled: string): string[] {
   const at = bundled.indexOf('module.exports = {')
@@ -451,11 +374,23 @@ function staticCjsExportNames(bundled: string): string[] {
   ]
 }
 
+/**
+ * The export names of a CommonJS module, read **in a throwaway subprocess**.
+ *
+ * The fallback for whatever `staticCjsExportNames` cannot see. Something has to
+ * run the module, and the question is only *where*: it used to be here, which
+ * meant an arbitrary `node_modules` package executing inside the server process
+ * — in production as well as dev — free to start a timer, open a socket, or
+ * mutate a global that then outlives the request that caused it.
+ *
+ * A child process does not make execution safe, and nothing can: a module-scope
+ * write to the filesystem still happens. What it buys is containment of
+ * everything *in-process* — crashes, hangs, globals, listeners — and a package
+ * that hangs on import is killed by the timeout rather than wedging a bundle.
+ */
 async function cjsExportNames(path: string): Promise<string[]> {
-  // `process.stdout.write`, not `console.log`: this is a machine-read value on
-  // a pipe, not a log line, and the repo bans `console.*` in server code —
-  // a rule `tests/conventions.test.ts` enforces by grep, so even this string
-  // literal would trip it.
+  // `process.stdout.write`, not `console.log`: a machine-read value on a pipe,
+  // not a log line.
   const code =
     'const m = await import(process.argv[1]); ' +
     'process.stdout.write(JSON.stringify(Object.keys(m)))'
@@ -490,14 +425,33 @@ async function cjsExportNames(path: string): Promise<string[]> {
   )
 }
 
+/**
+ * Re-bundle a `module.exports = { … }` package with real named exports.
+ *
+ * The names are read from the bundle, or failing that by importing the module,
+ * and a shim generated that states them statically:
+ *
+ *     import __cjs from '<abs>'
+ *     export default __cjs
+ *     export const greet = __cjs.greet
+ *
+ * That shim is what gets bundled, so the browser gets a module that really does
+ * provide `greet`. A package that throws on import — one touching `window` at
+ * module scope, say — yields no names, and the caller keeps the plain bundle it
+ * already has.
+ *
+ * Non-identifier keys are skipped rather than mangled: `module.exports['a-b']`
+ * is legal CJS and is not a legal export name, and inventing one would be worse
+ * than omitting it.
+ */
 async function bundleCjsWithNamedExports(
   path: string,
   defines: MapOf<string>,
   bundled: string,
 ): Promise<string | null> {
-  // Static first, and it answers the common case — so the usual outcome is that
-  // nothing is executed at all. The probe is the fallback for shapes a reader
-  // cannot see: a computed key, an assignment built at runtime, a re-export.
+  // Static first, so the usual outcome is that nothing is executed at all. The
+  // probe covers shapes a reader cannot see: a computed key, an assignment built
+  // at runtime, a re-export.
   const statik = staticCjsExportNames(bundled)
   const names = statik.length ? statik : await cjsExportNames(path)
   if (!names.length) return null

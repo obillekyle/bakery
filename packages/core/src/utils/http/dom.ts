@@ -25,22 +25,14 @@ const hostDepMaps = new Map<string, string>()
  * Normalise one import-map entry, for both the process-level map and the
  * per-host maps.
  *
- * There used to be two copies of this, and they had drifted into disagreeing
- * about *what* they tested: `initHostImportMaps` switched on the entry key,
- * `initImportMap` tested the entry value. `{ foo: './.server/client/utils' }`
- * was rewritten by one path and silently left alone by the other. One helper,
- * two callers, so they cannot disagree again.
+ * One helper, two callers, deliberately: they used to be separate copies that
+ * had drifted into testing different things — one switched on the entry key,
+ * the other on the entry value — so the same input normalised two ways
+ * depending on which path saw it.
  *
- * The `.server/client/utils` special cases both copies carried are gone rather
- * than reconciled. `.server/` is the pre-split layout: those two string
- * literals were the last references to it anywhere in `packages`, `apps`,
- * `docs` or `tests`, and the directory they name no longer exists, so a value
- * pointing at it is a broken path either way. It normalises as an ordinary
- * relative specifier now.
- *
- * `@client/utils` stays, and stays keyed on the *key*: it is a live alias — it
- * is the default `importMap` entry in `core/config.ts` — and the browser
- * runtime is served from a fixed URL, so the target is not the app's to choose.
+ * `@client/utils` is keyed on the *key*: it is a live alias, the default
+ * `importMap` entry in `core/config.ts`, and the browser runtime is served from
+ * a fixed URL, so the target is not the app's to choose.
  */
 function normalizeImportEntry(key: string, value: unknown): [string, string] {
   const cleanKey = key.replace(/\*$/, '')
@@ -76,38 +68,6 @@ export function initHostImportMaps() {
   }
 }
 
-// `resolveDepModule` stood here: a hand-rolled `browser`/`module`/`main` pick,
-// deleted rather than kept "just in case". `Bun.build` behind `/_nm/` does the
-// same job against the real resolution algorithm — `exports` maps and
-// conditions included, which this understood not at all — and the import map no
-// longer names an entry point for it to compute. See `initImportMap`.
-
-/**
- * Build the browser import map from the app's dependencies.
- *
- * **It maps a package to `/_nm/<name>` and stops there.** It used to read every
- * dependency's `package.json` and pick an entry point itself — `module`, then
- * `main`, then a `browser` override — producing `/_nm/<name>/<entry>`. That
- * duplicated, less well, what the other end of the URL already does:
- * `NMHandler` hands the path to `Bun.build`, which applies real browser
- * resolution including `exports` maps, conditions and the `browser` field. The
- * hand-rolled version understood none of those, so a package whose entry lives
- * behind an `exports` map resolved to the wrong file or to nothing.
- *
- * Verified with a package whose `main`, `module` and `browser` point at three
- * different files: with no map entry at all, `/_nm/<name>` serves the **browser**
- * one. The resolution was never needed here.
- *
- * Two consequences worth stating. It no longer reads N `package.json` files on
- * every boot. And an app-declared `importMap` entry still wins — those are
- * aliases the app means, and one of them (`@client/utils`) does not point into
- * `node_modules` at all.
- *
- * **The map still exists, and removing it entirely would be a regression.** Code
- * the compiler never sees — an inline `<script type="module">` in an `.html`
- * page — reaches the browser with its bare specifiers intact, and the map is the
- * only thing that resolves them there.
- */
 /**
  * Every installed package, top level and scoped, as `name` and `name/`.
  *
@@ -118,10 +78,9 @@ export function initHostImportMaps() {
  * than the missing entry: *"Failed to resolve module specifier 'pkg'. Relative
  * references must start with either "/", "./", or "../"."*
  *
- * Cheap enough to be worth the completeness: one `readdir` per scope, no
- * `package.json` reads, and the emitted map is ~790 bytes gzipped for a 47
- * package app. It scales with what is installed, not with what is imported —
- * which is the trade — but only *directly imported* packages ever need an
+ * Cheap enough to be worth the completeness: one `readdir` per scope and no
+ * `package.json` reads. It scales with what is installed rather than with what
+ * is imported — the trade — but only *directly imported* packages ever need an
  * entry, because anything deeper is resolved inside the bundle.
  */
 async function installedPackages(): Promise<string[]> {
@@ -157,16 +116,13 @@ async function installedPackages(): Promise<string[]> {
  * **Resolution happens at the other end of the URL, and rewriting happens
  * nowhere.** An entry maps a package to `/_nm/<name>`; `NMHandler` hands that to
  * `Bun.build`, which applies real browser resolution — `exports` maps,
- * conditions, the `browser` field. This used to read every dependency's
- * `package.json` and pick the entry file itself, understanding none of those.
+ * conditions, the `browser` field. Naming an entry file here instead would mean
+ * reimplementing all of that, badly.
  *
- * The compiler used to rewrite bare specifiers to `/_nm/` as a fallback for
- * whatever the map missed. That is gone: it was a regular expression over
- * transpiled JavaScript, so it also rewrote strings that merely *looked* like
- * imports, corrupting user data. Covering every installed package here removes
- * the need for it, and the map resolves the same specifiers in code the compiler
- * never sees — an inline `<script type="module">` in an `.html` page, which
- * reaches the browser with its imports intact.
+ * Covering every installed package is what removes the need for a compile-time
+ * rewrite of bare specifiers, and the map reaches code the compiler never sees:
+ * an inline `<script type="module">` in an `.html` page arrives at the browser
+ * with its imports intact.
  *
  * App-declared `importMap` entries are applied last and win. One of them,
  * `@client/utils`, does not point into `node_modules` at all.

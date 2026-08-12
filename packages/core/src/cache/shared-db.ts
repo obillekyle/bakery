@@ -41,15 +41,13 @@ import { fs } from '../utils'
  * entries also survive; they are still rebuildable, just no longer discarded on
  * a schedule nobody chose.
  *
- * **That was aspirational until 2026-08-09, and the `await` below is what makes
- * it true.** The check ran from `initConfig()`, while this module opens the
- * database at *import* time — so the process already held a handle inside the
- * directory the wipe was about to delete. On Windows the delete failed with
- * `EBUSY`, node's recursive walk stopped at the locked entry, and whatever it
- * had not reached yet survived: sessions *did* outlive upgrades, and so did
- * `html/`, the compiled-page cache. Awaiting the check here orders the two by
- * construction — the cache cannot be opened before it has been validated —
- * rather than by hoping one import happens after another.
+ * **The `await` below is what makes that true, and it must stay here.** This
+ * module opens the database at *import* time, so running the check anywhere
+ * else — it used to run from `initConfig()` — leaves the process holding a
+ * handle inside the directory the wipe is about to delete. On Windows that
+ * delete fails with `EBUSY`, node's recursive walk stops at the locked entry,
+ * and whatever it had not reached yet survives. Awaiting here orders the two by
+ * construction rather than by hoping one import happens after another.
  */
 await checkCacheVersion()
 

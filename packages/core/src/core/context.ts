@@ -52,14 +52,6 @@ export function matchBlockedCached(
 }
 
 /**
- * The **application's** version, from `<cwd>/package.json`.
- *
- * Named `getBakeryVersion` until 2026-08-09, which is exactly the wrong name:
- * it reads the package.json of whatever is being served, not the framework's.
- * That misnomer hid a real bug for as long as it existed — see
- * {@link getFrameworkVersion}.
- */
-/**
  * What each version reader returns when it cannot read its manifest.
  *
  * They must be **distinct from each other and impossible as a real version**,
@@ -78,6 +70,14 @@ const UNKNOWN_APP = '0.0.0-unknown-app'
 const UNKNOWN_FW = '0.0.0-unknown-framework'
 
 let _appVersion: string | null = null
+
+/**
+ * The **application's** version, from `<cwd>/package.json`.
+ *
+ * Not the framework's — this reads the manifest of whatever is being served.
+ * The distinction is load-bearing for cache invalidation; see
+ * {@link getFrameworkVersion}.
+ */
 export function getAppVersion() {
   if (_appVersion) return _appVersion
   try {

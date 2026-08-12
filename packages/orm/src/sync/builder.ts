@@ -504,21 +504,6 @@ ${body}`
   }
 
   /**
-   * The `orm/` folder layout's `schema.ts`: `table()` values and nothing else.
-   *
-   * The generator only ever emitted the `DBInfo` namespace, and for a folder
-   * project the write target is `orm/schema.ts` — which `orm/index.ts`
-   * re-exports. So a regeneration replaced every `table()` with a namespace
-   * *and* added a second `declare module '@bakery-framework/orm/schema-registry'` block
-   * colliding with the one in `index.ts`. It fired on `--choose=db` and, less
-   * visibly, after any sync involving `old()` wrappers.
-   *
-   * Tables only, deliberately: `index.ts` owns the re-exports and the schema
-   * registration, `indexes.ts` owns the index and unique declarations, and
-   * neither is the generator's to rewrite. That separation is the reason the
-   * folder layout exists (see `load.ts`).
-   */
-  /**
    * The constraints key a `_references.table` names, or `undefined`.
    *
    * Introspection reports SQL identifiers while the constraints map is keyed the
@@ -604,6 +589,16 @@ ${body}`
       : `Field.Foreign(${target})`
   }
 
+  /**
+   * The `orm/` folder layout's `schema.ts`: `table()` values and nothing else.
+   *
+   * Tables only, deliberately: `index.ts` owns the re-exports and the schema
+   * registration, `indexes.ts` owns the index and unique declarations, and
+   * neither is the generator's to rewrite. Emitting the single-file `DBInfo`
+   * namespace here instead would clobber both and leave two colliding
+   * `declare module '@bakery-framework/orm/schema-registry'` blocks. That
+   * separation is the reason the folder layout exists (see `load.ts`).
+   */
   private static buildTableModule(
     constraints: Record<string, any>,
     adapter: SQLAdapter,
