@@ -12,9 +12,6 @@ import { DEFAULT_SESSION_PERSIST, DEFAULT_SESSION_TTL } from './utils/constants'
  */
 export const RESERVED_SESSION_PREFIX = '__bakery.'
 
-/** Marks a session as having passed the DASHPASS check. */
-export const DASHPASS_SESSION_KEY = `${RESERVED_SESSION_PREFIX}dashpass`
-
 export function isReservedSessionKey(key: string): boolean {
   return key.startsWith(RESERVED_SESSION_PREFIX)
 }

@@ -15,6 +15,8 @@ export {
   recordRouteHit,
 } from './core'
 
+export type { AuthorizeFn } from './endpoints/stats'
+
 export interface AnalyticsPluginOptions {
   /**
    * A shared access key for the analytics endpoints and websocket, typically
@@ -26,11 +28,17 @@ export interface AnalyticsPluginOptions {
    *
    * Presented as `Authorization: Bearer`, an `x-analytics-key` header, or an
    * `?analytics-key=` query. Checked in constant time; unset or empty means
-   * this path is off, never open. This is the reachable door: nothing sets
-   * the legacy DASHPASS session flag since the dashboard dropped its login,
-   * so without a credential the endpoints stay closed to everyone.
+   * this door is closed. The same key gates the dashboard, which delegates
+   * its auth here.
    */
   credential?: string
+
+  /**
+   * A request predicate for role-based access, as an alternative or addition
+   * to the shared key: `authorize: req => req.session.get('role') === 'admin'`.
+   * Either door admits; both fail closed. With neither, analytics is off.
+   */
+  authorize?: import('./endpoints/stats').AuthorizeFn
 }
 
 export default function analyticsPlugin(options: AnalyticsPluginOptions = {}) {
@@ -38,7 +46,10 @@ export default function analyticsPlugin(options: AnalyticsPluginOptions = {}) {
     name: 'analytics',
     async setup() {
       const { setupAnalytics } = await import('./setup')
-      setupAnalytics({ credential: options.credential })
+      setupAnalytics({
+        credential: options.credential,
+        authorize: options.authorize,
+      })
     },
     onRoute(req) {
       const url: URL = (req as any).__parsedUrl || new URL(req.url)

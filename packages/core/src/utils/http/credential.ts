@@ -3,10 +3,8 @@
  * import.meta.env.SOME_KEY })`).
  *
  * One implementation, deliberately in core: the db-explorer and analytics
- * plugins each need it and the dashboard's history shows where per-plugin
- * copies of security code end up. It owns *only* the comparison — no logins,
- * no sessions, no backoff; those are what earned the old DASHPASS system its
- * removal.
+ * plugins each need it and per-plugin copies of security code drift. It owns
+ * *only* the comparison — no logins, no sessions, no backoff.
  *
  * A credential is presented three ways, in this order of preference:
  *

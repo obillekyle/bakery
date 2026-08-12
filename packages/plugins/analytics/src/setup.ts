@@ -11,8 +11,10 @@ import * as core from './core'
 import { BOOT_MAX_ITEMS } from './core'
 import type { AnalyticsStats } from './endpoints/stats'
 import {
+  type AuthorizeFn,
   handleResetRequest,
   handleStatsRequest,
+  setAnalyticsAuthorize,
   setAnalyticsCredential,
 } from './endpoints/stats'
 import { AnalyticsWSHandler } from './endpoints/websocket'
@@ -183,8 +185,24 @@ export function handleAnalyticsRequest(
   return analyticsRoutes(req)
 }
 
-export function setupAnalytics(options: { credential?: string } = {}) {
+let registered = false
+
+export function setupAnalytics(
+  options: { credential?: string; authorize?: AuthorizeFn } = {},
+) {
+  // Auth is (re)applied every call — last config wins — so the dashboard
+  // bringing analytics up with the shared key overrides a bare
+  // `analyticsPlugin()`, whichever order they registered in.
   setAnalyticsCredential(options.credential)
+  setAnalyticsAuthorize(options.authorize)
+
+  // The rest runs once. Analytics is now a hard dependency of the dashboard,
+  // so both may set it up in one process; the handler registrations are
+  // idempotent but the shutdown hook and data load are not, and a doubled
+  // load would race two reads of the same file.
+  if (registered) return
+  registered = true
+
   Bakery.handlers.fetch.set(AnalyticsHandler, 110)
   Bakery.handlers.websocket.set(AnalyticsWSHandler)
   void loadAnalyticsData()

@@ -1,5 +1,5 @@
 import { Bakery } from '@bakery-framework/core/core/bakery'
-import { DASHPASS_SESSION_KEY, Session } from '@bakery-framework/core/session'
+import { Session } from '@bakery-framework/core/session'
 import type { JsonResponseData } from '@bakery-framework/core/utils/common'
 import {
   requestHasCredential,
@@ -80,31 +80,45 @@ export function computeStats(
 export type AnalyticsStats = ReturnType<typeof computeStats>
 
 /**
- * The shared credential, from `analyticsPlugin({ credential })`. Unset means
- * this door is closed, never open — see `credentialMatches` in core.
+ * A request predicate, for apps that gate by their own roles rather than (or
+ * as well as) a shared key. Returning `true` admits; throwing or returning
+ * anything else denies (convention 2).
+ */
+export type AuthorizeFn = (req: Request) => boolean | Promise<boolean>
+
+/**
+ * Analytics owns the auth for its endpoints, and the dashboard delegates to
+ * it (`isAnalyticsAuthorized`) — the analytics key *is* the dashboard key.
+ * Two doors, both fail closed and both off until configured:
+ *
+ *   - the shared `credential` (`x-analytics-key`, Bearer, or `?analytics-key=`)
+ *   - an optional `authorize(req)` predicate for role-based access
+ *
+ * Neither configured means analytics is closed to everyone, which is the safe
+ * default. Note `isAnalyticsAuthorized` is sync-fast on the credential path
+ * and only awaits when a predicate is present — the websocket `canHandle`
+ * needs a boolean, so a predicate makes the check async there too.
  */
 let credential: string | undefined
+let authorizeFn: AuthorizeFn | undefined
 
 export function setAnalyticsCredential(value: string | undefined): void {
   credential = value
 }
 
-/**
- * True when the caller may read analytics. Two doors, both fail closed:
- *
- *   - the shared `credential` (`x-analytics-key`, Bearer, or `?analytics-key=`)
- *   - the legacy DASHPASS session flag, kept because the dashboard reads these
- *     same endpoints from the browser with the operator's cookies
- *
- * The credential door is the reachable one today: nothing in the framework
- * sets `DASHPASS_SESSION_KEY` since the dashboard dropped its own login, so
- * without a configured credential analytics is closed to everyone — which is
- * the safe default, but it also meant the stats were unreachable until this.
- */
-export function isAnalyticsAuthorized(req: Request): boolean {
+export function setAnalyticsAuthorize(fn: AuthorizeFn | undefined): void {
+  authorizeFn = fn
+}
+
+export async function isAnalyticsAuthorized(req: Request): Promise<boolean> {
   if (requestHasCredential(req, credential, 'analytics-key')) return true
-  if (!process.env.DASHPASS) return false
-  return Boolean(req.session?.get(DASHPASS_SESSION_KEY))
+  if (!authorizeFn) return false
+  try {
+    return (await authorizeFn(req)) === true
+  } catch {
+    // A predicate that throws is indeterminate, and indeterminate is denied.
+    return false
+  }
 }
 
 /**
@@ -115,12 +129,13 @@ export function isAnalyticsAuthorized(req: Request): boolean {
  * the envelope carries no `data`, which is what makes it assignable into every
  * caller's own payload type.
  */
-function checkDashpassAuth(req: Request): JsonResponseData<undefined> | null {
-  if (isAnalyticsAuthorized(req)) return null
-  // Enabled-but-unauthorised is a 401; disabled-entirely is a 404 that does
-  // not advertise the endpoint. "Enabled" now means either door is armed.
-  const enabled = Boolean(credential) || Boolean(process.env.DASHPASS)
-  return enabled
+async function checkAnalyticsAuth(
+  req: Request,
+): Promise<JsonResponseData<undefined> | null> {
+  if (await isAnalyticsAuthorized(req)) return null
+  // Armed-but-unauthorised is a 401; nothing configured is a 404 that does
+  // not advertise the endpoint at all.
+  return credential || authorizeFn
     ? response.json.error<undefined>(401, 'Unauthorized')
     : response.json.error<undefined>(404, 'Not Found')
 }
@@ -128,7 +143,7 @@ function checkDashpassAuth(req: Request): JsonResponseData<undefined> | null {
 export async function handleResetRequest(
   req: Request,
 ): Promise<JsonResponseData<undefined>> {
-  const authError = checkDashpassAuth(req)
+  const authError = await checkAnalyticsAuth(req)
   if (authError) return authError
 
   core.history1m.length = 0
@@ -147,7 +162,7 @@ export async function handleStatsRequest(
   req: Request,
   url: URL,
 ): Promise<JsonResponseData<AnalyticsStats | undefined>> {
-  const authError = checkDashpassAuth(req)
+  const authError = await checkAnalyticsAuth(req)
   if (authError) return authError
 
   const timescale = url.searchParams.get('timescale') || '1m'
