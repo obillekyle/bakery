@@ -276,3 +276,162 @@ describe('defineLayout', () => {
     expect(segmentsUnder('', '/a/b')).toEqual(['a', 'b'])
   })
 })
+
+describe('handleHtml stamps and links', () => {
+  test('the shell carries __vue_route when the route is known', async () => {
+    const parsed = await parse('site/reports.vue')
+    const res = await VueHandler.handleHtml(
+      'st-1',
+      {},
+      '/site/reports.vue',
+      undefined,
+      parsed,
+      { catchAll: true, base: '/site', param: 'slug' },
+    )
+    const html = await (res as Response).text()
+    expect(html).toContain('"catchAll":true')
+    expect(html).toContain('"base":"/site"')
+    expect(html).toContain('"param":"slug"')
+  })
+
+  test('no route argument, no stamp — old callers stay byte-identical', async () => {
+    const parsed = await parse('site/reports.vue')
+    const res = await VueHandler.handleHtml(
+      'st-2',
+      {},
+      '/site/reports.vue',
+      undefined,
+      parsed,
+    )
+    const html = await (res as Response).text()
+    expect(html).not.toContain('__vue_route')
+  })
+
+  test("the layout's stylesheet links before the page root script", async () => {
+    const parsed = await parse('site/reports.vue')
+    expect(parsed.layoutRoute).toBe('/site/layout.vue')
+
+    const res = await VueHandler.handleHtml(
+      'st-3',
+      {},
+      '/site/reports.vue',
+      undefined,
+      parsed,
+    )
+    const html = await (res as Response).text()
+    const linkAt = html.indexOf('/site/layout.vue?__vue_css=true')
+    const rootAt = html.indexOf('__vue_script=root')
+    expect(linkAt).toBeGreaterThan(-1)
+    expect(rootAt).toBeGreaterThan(linkAt)
+  })
+})
+
+describe('navigate() path forms', () => {
+  test('segments, relative and absolute all normalise under the base', () => {
+    ;(globalThis as any).__vue_route = {
+      catchAll: true,
+      base: '/wiki',
+      param: 'page',
+    }
+    const layout = defineLayout()
+
+    layout.navigate('setup/pg')
+    expect(layout.segments.value).toEqual(['setup', 'pg'])
+
+    layout.navigate('/wiki/absolute/path')
+    expect(layout.segments.value).toEqual(['absolute', 'path'])
+
+    layout.navigate([])
+    expect(layout.segments.value).toEqual([])
+
+    // Outside the base: a real navigation in a browser; here there is no
+    // `location`, so the only observable contract is that segments do not
+    // pretend the subtree contains it.
+    layout.navigate('/somewhere/else')
+    expect(layout.segments.value).toEqual([])
+    ;(globalThis as any).__vue_route = undefined
+  })
+})
+
+/**
+ * The maintainer's counterexample: a catch-all with a more specific sibling.
+ *
+ *   admin/[...slug].vue
+ *   admin/faculty/[id].vue
+ *
+ * `/admin/faculty/7` is under the base but belongs to `[id].vue` on the
+ * server, so the client-side router must yield it to a real navigation — a
+ * soft-nav would render the catch-all where a hard reload renders a
+ * different page. The stamp carries what the siblings claim; the client
+ * refuses to soft-nav into it.
+ */
+describe('defineLayout yields to more specific routes', () => {
+  test('the stamp names sibling claims, at first-segment granularity', async () => {
+    await write('estate/[...slug].vue', PAGE)
+    await write('estate/faculty/[id].vue', PAGE)
+    await write('estate/reports.vue', PAGE)
+    await write('estate/layout.vue', LAYOUT)
+
+    // Reach the stamp through the same helper the handler uses.
+    const { claimedBeside } = await import('./handler')
+    const stamp = claimedBeside(`${ROOT}/estate/[...slug].vue`)
+
+    expect(stamp.claimed).toContain('faculty')
+    expect(stamp.claimed).toContain('reports')
+    expect(stamp.claimed).toContain('reports.vue')
+    // The layout claims nothing, and the catch-all is the page itself.
+    expect(stamp.claimed).not.toContain('layout')
+    expect(stamp.claimed).not.toContain('layout.vue')
+    expect(stamp.claimedSingle).toBe(false)
+  })
+
+  test('a [param] sibling claims every single-segment path', async () => {
+    await write('branch/[...slug].vue', PAGE)
+    await write('branch/[warehouse].vue', PAGE)
+
+    const { claimedBeside } = await import('./handler')
+    const stamp = claimedBeside(`${ROOT}/branch/[...slug].vue`)
+    expect(stamp.claimedSingle).toBe(true)
+  })
+
+  test('the client refuses to soft-nav into claimed territory', () => {
+    ;(globalThis as any).__vue_route = {
+      catchAll: true,
+      base: '/admin',
+      param: 'slug',
+      claimed: ['faculty', 'reports'],
+      claimedSingle: false,
+    }
+    const layout = defineLayout()
+
+    layout.navigate(['dashboard', 'stats'])
+    expect(layout.segments.value).toEqual(['dashboard', 'stats'])
+
+    // Claimed by faculty/[id].vue: without `location` (no DOM here) the
+    // observable contract is that no soft state change happens.
+    layout.navigate(['faculty', '7'])
+    expect(layout.segments.value).toEqual(['dashboard', 'stats'])
+
+    layout.navigate(['reports'])
+    expect(layout.segments.value).toEqual(['dashboard', 'stats'])
+    ;(globalThis as any).__vue_route = undefined
+  })
+
+  test('claimedSingle blocks one segment, not deeper paths', () => {
+    ;(globalThis as any).__vue_route = {
+      catchAll: true,
+      base: '/branch',
+      param: 'slug',
+      claimed: [],
+      claimedSingle: true,
+    }
+    const layout = defineLayout()
+
+    layout.navigate(['solo'])
+    expect(layout.segments.value).toEqual([])
+
+    layout.navigate(['deep', 'path'])
+    expect(layout.segments.value).toEqual(['deep', 'path'])
+    ;(globalThis as any).__vue_route = undefined
+  })
+})

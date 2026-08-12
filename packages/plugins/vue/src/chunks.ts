@@ -45,7 +45,9 @@ export async function serveVueChunk(
 
   const variant = vueBuildVariant()
   const dir = fs.resolve(Bakery.cacheDir, 'vue-official', 'chunks')
-  const fileName = `${VUE_VERSION}.${variant}.js`
+  // Derived from the URL, not restated: the cache name and the request path
+  // must agree on the variant, and one writer is how they keep agreeing.
+  const fileName = path.slice(VUE_CHUNK_PREFIX.length)
 
   let sourcePath = ''
   try {

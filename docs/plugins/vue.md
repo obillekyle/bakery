@@ -189,6 +189,15 @@ catch-all, so `import('/wiki/parts/sidebar.vue')` is served as a module while
 `/wiki/anything/else` falls to the page. Use absolute paths for those imports:
 a relative one resolves against the current URL, which moves.
 
+**More specific routes under the base win, in the browser too.** With
+`admin/[...slug].vue` beside `admin/faculty/[id].vue`, the URL
+`/admin/faculty/7` belongs to `[id].vue` on the server — so the client router
+yields it to a real navigation instead of soft-swapping the catch-all's view
+over it. The shell's route stamp carries what the siblings claim (a directory
+claims its subtree; a `[param]` sibling claims every single-segment path),
+computed fresh per page load, so adding a sibling route in dev takes effect on
+the next reload.
+
 ## Skeletons
 
 A second template block marked `skeleton` shows inside `#app` before the

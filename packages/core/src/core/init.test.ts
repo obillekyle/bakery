@@ -112,3 +112,14 @@ describe('core/init mode flags', () => {
     expect(env.MODE).toBe(process.env.MODE)
   })
 })
+
+describe('core/init globals', () => {
+  test('randomId is bound on the server, same function as the isomorphic one', async () => {
+    // The report behind this: it was a browser-only global, so the same call
+    // in an SFC server block was a ReferenceError.
+    const { randomId } = await import('../utils/isomorphic/misc')
+    expect((globalThis as any).randomId).toBe(randomId)
+    const id = (globalThis as any).randomId(12)
+    expect(id).toMatch(/^[0-9a-f]{12}$/)
+  })
+})

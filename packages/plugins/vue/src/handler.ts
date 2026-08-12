@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs'
 import { LRUCache } from '@bakery-framework/core/cache/lru'
 import { Bakery, hostKey } from '@bakery-framework/core/core/bakery'
 import type { Handler } from '@bakery-framework/core/handlers'
@@ -5,6 +6,9 @@ import {
   beginPageRoute,
   DynamicErrorHandler,
   DynamicHandler,
+  RX_CATCHALL,
+  RX_DYNAMIC,
+  RX_OPT_CATCHALL,
 } from '@bakery-framework/core/handlers'
 import {
   fs,
@@ -106,6 +110,66 @@ function findLayoutRoute(filePath: string, meta: VueMeta): string | null {
   }
 
   return null
+}
+
+/**
+ * What the catch-all's siblings claim, for the `defineLayout()` stamp.
+ *
+ * A catch-all owns only *what nothing else claims*: with
+ * `admin/[...slug].vue` beside `admin/faculty/[id].vue`, the URL
+ * `/admin/faculty/7` is under the base but belongs to `[id].vue` — so the
+ * client-side router must yield it to a real navigation, or a soft-nav shows
+ * the catch-all's rendering where a hard reload shows a different page.
+ *
+ * First-level granularity is exactly the server's precedence boundary: every
+ * more-specific route — an exact sibling file, a child index, a deeper
+ * catch-all — lives inside some sibling entry, so excluding the entry
+ * excludes the whole claim. A `[param]` sibling claims *every* single-segment
+ * path, which is what `claimedSingle` carries. `layout.vue` claims nothing (it
+ * is not routable), and the catch-all file itself is the page being served.
+ *
+ * Computed per page request, so files added or removed in dev are seen on the
+ * next load without cache ceremony.
+ */
+export function claimedBeside(catchAllFile: string): {
+  claimed: string[]
+  claimedSingle: boolean
+} {
+  const claimed = new Set<string>()
+  let claimedSingle = false
+
+  const dir = fs.resolve(catchAllFile).replace(/\/[^/]*$/, '')
+  const self = fs.resolve(catchAllFile).slice(dir.length + 1)
+
+  let entries: import('node:fs').Dirent[]
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch {
+    // Unreadable directory: no visible siblings means nothing extra claimed,
+    // and a hard load still routes correctly — the stamp is an optimisation
+    // of honesty, not the source of it.
+    return { claimed: [], claimedSingle: false }
+  }
+
+  for (const entry of entries) {
+    const name = entry.name
+    if (name === self || name === 'layout.vue') continue
+    if (name.startsWith('.')) continue
+
+    if (RX_CATCHALL.test(name) || RX_OPT_CATCHALL.test(name)) continue
+    if (RX_DYNAMIC.test(name)) {
+      claimedSingle = true
+      continue
+    }
+
+    claimed.add(name)
+    // `reports.vue` also claims `/base/reports` — the extensionless spelling
+    // is the one links actually use.
+    const stem = name.replace(/\.[^.]+$/, '')
+    if (stem && stem !== name) claimed.add(stem)
+  }
+
+  return { claimed: [...claimed], claimedSingle }
 }
 
 export class VueHandler extends DynamicHandler {
@@ -367,6 +431,29 @@ export class VueHandler extends DynamicHandler {
     })
   }
 
+  /**
+   * The layout's stylesheet link, or ''. Emitted ahead of the page's own link
+   * so a page can override its layout the way source order implies.
+   */
+  private static async layoutCssLink(parsed: ParsedCacheEntry) {
+    if (!parsed.layoutRoute) return ''
+
+    const layoutFile = fs.resolve(Bakery.serveRoot, `.${parsed.layoutRoute}`)
+    const layoutBun = Bun.file(layoutFile)
+    if (!fs.exists(layoutBun)) return ''
+
+    const layoutId = toHash(hostKey(parsed.layoutRoute.slice(1)))
+    const layoutParsed = await VueHandler.parseVueFile(
+      layoutId,
+      layoutBun,
+      layoutFile,
+      layoutBun.lastModified,
+    )
+    if (!layoutParsed.hasCss) return ''
+
+    return `<link rel="stylesheet" id="__vu_css_${layoutId}" href="${parsed.layoutRoute}?__vue_css=true">\n`
+  }
+
   static async handleHtml(
     id: string,
     params: any,
@@ -422,28 +509,8 @@ export class VueHandler extends DynamicHandler {
       )
     }
 
-    // The layout's stylesheet loads before the page's, so a page can override
-    // its layout the way source order normally implies.
-    let layoutCss = ''
-    if (parsed.layoutRoute) {
-      const layoutFile = fs.resolve(Bakery.serveRoot, `.${parsed.layoutRoute}`)
-      const layoutBun = Bun.file(layoutFile)
-      if (fs.exists(layoutBun)) {
-        const layoutId = toHash(hostKey(parsed.layoutRoute.slice(1)))
-        const layoutParsed = await VueHandler.parseVueFile(
-          layoutId,
-          layoutBun,
-          layoutFile,
-          layoutBun.lastModified,
-        )
-        if (layoutParsed.hasCss) {
-          layoutCss = `<link rel="stylesheet" id="__vu_css_${layoutId}" href="${parsed.layoutRoute}?__vue_css=true">\n`
-        }
-      }
-    }
-
     const prio =
-      layoutCss +
+      (await VueHandler.layoutCssLink(parsed)) +
       (hasCss
         ? `<link rel="stylesheet" id="__vu_css_${id}" href="${routePath}?__vue_css=true">\n`
         : '') +
@@ -667,6 +734,7 @@ async function sharedHandler(
       catchAll: Boolean(info.catchAll),
       base: routePath.slice(0, routePath.lastIndexOf('/')),
       param: info.params.length ? info.params[info.params.length - 1] : null,
+      ...claimedBeside(diskFile.name ?? ''),
     },
   )
 }

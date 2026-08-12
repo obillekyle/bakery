@@ -5,12 +5,16 @@ import { compileVueFile } from './compile'
 import { VueHandler } from './handler'
 
 /**
- * A multi-line inline handler must survive compilation.
+ * Template shapes that must either compile or fail *loudly*.
  *
- * `@click="saveDraft();\n  closePanel()"` is what any formatter produces once
- * the attribute passes the line width. Reported from an app: the compiled
- * module failed to parse with a stray `;)`, so reformatting a template broke
- * the build.
+ * Started as a chase for an app report — a multi-line `@click` allegedly
+ * emitting a stray `;)` — which never reproduced: every multi-line handler
+ * form here compiles, through `compileVueFile` directly and through
+ * `parseVueFile`'s `;`-appending preprocessor. What the chase found instead
+ * was the mechanism such reports come from: a template Vue cannot compile
+ * used to be *logged and served anyway*, broken JS behind a 200. These pin
+ * both halves — the shapes that work keep working, and the shapes Vue itself
+ * rejects surface as reported errors rather than served modules.
  */
 async function compiled(handler: string): Promise<string> {
   const sfc = [

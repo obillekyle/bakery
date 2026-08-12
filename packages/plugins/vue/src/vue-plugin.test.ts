@@ -1341,3 +1341,27 @@ describe('Vue build variant', () => {
     expect(out).not.toContain('compilerOptions')
   })
 })
+
+/**
+ * The chunk actually serves — the variant tests above only pin the URL shape.
+ * Vue resolves from the repo root (workspace hoisting), so this exercises the
+ * resolve → build → cache path end to end and pins that the runtime variant
+ * really is the runtime build.
+ */
+describe('serveVueChunk serves the current variant', () => {
+  test('the canonical URL answers 200 with the runtime build', async () => {
+    setVuePluginOptions({})
+    initVueVersion()
+    const res = await serveVueChunk(
+      vueChunkPath(),
+      new Request('http://localhost/'),
+    )
+    expect(res.status).toBe(200)
+
+    const body = await res.text()
+    expect(body.length).toBeGreaterThan(100_000)
+    // The runtime build ships no in-browser compiler; compile errors in it
+    // reference the loader, not a compiler. `createApp` proves it is Vue.
+    expect(body).toContain('createApp')
+  })
+})

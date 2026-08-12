@@ -178,8 +178,12 @@ describe('DynamicHandler.findDynamicRoute', () => {
 
     seed(info(LIVE))
     expect(await ScanHandler.canHandle('/other/1/2')).toBe(false)
-    // A literal `[id]` in the URL is never a route, cache or no cache.
+    // A literal route-template spelling in the URL is never a route, cache or
+    // no cache — all three forms, since the `!` keeps the optional spelling
+    // out of RX_CATCHALL's reach.
     expect(await ScanHandler.canHandle('/item/[id]')).toBe(false)
+    expect(await ScanHandler.canHandle('/docs/[...slug]')).toBe(false)
+    expect(await ScanHandler.canHandle('/docs/[...slug!]')).toBe(false)
   })
 })
 

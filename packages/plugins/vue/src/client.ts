@@ -30,6 +30,14 @@ type StampedRoute = {
   base: string
   /** The catch-all's param name (`slug` in `[...slug!]`). */
   param: string | null
+  /**
+   * First path segments the catch-all's *siblings* claim — `faculty` when
+   * `faculty/[id].vue` sits beside the catch-all. Those URLs belong to more
+   * specific routes, so they get real navigations, not soft ones.
+   */
+  claimed?: string[]
+  /** True when a `[param]` sibling claims every single-segment path. */
+  claimedSingle?: boolean
 }
 
 export type LayoutNavigation = {
@@ -87,7 +95,18 @@ export function defineLayout(): LayoutNavigation {
   }
 
   const base = route.base
+  const claimed = new Set(route.claimed ?? [])
+  const claimedSingle = Boolean(route.claimedSingle)
   const listeners = new Set<LayoutListener>()
+
+  // The catch-all owns only what nothing else claims. A sibling route under
+  // the base — `faculty/[id].vue` beside `[...slug].vue` — wins those URLs on
+  // the server, so a soft-nav there would render this page where a hard load
+  // renders that one.
+  function claimedElsewhere(next: string[]): boolean {
+    if (next.length === 1 && claimedSingle) return true
+    return next.length > 0 && claimed.has(next[0])
+  }
 
   const initial =
     typeof location !== 'undefined'
@@ -104,10 +123,6 @@ export function defineLayout(): LayoutNavigation {
     return allowed
   }
 
-  function apply(next: string[]) {
-    segments.value = next
-  }
-
   function go(to: string | string[], cause: 'click' | 'navigate'): void {
     const path = pathFor(base, to)
     if (!isUnderBase(base, path)) {
@@ -117,9 +132,15 @@ export function defineLayout(): LayoutNavigation {
       return
     }
     const next = segmentsUnder(base, path)
+    if (claimedElsewhere(next)) {
+      // Under the base, but a more specific route's territory — real
+      // navigation, same reasoning as leaving the base.
+      if (typeof location !== 'undefined') location.href = path
+      return
+    }
     if (!fire(next, cause)) return
     if (typeof history !== 'undefined') history.pushState(null, '', path)
-    apply(next)
+    segments.value = next
   }
 
   if (typeof document !== 'undefined') {
@@ -161,8 +182,12 @@ export function defineLayout(): LayoutNavigation {
         return
       }
       const next = segmentsUnder(base, path)
+      if (claimedElsewhere(next)) {
+        location.reload()
+        return
+      }
       fire(next, 'history') // observable, not cancellable — see `on`
-      apply(next)
+      segments.value = next
     })
   }
 

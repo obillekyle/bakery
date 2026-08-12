@@ -68,6 +68,8 @@ export function initHostImportMaps() {
   }
 }
 
+let installedCache: Promise<string[]> | null = null
+
 /**
  * Every installed package, top level and scoped, as `name` and `name/`.
  *
@@ -78,18 +80,10 @@ export function initHostImportMaps() {
  * than the missing entry: *"Failed to resolve module specifier 'pkg'. Relative
  * references must start with either "/", "./", or "../"."*
  *
- * Cheap enough to be worth the completeness: one `readdir` per scope and no
- * `package.json` reads. It scales with what is installed rather than with what
- * is imported — the trade — but only *directly imported* packages ever need an
- * entry, because anything deeper is resolved inside the bundle.
- */
-let installedCache: Promise<string[]> | null = null
-
-/**
- * Memoised per process. Both callers want the same answer — the import map at
- * boot, and the bundler on every `/_nm/` miss — and a `readdir` per scope per
- * bundle is pure waste. A dev restart is a new process, so an install still
- * shows up.
+ * Cheap — one `readdir` per scope, no `package.json` reads — and memoised per
+ * process besides: the import map reads it at boot, `bundleModule` on every
+ * bundle (as its `external` list), and a `readdir` sweep per bundle is pure
+ * waste. A dev restart is a new process, so an install still shows up.
  */
 export function installedPackages(): Promise<string[]> {
   installedCache ??= readInstalledPackages()
