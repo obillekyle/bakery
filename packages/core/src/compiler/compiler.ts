@@ -10,6 +10,7 @@ import {
 import type { MapOf } from '../types'
 import { is, Try, toHash } from '../utils/common'
 import { FileSystem as fs } from '../utils/fs'
+import { installedPackages } from '../utils/http/dom'
 
 const RX_IMPORT =
   /import\s+(?:(?:\*\s+as\s+)?([a-zA-Z_$\d\s{},/*]+?)\s+from\s+)?['"]([^'"]+?\.([a-zA-Z0-9]+))['"](?:\s+(?:with|assert)\s*\{[^}]+\})?\s*;?/gm
@@ -258,19 +259,30 @@ function isCjsDefaultOnly(content: string): boolean {
  *
  * Such a file names bindings that were never declared, so every one of them is
  * a `ReferenceError` the moment the browser evaluates it — and `Bun.build`
- * reports it as **`success: true` with zero diagnostics**. Measured on
- * `@vue-material/core@1.0.0-alpha.28`, whose barrel re-exports ~200 symbols
- * from `.vue.js` files: 3,549 bytes, no imports, no declarations, and
- * `AggregateError: 189 errors` on import. Individual files from the same
- * package bundle correctly, so this is specific to that re-export barrel.
+ * reports it as **`success: true` with zero diagnostics**.
  *
- * Treated as a failure rather than served, because the alternative is the
- * failure mode this module already fights elsewhere: a 200 carrying JavaScript
- * that breaks only in the browser, with nothing in the server log. The caller's
- * 404 plus `BUNDLE_EMPTY_EXPORTS` at least names the package.
+ * The cause is `sideEffects`, and it is not specific to one package. When the
+ * bundle *entry* is a file inside a package whose manifest declares
+ * `sideEffects: false` (or `[]`, or a list not covering that file), Bun's
+ * tree-shaker drops the entry's own imports while keeping its export list.
+ * Reduced to a two-file fixture:
  *
- * `export {}` on its own is a legal empty module and is not flagged — the list
- * has to name something for the file to be self-contradictory.
+ *     no `sideEffects` field   -> body 67 bytes
+ *     `sideEffects: false`     -> body 0
+ *     `sideEffects: []`        -> body 0
+ *     `sideEffects: ["./x.js"]`-> body 0
+ *     `sideEffects: true`      -> body 65 bytes
+ *
+ * `@vue-material/core@1.0.0-alpha.28` declares
+ * `["./dist/attach-styles.js", "./dist/assets/*.css.js"]`, so its barrel
+ * bundles to 3,549 bytes of pure export list and throws `AggregateError: 189
+ * errors` on import. Most modern libraries set `sideEffects: false`, so any
+ * re-export barrel among them is a candidate — this is a wide class, not a
+ * single broken package.
+ *
+ * `bundleReExportShim` repairs it; this only recognises it. `export {}` on its
+ * own is a legal empty module and is not flagged — the list has to name
+ * something for the file to be self-contradictory.
  */
 export function isEmptyExportList(content: string): boolean {
   const match = content.match(/export\s*\{([\s\S]*?)\}\s*;?\s*$/)
@@ -278,6 +290,79 @@ export function isEmptyExportList(content: string): boolean {
   if (!match[1].trim()) return false
 
   return !content.slice(0, match.index).trim()
+}
+
+/**
+ * Re-bundle a tree-shaken-to-nothing module through a shim outside the package.
+ *
+ * The `sideEffects` drop described on {@link isEmptyExportList} keys on the
+ * *entry* being inside the offending package. Re-exporting the very same file
+ * from a module that is not — the shim lands in `.cache/`, which is never
+ * inside `node_modules` — leaves the tree-shaker with an entry it has no
+ * manifest for, and the imports survive. Measured on `@vue-material/core`:
+ * 3,549 bytes of husk becomes a 428,470-byte bundle with all 189 exports.
+ *
+ * Two attempts, because `export *` deliberately does not carry `default`, and
+ * naming a `default` the package does not have is a hard build error rather
+ * than a no-op. So: try with it, fall back to without.
+ *
+ * **Every installed package is `external`, and that is load-bearing rather than
+ * an optimisation.** Left to itself the shim inlines the whole reachable tree —
+ * `@vue-material/core` came out at 428KB with `vue` baked in, and `vue` is a
+ * *peer* dependency the app resolves for itself. Two Vue runtimes in one page
+ * is not a size problem, it is broken reactivity and a duplicated component
+ * registry. Externalised, each dependency stays a bare specifier that the
+ * import map sends to its own `/_nm/<dep>`, so there is exactly one copy of
+ * each; the same bundle drops to 260KB.
+ *
+ * Externalising *installed packages* specifically, rather than Bun's
+ * `packages: 'external'`, because that switch also externalises `node:*` —
+ * turning a builtin Bun would otherwise polyfill for the browser into a bare
+ * import nothing can resolve.
+ */
+async function bundleReExportShim(
+  path: string,
+  defines: MapOf<string>,
+): Promise<string | null> {
+  const spec = JSON.stringify(path)
+  const shimPath = fs.resolve(
+    Bakery.cacheDir,
+    'nm_cache',
+    `${toHash(path)}.reexport.mjs`,
+  )
+  const external = await installedPackages()
+
+  for (const withDefault of [true, false]) {
+    const shim =
+      `export * from ${spec}\n` +
+      (withDefault ? `export { default } from ${spec}\n` : '')
+
+    const [writeErr] = await Try.catch(() => Bun.write(shimPath, shim))
+    if (writeErr) return null
+
+    // Wrapped, because naming a `default` the package does not export is a
+    // *throw* from `Bun.build`, not a `success: false` — and that throw is the
+    // expected outcome of the first attempt for any package without one.
+    const [buildErr, build] = await Try.catch(() =>
+      Bun.build({
+        entrypoints: [shimPath],
+        target: 'browser',
+        format: 'esm',
+        minify: Boolean(import.meta.env.PROD),
+        define: defines,
+        external,
+      }),
+    )
+
+    if (buildErr || !build?.success || !build.outputs.length) continue
+
+    const content = await build.outputs[0].text()
+    // The shim is only worth serving if it actually carries the code the
+    // original was missing; otherwise this is the same husk with extra steps.
+    if (!isEmptyExportList(content)) return content
+  }
+
+  return null
 }
 
 /** A key that can be written as `export const <name> =`. */
@@ -541,8 +626,15 @@ export async function bundleModule(
     const content = await build.outputs[0].text()
 
     // A bundle that cannot possibly work is not a success, whatever `build`
-    // says — see `isEmptyExportList`.
+    // says — see `isEmptyExportList`. Repairable in the common case, so try
+    // that before refusing.
     if (isEmptyExportList(content)) {
+      const repaired = await bundleReExportShim(path, await getDefines())
+      if (repaired) {
+        handlerLog.BUNDLE_SIDE_EFFECTS_REPAIRED({ file: path })
+        return { success: true, content: repaired }
+      }
+
       handlerLog.BUNDLE_EMPTY_EXPORTS({ file: path })
       return { success: false, errors: ['bundle body is empty'] }
     }

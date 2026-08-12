@@ -83,7 +83,20 @@ export function initHostImportMaps() {
  * is imported — the trade — but only *directly imported* packages ever need an
  * entry, because anything deeper is resolved inside the bundle.
  */
-async function installedPackages(): Promise<string[]> {
+let installedCache: Promise<string[]> | null = null
+
+/**
+ * Memoised per process. Both callers want the same answer — the import map at
+ * boot, and the bundler on every `/_nm/` miss — and a `readdir` per scope per
+ * bundle is pure waste. A dev restart is a new process, so an install still
+ * shows up.
+ */
+export function installedPackages(): Promise<string[]> {
+  installedCache ??= readInstalledPackages()
+  return installedCache
+}
+
+async function readInstalledPackages(): Promise<string[]> {
   const root = fs.resolve(fs.cwd, 'node_modules')
   const [err, entries] = await Try.catch(() => readdir(root))
   if (err || !entries) return []

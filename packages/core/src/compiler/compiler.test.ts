@@ -1,7 +1,12 @@
-import { describe, expect, test } from 'bun:test'
+import { afterAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
 import { fs } from '../utils/fs'
-import { compile, compileText, isEmptyExportList } from './compiler'
+import {
+  bundleModule,
+  compile,
+  compileText,
+  isEmptyExportList,
+} from './compiler'
 
 describe('compileText', () => {
   test('transforms TypeScript to JavaScript', async () => {
@@ -107,5 +112,69 @@ describe('isEmptyExportList', () => {
     expect(isEmptyExportList('export {};\n')).toBe(false)
     expect(isEmptyExportList('export {}')).toBe(false)
     expect(isEmptyExportList('')).toBe(false)
+  })
+})
+
+/**
+ * The repair for the `sideEffects` tree-shake described on `isEmptyExportList`.
+ *
+ * The fixture is a real package in a real `node_modules`, because the bug keys
+ * on the entry being *inside* a package whose manifest declares
+ * `sideEffects: false` — nothing reproduces it from a loose file. `sideEffects`
+ * is the only difference between the two packages below, which is what makes
+ * this a test of the mechanism rather than of one broken library.
+ */
+describe('bundleModule repairs a sideEffects tree-shake', () => {
+  const ROOT = fs.resolve(fs.cwd, '.cache', '__side-effects-test__')
+  const NM = `${ROOT}/node_modules`
+
+  async function writePackage(name: string, sideEffects?: boolean) {
+    const dir = `${NM}/${name}`
+    const manifest: Record<string, unknown> = {
+      name,
+      version: '1.0.0',
+      type: 'module',
+      main: './index.js',
+    }
+    if (sideEffects !== undefined) manifest.sideEffects = sideEffects
+
+    await Bun.write(`${dir}/package.json`, JSON.stringify(manifest))
+    await Bun.write(`${dir}/leaf.js`, 'export const shippingTotal = 42\n')
+    await Bun.write(
+      `${dir}/index.js`,
+      "export { shippingTotal } from './leaf.js'\n",
+    )
+    return `${dir}/index.js` as fs.AbsolutePath
+  }
+
+  afterAll(async () => {
+    await rm(ROOT, { recursive: true, force: true })
+  })
+
+  test('a sideEffects:false barrel is served with its code, not as a husk', async () => {
+    const entry = await writePackage('shaken-pkg', false)
+
+    // The premise: Bun really does produce the husk for this input. If it ever
+    // stops, this test must fail rather than quietly assert nothing.
+    const raw = await Bun.build({
+      entrypoints: [entry],
+      target: 'browser',
+      format: 'esm',
+    })
+    expect(raw.success).toBe(true)
+    expect(isEmptyExportList(await raw.outputs[0].text())).toBe(true)
+
+    const result = await bundleModule(entry)
+    expect(result.success).toBe(true)
+    expect(result.content).toContain('42')
+    expect(isEmptyExportList(result.content ?? '')).toBe(false)
+  })
+
+  test('the same package without the flag was never broken', async () => {
+    const entry = await writePackage('plain-pkg')
+
+    const result = await bundleModule(entry)
+    expect(result.success).toBe(true)
+    expect(result.content).toContain('42')
   })
 })
