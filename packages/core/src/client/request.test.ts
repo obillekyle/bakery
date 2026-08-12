@@ -83,3 +83,27 @@ describe('request() keeps the error envelope', () => {
     }
   })
 })
+
+describe('request() GET bodies become query strings', () => {
+  test('the body object lands in the URL, not in a GET payload', async () => {
+    let seenUrl = ''
+    globalThis.fetch = (async (url: any, init: any) => {
+      seenUrl = String(url)
+      expect(init.body).toBeUndefined()
+      return new Response(
+        JSON.stringify({ time: 1, status: 200, message: 'OK', data: [] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    }) as unknown as typeof fetch
+
+    await request('/api/parcels', 'GET', { courier: 'dhl', page: 2 })
+    expect(seenUrl).toContain('/api/parcels?')
+    expect(seenUrl).toContain('courier=dhl')
+    expect(seenUrl).toContain('page=2')
+
+    // A URL that already carries a query gets & rather than a second ?.
+    await request('/api/parcels?sort=eta', 'GET', { page: 3 })
+    expect(seenUrl).toContain('?sort=eta&')
+    expect(seenUrl).toContain('page=3')
+  })
+})

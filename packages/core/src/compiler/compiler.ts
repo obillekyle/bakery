@@ -157,52 +157,16 @@ export async function compileText(source: string, path?: fs.AbsolutePath) {
     return null
   }
 
-  const content = transformed!
-  const importRegex = /\b(from|import)(\s*\(?\s*)(["'])([^"']+)\3(\)?)/g
-  const matches = [...content.matchAll(importRegex)]
-
-  if (!matches.length) return content
-
-  const { dir } = fs.parse(path)
-  const serveRoot = Bakery.serveRoot
-  const importMap = Bakery.config.importMap
-  const mapKeys = Object.keys(importMap)
-
-  const replacements = await Promise.all(
-    matches.map(
-      async ([fullMatch, keyword, spacing, quote, importPath, closing]) => {
-        const hasExtension = (importPath.split('/').pop() || '').includes('.')
-        if (hasExtension) return fullMatch
-
-        const prefix = mapKeys.find(k => importPath.startsWith(k))
-
-        // A bare specifier is left exactly as written — the import map resolves
-        // it in the browser and covers every installed package (`initImportMap`).
-        //
-        // **Do not rewrite it to `/_nm/<pkg>` here.** This is a regular
-        // expression over transpiled JavaScript with no idea what is code and
-        // what is data, so it corrupts a string that merely reads like an import:
-        //
-        //     const docs = "run: import thing from 'some-package'"
-        //     -> const docs = "run: import thing from '/_nm/some-package'"
-        if (!prefix && !importPath.startsWith('.')) return fullMatch
-
-        const targetPath = prefix
-          ? fs.resolve(
-              serveRoot,
-              importMap[prefix],
-              importPath.slice(prefix.length),
-            )
-          : fs.resolve(dir, importPath)
-
-        const isDir = await fs.isDir(targetPath)
-
-        return `${keyword}${spacing}${quote}${importPath}${isDir ? '/index' : ''}${quote}${closing}`
-      },
-    ),
-  )
-  const result = content.replace(importRegex, () => replacements.shift()!)
-  return await PluginHooks.onCompile(result, path)
+  // **No import rewriting, of any kind.** Two generations of it lived here and
+  // both corrupted user data the same way: a regular expression over
+  // transpiled JavaScript cannot tell code from a string literal that merely
+  // looks like an import. The bare-specifier -> `/_nm/` rewrite went first
+  // (the import map covers every installed package); the `/index` append for
+  // relative directory imports went second, once `ts.test.ts` pinned that the
+  // handler already resolves `/lib`, `/lib.js` and their nested forms to the
+  // directory's index server-side. Resolution belongs to the import map and
+  // the handlers — the compiler only transpiles.
+  return await PluginHooks.onCompile(transformed!, path)
 }
 
 export async function compile(
@@ -241,8 +205,27 @@ type CompileResult = {
  * default export and no named one, *and* the bundle carries Bun's CJS wrapper.
  * An ESM package with only a default export is normal and says nothing.
  */
-function isCjsDefaultOnly(content: string): boolean {
-  if (!content.includes('__commonJS')) return false
+/**
+ * Bun's CJS wrapper, in a spelling minification cannot destroy.
+ *
+ * The obvious check — `content.includes('__commonJS')` — held in dev and
+ * silently never matched in PROD, where minification renames the helper to a
+ * single letter. The consequence was the worst kind of split: named imports
+ * of CJS packages worked all through development and broke only in the
+ * deployed app. What survives minification is the helper's *body*: it always
+ * constructs `{ exports: {} }`, spaces or not.
+ */
+const RX_CJS_WRAPPER = /\{\s*exports\s*:\s*\{\s*\}\s*\}/
+
+/**
+ * A `module.exports = { … }` assignment, whatever the module variable is
+ * called after minification (`n.exports={…}`). The helper's own
+ * `mod.exports);` never matches — no `= {` follows it.
+ */
+const RX_MODULE_EXPORTS = /[A-Za-z_$][\w$]*\.exports\s*=\s*\{/g
+
+export function isCjsDefaultOnly(content: string): boolean {
+  if (!RX_CJS_WRAPPER.test(content)) return false
 
   // `export {` covers the named-export block Bun emits; `export default` alone
   // is the shape that breaks a named import.
@@ -467,14 +450,22 @@ function objectLiteralKeys(src: string, open: number): string[] | null {
  * which is why a failed or empty reading falls through to the probe instead of
  * being trusted as "no exports".
  */
-function staticCjsExportNames(bundled: string): string[] {
-  const at = bundled.indexOf('module.exports = {')
-  if (at < 0) return []
-  // More than one assignment and the last one wins at runtime; rather than model
-  // that, decline and let the probe answer.
-  if (bundled.indexOf('module.exports = {', at + 1) >= 0) return []
+export function staticCjsExportNames(bundled: string): string[] {
+  // `RX_MODULE_EXPORTS`, not the literal `module.exports = {`: minification
+  // renames the module variable and drops the spaces (`n.exports={`), and the
+  // literal spelling made this reader dev-only — the probe silently took over
+  // every PROD bundle.
+  const matches = [...bundled.matchAll(RX_MODULE_EXPORTS)]
+  if (matches.length === 0) return []
+  // More than one assignment and the last one wins at runtime; rather than
+  // model that, decline and let the probe answer.
+  if (matches.length > 1) return []
 
-  const keys = objectLiteralKeys(bundled, bundled.indexOf('{', at))
+  const match = matches[0]
+  const keys = objectLiteralKeys(
+    bundled,
+    match.index + match[0].length - 1, // the `{` closing the match
+  )
   if (!keys) return []
 
   return [

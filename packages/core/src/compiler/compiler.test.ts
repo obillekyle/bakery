@@ -1,11 +1,14 @@
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
+import { initConfig } from '../core/config'
 import { fs } from '../utils/fs'
 import {
   bundleModule,
   compile,
   compileText,
+  isCjsDefaultOnly,
   isEmptyExportList,
+  staticCjsExportNames,
 } from './compiler'
 
 describe('compileText', () => {
@@ -176,5 +179,161 @@ describe('bundleModule repairs a sideEffects tree-shake', () => {
     const result = await bundleModule(entry)
     expect(result.success).toBe(true)
     expect(result.content).toContain('42')
+  })
+})
+
+/**
+ * `compileText` does not rewrite imports — at all. It used to append `/index`
+ * to a relative import whose target was a directory, which was a regular
+ * expression over transpiled JavaScript: the same class that once rewrote
+ * bare specifiers inside string literals, corrupting user data. Both halves
+ * of its removal are pinned — the handler resolves directory imports in every
+ * spelling (`ts.test.ts`), and the corruption case below fails against the
+ * old code, because `./lib` really is a directory next to the file.
+ */
+describe('compileText leaves imports exactly as written', () => {
+  // PluginHooks.onCompile reads the config.
+  beforeAll(() => initConfig())
+
+  const IMPORT_ROOT = fs.resolve(fs.cwd, '.cache', '__import-rewrite-test__')
+
+  test('a string literal that looks like an import is data, not code', async () => {
+    await Bun.write(`${IMPORT_ROOT}/lib/index.ts`, 'export const x = 1\n')
+    const path = `${IMPORT_ROOT}/page.ts` as fs.AbsolutePath
+
+    const source = [
+      "import { x } from './lib'",
+      `const docs = "usage: import { x } from './lib'"`,
+      'export default { x, docs }',
+    ].join('\n')
+
+    const result = await compileText(source, path)
+    expect(result).not.toBeNull()
+    // Neither the real import nor the lookalike inside the string moved.
+    expect(result).not.toContain('./lib/index')
+    expect(result).toContain(`from './lib'`)
+    await rm(IMPORT_ROOT, { recursive: true, force: true })
+  })
+})
+
+/**
+ * The CJS interop chain, in-repo. It was verified end to end against a
+ * scratch app when it was built, but nothing in the suite exercised it — the
+ * static lexer, the subprocess probe, and the interop shim were all at 0%
+ * coverage. These fixtures are the measured shapes from that session.
+ */
+describe('CJS interop', () => {
+  const CJS_ROOT = fs.resolve(fs.cwd, '.cache', '__cjs-interop-test__')
+  const NM = `${CJS_ROOT}/node_modules`
+
+  beforeAll(async () => {
+    await initConfig()
+    // The static shape: a whole-object assignment the lexer can read.
+    await Bun.write(
+      `${NM}/ledger-pkg/package.json`,
+      JSON.stringify({
+        name: 'ledger-pkg',
+        version: '1.0.0',
+        main: './index.js',
+      }),
+    )
+    await Bun.write(
+      `${NM}/ledger-pkg/index.js`,
+      [
+        'function openLedger() { return 12 }',
+        'function closeLedger() { return 0 }',
+        'module.exports = { openLedger, closeLedger }',
+        '',
+      ].join('\n'),
+    )
+    // The dynamic shape: keys built at runtime, invisible to any reader.
+    await Bun.write(
+      `${NM}/dyn-pkg/package.json`,
+      JSON.stringify({ name: 'dyn-pkg', version: '1.0.0', main: './index.js' }),
+    )
+    await Bun.write(
+      `${NM}/dyn-pkg/index.js`,
+      [
+        'const out = {}',
+        "for (const k of ['alpha', 'beta']) out[k] = () => k",
+        'module.exports = out',
+        '',
+      ].join('\n'),
+    )
+  })
+
+  afterAll(async () => {
+    await rm(CJS_ROOT, { recursive: true, force: true })
+  })
+
+  test('isCjsDefaultOnly recognises the broken shape and only it', async () => {
+    const cjs = await Bun.build({
+      entrypoints: [`${NM}/ledger-pkg/index.js`],
+      target: 'browser',
+      format: 'esm',
+    })
+    expect(isCjsDefaultOnly(await cjs.outputs[0].text())).toBe(true)
+
+    // Plain ESM with named exports is not the shape.
+    expect(isCjsDefaultOnly('export const x = 1\nexport { x }')).toBe(false)
+  })
+
+  test('the static lexer reads the object literal without executing', async () => {
+    const build = await Bun.build({
+      entrypoints: [`${NM}/ledger-pkg/index.js`],
+      target: 'browser',
+      format: 'esm',
+    })
+    const names = staticCjsExportNames(await build.outputs[0].text())
+    expect(names.sort()).toEqual(['closeLedger', 'openLedger'])
+  })
+
+  test('the lexer declines what it cannot read, instead of guessing', async () => {
+    const build = await Bun.build({
+      entrypoints: [`${NM}/dyn-pkg/index.js`],
+      target: 'browser',
+      format: 'esm',
+    })
+    // Keys built in a loop: no object literal to read.
+    expect(staticCjsExportNames(await build.outputs[0].text())).toEqual([])
+  })
+
+  test('bundleModule serves real named exports for the static shape', async () => {
+    const result = await bundleModule(
+      `${NM}/ledger-pkg/index.js` as fs.AbsolutePath,
+    )
+    expect(result.success).toBe(true)
+    expect(result.content).toContain('openLedger')
+    expect(result.content).toMatch(/export\s*(const|\{)[\s\S]*openLedger/)
+  })
+
+  /**
+   * The interop has to fire in PROD too — and it did not, for as long as the
+   * wrapper check was `content.includes('__commonJS')`: minification
+   * renames the helper, so named imports of CJS packages worked all through
+   * dev and broke only in the deployed app. Found by an ordering flake — a
+   * handlers test left PROD set and the static-shape test above met a
+   * minified bundle for the first time.
+   */
+  test('the interop fires under PROD minification too', async () => {
+    const { asProd } = await import('../tests/fixtures')
+
+    const result = await asProd(() =>
+      bundleModule(`${NM}/ledger-pkg/index.js` as fs.AbsolutePath),
+    )
+
+    expect(result.success).toBe(true)
+    // Minified or not, the module must offer the named binding.
+    expect(result.content).toContain('openLedger')
+    expect(result.content).toMatch(/export{|export {|export const/)
+  })
+
+  test('the dynamic shape falls back to the probe and still gets its names', async () => {
+    const result = await bundleModule(
+      `${NM}/dyn-pkg/index.js` as fs.AbsolutePath,
+    )
+    expect(result.success).toBe(true)
+    expect(result.content).toContain('alpha')
+    expect(result.content).toContain('beta')
   })
 })

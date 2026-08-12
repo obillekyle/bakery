@@ -85,3 +85,39 @@ describe('TSHandler.handle', () => {
     expect(await (res as Bun.BunFile).size).toBeGreaterThan(0)
   })
 })
+
+/**
+ * Directory imports resolve server-side, in every spelling the browser can
+ * produce — which is what made `compileText`'s `/index`-appending rewrite
+ * removable. That rewrite was a regex over transpiled JavaScript, the same
+ * class that once rewrote string literals that merely looked like imports;
+ * these pins are the load-bearing half of its removal.
+ */
+describe('directory imports resolve to their index', () => {
+  const DIRS = fs.resolve(ROOT, 'dirs')
+
+  class DirHandler extends TSHandler {
+    static get cacheDir() {
+      return fs.resolve(DIRS, '.cache')
+    }
+    static get config() {
+      return { ext: ['ts'], dir: DIRS }
+    }
+  }
+
+  beforeAll(async () => {
+    await Bun.write(`${DIRS}/lib/index.ts`, 'export const shelf = 7\n')
+    await Bun.write(`${DIRS}/deep/nested/index.ts`, 'export const bin = 9\n')
+  })
+
+  for (const path of ['/lib', '/lib.js', '/deep/nested', '/deep/nested.js']) {
+    test(`${path} serves the compiled index`, async () => {
+      const res = await DirHandler.handle(path)
+      const body =
+        res instanceof Response
+          ? await res.text()
+          : await (res as Bun.BunFile).text()
+      expect(body).toContain(path.includes('lib') ? 'shelf' : 'bin')
+    })
+  }
+})
