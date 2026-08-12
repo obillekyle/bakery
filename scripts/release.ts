@@ -40,6 +40,7 @@ const PACKAGES = [
   'packages/plugins/vue',
   'packages/plugins/analytics',
   'packages/plugins/dashboard',
+  'packages/plugins/db-explorer',
 ]
 
 const args = process.argv.slice(2)

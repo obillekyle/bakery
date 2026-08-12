@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { readdir } from 'node:fs/promises'
 
 /**
  * The conventions in CLAUDE.md, as a failing test.
@@ -475,6 +476,7 @@ describe('conventions (CLAUDE.md)', () => {
       'packages/plugins/vue',
       'packages/plugins/analytics',
       'packages/plugins/dashboard',
+      'packages/plugins/db-explorer',
     ]) {
       const json = await Bun.file(`${ROOT}/${dir}/package.json`).json()
       const entries = Object.keys(json.exports ?? {})
@@ -571,6 +573,7 @@ describe('release versions', () => {
     'packages/plugins/vue/package.json',
     'packages/plugins/analytics/package.json',
     'packages/plugins/dashboard/package.json',
+    'packages/plugins/db-explorer/package.json',
   ]
 
   test('every package is on one version', async () => {
@@ -586,6 +589,58 @@ describe('release versions', () => {
       versions: 1,
       seen,
     })
+  })
+
+  /**
+   * Every publishable package must appear in all three lists, and the lists
+   * must agree. `plugin-db-explorer` was added to some of them and not others:
+   * missing from `release.ts` it kept version 1.2.3 while the other seven went
+   * to 2.0.0-alpha.0, and missing from `MANIFESTS` the lockstep test above
+   * could not see the skew. Missing from `publish.yml` it simply never reached
+   * npm — the release "succeeded" and shipped seven of eight packages.
+   *
+   * Derived from the directories on disk rather than from a fourth hand-written
+   * list, so adding a ninth package fails here until it is registered
+   * everywhere.
+   */
+  test('every publishable package is in release.ts, publish.yml and MANIFESTS', async () => {
+    const dirs: string[] = []
+    for (const base of ['packages', 'packages/plugins']) {
+      for (const entry of await readdir(`${ROOT}/${base}`, {
+        withFileTypes: true,
+      })) {
+        if (!entry.isDirectory() || entry.name === 'plugins') continue
+        const manifest = `${base}/${entry.name}/package.json`
+        const file = Bun.file(`${ROOT}/${manifest}`)
+        if (!(await file.exists())) continue
+        // `private: true` would opt a package out of publishing; none do today,
+        // and this is what a future one would set.
+        if ((await file.json()).private === true) continue
+        dirs.push(`${base}/${entry.name}`)
+      }
+    }
+
+    const release = await Bun.file(`${ROOT}/scripts/release.ts`).text()
+    const publish = await Bun.file(
+      `${ROOT}/.github/workflows/publish.yml`,
+    ).text()
+
+    const missing = dirs.filter(dir => {
+      const inRelease = release.includes(`'${dir}'`)
+      // Matched on its own line rather than with a trailing `\`: the last
+      // entry of each shell loop has no continuation, which flagged
+      // `packages/create` when this was first written.
+      //
+      // It has to appear **twice** — publish.yml packs in one loop and
+      // publishes in another, and a package added to only the first is packed
+      // and never shipped.
+      const occurrences = publish.split(new RegExp(`^\\s*${dir}\\s*\\\\?$`, 'm'))
+      const inPublish = occurrences.length >= 3
+      const inManifests = MANIFESTS.includes(`${dir}/package.json`)
+      return !inRelease || !inPublish || !inManifests
+    })
+
+    expect(missing).toEqual([])
   })
 
   test('the client tsconfig has no bun-types', async () => {
