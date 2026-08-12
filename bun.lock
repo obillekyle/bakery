@@ -22,6 +22,7 @@
       },
       "devDependencies": {
         "@bakery-framework/plugin-dashboard": "workspace:*",
+        "@bakery-framework/plugin-db-explorer": "workspace:*",
         "vue": "^3.5.38",
       },
     },
@@ -36,7 +37,7 @@
     },
     "packages/cli": {
       "name": "@bakery-framework/cli",
-      "version": "1.0.0",
+      "version": "1.2.3",
       "bin": {
         "bakery": "./src/index.ts",
       },
@@ -52,32 +53,40 @@
     },
     "packages/core": {
       "name": "@bakery-framework/core",
-      "version": "1.0.0",
+      "version": "1.2.3",
     },
     "packages/create": {
       "name": "create-bakery",
-      "version": "1.0.0",
+      "version": "1.2.3",
       "bin": {
         "create-bakery": "./src/index.ts",
       },
     },
     "packages/orm": {
       "name": "@bakery-framework/orm",
-      "version": "1.0.0",
+      "version": "1.2.3",
       "dependencies": {
         "@bakery-framework/core": "workspace:^",
       },
     },
     "packages/plugins/analytics": {
       "name": "@bakery-framework/plugin-analytics",
-      "version": "1.0.0",
+      "version": "1.2.3",
       "dependencies": {
         "@bakery-framework/core": "workspace:^",
       },
     },
     "packages/plugins/dashboard": {
       "name": "@bakery-framework/plugin-dashboard",
-      "version": "1.0.0",
+      "version": "1.2.3",
+      "dependencies": {
+        "@bakery-framework/core": "workspace:^",
+        "@bakery-framework/orm": "workspace:^",
+      },
+    },
+    "packages/plugins/db-explorer": {
+      "name": "@bakery-framework/plugin-db-explorer",
+      "version": "1.2.3",
       "dependencies": {
         "@bakery-framework/core": "workspace:^",
         "@bakery-framework/orm": "workspace:^",
@@ -85,7 +94,7 @@
     },
     "packages/plugins/vue": {
       "name": "@bakery-framework/plugin-vue",
-      "version": "1.0.0",
+      "version": "1.2.3",
       "dependencies": {
         "@bakery-framework/core": "workspace:^",
       },
@@ -119,6 +128,8 @@
     "@bakery-framework/plugin-analytics": ["@bakery-framework/plugin-analytics@workspace:packages/plugins/analytics"],
 
     "@bakery-framework/plugin-dashboard": ["@bakery-framework/plugin-dashboard@workspace:packages/plugins/dashboard"],
+
+    "@bakery-framework/plugin-db-explorer": ["@bakery-framework/plugin-db-explorer@workspace:packages/plugins/db-explorer"],
 
     "@bakery-framework/plugin-vue": ["@bakery-framework/plugin-vue@workspace:packages/plugins/vue"],
 

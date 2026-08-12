@@ -24,6 +24,9 @@
       "path": "./packages/plugins/dashboard"
     },
     {
+      "path": "./packages/plugins/db-explorer"
+    },
+    {
       "path": "./apps/example"
     }
   ],

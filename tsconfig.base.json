@@ -34,6 +34,9 @@
       ],
       "@bakery-framework/plugin-dashboard": [
         "./packages/plugins/dashboard/src/index.ts"
+      ],
+      "@bakery-framework/plugin-db-explorer": [
+        "./packages/plugins/db-explorer/src/index.ts"
       ]
     }
   }

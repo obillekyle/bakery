@@ -27,8 +27,8 @@
     "typecheck:core": "bunx tsc -p packages/core/tsconfig.json --noEmit",
     "typecheck:orm": "bunx tsc -p packages/orm/tsconfig.json --noEmit",
     "typecheck:cli": "bunx tsc -p packages/cli/tsconfig.json --noEmit",
-    "typecheck:plugins": "bunx tsc -p packages/plugins/vue/tsconfig.json --noEmit && bunx tsc -p packages/plugins/analytics/tsconfig.json --noEmit && bunx tsc -p packages/plugins/dashboard/tsconfig.json --noEmit",
-    "typecheck:app": "bunx tsc -p apps/example/tsconfig.json --noEmit && bunx tsc -p apps/starter/tsconfig.json --noEmit",
+    "typecheck:plugins": "bunx tsc -p packages/plugins/vue/tsconfig.json --noEmit && bunx tsc -p packages/plugins/analytics/tsconfig.json --noEmit && bunx tsc -p packages/plugins/dashboard/tsconfig.json --noEmit && bunx tsc -p packages/plugins/db-explorer/tsconfig.json --noEmit",
+    "typecheck:app": "bunx tsc -p apps/example/tsconfig.typecheck.json --noEmit && bunx tsc -p apps/starter/tsconfig.json --noEmit",
     "typecheck:create": "bunx tsc -p packages/create/tsconfig.json --noEmit",
     "typecheck:scripts": "bunx tsc -p scripts/tsconfig.json --noEmit"
   },

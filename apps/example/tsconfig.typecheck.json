@@ -1,0 +1,4 @@
+{
+  "$comment": "The CLI gate. Inherits everything from tsconfig.json EXCEPT references — extends never carries those — because the dev boot writes references to generated editor-support projects whose includes overlap this project, and tsc -p then demands their declaration outputs (TS6305). Editor DX keeps the references; the gate checks sources. The generator overlap is tracked in MONOREPO.md.",
+  "extends": "./tsconfig.json"
+}
