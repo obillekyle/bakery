@@ -36,6 +36,8 @@ gates, bumps all seven, and rolls the `Unreleased` section into the new heading.
 
 ## [Unreleased]
 
+## [2.0.0-alpha.1] — 2026-08-12
+
 ## [2.0.0-alpha.0] — 2026-08-12
 
 ## [1.2.3] — 2026-08-11
