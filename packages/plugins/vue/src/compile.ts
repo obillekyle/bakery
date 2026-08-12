@@ -137,11 +137,17 @@ export async function compileTemplateBlock(
           if (node.type !== 5) return
           const content = node.content
 
-          // Simple expression: `{{ value }}`
+          // Simple expression: `{{ value }}`. The wrap is string surgery, so
+          // the closing paren goes on its own line: the raw expression is
+          // whatever the author wrote, and `{{ total // pesos }}` would
+          // otherwise swallow the `)` into the comment and emit a render
+          // function that does not parse. The newline survives into the
+          // generated code, where the transpiler strips the comment before
+          // any whitespace collapsing.
           if (content.type === 4) {
             const rawContent = content.content.trim()
             if (rawContent && !rawContent.startsWith('_ctx.$fmt(')) {
-              content.content = `_ctx.$fmt(${rawContent})`
+              content.content = `_ctx.$fmt(${rawContent}\n)`
             }
             return
           }
@@ -149,8 +155,9 @@ export async function compileTemplateBlock(
           // Compound expression: `{{ a + b }}`, `{{ cond ? x : y }}`. These are
           // rewritten into child arrays by the built-in transformExpression, so
           // they need wrapping at the children level rather than as a string.
+          // Same newline, same reason: the last child is still author text.
           if (content.type === 8 && !content.__fmtWrapped) {
-            content.children = ['_ctx.$fmt(', ...content.children, ')']
+            content.children = ['_ctx.$fmt(', ...content.children, '\n)']
             content.__fmtWrapped = true
           }
         },
