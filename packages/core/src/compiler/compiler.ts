@@ -253,6 +253,33 @@ function isCjsDefaultOnly(content: string): boolean {
   )
 }
 
+/**
+ * A bundle consisting of nothing but a non-empty `export { … }` list.
+ *
+ * Such a file names bindings that were never declared, so every one of them is
+ * a `ReferenceError` the moment the browser evaluates it — and `Bun.build`
+ * reports it as **`success: true` with zero diagnostics**. Measured on
+ * `@vue-material/core@1.0.0-alpha.28`, whose barrel re-exports ~200 symbols
+ * from `.vue.js` files: 3,549 bytes, no imports, no declarations, and
+ * `AggregateError: 189 errors` on import. Individual files from the same
+ * package bundle correctly, so this is specific to that re-export barrel.
+ *
+ * Treated as a failure rather than served, because the alternative is the
+ * failure mode this module already fights elsewhere: a 200 carrying JavaScript
+ * that breaks only in the browser, with nothing in the server log. The caller's
+ * 404 plus `BUNDLE_EMPTY_EXPORTS` at least names the package.
+ *
+ * `export {}` on its own is a legal empty module and is not flagged — the list
+ * has to name something for the file to be self-contradictory.
+ */
+export function isEmptyExportList(content: string): boolean {
+  const match = content.match(/export\s*\{([\s\S]*?)\}\s*;?\s*$/)
+  if (!match) return false
+  if (!match[1].trim()) return false
+
+  return !content.slice(0, match.index).trim()
+}
+
 /** A key that can be written as `export const <name> =`. */
 const RE_IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 const RESERVED_EXPORT_NAMES = new Set(['default', '__esModule'])
@@ -512,6 +539,13 @@ export async function bundleModule(
 
   if (build.success && build.outputs.length > 0) {
     const content = await build.outputs[0].text()
+
+    // A bundle that cannot possibly work is not a success, whatever `build`
+    // says — see `isEmptyExportList`.
+    if (isEmptyExportList(content)) {
+      handlerLog.BUNDLE_EMPTY_EXPORTS({ file: path })
+      return { success: false, errors: ['bundle body is empty'] }
+    }
 
     // Only for the shape that breaks, and only after the cheap build has proved
     // it is that shape — so nothing is imported speculatively.

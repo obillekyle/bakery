@@ -30,6 +30,40 @@ export type HostContext = {
 export const hostStore = new AsyncLocalStorage<HostContext>()
 
 /**
+ * The two runtime directories, defined here rather than on `Bakery`.
+ *
+ * `Bakery.cacheDir` / `Bakery.dataDir` remain the way application and framework
+ * code reads them — these are the single definition those two forward to, and
+ * still the only writer of either path. They live in this module because it is
+ * low enough to be imported without pulling in `core/config`, and therefore
+ * without pulling in the logger: `compiler/prompt-tracker.ts` needs the cache
+ * directory and reaching it through `Bakery` closed a module cycle that made
+ * the whole package unimportable. See the note on `prompt-tracker.ts`.
+ *
+ * **Functions, not constants, and that is not a style choice.** `utils/fs.ts`
+ * imports this module for `hostStore`, so the two are themselves a cycle: a
+ * top-level `` `${fs.cwd}/.cache` `` here is evaluated with `fs` still
+ * uninitialised whenever `core/context` is reached first, and throws
+ * `TypeError: undefined is not an object`. Reading `fs.cwd` at call time is
+ * what makes the order irrelevant.
+ *
+ * The disposable directory is the hidden one, and the precious one is not. This
+ * is the reverse of the old `.bakery/cache` + `.data` pairing, and the reversal
+ * is the whole point: `.cache` is wiped by the framework itself on every version
+ * bump and dev<->prod switch, so a `rm -rf .*` or a "clean out the dotfiles"
+ * sweep does exactly what the framework already does. The database is not
+ * disposable, so it does not live behind a leading dot where such a sweep can
+ * reach it, and never under `.cache` — clearing a cache must not destroy data.
+ */
+export function cacheDir(): string {
+  return `${fs.cwd}/.cache`
+}
+
+export function dataDir(): string {
+  return `${fs.cwd}/bakery`
+}
+
+/**
  * `matchBlocked`, deduplicated within the current request.
  *
  * Outside a request store (tests, direct handler calls) this is exactly

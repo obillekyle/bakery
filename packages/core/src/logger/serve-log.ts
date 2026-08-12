@@ -103,6 +103,8 @@ const handlerMsgs = {
   // `messageLogger` extracts no `{placeholder}`, and every call site fails with
   // "Expected 0 arguments, but got 1". Wrapping the value onto its own line, as
   // below, is fine; joining with `+` is not.
+  BUNDLE_EMPTY_EXPORTS:
+    'E %y{file}%* bundled to an export list with no code behind it — every name it exports is undefined, so it is rejected rather than served. The bundler reported success; this is usually a re-export barrel it could not follow. Import the specific module you need instead of the package root.',
   BUNDLE_CJS_INTEROP:
     'I Generated named exports for the CommonJS package %y{file}%*, so a named import of it works in the browser.',
   BUNDLE_CJS_PROBED:

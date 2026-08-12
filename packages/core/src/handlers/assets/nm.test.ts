@@ -41,6 +41,23 @@ describe('NMHandler — containment and .forbidden', () => {
     // Reachable only by escaping node_modules.
     await Bun.write(join(dir, 'outside.js'), 'export const outside = 5\n')
 
+    // A package whose public subpath does not match its physical layout, which
+    // is the only way to tell "resolved through the exports map" apart from
+    // "found a directory of that name".
+    await Bun.write(
+      nm('mapped-pkg/package.json'),
+      JSON.stringify({
+        name: 'mapped-pkg',
+        version: '1.0.0',
+        exports: { '.': './dist/main.js', './utils': './dist/utils/index.js' },
+      }),
+    )
+    await Bun.write(nm('mapped-pkg/dist/main.js'), 'export const main = 6\n')
+    await Bun.write(
+      nm('mapped-pkg/dist/utils/index.js'),
+      'export const mapped = 7\n',
+    )
+
     // Plain data properties on the service locator (`readonly` in the ambient
     // type only), so this is a swap-and-restore rather than a module mock —
     // convention 9.
@@ -80,6 +97,40 @@ describe('NMHandler — containment and .forbidden', () => {
     expect(await (res as Bun.BunFile).text()).toContain('sub')
     // Pinning the divergence itself, so this stops being a claim in a comment.
     expect(await getStatic('/ok-pkg/sub', join(dir, 'node_modules'))).toBeNull()
+  })
+
+  /**
+   * The subpath a package *documents* has to work, and only the `exports` map
+   * says what that is. `mapped-pkg/utils` lives at `dist/utils/index.js`, so
+   * treating `/_nm/mapped-pkg/utils` as a filesystem path looks for a `utils`
+   * directory that does not exist and 500s — which is what
+   * `@vue-material/core/utils` did.
+   */
+  test('a subpath resolves through the package exports map', async () => {
+    const res = await NMHandler.handle('/_nm/mapped-pkg/utils')
+    expect(res).toBeTruthy()
+    expect(await (res as Bun.BunFile).text()).toContain('mapped')
+
+    // There is genuinely no such directory — so this passing means the map was
+    // consulted, not that the path happened to exist.
+    expect(await Bun.file(nm('mapped-pkg/utils')).exists()).toBe(false)
+  })
+
+  test('the package root resolves through the exports map too', async () => {
+    const res = await NMHandler.handle('/_nm/mapped-pkg')
+    expect(res).toBeTruthy()
+    expect(await (res as Bun.BunFile).text()).toContain('main')
+  })
+
+  /**
+   * The fallback. A package with no `exports` map is importable by physical
+   * path, and `Bun.resolveSync` throws rather than answering for those — so
+   * losing the literal path would break every pre-`exports` package.
+   */
+  test('a package without an exports map still serves by physical path', async () => {
+    const res = await NMHandler.handle('/_nm/ok-pkg/sub/index.js')
+    expect(res).toBeTruthy()
+    expect(await (res as Bun.BunFile).text()).toContain('sub')
   })
 
   test('a .forbidden marker beside the file refuses it', async () => {

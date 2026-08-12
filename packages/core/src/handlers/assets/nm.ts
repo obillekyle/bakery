@@ -21,13 +21,15 @@ export class NMHandler extends Handler {
    * comment names now go through it. This one cannot, and the reason is not
    * the root (it takes a `roots` argument) — it is that `getStatic` answers
    * "is there a plain file literally at this path", and `/_nm/` deliberately
-   * asks a different question. The entry here goes to `Bun.build`, which does
-   * Node resolution: `/_nm/pkg/sub` resolves to `pkg/sub/index.js`, and that is
-   * precisely what the import map's `"<pkg>/": "/_nm/<pkg>/"` prefix entry
-   * (`utils/http/dom.ts`) produces for an extensionless subpath import.
-   * `getStatic` returns `null` for that path — it is a directory — so routing
-   * through it would turn every extensionless subpath import into a 204.
-   * `nm.test.ts` pins both halves of that divergence.
+   * asks a different question: what would an importer of this specifier get?
+   * `resolveEntry` answers it, applying the package's `exports` map, and
+   * `Bun.build` then does directory-index resolution on whatever survives — so
+   * `/_nm/pkg/sub` reaches `pkg/sub/index.js`, which is precisely what the
+   * import map's `"<pkg>/": "/_nm/<pkg>/"` prefix entry (`utils/http/dom.ts`)
+   * produces for an extensionless subpath import. `getStatic` returns `null`
+   * for that path — it is a directory — so routing through it would turn every
+   * extensionless subpath import into a 204. `nm.test.ts` pins both halves of
+   * that divergence.
    *
    * What *was* missing is the second half of the pair. Containment was spelled
    * out here and was correct, but `.forbidden` was never checked, so `/_nm/*`
@@ -40,10 +42,44 @@ export class NMHandler extends Handler {
    * source tree, so a marker dropped on an already-served package would
    * otherwise be invisible until the cache was cleared.
    */
+  /**
+   * The file a `/_nm/` path names, resolved the way an importer would.
+   *
+   * **The package's `exports` map has to be applied, and only `Bun.resolveSync`
+   * applies it.** Treating `/_nm/<pkg>/<sub>` as a filesystem path works only
+   * when the package's public subpaths match its physical layout. They often do
+   * not: `@vue-material/core` maps `"./utils"` to `./dist/utils/index.js`, so
+   * `import '@vue-material/core/utils'` — the spelling the package documents —
+   * looked for a `utils` directory that does not exist and 500'd.
+   *
+   * The literal path stays as the fallback, and it is not a formality. A
+   * package with no `exports` map at all is legitimately importable by physical
+   * path, and `resolveSync` **throws** for a path the map does not expose
+   * rather than returning something usable. So: ask the resolver first, believe
+   * it when it answers, and fall back to the path as written when it does not.
+   */
+  private static resolveEntry(nmPath: string, nmRoot: string): string {
+    const literal = fs.resolve(Bakery.root, nmPath)
+    const specifier = nmPath.replace(/^node_modules\//, '')
+
+    try {
+      const resolved = fs.resolve(Bun.resolveSync(specifier, Bakery.root))
+      // A resolver answer still has to be inside `node_modules`: an `exports`
+      // map and a `browser` field can both point outside the package, and this
+      // path is reachable from a URL.
+      if (resolved.startsWith(`${nmRoot}/`)) return resolved
+    } catch {
+      // Not exposed by the map, or no map to consult. The literal path is the
+      // answer for every package that predates `exports`.
+    }
+
+    return literal
+  }
+
   static async handle(path: string) {
     const nmPath = path.replace(/^\/_nm\//, 'node_modules/')
     const nmRoot = fs.resolve(Bakery.root, 'node_modules')
-    const nodeModulesPath = fs.resolve(Bakery.root, nmPath)
+    const nodeModulesPath = this.resolveEntry(nmPath, nmRoot)
 
     // Strictly below the root, so `node_modules` itself is not an entry point.
     // `getStatic` admits `file === root` and then rejects it as a directory;

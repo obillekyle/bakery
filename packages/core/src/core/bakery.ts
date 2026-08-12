@@ -2,7 +2,7 @@ import { HandlerMap } from '../handlers/core/$registry'
 import { fs } from '../utils/fs'
 import { SharedMemoryPool } from '../utils/shared-pool'
 import { getConfig, resolveHostname } from './config'
-import { getAppVersion, hostStore } from './context'
+import { cacheDir, dataDir, getAppVersion, hostStore } from './context'
 
 export type { HostContext } from './context'
 export { hostStore } from './context'
@@ -70,17 +70,16 @@ export const Bakery: globalThis.Bakery = {
     return getAppVersion()
   },
   sharedPool: new SharedMemoryPool(1024 * 1024),
-  // The disposable directory is the hidden one, and the precious one is not.
-  // This is the reverse of the old `.bakery/cache` + `.data` pairing, and the
-  // reversal is the whole point: `.cache` is wiped by the framework itself on
-  // every version bump and dev<->prod switch, so a `rm -rf .*` or a "clean out
-  // the dotfiles" sweep does exactly what the framework already does. The
-  // database is not disposable, so it does not live behind a leading dot where
-  // such a sweep can reach it.
-  cacheDir: `${fs.cwd}/.cache`,
-  // Holds the database and its backups. Visible, and deliberately not under
-  // `.cache`: clearing a cache must never be able to destroy data.
-  dataDir: `${fs.cwd}/bakery`,
+  // Defined in `core/context.ts`, which is low enough that a module needing a
+  // path does not have to import `Bakery` to get one — reaching them through
+  // here is what closed the logger cycle. These stay the reading surface for
+  // application and framework code; context is the single definition.
+  //
+  // Called here rather than forwarded through a getter, so these remain plain
+  // writable properties: `nm.test.ts` repoints them at a fixture tree, which a
+  // getter turns into `TypeError: Attempted to assign to readonly property`.
+  cacheDir: cacheDir(),
+  dataDir: dataDir(),
   startNs: Bun.nanoseconds(),
   handlers: {
     fetch: new HandlerMap(),

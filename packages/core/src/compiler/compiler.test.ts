@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
 import { fs } from '../utils/fs'
-import { compile, compileText } from './compiler'
+import { compile, compileText, isEmptyExportList } from './compiler'
 
 describe('compileText', () => {
   test('transforms TypeScript to JavaScript', async () => {
@@ -66,5 +66,46 @@ describe('compileText — a failure with a path in hand', () => {
     } finally {
       await rm(BROKEN_ROOT, { recursive: true, force: true })
     }
+  })
+})
+
+/**
+ * A bundle that is nothing but an export list names bindings that were never
+ * declared, so every one of them is a `ReferenceError` the moment the browser
+ * evaluates it — and `Bun.build` reports it as `success: true` with zero
+ * diagnostics.
+ *
+ * Found on `@vue-material/core@1.0.0-alpha.28`, whose barrel re-exports ~200
+ * symbols from `.vue.js` files and bundles to 3,549 bytes of pure export list;
+ * importing it throws `AggregateError: 189 errors`. The strings below are that
+ * shape. Serving it is the failure this module fights everywhere else: a 200
+ * carrying JavaScript that breaks only in the browser, with an empty server log.
+ */
+describe('isEmptyExportList', () => {
+  test('flags an export list with nothing behind it', () => {
+    expect(
+      isEmptyExportList('export {\n  toKebabCase,\n  useTheme\n};\n'),
+    ).toBe(true)
+    // The real shape uses `local as exported` for default re-exports.
+    expect(isEmptyExportList('export {\n  default6 as Card,\n  $\n};\n')).toBe(
+      true,
+    )
+  })
+
+  test('leaves a bundle that has real code alone', () => {
+    expect(
+      isEmptyExportList('var total = 1 + 1;\nexport {\n  total\n};\n'),
+    ).toBe(false)
+    expect(isEmptyExportList('export default 42\n')).toBe(false)
+    expect(isEmptyExportList('import x from "y";\nexport {\n  x\n};\n')).toBe(
+      false,
+    )
+  })
+
+  test('an empty module is legal and is not flagged', () => {
+    // `export {}` declares nothing, so there is no undefined binding to hit.
+    expect(isEmptyExportList('export {};\n')).toBe(false)
+    expect(isEmptyExportList('export {}')).toBe(false)
+    expect(isEmptyExportList('')).toBe(false)
   })
 })
