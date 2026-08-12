@@ -6,7 +6,6 @@ import {
   DynamicErrorHandler,
   DynamicHandler,
 } from '@bakery-framework/core/handlers'
-import { Logger } from '@bakery-framework/core/logger'
 import {
   fs,
   JsonResponseData,
@@ -14,8 +13,6 @@ import {
   toHash,
 } from '@bakery-framework/core/utils'
 import { ETag, injectIfHtml } from '@bakery-framework/core/utils/http'
-
-const logger = new Logger('vue')
 
 import {
   resolveActionTarget,
@@ -30,7 +27,7 @@ import {
   vueBuildVariant,
 } from './compile'
 import { VUE_HTML_SHELL } from './shell'
-import type { ParsedCacheEntry } from './types'
+import type { ParsedCacheEntry, VueMeta } from './types'
 import {
   cacheDir,
   collectExportedFunctionNames,
@@ -39,6 +36,7 @@ import {
   extractServerScripts,
   getServerResponse,
   parsedCache,
+  parseSkeleton,
   parseVueMeta,
   RX_EXPORT_BRACE,
   RX_EXPORT_HANGING,
@@ -80,6 +78,36 @@ function buildActionStub(fn: string, relPath: string) {
   )
 }
 
+/**
+ * Route path of the nearest `layout.vue`, walking from the page **file** up
+ * to the serve root — the file, not the URL, so a catch-all page
+ * (`admin/[...slug!].vue`) is wrapped by `admin/layout.vue` no matter how
+ * deep the request path goes. Null when nothing is found, when the page
+ * opted out with `<meta no-layout />`, or when the page *is* a layout —
+ * layouts do not nest in v1, deliberately: nesting needs an ordering story
+ * (which slot, whose styles win) that should be designed, not implied.
+ */
+function findLayoutRoute(filePath: string, meta: VueMeta): string | null {
+  if (!meta.layout) return null
+
+  const root = fs.resolve(Bakery.serveRoot)
+  const file = fs.resolve(filePath)
+  if (!file.startsWith(`${root}/`)) return null
+  if (file.endsWith('/layout.vue')) return null
+
+  let dir = file.slice(0, file.lastIndexOf('/'))
+  while (dir === root || dir.startsWith(`${root}/`)) {
+    const candidate = `${dir}/layout.vue`
+    if (fs.isFileSync(candidate)) {
+      return `/${fs.relative(root, candidate)}`
+    }
+    if (dir === root) break
+    dir = dir.slice(0, dir.lastIndexOf('/'))
+  }
+
+  return null
+}
+
 export class VueHandler extends DynamicHandler {
   static get config() {
     return {
@@ -113,8 +141,9 @@ export class VueHandler extends DynamicHandler {
 
     const rawText = await diskFile.text()
     const { meta, clean: metaCleaned } = parseVueMeta(rawText)
+    const { skeleton, clean: withoutSkeleton } = parseSkeleton(metaCleaned)
     const { script: serverScript, clean: withoutServer } =
-      extractServerScripts(metaCleaned)
+      extractServerScripts(withoutSkeleton)
     let cleanContent = withoutServer
 
     if (serverScript.trim()) {
@@ -187,6 +216,8 @@ export class VueHandler extends DynamicHandler {
       styles: descriptor.styles,
       hasCss: descriptor.styles.length > 0,
       meta,
+      skeleton,
+      layoutRoute: findLayoutRoute(filePath, meta),
     }
     parsedCache.set(id, parsed)
     return parsed
@@ -205,10 +236,18 @@ export class VueHandler extends DynamicHandler {
       filename: routePath,
       id: scopeId || id,
       isRootScript,
+      layoutRoute: isRootScript ? parsed.layoutRoute : null,
     })
 
     if (compiled.errors.length) {
-      logger.log(`Compile errors: ${compiled.errors.join(', ')}`, 'error')
+      // Thrown, not logged-and-served: a template Vue could not compile has
+      // the raw unparseable expression in its render function, so serving it
+      // is a browser-side SyntaxError behind a 200 and an empty page — the
+      // report that surfaced this described exactly that. The throw lands in
+      // the error registry as a 500 that names the file and the error.
+      throw new Error(
+        `Vue compile failed (${routePath}): ${compiled.errors.join('; ')}`,
+      )
     }
 
     let code = compiled.code
@@ -257,8 +296,14 @@ export class VueHandler extends DynamicHandler {
       // — measured serving a root compiled under 'runtime' after the flip to
       // 'full', missing the isCustomElement bridge the full build exists for.
       // Only roots: the variant changes nothing in a subcomponent's output.
+      // The layout joins the name for the same reason the variant does: the
+      // cache is keyed on the page's mtime, and creating, deleting or moving
+      // a layout.vue touches no page file.
+      const layoutTag = parsed.layoutRoute
+        ? `.${toHash(parsed.layoutRoute)}`
+        : ''
       const fileName = isRootScript
-        ? `${id}.root.${vueBuildVariant()}.js`
+        ? `${id}.root.${vueBuildVariant()}${layoutTag}.js`
         : `${id}.js`
       const replacement =
         isRootScript && hasServerScript
@@ -335,6 +380,16 @@ export class VueHandler extends DynamicHandler {
       () => serverDecl,
     )
 
+    // Static markup, injected verbatim — see parseSkeleton for why it is
+    // never rendered. mount() replaces the container children, so it
+    // disappears the moment the real component is up.
+    if (parsed.skeleton) {
+      hydrated = hydrated.replace(
+        '<div id="app"></div>',
+        () => `<div id="app">${parsed.skeleton}</div>`,
+      )
+    }
+
     if (parsed.meta.title) {
       const title = escapeHtml(parsed.meta.title)
       hydrated = hydrated.replace(
@@ -343,7 +398,28 @@ export class VueHandler extends DynamicHandler {
       )
     }
 
+    // The layout's stylesheet loads before the page's, so a page can override
+    // its layout the way source order normally implies.
+    let layoutCss = ''
+    if (parsed.layoutRoute) {
+      const layoutFile = fs.resolve(Bakery.serveRoot, `.${parsed.layoutRoute}`)
+      const layoutBun = Bun.file(layoutFile)
+      if (fs.exists(layoutBun)) {
+        const layoutId = toHash(hostKey(parsed.layoutRoute.slice(1)))
+        const layoutParsed = await VueHandler.parseVueFile(
+          layoutId,
+          layoutBun,
+          layoutFile,
+          layoutBun.lastModified,
+        )
+        if (layoutParsed.hasCss) {
+          layoutCss = `<link rel="stylesheet" id="__vu_css_${layoutId}" href="${parsed.layoutRoute}?__vue_css=true">\n`
+        }
+      }
+    }
+
     const prio =
+      layoutCss +
       (hasCss
         ? `<link rel="stylesheet" id="__vu_css_${id}" href="${routePath}?__vue_css=true">\n`
         : '') +
@@ -442,6 +518,13 @@ async function sharedHandler(
 
   // module-only: block page requests (allow script/css imports)
   if (parsed.meta.moduleOnly && !isScript && !isCss) {
+    return response.error('Not Found', 404)
+  }
+
+  // A layout is scaffolding, not a destination: /admin/layout must not render
+  // as a page. Script and css requests pass — they are how the root script of
+  // every page under it imports the thing.
+  if (routePath.endsWith('/layout.vue') && !isScript && !isCss) {
     return response.error('Not Found', 404)
   }
 

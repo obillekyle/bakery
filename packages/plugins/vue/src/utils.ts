@@ -570,8 +570,44 @@ export function rewriteVueImports(code: string): string {
 export const RX_VUE_META = /^<meta(?![\w-])((?:"[^"]*"|'[^']*'|[^>])*?)\/>/i
 const RX_META_SKIPPABLE = /^\s+|^<!--[\s\S]*?-->/
 
+/**
+ * Extract a `<template skeleton>` block: its inner markup goes into the HTML
+ * shell's `#app` so the user sees something before the bundle hydrates, and
+ * the block is removed from the SFC — the compiler allows only one template.
+ *
+ * **Static by design, and the design is a security decision.** The markup is
+ * injected verbatim: never compiled, never rendered on the server, so
+ * interpolations do not evaluate and nothing request- or session-derived can
+ * end up in it. A server-rendered skeleton cached across requests would serve
+ * one user's data to another. Scoped styles do not reach it either — the
+ * scope attributes are stamped by the compiler this block never meets.
+ *
+ * One block per file; nested `<template>` elements inside it are not
+ * supported (the lazy match ends at the first closing tag).
+ */
+export function parseSkeleton(raw: string): {
+  skeleton: string | null
+  clean: string
+} {
+  const match = raw.match(
+    /<template\s+skeleton(?:\s(?:"[^"]*"|'[^']*'|[^>])*)?>([\s\S]*?)<\/template>/i,
+  )
+  if (!match) return { skeleton: null, clean: raw }
+
+  const skeleton = match[1].trim()
+  return {
+    skeleton: skeleton || null,
+    clean: raw.replace(match[0], ''),
+  }
+}
+
 export function parseVueMeta(raw: string): { meta: VueMeta; clean: string } {
-  const meta: VueMeta = { moduleOnly: false, pageOnly: false, title: null }
+  const meta: VueMeta = {
+    moduleOnly: false,
+    pageOnly: false,
+    title: null,
+    layout: true,
+  }
 
   // Directives live in the file prologue only. Walking forward from the start
   // (rather than scanning the whole file) keeps a `<meta />` inside a template
@@ -595,6 +631,7 @@ export function parseVueMeta(raw: string): { meta: VueMeta; clean: string } {
     const attrs = tag[1]
     if (/\bmodule-only\b/i.test(attrs)) meta.moduleOnly = true
     if (/\bpage-only\b/i.test(attrs)) meta.pageOnly = true
+    if (/\bno-layout\b/i.test(attrs)) meta.layout = false
 
     const titleMatch = attrs.match(
       /\btitle\s*=\s*"([^"]*)"|\btitle\s*=\s*'([^']*)'/i,

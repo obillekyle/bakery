@@ -1104,7 +1104,13 @@ describe('Action target gating (__vue_file)', () => {
   const ROUTE_ID = 'route-id'
 
   function meta(over: Partial<VueMeta> = {}): VueMeta {
-    return { moduleOnly: false, pageOnly: false, title: null, ...over }
+    return {
+      moduleOnly: false,
+      pageOnly: false,
+      title: null,
+      layout: true,
+      ...over,
+    }
   }
 
   const script = `

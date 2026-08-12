@@ -1,8 +1,5 @@
 import { compileText } from '@bakery-framework/core/compiler'
-import { Logger } from '@bakery-framework/core/logger'
 import type { SFCStyleCompileResults } from '@vue/compiler-sfc'
-
-const logger = new Logger('vue')
 
 import type {
   AssembleComponentOptions,
@@ -117,7 +114,7 @@ export async function compileScriptBlock(
 
 export async function compileTemplateBlock(
   options: CompileTemplateOptions,
-): Promise<string | null> {
+): Promise<{ code: string; errors: string[] } | null> {
   const { descriptor, id, filename, bindings } = options
   if (!descriptor.template) return null
   const { compileTemplate } = await loadCompiler()
@@ -137,17 +134,20 @@ export async function compileTemplateBlock(
           if (node.type !== 5) return
           const content = node.content
 
-          // Simple expression: `{{ value }}`. The wrap is string surgery, so
-          // the closing paren goes on its own line: the raw expression is
-          // whatever the author wrote, and `{{ total // pesos }}` would
-          // otherwise swallow the `)` into the comment and emit a render
-          // function that does not parse. The newline survives into the
-          // generated code, where the transpiler strips the comment before
-          // any whitespace collapsing.
+          // Simple expression: `{{ value }}`.
+          //
+          // Comments inside an interpolation are not handled specially,
+          // deliberately: Vue itself cannot parse `{{ total // pesos }}` —
+          // measured against bare `compileTemplate`, which reports the same
+          // SyntaxError and emits the raw broken expression. Stripping the
+          // comment here just traded that for an unprefixed binding, because
+          // Vue's own expression pass had already failed. What Bakery adds
+          // instead is failing the compile loudly (see `compileVueFile`)
+          // rather than serving a module that cannot parse.
           if (content.type === 4) {
             const rawContent = content.content.trim()
             if (rawContent && !rawContent.startsWith('_ctx.$fmt(')) {
-              content.content = `_ctx.$fmt(${rawContent}\n)`
+              content.content = `_ctx.$fmt(${rawContent})`
             }
             return
           }
@@ -155,9 +155,8 @@ export async function compileTemplateBlock(
           // Compound expression: `{{ a + b }}`, `{{ cond ? x : y }}`. These are
           // rewritten into child arrays by the built-in transformExpression, so
           // they need wrapping at the children level rather than as a string.
-          // Same newline, same reason: the last child is still author text.
           if (content.type === 8 && !content.__fmtWrapped) {
-            content.children = ['_ctx.$fmt(', ...content.children, '\n)']
+            content.children = ['_ctx.$fmt(', ...content.children, ')']
             content.__fmtWrapped = true
           }
         },
@@ -165,14 +164,19 @@ export async function compileTemplateBlock(
     },
   })
 
-  if (result.errors?.length) {
-    logger.log(`Template compile errors: ${result.errors.join(', ')}`, 'error')
-  }
+  // Reported to the caller, not merely logged: a template Vue cannot compile
+  // emits the raw unparseable expression into the render function, so the
+  // module *cannot run* — `{{ total // pesos }}` is the measured example, and
+  // Vue-alone behaves identically. Serving it anyway was a browser-side
+  // SyntaxError with a healthy-looking 200.
+  const errors = (result.errors ?? []).map(e =>
+    e instanceof Error ? e.message : String(e),
+  )
 
   let code = result.code
   code = code.replace(/^export\s+/m, '')
   code = await compileText(code)
-  return code
+  return { code, errors }
 }
 
 export async function compileStyleBlock(
@@ -189,7 +193,7 @@ export async function compileStyleBlock(
 }
 
 export function assembleComponent(options: AssembleComponentOptions): string {
-  const { scriptCode, renderCode, isRoot, scopeId } = options
+  const { scriptCode, renderCode, isRoot, scopeId, layoutRoute } = options
   const COMPONENT_VAR = '__sfc__'
   let output = scriptCode.replace(
     /\bexport\s+default\s*/,
@@ -208,9 +212,20 @@ export function assembleComponent(options: AssembleComponentOptions): string {
   output += `\nexport default ${COMPONENT_VAR};`
 
   if (isRoot) {
-    output +=
-      `\nimport { createApp } from 'vue';` +
-      `\nconst __app = createApp(${COMPONENT_VAR});`
+    if (layoutRoute) {
+      // The page renders into the layout's default <slot />. The import is a
+      // plain `.vue` specifier so `rewriteVueImports` gives it the same
+      // `?__vue_script=module` treatment as any component import — the layout
+      // is just a component that happens to be discovered by convention.
+      output +=
+        `\nimport { createApp, h as __h } from 'vue';` +
+        `\nimport __layout from ${JSON.stringify(layoutRoute)};` +
+        `\nconst __app = createApp({ render: () => __h(__layout, null, { default: () => __h(${COMPONENT_VAR}) }) });`
+    } else {
+      output +=
+        `\nimport { createApp } from 'vue';` +
+        `\nconst __app = createApp(${COMPONENT_VAR});`
+    }
 
     // Full build only. `app.config.compilerOptions` is read exclusively by the
     // in-browser template compiler, which the runtime build does not carry —
@@ -247,7 +262,7 @@ function buildRuntimeCustomElementCheck(): string {
 export async function compileVueFile(
   options: CompileVueFileOptions,
 ): Promise<CompileVueFileResult> {
-  const { content, filename, id, isRootScript } = options
+  const { content, filename, id, isRootScript, layoutRoute } = options
   const { descriptor, errors: parseErrors } = await parseVue({
     content,
     filename,
@@ -257,7 +272,7 @@ export async function compileVueFile(
     descriptor,
     id,
   })
-  const renderCode = await compileTemplateBlock({
+  const template = await compileTemplateBlock({
     descriptor,
     id,
     filename,
@@ -265,14 +280,19 @@ export async function compileVueFile(
   })
   const code = assembleComponent({
     scriptCode,
-    renderCode,
+    renderCode: template?.code ?? null,
     isRoot: isRootScript,
     scopeId: hasScoped ? id : undefined,
+    layoutRoute,
   })
 
   const styles = await Promise.all(
     descriptor.styles.map(style => compileStyleBlock({ style, id })),
   )
 
-  return { code, styles, errors: parseErrors }
+  return {
+    code,
+    styles,
+    errors: [...parseErrors, ...(template?.errors ?? [])],
+  }
 }

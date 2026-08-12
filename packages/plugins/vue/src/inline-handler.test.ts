@@ -1,5 +1,8 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeAll, describe, expect, test } from 'bun:test'
+import { initConfig } from '@bakery-framework/core/core/config'
+import { fs } from '@bakery-framework/core/utils'
 import { compileVueFile } from './compile'
+import { VueHandler } from './handler'
 
 /**
  * A multi-line inline handler must survive compilation.
@@ -100,9 +103,13 @@ describe('multi-line inline template handlers', () => {
     expect(res.ok).toBe(true)
   })
 
-  test('an interpolation with a trailing line comment parses', async () => {
-    // The $fmt wrap is string surgery — `_ctx.$fmt(<raw>)` — so a `//` at the
-    // end of the raw expression can swallow the closing paren.
+  test('an interpolation Vue cannot parse is a reported failure, not a served module', async () => {
+    // `{{ total // pesos }}` is invalid *upstream*: bare `compileTemplate`
+    // reports the same SyntaxError and emits the raw broken expression, so
+    // there is nothing to repair here. What Bakery owes the author is the
+    // error in `result.errors` — the handler turns that into a 500 naming the
+    // file — instead of the old behavior, which logged it server-side and
+    // served a module that failed to parse in the browser behind a 200.
     const sfc = [
       '<script setup lang="ts">',
       'const total = 3',
@@ -120,7 +127,108 @@ describe('multi-line inline template handlers', () => {
       id: 'inline-comment-interp',
       isRootScript: false,
     })
-    const res = parses(result.code)
+
+    expect(result.errors.length).toBeGreaterThan(0)
+    expect(result.errors.join(' ')).toContain(
+      'Error parsing JavaScript expression',
+    )
+  })
+
+  test('a valid interpolation still compiles with no reported errors', async () => {
+    const sfc = [
+      '<script setup lang="ts">',
+      'const total = 3',
+      '</script>',
+      '',
+      '<template>',
+      '  <p>{{ total }}</p>',
+      '</template>',
+      '',
+    ].join('\n')
+
+    const result = await compileVueFile({
+      content: sfc,
+      filename: 'total-ok.vue',
+      id: 'inline-clean-interp',
+      isRootScript: false,
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.code).toMatch(/\$fmt\(\$setup\.total\)/)
+    expect(parses(result.code).ok).toBe(true)
+  })
+})
+
+/**
+ * `parseVueFile` runs a regex over multi-line event attributes *before* the
+ * SFC compiler sees them, appending `;` when the value has none — my first
+ * repro pass missed this layer entirely by calling `compileVueFile` directly.
+ * These push the preprocessed output through the full compile.
+ */
+describe('the multi-line handler preprocessor', () => {
+  // parseVueFile reaches Bakery.serveRoot through layout discovery.
+  beforeAll(() => initConfig())
+
+  async function throughParse(handler: string): Promise<string> {
+    const sfc = [
+      '<script setup lang="ts">',
+      'function saveDraft() {}',
+      'function closePanel() {}',
+      '</script>',
+      '',
+      '<template>',
+      `  <button @click="${handler}">Save</button>`,
+      '</template>',
+      '',
+    ].join('\n')
+
+    const id = `pre-${Bun.hash(handler).toString(36)}`
+    const dir = fs.resolve(VueHandler.cacheDir, '__fixtures__', 'inline')
+    const file = `${dir}/${id}.vue`
+    await Bun.write(file, sfc)
+
+    const parsed = await VueHandler.parseVueFile(
+      id,
+      Bun.file(file),
+      file,
+      1700000000000,
+    )
+    const result = await compileVueFile({
+      content: parsed.cleanContent,
+      filename: `${id}.vue`,
+      id,
+      isRootScript: false,
+    })
+    expect(result.errors).toEqual([])
+    return result.code
+  }
+
+  test('multi-line without any semicolon (the ; gets appended)', async () => {
+    const code = await throughParse('saveDraft()\n            closePanel()')
+    const res = parses(code)
+    expect(res.error ?? '').toBe('')
+    expect(res.ok).toBe(true)
+  })
+
+  test('multi-line ending in a trailing newline', async () => {
+    const code = await throughParse('saveDraft()\n')
+    const res = parses(code)
+    expect(res.error ?? '').toBe('')
+    expect(res.ok).toBe(true)
+  })
+
+  test('multi-line with a trailing line comment', async () => {
+    const code = await throughParse(
+      'saveDraft() // then close\n            closePanel()',
+    )
+    const res = parses(code)
+    expect(res.error ?? '').toBe('')
+    expect(res.ok).toBe(true)
+  })
+
+  test('multi-line already carrying semicolons is untouched and compiles', async () => {
+    const code = await throughParse('saveDraft();\n            closePanel();')
+    const res = parses(code)
     expect(res.error ?? '').toBe('')
     expect(res.ok).toBe(true)
   })

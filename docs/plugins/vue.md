@@ -115,9 +115,66 @@ is not part of the template.
 - `title="…"` — sets the shell's `<title>`, HTML-escaped.
 - `module-only` — the file may only be imported; a page request gets 404.
 - `page-only` — the file may only be a page; `?__vue_script=module` gets 404.
+- `no-layout` — the page renders without its directory's `layout.vue`.
 
 Only the prologue is scanned, so a `<meta charset>` inside a `<template>` is
 left alone.
+
+## Layouts
+
+A `layout.vue` file wraps every page in its directory and below; the nearest
+ancestor wins, and the page renders into its default `<slot />`:
+
+```html
+<template>
+  <div class="chrome">
+    <nav>…shared navigation…</nav>
+    <main><slot /></main>
+  </div>
+</template>
+```
+
+The walk is anchored by the page **file**, not the request URL, so a
+catch-all page (`admin/[...slug!].vue`) is wrapped by `admin/layout.vue`
+however deep the request goes. Opt a page out with `<meta no-layout />`.
+
+Rules worth knowing:
+
+- `layout.vue` is scaffolding, not a destination: requesting `/admin/layout`
+  as a page is a 404, while the module and stylesheet requests every wrapped
+  page makes still serve.
+- The layout's stylesheet is linked *before* the page's, so a page can
+  override its layout the way source order normally implies.
+- Layouts do not nest, and a layout never wraps itself. One nearest layout,
+  deliberately — nesting needs an ordering story that should be designed,
+  not implied.
+- Error pages (`error.vue`, `error-*.vue`) are wrapped too, since they are
+  served by the same pipeline; give them `<meta no-layout />` if the chrome
+  itself is what might be broken.
+
+## Skeletons
+
+A second template block marked `skeleton` shows inside `#app` before the
+bundle hydrates — `mount()` replaces it the moment the real component is up:
+
+```html
+<template skeleton>
+  <div class="pulse">loading shipments…</div>
+</template>
+
+<template>
+  <ShipmentTable :rows="rows" />
+</template>
+```
+
+**The skeleton is static markup, injected verbatim, and that is a security
+decision, not a shortcut.** It is never compiled and never rendered on the
+server, so interpolations do not evaluate and nothing request- or
+session-derived can reach it — a server-rendered skeleton cached across
+requests would serve one user's data to another. Two consequences: bindings
+inside it are inert text, and scoped styles do not apply to it (the scope
+attributes are stamped by the compiler it never meets) — style it with plain
+classes from an unscoped block.
 
 ## `<script server>`
 
