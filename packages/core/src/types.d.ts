@@ -66,6 +66,17 @@ export type Match<D extends symbol> = {
 export type RouteBody<P = {}> = P & MapOf<any>
 
 /**
+ * What one dynamic route segment binds: `[id]` a string, `[...rest]` and
+ * `[...rest!]` an array of the remaining segments (`[]` for the bare
+ * directory under the `!` form).
+ *
+ * Exists so a route over mixed or unknown segments can say
+ * `defineRoute<MapOf<RouteParam>>` instead of hand-writing the union — and so
+ * the union has one definition to change if it ever grows.
+ */
+export type RouteParam = string | string[]
+
+/**
  * What a route module may actually return — read off `processResponse`
  * (`router.ts`) and `ApiHandler.handle`: a `Response`, a `BunFile` (streamed
  * with an ETag), the JSON envelope, a plain data object or array (JSON-encoded

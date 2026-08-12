@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import { defineRoute } from './core'
 import { html } from './core/jsx'
-import type { RouteBody, RouteHandler, RouteResponse } from './types'
+import type {
+  MapOf,
+  RouteBody,
+  RouteHandler,
+  RouteParam,
+  RouteResponse,
+} from './types'
 import { response } from './utils/http'
 
 /**
@@ -29,6 +35,26 @@ const notAny = defineRoute<{ id: string }>((_req, body) => {
   const n: number = body.id
   return n
 })
+
+// --- catch-all params are arrays, and RouteParam names the union -----------
+
+// A route that knows its segments declares them exactly: `[id]` binds a
+// string, `[...rest]` / `[...rest!]` an array (`[]` for the bare directory).
+const catchAll = defineRoute<{ id: string; rest: string[] }>((_req, body) => {
+  const joined: string = body.rest.join('/')
+  // @ts-expect-error — a catch-all param is segments, not the joined string
+  const wrong: string = body.rest
+  return response.json.success('ok', { id: body.id, joined, wrong })
+})
+
+// A route over mixed or unknown segments writes the union once, by name.
+const anySegments = defineRoute<MapOf<RouteParam>>((_req, body) => {
+  const segments = Array.isArray(body.slug) ? body.slug : [body.slug]
+  return response.json.success('ok', { count: segments.length })
+})
+
+// @ts-expect-error — RouteParam is a segment binding, never a number
+const notNumeric: RouteParam = 7
 
 // --- the permissive base is RouteBody's contract, not an accident ----------
 
@@ -82,7 +108,12 @@ describe('defineRoute', () => {
   test('type-level fixtures are referenced', () => {
     // Referencing the fixtures keeps this file honest under linters; the real
     // assertions above already ran, at compile time.
-    expect([typed, notAny, legacy, page, plainPage].every(Boolean)).toBe(true)
+    expect(
+      [typed, notAny, legacy, page, plainPage, catchAll, anySegments].every(
+        Boolean,
+      ),
+    ).toBe(true)
+    expect(typeof notNumeric).toBe('number')
     expect(loose.anything).toBe(1)
     // `response.json.*` is *typed* Response but *returns* a JsonResponseData
     // at runtime (a known surface lie, tracked in CLAUDE.md's debt list); both

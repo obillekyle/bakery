@@ -65,6 +65,31 @@ export default defineRoute<{ title?: string }>(async (req, body) => {
 })
 ```
 
+Route params land in the same `body`, so a dynamic route declares them the
+same way — one type argument stating what the file name promises. For
+`src/api/[region]/[warehouse]/[...rest].ts`:
+
+```ts
+import { defineRoute, response } from '@bakery-framework/core'
+
+export default defineRoute<{
+  region: string
+  warehouse: string
+  rest: string[] // a catch-all binds its segments, [] under [...rest!]
+}>(async (_req, body) => {
+  return response.json.success('located', {
+    region: body.region,
+    bin: body.rest.join('/'),
+  })
+})
+```
+
+There is no filename inference — `[region].ts` does not conjure
+`{ region: string }` on its own — the contract is that you declare what you
+expect, once, and the compiler holds you to it everywhere in the handler. A
+route over mixed or unknown segments can write `defineRoute<MapOf<RouteParam>>`
+instead of hand-writing `string | string[]`.
+
 `body.title` is `string | undefined` inside the handler; keys you did not
 declare stay reachable as `any`, because the parse rules below mean the
 framework cannot enumerate every key. Declaring a shape states your contract —

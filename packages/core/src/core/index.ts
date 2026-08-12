@@ -19,6 +19,7 @@ export type {
   MixedPromise,
   RouteBody,
   RouteHandler,
+  RouteParam,
   RouteResponse,
   Wrapped,
 } from '../types'
