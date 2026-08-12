@@ -45,9 +45,33 @@ describe('hostStore', () => {
 })
 
 describe('getAppVersion', () => {
-  test('returns semver-like string', () => {
+  /**
+   * Prereleases count. This asserted `/^\d+\.\d+\.\d+$/` and passed for every
+   * release the project ever cut — until the first one that was not stable:
+   * `2.0.0-alpha.0` failed here, in the publish workflow's test step, on the
+   * very first prerelease. The gate did its job (nothing reached npm), but the
+   * assertion was wrong rather than the code.
+   *
+   * Matches what `scripts/release.ts` accepts as a version, so the two agree
+   * on what this project can be numbered: core, optional `-prerelease`,
+   * optional `+build`.
+   */
+  test('returns semver-like string, prereleases included', () => {
     const version = getAppVersion()
-    expect(version).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(version).toMatch(
+      /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,
+    )
+  })
+
+  test('the pattern above really does accept a prerelease', () => {
+    // Pinned against the literal that broke, so a future tightening of the
+    // regex fails here rather than in a release.
+    const pattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
+    expect('2.0.0-alpha.0').toMatch(pattern)
+    expect('2.0.0-beta.12').toMatch(pattern)
+    expect('1.2.3').toMatch(pattern)
+    expect('v1.2.3').not.toMatch(pattern)
+    expect('1.2').not.toMatch(pattern)
   })
 
   test('caches result', () => {
