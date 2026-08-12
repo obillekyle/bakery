@@ -198,7 +198,7 @@ describe('credential access', () => {
         req('/_db', { headers: { authorization: `Bearer ${secret}` } }),
       ),
     ).toBe(true)
-    expect(credentialMatches(secret, req(`/_db?key=${secret}`))).toBe(true)
+    expect(credentialMatches(secret, req(`/_db?db-key=${secret}`))).toBe(true)
 
     expect(
       credentialMatches(
@@ -206,7 +206,7 @@ describe('credential access', () => {
         req('/_db', { headers: { 'x-db-key': 'nope' } }),
       ),
     ).toBe(false)
-    expect(credentialMatches(secret, req('/_db?key=warehouse-key-'))).toBe(
+    expect(credentialMatches(secret, req('/_db?db-key=warehouse-key-'))).toBe(
       false,
     )
   })

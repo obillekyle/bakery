@@ -1,4 +1,7 @@
-import { getClientIp } from '@bakery-framework/core/utils/http'
+import {
+  getClientIp,
+  requestHasCredential,
+} from '@bakery-framework/core/utils/http'
 
 /**
  * Decides whether a request may use the explorer.
@@ -66,38 +69,14 @@ export async function isAuthorized(
 
 /**
  * Shared-credential access: `dbExplorerPlugin({ credential: import.meta.env
- * .DB_EXPLORER_KEY })`.
- *
- * Accepted as `Authorization: Bearer <credential>`, an `x-db-key` header, or
- * — for the human opening `/_db` in a browser, who cannot type a header —
- * a one-time `?key=` query the client immediately strips from the URL and
- * keeps in sessionStorage. The query spelling does land in server logs;
- * that is documented, and header spellings exist for anything scripted.
- *
- * An empty or missing credential **disables** this path rather than matching
- * everything: `credential: import.meta.env.KEY` with the variable unset must
- * mean "off", not "open".
- *
- * Compared in constant time. The dashboard's old DASHPASS system earned its
- * removal by owning logins, sessions and backoff; a bearer-style check owns
- * none of that — but a plain `===` on a secret is still a timing oracle, and
- * `timingSafeEqual` costs one line.
+ * .DB_EXPLORER_KEY })`, presented as `x-db-key`, a Bearer token, or a
+ * one-time `?db-key=` query the client strips from the URL. The comparison
+ * lives in core (`requestHasCredential`) — one copy, shared with analytics;
+ * this only names the key, `db-key`.
  */
 export function credentialMatches(
   credential: string | undefined,
   req: Request,
 ): boolean {
-  if (!credential) return false
-
-  const presented =
-    req.headers.get('x-db-key') ??
-    req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ??
-    new URL(req.url).searchParams.get('key')
-
-  if (!presented) return false
-
-  const a = Buffer.from(credential)
-  const b = Buffer.from(presented)
-  if (a.length !== b.length) return false
-  return crypto.timingSafeEqual(a, b)
+  return requestHasCredential(req, credential, 'db-key')
 }

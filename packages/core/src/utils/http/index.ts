@@ -1,4 +1,5 @@
 export * from './body'
+export * from './credential'
 export * from './csrf'
 export * from './dom'
 export * from './escape'

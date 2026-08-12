@@ -15,12 +15,30 @@ export {
   recordRouteHit,
 } from './core'
 
-export default function analyticsPlugin() {
+export interface AnalyticsPluginOptions {
+  /**
+   * A shared access key for the analytics endpoints and websocket, typically
+   * from the environment:
+   *
+   * ```ts
+   * analyticsPlugin({ credential: import.meta.env.ANALYTICS_KEY })
+   * ```
+   *
+   * Presented as `Authorization: Bearer`, an `x-analytics-key` header, or an
+   * `?analytics-key=` query. Checked in constant time; unset or empty means
+   * this path is off, never open. This is the reachable door: nothing sets
+   * the legacy DASHPASS session flag since the dashboard dropped its login,
+   * so without a credential the endpoints stay closed to everyone.
+   */
+  credential?: string
+}
+
+export default function analyticsPlugin(options: AnalyticsPluginOptions = {}) {
   return definePlugin({
     name: 'analytics',
     async setup() {
       const { setupAnalytics } = await import('./setup')
-      setupAnalytics()
+      setupAnalytics({ credential: options.credential })
     },
     onRoute(req) {
       const url: URL = (req as any).__parsedUrl || new URL(req.url)

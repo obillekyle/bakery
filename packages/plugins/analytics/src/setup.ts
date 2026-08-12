@@ -10,7 +10,11 @@ import { response } from '@bakery-framework/core/utils/http'
 import * as core from './core'
 import { BOOT_MAX_ITEMS } from './core'
 import type { AnalyticsStats } from './endpoints/stats'
-import { handleResetRequest, handleStatsRequest } from './endpoints/stats'
+import {
+  handleResetRequest,
+  handleStatsRequest,
+  setAnalyticsCredential,
+} from './endpoints/stats'
 import { AnalyticsWSHandler } from './endpoints/websocket'
 import * as storageSqlite from './storage-sqlite'
 
@@ -179,7 +183,8 @@ export function handleAnalyticsRequest(
   return analyticsRoutes(req)
 }
 
-export function setupAnalytics() {
+export function setupAnalytics(options: { credential?: string } = {}) {
+  setAnalyticsCredential(options.credential)
   Bakery.handlers.fetch.set(AnalyticsHandler, 110)
   Bakery.handlers.websocket.set(AnalyticsWSHandler)
   void loadAnalyticsData()

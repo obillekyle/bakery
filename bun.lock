@@ -21,6 +21,7 @@
         "@bakery-framework/orm": "workspace:*",
       },
       "devDependencies": {
+        "@bakery-framework/plugin-analytics": "workspace:*",
         "@bakery-framework/plugin-dashboard": "workspace:*",
         "@bakery-framework/plugin-db-explorer": "workspace:*",
         "vue": "^3.5.38",

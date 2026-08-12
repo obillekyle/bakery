@@ -4,10 +4,9 @@
 uptime, session count, self-measured ping — aggregates it into five time
 windows, and persists it to SQLite.
 
-> **Read this first: the read endpoints are currently unreachable in every
-> configuration.** Collection works. Every way of *getting the data out* denies
-> all callers, including the dashboard's stats panel. See
-> [Authorization is currently a dead end](#authorization-is-currently-a-dead-end).
+> **Read this first: the read endpoints are closed until you set a
+> credential.** Collection always works; getting the data out needs
+> `analyticsPlugin({ credential })`. See [Authorization](#authorization).
 
 ## Register
 
@@ -98,50 +97,45 @@ serialises it. The route table is declared with `routeTable(... satisfies
 PluginRouteTable)` — see [Plugin API](plugin-api.md#declaring-endpoints-with-routetable)
 for why the `satisfies` matters.
 
-## Authorization is currently a dead end
+## Authorization
 
-`isAnalyticsAuthorized` requires **both** conditions
-([`analytics/src/endpoints/stats.ts`](../../packages/plugins/analytics/src/endpoints/stats.ts)):
+Set a shared credential and the endpoints open to anything presenting it:
 
-```ts no-check — the current implementation, quoted; it is not something to copy
-export function isAnalyticsAuthorized(req: Request): boolean {
-  if (!process.env.DASHPASS) return false
-  return Boolean(req.session?.get(DASHPASS_SESSION_KEY))
-}
+```ts no-check — import.meta.env keys are app-defined
+analyticsPlugin({ credential: import.meta.env.ANALYTICS_KEY })
 ```
 
-`DASHPASS_SESSION_KEY` is `__bakery.dashpass`. **Nothing in the repository
-writes that key.** It used to be set by the dashboard's login form, and that
-whole login flow was deleted when the dashboard moved to an
-[`authorize(req)` predicate](dashboard.md). The orphaned `LoginForm`
-component that outlived it has since been deleted too.
+Present it as `Authorization: Bearer <key>`, an `x-analytics-key` header, or
+an `?analytics-key=<key>` query. The compare is constant time and lives in
+core (`requestHasCredential`), shared with the db-explorer plugin; an unset
+or empty variable turns the door **off**, never open.
 
-The consequences, precisely:
+`isAnalyticsAuthorized` checks two doors, both fail-closed
+([`analytics/src/endpoints/stats.ts`](../../packages/plugins/analytics/src/endpoints/stats.ts)):
 
-- `/api/_analytics/stats` returns 404 when `DASHPASS` is unset and 401 when it
-  is set. There is no third case.
-- `/api/_analytics/reset` behaves identically.
-- `/_analytics_ws` refuses the upgrade — the check is in `canHandle`, because
-  the upgrade happens before any plugin hook runs
+- the credential above, and
+- the legacy `DASHPASS_SESSION_KEY` session flag (`__bakery.dashpass`).
+
+**The credential is the reachable door.** Nothing in the repository writes
+the session key — it was set by the dashboard's login form, deleted when the
+dashboard moved to an [`authorize(req)` predicate](dashboard.md) — so without
+a configured credential the endpoints stay closed to everyone. That is the
+safe default (an earlier version returned "authorized" when `DASHPASS` was
+unset, publishing process stats to anyone), but it also left the stats
+unreachable until the credential option existed.
+
+Applied uniformly:
+
+- `/api/_analytics/stats` and `/api/_analytics/reset` return 401 when a door
+  is armed but the request fails it, 404 when neither door is configured — the
+  404 does not advertise the endpoint.
+- `/_analytics_ws` honours the same check in `canHandle`, because the upgrade
+  happens before any plugin hook runs
   ([`analytics/src/endpoints/websocket.ts`](../../packages/plugins/analytics/src/endpoints/websocket.ts)).
-- The dashboard's Overview panel therefore cannot load. It calls
-  `/_analytics_ws` and `/api/_analytics/reset` by hardcoded URL, so the failure
-  looks like a dead panel rather than a missing dependency.
 
-This **fails closed**. It is a dead feature, not an exposure — the earlier
-version of this check returned "authorized" when `DASHPASS` was unset, which
-meant the documented way to *disable* the dashboard published process stats and
-top pages to anyone. That is fixed; the fix is what left the endpoints
-unreachable. The regression tests in
+The regression tests in
 [`analytics-auth.test.ts`](../../packages/plugins/analytics/src/analytics-auth.test.ts)
-pin the closed behaviour.
-
-Deciding what should replace it — most likely the same `AuthorizeFn` the
-dashboard takes ([`plugins/dashboard/src/authorize.ts`](../../packages/plugins/dashboard/src/authorize.ts))
-— is a security decision rather than a cleanup, and is deliberately not being
-made in passing. Until then: collection is live and persisted, and the data is
-readable only by querying `bakery/sessions.db` directly, or in-process via
-the export below.
+pin both doors and the off-when-unset default.
 
 ## Programmatic access
 

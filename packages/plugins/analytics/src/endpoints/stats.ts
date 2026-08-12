@@ -1,7 +1,10 @@
 import { Bakery } from '@bakery-framework/core/core/bakery'
 import { DASHPASS_SESSION_KEY, Session } from '@bakery-framework/core/session'
 import type { JsonResponseData } from '@bakery-framework/core/utils/common'
-import { response } from '@bakery-framework/core/utils/http'
+import {
+  requestHasCredential,
+  response,
+} from '@bakery-framework/core/utils/http'
 import * as core from '../core'
 import { saveAnalyticsData } from '../storage-sqlite'
 import { timescaleToMs } from '../timescale'
@@ -77,12 +80,29 @@ export function computeStats(
 export type AnalyticsStats = ReturnType<typeof computeStats>
 
 /**
- * True when the caller may read analytics. Fails **closed** when DASHPASS is
- * unset, matching the dashboard's behaviour — this previously returned
- * "authorized" in that case, so the documented "disabled" posture actually
- * exposed process stats and top pages to anyone.
+ * The shared credential, from `analyticsPlugin({ credential })`. Unset means
+ * this door is closed, never open — see `credentialMatches` in core.
+ */
+let credential: string | undefined
+
+export function setAnalyticsCredential(value: string | undefined): void {
+  credential = value
+}
+
+/**
+ * True when the caller may read analytics. Two doors, both fail closed:
+ *
+ *   - the shared `credential` (`x-analytics-key`, Bearer, or `?analytics-key=`)
+ *   - the legacy DASHPASS session flag, kept because the dashboard reads these
+ *     same endpoints from the browser with the operator's cookies
+ *
+ * The credential door is the reachable one today: nothing in the framework
+ * sets `DASHPASS_SESSION_KEY` since the dashboard dropped its own login, so
+ * without a configured credential analytics is closed to everyone — which is
+ * the safe default, but it also meant the stats were unreachable until this.
  */
 export function isAnalyticsAuthorized(req: Request): boolean {
+  if (requestHasCredential(req, credential, 'analytics-key')) return true
   if (!process.env.DASHPASS) return false
   return Boolean(req.session?.get(DASHPASS_SESSION_KEY))
 }
@@ -97,7 +117,10 @@ export function isAnalyticsAuthorized(req: Request): boolean {
  */
 function checkDashpassAuth(req: Request): JsonResponseData<undefined> | null {
   if (isAnalyticsAuthorized(req)) return null
-  return process.env.DASHPASS
+  // Enabled-but-unauthorised is a 401; disabled-entirely is a 404 that does
+  // not advertise the endpoint. "Enabled" now means either door is armed.
+  const enabled = Boolean(credential) || Boolean(process.env.DASHPASS)
+  return enabled
     ? response.json.error<undefined>(401, 'Unauthorized')
     : response.json.error<undefined>(404, 'Not Found')
 }

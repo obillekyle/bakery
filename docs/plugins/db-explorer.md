@@ -39,7 +39,7 @@ dbExplorerPlugin({ credential: import.meta.env.DB_EXPLORER_KEY })
 ```
 
 Present it as `Authorization: Bearer <key>`, an `x-db-key` header, or open
-`/_db?key=<key>` once — the client stores it for its API calls and strips it
+`/_db?db-key=<key>` once — the client stores it for its API calls and strips it
 from the URL. Compared in constant time; an unset or empty variable turns the
 path **off**, never open. `credential` and `authorize` compose: either
 admits.

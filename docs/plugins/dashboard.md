@@ -174,10 +174,10 @@ Two things follow:
 
 - Install the dashboard **without** `@bakery-framework/plugin-analytics` and those calls
   404 silently. The panel stays empty; nothing reports why.
-- Install it **with** analytics and they are refused anyway, because the
-  analytics authorization check can no longer be satisfied by anything in the
-  repository. See
-  [Analytics → Authorization is currently a dead end](analytics.md#authorization-is-currently-a-dead-end).
+- Install it **with** analytics but set no analytics credential and those
+  calls are refused — the analytics endpoints are closed until
+  `analyticsPlugin({ credential })` arms them. See
+  [Analytics → Authorization](analytics.md#authorization).
 
 The Sessions, Database and Logs panels are unaffected — they use
 `/api/_dashboard/*`, which is gated by your `authorize` predicate and works.

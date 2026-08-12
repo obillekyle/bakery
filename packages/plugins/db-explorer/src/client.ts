@@ -22,11 +22,11 @@ const PAGE_SIZE = 50
 
 // A ?key= opened in the browser is kept for API calls and scrubbed from the
 // URL (and so from history) immediately.
-const urlKey = new URLSearchParams(location.search).get('key')
+const urlKey = new URLSearchParams(location.search).get('db-key')
 if (urlKey) {
   sessionStorage.setItem('__db_key', urlKey)
   const clean = new URL(location.href)
-  clean.searchParams.delete('key')
+  clean.searchParams.delete('db-key')
   history.replaceState(null, '', clean)
 }
 
