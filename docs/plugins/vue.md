@@ -152,6 +152,43 @@ Rules worth knowing:
   served by the same pipeline; give them `<meta no-layout />` if the chrome
   itself is what might be broken.
 
+## `defineLayout()` — client-side navigation for catch-all pages
+
+A catch-all page owns every URL under its directory, so swapping content on a
+URL change can never disagree with what a hard reload would serve. That
+invariant is the whole permission slip for client-side navigation, and it is
+why `defineLayout()` **throws on any page that is not a catch-all** — on
+other pages, two URLs mean two different files.
+
+```html no-check — SFC browser script; compiled by the plugin, not tsc
+<script setup lang="ts">
+import { defineLayout } from '@bakery-framework/plugin-vue/client'
+import { computed } from 'vue'
+
+const nav = defineLayout()
+
+// nav.segments — Ref<string[]>, [] on the bare directory under [...slug!]
+const section = computed(() => nav.segments.value[0] ?? 'home')
+
+nav.on((next, prev, cause) => {
+  // 'click' | 'navigate' | 'history'. Return false to cancel — clicks and
+  // navigate() only; back/forward has already moved and is observe-only.
+})
+</script>
+```
+
+The page becomes its subtree's layout: it renders whichever of its own
+components the segments mean. Clicks on same-origin links **under the base**
+become a `pushState` and a reactive update — no reload, component state
+survives. Links that leave the base navigate normally, and back/forward
+entries that leave it trigger a real load, because pretending otherwise would
+render a lie.
+
+Module imports under the subtree keep working — a real file always beats the
+catch-all, so `import('/wiki/parts/sidebar.vue')` is served as a module while
+`/wiki/anything/else` falls to the page. Use absolute paths for those imports:
+a relative one resolves against the current URL, which moves.
+
 ## Skeletons
 
 A second template block marked `skeleton` shows inside `#app` before the
@@ -345,23 +382,17 @@ through `escapeHtml`. Both are core helpers re-exported by the plugin — the
 framework owns escaping, so core never has to depend on this package
 ([`vue/src/utils.ts`](../../packages/plugins/vue/src/utils.ts)).
 
-## Known bug: a server block with no `<script setup>` renders blank
+## Fixed: a server block with no `<script setup>` used to render blank
 
-If a component has a `<script server>` block that exports anything, but no
-`<script setup>` block, the page renders as a blank white screen with a
-`ReferenceError: __sfc__ is not defined` in the browser console.
-
-The mechanism: to expose server data and action stubs, the plugin prepends a
-plain `<script>` block containing `const { … } = …` declarations
-([`vue/src/handler.ts`](../../packages/plugins/vue/src/handler.ts)).
-That block has no `export default`. `assembleComponent` creates the component
-object by *rewriting* `export default` into `const __sfc__ = `
-([`vue/src/compile.ts`](../../packages/plugins/vue/src/compile.ts)) — with
-nothing to rewrite, `__sfc__` is never declared, and the very next line assigns
-`__sfc__.render`.
-
-Workaround: add a `<script setup>` block, even an empty one. A component whose
-server block exports nothing is unaffected, because no script is injected.
+A component with a `<script server>` block that exported anything, but no
+`<script setup>`, rendered a blank page with
+`ReferenceError: __sfc__ is not defined`: the injected server-data block has
+no `export default`, so `assembleComponent` had nothing to rewrite into
+`const __sfc__ =`. The documented workaround — add a setup block — is now
+injected automatically when the component lacks one. (A detail that made the
+workaround itself flaky: the SFC parser *discards* a block whose content is
+only whitespace, so a truly empty `<script setup></script>` never worked —
+the injected block carries a comment for exactly that reason.)
 
 ## Limitations
 

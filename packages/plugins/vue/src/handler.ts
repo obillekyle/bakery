@@ -185,6 +185,20 @@ export class VueHandler extends DynamicHandler {
         cleanContent = `<script${langAttr}>\n${scriptInjections.join(
           '\n',
         )}\n</script>\n${cleanContent}`
+
+        // A component with a server block but no `<script setup>` used to
+        // render blank: the injected block above has no `export default`, so
+        // `assembleComponent` had nothing to rewrite into `const __sfc__ =`
+        // and the module died with `ReferenceError: __sfc__ is not defined`.
+        // The documented workaround was a setup block — so inject one. The
+        // comment inside is load-bearing: the SFC parser *discards* a block
+        // whose content is only whitespace, which is also why the workaround
+        // had to be a non-empty block. It also makes the server exports
+        // template-visible — compileScript only records plain-script bindings
+        // when a setup block exists.
+        if (!/<script\s[^>]*\bsetup\b|<script\s+setup/i.test(cleanContent)) {
+          cleanContent += `\n<script setup${langAttr}>\n// injected: carries the server-data bindings above\n</script>\n`
+        }
       }
     }
 
@@ -359,6 +373,7 @@ export class VueHandler extends DynamicHandler {
     routePath: string,
     serverParams: any,
     parsed: ParsedCacheEntry,
+    route?: { catchAll: boolean; base: string; param: string | null },
   ) {
     const { hasCss, serverScript } = parsed
     const hasServerData =
@@ -375,9 +390,18 @@ export class VueHandler extends DynamicHandler {
       ? `<script>globalThis.__vue_server = ${escapeScriptJson(payload)};</script>`
       : ''
 
+    // The route's shape, for `defineLayout()` (`client.ts`): the guard that
+    // restricts it to catch-all pages reads `catchAll` from here, so the
+    // stamp is the enforcement, not a convenience. Stamped on every page —
+    // a non-catch-all page carries `catchAll: false`, which is what makes
+    // the client-side error message possible instead of a bare undefined.
+    const routeDecl = route
+      ? `<script>globalThis.__vue_route = ${escapeScriptJson(route)};</script>`
+      : ''
+
     let hydrated = VUE_HTML_SHELL.replace(
       '/*__SERVER_VARIABLES__*/',
-      () => serverDecl,
+      () => serverDecl + routeDecl,
     )
 
     // Static markup, injected verbatim — see parseSkeleton for why it is
@@ -630,5 +654,19 @@ async function sharedHandler(
     return VueHandler.handleScript(id, routePath, false, parsed, serverValues)
   }
 
-  return VueHandler.handleHtml(id, finalParams, routePath, serverParams, parsed)
+  // `base` is the URL prefix the page owns: the file's directory. For
+  // `wiki/[...page!].vue` that is `/wiki`; for a root-level catch-all it is
+  // the empty string, which `defineLayout` treats as "everything".
+  return VueHandler.handleHtml(
+    id,
+    finalParams,
+    routePath,
+    serverParams,
+    parsed,
+    {
+      catchAll: Boolean(info.catchAll),
+      base: routePath.slice(0, routePath.lastIndexOf('/')),
+      param: info.params.length ? info.params[info.params.length - 1] : null,
+    },
+  )
 }

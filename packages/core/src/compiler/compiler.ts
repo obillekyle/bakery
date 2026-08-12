@@ -620,6 +620,14 @@ export async function bundleModule(
     // writes we do not own.
     minify: Boolean(import.meta.env.PROD),
     define: await getDefines(),
+    // Installed packages stay bare imports and resolve through the import map
+    // — which covers every one of them by construction (`initImportMap`). The
+    // alternative was measured on `@vue-material/core`: each `/_nm/` bundle
+    // inlined its own copy of `vue`, and two Vue instances in one page is
+    // broken reactivity, not a size problem. A ref created by one Vue is
+    // invisible to another Vue's render effect. Node builtins are not in the
+    // list, so Bun still polyfills them.
+    external: await installedPackages(),
   })
 
   if (build.success && build.outputs.length > 0) {

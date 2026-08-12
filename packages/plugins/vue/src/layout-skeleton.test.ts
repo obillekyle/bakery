@@ -6,6 +6,7 @@ import {
   initConfig,
 } from '@bakery-framework/core/core/config'
 import { fs, toHash } from '@bakery-framework/core/utils'
+import { defineLayout, isUnderBase, segmentsUnder } from './client'
 import { compileVueFile } from './compile'
 import { VueHandler } from './handler'
 import { parseSkeleton } from './utils'
@@ -173,5 +174,105 @@ describe('root emission with a layout', () => {
     })
     expect(compiled.code).toContain('createApp(__sfc__)')
     expect(compiled.code).not.toContain('__layout')
+  })
+})
+
+/**
+ * A server block with no `<script setup>` used to render blank — the injected
+ * data block has no `export default`, so `assembleComponent` never declared
+ * `__sfc__` and the module threw on load. The empty setup block that was the
+ * documented workaround is injected automatically now. A layout is the shape
+ * most likely to hit this: pure template plus a server block for shared data.
+ */
+describe('a server block without <script setup>', () => {
+  test('compiles to a module that declares its component', async () => {
+    await write(
+      'site/counter.vue',
+      [
+        '<script server>',
+        'export const shelfCount = 12',
+        '</script>',
+        '',
+        '<template>',
+        '  <p>{{ shelfCount }}</p>',
+        '</template>',
+        '',
+      ].join('\n'),
+    )
+
+    const parsed = await parse('site/counter.vue')
+    const compiled = await compileVueFile({
+      content: parsed.cleanContent,
+      filename: 'counter.vue',
+      id: 'ns-1',
+      isRootScript: false,
+    })
+
+    expect(compiled.errors).toEqual([])
+    expect(compiled.code).toContain('const __sfc__')
+    // The render function must reach the binding through the component, not a
+    // bare identifier that would be a ReferenceError at runtime.
+    expect(compiled.code).toMatch(/\$setup\.shelfCount|_ctx\.shelfCount/)
+  })
+})
+
+/**
+ * `defineLayout()` — the catch-all guard and the pure path helpers. The DOM
+ * half (click interception, popstate) has no DOM to run against here; it is
+ * verified in a live browser against the scratch app, and the helpers below
+ * are the logic it dispatches on.
+ */
+describe('defineLayout', () => {
+  afterAll(() => {
+    ;(globalThis as any).__vue_route = undefined
+  })
+
+  test('refuses a page that is not a catch-all', () => {
+    ;(globalThis as any).__vue_route = {
+      catchAll: false,
+      base: '/reports',
+      param: null,
+    }
+    expect(() => defineLayout()).toThrow(/only available on catch-all pages/)
+
+    ;(globalThis as any).__vue_route = undefined
+    expect(() => defineLayout()).toThrow(/only available on catch-all pages/)
+  })
+
+  test('a catch-all page gets segments and listeners', () => {
+    ;(globalThis as any).__vue_route = {
+      catchAll: true,
+      base: '/wiki',
+      param: 'page',
+    }
+    const layout = defineLayout()
+    expect(layout.base).toBe('/wiki')
+    expect(Array.isArray(layout.segments.value)).toBe(true)
+
+    const seen: string[][] = []
+    const off = layout.on(next => {
+      seen.push(next)
+    })
+    layout.navigate(['setup', 'mysql'])
+    expect(seen).toEqual([['setup', 'mysql']])
+    expect(layout.segments.value).toEqual(['setup', 'mysql'])
+
+    // A cancelling listener stops the navigation.
+    layout.on(() => false)
+    layout.navigate(['blocked'])
+    expect(layout.segments.value).toEqual(['setup', 'mysql'])
+
+    off()
+  })
+
+  test('isUnderBase is prefix-safe, segmentsUnder is exact', () => {
+    expect(isUnderBase('/admin', '/admin')).toBe(true)
+    expect(isUnderBase('/admin', '/admin/users/7')).toBe(true)
+    expect(isUnderBase('/admin', '/administrator')).toBe(false)
+    expect(isUnderBase('', '/anything')).toBe(true)
+
+    expect(segmentsUnder('/admin', '/admin')).toEqual([])
+    expect(segmentsUnder('/admin', '/admin/users/7')).toEqual(['users', '7'])
+    expect(segmentsUnder('', '/a/b')).toEqual(['a', 'b'])
   })
 })
