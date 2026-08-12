@@ -2,6 +2,7 @@ import { Bakery } from '@bakery-framework/core/core/bakery'
 import { Logger } from '@bakery-framework/core/logger'
 import { fs, response } from '@bakery-framework/core/utils'
 import { ETag } from '@bakery-framework/core/utils/http'
+import { vueBuildVariant } from './compile'
 import { VUE_VERSION } from './utils'
 
 const logger = new Logger('vue')
@@ -14,21 +15,41 @@ const BUNDLE_DEFINES = {
   __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: 'false',
 }
 
+const VUE_ENTRIES = {
+  runtime: 'vue/dist/vue.runtime.esm-bundler.js',
+  full: 'vue/dist/vue.esm-bundler.js',
+} as const
+
+/**
+ * The one canonical URL for the served Vue build — the import-map alias
+ * (`setup.ts`) and the request check below both read it, so they cannot drift.
+ *
+ * The variant is part of the filename, not just of the entry choice, because
+ * the chunk cache is keyed on this name with the *source's* mtime: flipping
+ * `build` in `server.config.ts` does not touch `vue.esm-bundler.js` on disk,
+ * so a shared name would keep serving the previous variant out of cache
+ * indefinitely.
+ */
+export function vueChunkPath(): string {
+  return `${VUE_CHUNK_PREFIX}${VUE_VERSION}.${vueBuildVariant()}.js`
+}
+
 /** Serves the self-hosted Vue runtime that `Bakery.config.importMap` points at. */
 export async function serveVueChunk(
   path: string,
   req: Request,
 ): Promise<Response> {
-  if (path !== `${VUE_CHUNK_PREFIX}${VUE_VERSION}.js`) {
+  if (path !== vueChunkPath()) {
     return response.error('Not Found', 404)
   }
 
+  const variant = vueBuildVariant()
   const dir = fs.resolve(Bakery.cacheDir, 'vue-official', 'chunks')
-  const fileName = `${VUE_VERSION}.js`
+  const fileName = `${VUE_VERSION}.${variant}.js`
 
   let sourcePath = ''
   try {
-    sourcePath = Bun.resolveSync('vue/dist/vue.esm-bundler.js', Bakery.root)
+    sourcePath = Bun.resolveSync(VUE_ENTRIES[variant], Bakery.root)
   } catch {
     return response.error('Vue not found', 404)
   }

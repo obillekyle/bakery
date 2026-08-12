@@ -36,6 +36,21 @@ export function setVuePluginOptions(opts?: VuePluginOptions) {
   if (opts) vuePluginOptions = opts
 }
 
+/**
+ * `'runtime'` unless the app opted into the full build.
+ *
+ * `customElements` deliberately does *not* force `'full'`: for SFCs the
+ * custom-element decision is made server-side, in `compileTemplateBlock`'s
+ * `isCustomElement`, and arrives in the browser already baked into the render
+ * function. Verified against a live runtime-only page: a configured tag
+ * renders as a plain element, reactively, with no "Failed to resolve
+ * component" warning. Only browser-compiled `template:` strings need the full
+ * build, and only the app knows whether it has any.
+ */
+export function vueBuildVariant(): 'runtime' | 'full' {
+  return vuePluginOptions.build === 'full' ? 'full' : 'runtime'
+}
+
 export function resolveIsCustomElement(tag: string): boolean {
   const ce = vuePluginOptions?.customElements
   const userFn = vuePluginOptions?.compilerOptions?.isCustomElement
@@ -188,8 +203,17 @@ export function assembleComponent(options: AssembleComponentOptions): string {
   if (isRoot) {
     output +=
       `\nimport { createApp } from 'vue';` +
-      `\nconst __app = createApp(${COMPONENT_VAR});` +
-      `\n__app.config.compilerOptions.isCustomElement = ${buildRuntimeCustomElementCheck()};` +
+      `\nconst __app = createApp(${COMPONENT_VAR});`
+
+    // Full build only. `app.config.compilerOptions` is read exclusively by the
+    // in-browser template compiler, which the runtime build does not carry —
+    // there, the assignment does nothing except make Vue log a warning about
+    // itself on every page, even for apps that configured nothing.
+    if (vueBuildVariant() === 'full') {
+      output += `\n__app.config.compilerOptions.isCustomElement = ${buildRuntimeCustomElementCheck()};`
+    }
+
+    output +=
       `\n__app.config.globalProperties.$fmt = (v) => globalThis.$fmt ? globalThis.$fmt(v) : v;` +
       `\n__app.mount('#app');`
   }

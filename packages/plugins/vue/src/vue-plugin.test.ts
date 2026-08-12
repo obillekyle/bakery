@@ -8,7 +8,13 @@ import {
   validateActionRequest,
   validateActionTarget,
 } from './actions'
-import { resolveIsCustomElement, setVuePluginOptions } from './compile'
+import { serveVueChunk, vueChunkPath } from './chunks'
+import {
+  assembleComponent,
+  resolveIsCustomElement,
+  setVuePluginOptions,
+  vueBuildVariant,
+} from './compile'
 import { VueHandler } from './handler'
 import type { VueMeta } from './types'
 import {
@@ -17,6 +23,7 @@ import {
   escapeScriptJson,
   extractServerScripts,
   getServerResponse,
+  initVueVersion,
   parsedCache,
   parseVueMeta,
   rewriteRelativeImports,
@@ -1247,5 +1254,84 @@ describe('Server module cache lifecycle', () => {
     expect(remaining).toEqual([`${id}_${FIXED_MOD + 2}.ts`])
 
     await fs.rm(fs.resolve(dir, `${id}_${FIXED_MOD + 2}.ts`), { force: true })
+  })
+})
+
+/**
+ * The build-variant plumbing: which Vue the chunk serves, and what the root
+ * component emits, both keyed on the `build` option.
+ *
+ * The interesting assertions are the *runtime* ones, because runtime is the
+ * default and the smaller contract: no `app.config.compilerOptions` assignment
+ * — the runtime build has no in-browser compiler to read it, so the line's
+ * only observable effect there is Vue warning about itself on every page.
+ * Custom elements need nothing at runtime for SFCs: the decision is baked into
+ * the render function server-side (`compileTemplateBlock`), which a live
+ * runtime-only page verified — configured tag rendered reactively, no
+ * "Failed to resolve component".
+ */
+describe('Vue build variant', () => {
+  afterAll(() => {
+    setVuePluginOptions({ customElements: [], compilerOptions: {} })
+  })
+
+  test('runtime is the default, and the chunk URL carries it', () => {
+    setVuePluginOptions({})
+    expect(vueBuildVariant()).toBe('runtime')
+    expect(vueChunkPath().endsWith('.runtime.js')).toBe(true)
+
+    setVuePluginOptions({ build: 'full' })
+    expect(vueBuildVariant()).toBe('full')
+    expect(vueChunkPath().endsWith('.full.js')).toBe(true)
+  })
+
+  test('the un-varianted URL no longer serves — the cache cannot alias builds', async () => {
+    setVuePluginOptions({})
+    const version = initVueVersion()
+    const res = await serveVueChunk(
+      `/_vue/${version}.js`,
+      new Request('http://localhost/'),
+    )
+    expect(res.status).toBe(404)
+  })
+
+  test('a root component on the runtime build emits no compilerOptions line', () => {
+    setVuePluginOptions({ customElements: ['spice-rack'] })
+    const out = assembleComponent({
+      scriptCode: 'export default {}',
+      renderCode: '',
+      isRoot: true,
+      scopeId: '',
+    })
+
+    expect(out).toContain('createApp')
+    expect(out).toContain("mount('#app')")
+    expect(out).not.toContain('compilerOptions.isCustomElement')
+  })
+
+  test('the full build keeps the runtime custom-element check', () => {
+    setVuePluginOptions({ customElements: ['spice-rack'], build: 'full' })
+    const out = assembleComponent({
+      scriptCode: 'export default {}',
+      renderCode: '',
+      isRoot: true,
+      scopeId: '',
+    })
+
+    expect(out).toContain('compilerOptions.isCustomElement')
+    expect(out).toContain('spice-rack')
+  })
+
+  test('a non-root component never carries the mount block either way', () => {
+    setVuePluginOptions({ build: 'full' })
+    const out = assembleComponent({
+      scriptCode: 'export default {}',
+      renderCode: '',
+      isRoot: false,
+      scopeId: '',
+    })
+
+    expect(out).not.toContain('createApp')
+    expect(out).not.toContain('compilerOptions')
   })
 })

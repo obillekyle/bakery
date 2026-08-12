@@ -18,10 +18,11 @@ bun add vue
 `setup()` checks that `vue/package.json` resolves and calls `process.exit(1)`
 with a log line if it does not — a missing Vue is a boot failure, not a runtime
 surprise ([`vue/src/setup.ts`](../../packages/plugins/vue/src/setup.ts)). The
-version string, and the runtime served at `/_vue/<version>.js`, are resolved
-from the *application's* directory, so the app controls which Vue it ships. The
-SFC compiler (`@vue/compiler-sfc`, a dependency of `vue`) is imported lazily on
-the first compile, and throws "compiler-sfc not available" if it is missing.
+version string, and the runtime served at `/_vue/<version>.<build>.js`, are
+resolved from the *application's* directory, so the app controls which Vue it
+ships. The SFC compiler (`@vue/compiler-sfc`, a dependency of `vue`) is
+imported lazily on the first compile, and throws "compiler-sfc not available"
+if it is missing.
 
 ## Register
 
@@ -38,17 +39,32 @@ export default defineConfig({
       customElements: ['my-widget'],
       // Passed through to @vue/compiler-sfc's compileTemplate.
       compilerOptions: {},
+      // 'runtime' (default) or 'full'. See below.
+      build: 'runtime',
     }),
   ],
 })
 ```
 
 `iconify-icon` is always treated as a custom element, whether or not you list
-it. If `customElements` is a *function*, it is stringified into the browser
-bundle so runtime-compiled templates agree with the build-time decision — a
-predicate that closes over server state will not survive that, and the runtime
-check falls back to the built-in tag
-([`vue/src/compile.ts`](../../packages/plugins/vue/src/compile.ts)).
+it. `customElements` is applied where templates are compiled — on the server —
+so it works identically on both builds; it does not require `'full'`.
+
+**`build` picks which Vue the browser downloads.** The default, `'runtime'`,
+is ~170KB smaller and is all a Bakery app normally needs: every SFC template
+becomes a render function on the server, so the browser never compiles one.
+Opt into `'full'` only when a component hands Vue a raw `template:` string at
+runtime — those are compiled in the browser, and on the runtime build they
+fail with Vue's "runtime compilation is not supported" error naming the
+component.
+
+With `'full'`, if `customElements` is a *function*, it is stringified into the
+browser bundle so runtime-compiled templates agree with the build-time
+decision — a predicate that closes over server state will not survive that,
+and the runtime check falls back to the built-in tag
+([`vue/src/compile.ts`](../../packages/plugins/vue/src/compile.ts)). On
+`'runtime'` that bridge is not emitted, because the runtime build has no
+in-browser compiler to consult it.
 
 Registering the plugin does three things
 ([`vue/src/setup.ts`](../../packages/plugins/vue/src/setup.ts)):
@@ -57,8 +73,11 @@ Registering the plugin does three things
   (60), above `HTMLHandler` (55).
 - `VueErrorHandler` joins the error registry at **18**, so `error.vue` and
   `error-*.vue` files render error pages.
-- `Bakery.config.importMap['vue']` points at `/_vue/<version>.js`, a
-  self-hosted build of the Vue ESM runtime. No CDN.
+- `Bakery.config.importMap['vue']` points at `/_vue/<version>.<build>.js`
+  (e.g. `/_vue/3.5.41.runtime.js`), a self-hosted build of the Vue ESM
+  runtime. No CDN. The build variant is part of the filename so switching
+  `build` in `server.config.ts` can never serve the other variant out of the
+  chunk cache.
 
 ## How a page is served
 

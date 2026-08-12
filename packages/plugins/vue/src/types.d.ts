@@ -89,4 +89,16 @@ export type CustomElementsOption = string[] | ((tag: string) => boolean)
 export interface VuePluginOptions {
   customElements?: CustomElementsOption
   compilerOptions?: Record<string, any>
+  /**
+   * Which Vue build the plugin serves at `/_vue/<version>.<build>.js`.
+   *
+   * `'runtime'` (the default) is ~170KB smaller and is all a Bakery app
+   * normally needs: SFC templates are compiled to render functions on the
+   * server, and `customElements` is applied there too, so the browser never
+   * compiles a template. Opt into `'full'` only for components that hand Vue a
+   * raw `template:` string at runtime — those are compiled in the browser and
+   * fail on the runtime build with Vue's "runtime compilation is not
+   * supported" error.
+   */
+  build?: 'runtime' | 'full'
 }

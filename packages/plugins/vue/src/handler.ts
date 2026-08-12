@@ -23,7 +23,12 @@ import {
   validateActionTarget,
 } from './actions'
 import { serveVueChunk, VUE_CHUNK_PREFIX } from './chunks'
-import { compileStyleBlock, compileVueFile, parseVue } from './compile'
+import {
+  compileStyleBlock,
+  compileVueFile,
+  parseVue,
+  vueBuildVariant,
+} from './compile'
 import { VUE_HTML_SHELL } from './shell'
 import type { ParsedCacheEntry } from './types'
 import {
@@ -246,7 +251,15 @@ export class VueHandler extends DynamicHandler {
     // data, so the built file can live on disk.
     if (!hasServerScript || isRootScript) {
       const dir = fs.resolve(cacheDir, 'js')
-      const fileName = `${id}${isRootScript ? '.root' : ''}.js`
+      // Root scripts carry the build variant in their name for the same reason
+      // the chunk does (`vueChunkPath`): the cache is keyed on the *source's*
+      // mtime, and flipping `build` in server.config.ts touches no source file
+      // — measured serving a root compiled under 'runtime' after the flip to
+      // 'full', missing the isCustomElement bridge the full build exists for.
+      // Only roots: the variant changes nothing in a subcomponent's output.
+      const fileName = isRootScript
+        ? `${id}.root.${vueBuildVariant()}.js`
+        : `${id}.js`
       const replacement =
         isRootScript && hasServerScript
           ? '(globalThis.__vue_server || {})'
