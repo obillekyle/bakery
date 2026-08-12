@@ -1072,6 +1072,16 @@ export namespace DB {
     if (op === 'IS NULL' || op === 'IS NOT NULL') {
       return `${left} ${op}`
     }
+    // A bound NULL can never satisfy `=` or `<>` — three-valued logic makes
+    // both comparisons UNKNOWN for every row, so `where(col, null)` silently
+    // matched nothing while cheerfully reporting success. The caller who
+    // passes an explicit null means the SQL spelling of it. Only literal
+    // values: a column reference on the right is a different comparison and
+    // is left alone.
+    if (rightArg === null && !isRightColumn) {
+      if (op === '=') return `${left} IS NULL`
+      if (op === '!=' || op === '<>') return `${left} IS NOT NULL`
+    }
     if (op === 'BETWEEN' && Array.isArray(rightArg)) {
       const min = evalOperands(rightArg[0], params, false)
       const max = evalOperands(rightArg[1], params, false)
