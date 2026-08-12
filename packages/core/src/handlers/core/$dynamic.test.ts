@@ -286,3 +286,56 @@ describe('findDynamicRoute — catch-alls yield to real files', () => {
     expect(hit!.getParams('/site/some/page')).toEqual({ rest: 'some/page' })
   })
 })
+
+/**
+ * The real-file rule has to see through compiled extensions. `TSHandler`
+ * serves `provides.ts` at `/site/provides` and `/site/provides.js`, so
+ * neither spelling names a file on disk — a literal stat missed both and a
+ * catch-all page above the module's handler (58 vs 50 in the report) served
+ * HTML to a browser that asked for a module. `servedSourceExists` probes the
+ * registered dynamic extensions against the extensionless base, read from the
+ * live registry so a plugin's extension counts without core naming it.
+ */
+describe('findDynamicRoute — catch-alls yield to compiled sources', () => {
+  class SourceYieldHandler extends DynamicHandler {}
+  class TsLikeHandler extends DynamicHandler {
+    static get config() {
+      return { ext: ['ts'], dir: Bakery.serveRoot, include: ['**/*'] }
+    }
+  }
+  const S_ROOT = fs.resolve(ROUTE_DIR, 'source-yield')
+
+  beforeAll(async () => {
+    await Bun.write(
+      `${S_ROOT}/site/[...rest].tsx`,
+      'export default () => null\n',
+    )
+    await Bun.write(`${S_ROOT}/site/provides.ts`, 'export default () => 1\n')
+    __setTestConfig({ root: S_ROOT } as any)
+    Bakery.handlers.fetch.set(TsLikeHandler, 50)
+    const info = new RouteData.Info(
+      `${S_ROOT}/site/[...rest].tsx` as fs.AbsolutePath,
+      'site/[...rest].tsx',
+    )
+    SourceYieldHandler.dynamicCache.set(info.regex!, info)
+  })
+
+  afterAll(() => {
+    __resetTestConfig()
+    Bakery.handlers.fetch.delete(TsLikeHandler)
+    SourceYieldHandler.dynamicCache.clear()
+  })
+
+  test('declines the extensionless spelling of a .ts module', () => {
+    expect(SourceYieldHandler.findDynamicRoute('/site/provides')).toBeNull()
+  })
+
+  test('declines the .js spelling too', () => {
+    expect(SourceYieldHandler.findDynamicRoute('/site/provides.js')).toBeNull()
+  })
+
+  test('still answers a path no handler can serve as a file', () => {
+    const hit = SourceYieldHandler.findDynamicRoute('/site/reports/monthly')
+    expect(hit).not.toBeNull()
+  })
+})

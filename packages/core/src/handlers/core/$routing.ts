@@ -72,6 +72,43 @@ const routeGlobs = (
  * is not a file and does not trigger the yield. `findDynamicRoute` applies
  * the same rule on the cached path; the two must agree.
  */
+/**
+ * Does the requested path name a file some handler serves at that URL?
+ *
+ * The "a real file always beats a catch-all" rule used to stat the literal
+ * path only, which misses every *compiled* URL: `TSHandler` serves
+ * `provides.ts` at `/teacher/provides` and `/teacher/provides.js`, so neither
+ * spelling named a file on disk and a Vue catch-all above it (priority 58 vs
+ * 50) served HTML to a browser that asked for a module. The probe now also
+ * tries the registered dynamic extensions against the extensionless base —
+ * the same mapping the serving handlers apply, read from the live registry so
+ * a plugin's extension (`.vue`) counts without core naming it.
+ *
+ * The caller clamps `target` inside the root before asking; appending an
+ * extension cannot escape it.
+ */
+export function servedSourceExists(target: string): boolean {
+  if (fs.isFileSync(target)) return true
+
+  const base = target.endsWith('.js') ? target.slice(0, -3) : target
+  for (const handler of Bakery.handlers.fetch.keys()) {
+    let exts: unknown
+    try {
+      exts = (handler as { config?: { ext?: unknown } }).config?.ext
+    } catch {
+      // A config getter that needs state this process lacks — a handler with
+      // no ext table cannot claim a source file either way.
+      continue
+    }
+    if (!Array.isArray(exts)) continue
+    for (const ext of exts) {
+      if (fs.isFileSync(`${base}.${ext}`)) return true
+    }
+  }
+
+  return false
+}
+
 async function getCatchAllRoute(
   ext: string,
   dir: fs.AbsolutePath,
@@ -98,7 +135,7 @@ async function getCatchAllRoute(
     // whose name merely begins with it.
     if (
       (target === dir || target.startsWith(`${dir}/`)) &&
-      fs.isFileSync(target)
+      servedSourceExists(target)
     ) {
       return null
     }

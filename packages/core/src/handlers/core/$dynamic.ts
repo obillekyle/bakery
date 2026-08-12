@@ -12,7 +12,7 @@ import {
   RX_DYNAMIC,
 } from './$base'
 import { resolveMount } from './$mounts'
-import { getRoute } from './$routing'
+import { getRoute, servedSourceExists } from './$routing'
 
 const dynamicCaches = new Map<any, HandlerCache<RegExp, Route.Info>>()
 
@@ -149,18 +149,20 @@ export class DynamicHandler extends Handler {
     }
     if (deferred) {
       // A real file always beats a catch-all, whatever handler would serve
-      // it: when the requested path names an existing file, every catch-all
-      // declines so the file's own handler (possibly lower-priority — CSS
-      // falls all the way to StaticHandler) gets asked. One stat, paid only
-      // when a catch-all is about to answer. `getCatchAllRoute` applies the
-      // same rule on the discovery path; the two must agree — including the
+      // it: when the requested path names an existing file — literally, or
+      // through a compiled extension like `provides.ts` at `/provides.js`
+      // (see `servedSourceExists`) — every catch-all declines so the file's
+      // own handler (possibly lower-priority — CSS falls all the way to
+      // StaticHandler) gets asked. A handful of stats, paid only when a
+      // catch-all is about to answer. `getCatchAllRoute` applies the same
+      // rule on the discovery path; the two must agree — including the
       // containment clamp: `root + path` is unresolved, so a `..` in the
       // path would have `statSync` resolve it outside the root and turn this
       // into an existence probe. See the comment there.
       const target = fs.resolve(root, `.${path}`)
       if (
         (target === root || target.startsWith(`${root}/`)) &&
-        fs.isFileSync(target)
+        servedSourceExists(target)
       ) {
         return null
       }
