@@ -1,6 +1,6 @@
 {
   "name": "@bakery-framework/core",
-  "version": "2.0.0-alpha.3",
+  "version": "2.0.0-alpha.4",
   "description": "Bakery framework core: handlers, router, config, session, caches, logger, compiler.",
   "keywords": [
     "bakery",
