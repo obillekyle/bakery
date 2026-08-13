@@ -9,12 +9,28 @@ import {
 import { JsonResponseData } from '@bakery-framework/core/utils/common'
 import { __resetTestDb, __setTestDb } from '@bakery-framework/orm/connection'
 import {
-  __resetTestAuthorize,
-  __setTestAuthorize,
-  DashboardHandler,
-  handleDashboardRequest,
-} from './setup'
+  setAnalyticsAuthorize,
+  setAnalyticsCredential,
+} from '@bakery-framework/plugin-analytics/stats'
+import { DashboardHandler, handleDashboardRequest } from './setup'
 import { createStubDb } from './test-fixtures'
+
+/**
+ * The console has no predicate of its own to seam: `setAnalyticsAuthorize` and
+ * `setAnalyticsCredential` are the state `checkAuthMiddleware` reads, which is
+ * the point of the delegation and is why these tests reach for analytics'
+ * setters rather than a dashboard-local one. They are module-level process
+ * state, so anything set here is cleared in `afterAll` — an armed door left
+ * behind is inherited by every file Bun loads after this one.
+ */
+function openTheDoor() {
+  setAnalyticsAuthorize(() => true)
+}
+
+function closeTheDoor() {
+  setAnalyticsAuthorize(undefined)
+  setAnalyticsCredential(undefined)
+}
 
 const ACTION_URL = 'http://localhost/api/_dashboard/execute-action'
 // Nothing may be destroyed even when a case fails: this table does not exist,
@@ -34,7 +50,7 @@ beforeAll(() => {
   // The predicate, not `setupDashboard`: that also mounts routes, registers the
   // handler at priority 120 and installs a global log callback, none of which
   // can be undone afterwards.
-  __setTestAuthorize(() => true)
+  openTheDoor()
   __setTestDb(stubDb)
   // Writes deliberately *enabled*. The subject here is the routing and CSRF
   // layer; leaving the write gate to reject everything would make these tests
@@ -43,7 +59,7 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  __resetTestAuthorize()
+  closeTheDoor()
   __resetTestDb()
   if (priorAllowWrites === undefined) delete process.env.DASHBOARD_ALLOW_WRITES
   else process.env.DASHBOARD_ALLOW_WRITES = priorAllowWrites
@@ -185,6 +201,219 @@ describe('dashboard CSRF and method qualification', () => {
     // point is that it was dispatched at all rather than refused by a guard.
     expect(res).toBeInstanceOf(JsonResponseData)
     expect((res as JsonResponseData).status).not.toBe(403)
+  })
+})
+
+/**
+ * The predicate's own semantics — loopback matching, throwing predicates,
+ * truthy-non-boolean denial, the production default — live in
+ * `packages/core/src/utils/http/authorize.test.ts` now that the guard is
+ * core's. What is dashboard's and stays here is the *wiring*: that the console
+ * consults the predicate at all, and that a denial is shaped differently for an
+ * API path than for a page.
+ */
+describe('dashboard authorization wiring', () => {
+  const denyAll = () => false
+
+  afterAll(() => {
+    // Back to the file-wide allow set in the outer `beforeAll`, so ordering
+    // between describes cannot decide whether the CSRF cases above are reached.
+    openTheDoor()
+  })
+
+  test('an unauthorized API request is refused with 401', async () => {
+    setAnalyticsAuthorize(denyAll)
+
+    const res = await handleDashboardRequest(
+      new Request('http://localhost/api/_dashboard/schema'),
+    )
+
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(401)
+    expect(dbCalls).toEqual([])
+  })
+
+  test('an unauthorized page request is refused with 404, not 401', async () => {
+    // A 401 on the shell would confirm the console is mounted at this path to
+    // anyone who probes for it; the page half answers as if nothing is there.
+    setAnalyticsAuthorize(denyAll)
+
+    const res = await handleDashboardRequest(
+      new Request('http://localhost/_dashboard'),
+    )
+
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(404)
+  })
+
+  test('the denial happens before CSRF, so a probe learns nothing', async () => {
+    // Auth runs first deliberately: a cross-origin POST from an unauthenticated
+    // peer must get the same 401 as any other unauthenticated request, not the
+    // 403 that would tell it the endpoint exists.
+    setAnalyticsAuthorize(denyAll)
+
+    const res = await handleDashboardRequest(
+      new Request(ACTION_URL, {
+        method: 'POST',
+        headers: {
+          origin: 'https://evil.example',
+          'content-type': 'application/json',
+        },
+        body: truncateBody(),
+      }),
+    )
+
+    expect((res as Response).status).toBe(401)
+    expect(dbCalls).toEqual([])
+  })
+
+  test('assets are served without consulting the predicate', async () => {
+    // Styling and script are not secrets, and letting them through keeps an
+    // unauthorised response from rendering unstyled.
+    setAnalyticsAuthorize(() => {
+      throw new Error('the predicate must not be consulted for assets')
+    })
+
+    expect(
+      await handleDashboardRequest(
+        new Request('http://localhost/_dashboard/style.css'),
+      ),
+    ).toBeNull()
+  })
+
+  test('a granting predicate lets the same API request through', async () => {
+    // The other direction: the guard must not have made the console useless.
+    openTheDoor()
+
+    const res = await handleDashboardRequest(
+      new Request('http://localhost/api/_dashboard/schema'),
+    )
+
+    expect(res).not.toBeInstanceOf(Response)
+  })
+
+  // Not covered here: that `setupDashboard` hands its options to
+  // `setupAnalytics` rather than dropping them. Reaching it means calling
+  // `setupDashboard`, which also mounts routes, registers the handler at
+  // priority 120 and installs a global log callback — three process-global
+  // mutations with no restore, which is the leak convention 9 exists to stop.
+  // What the block below covers instead is the half that matters at request
+  // time: that the state those options land in is the state the console reads.
+})
+
+/**
+ * The delegation itself. `@bakery-framework/plugin-analytics` is a hard
+ * dependency of this package and owns the door for both surfaces, so what is
+ * asserted here is that the console has no second door of its own: setting
+ * analytics' credential, and nothing else, admits a *dashboard* request.
+ *
+ * Verified by planting the pre-delegation guard back — a module-local
+ * predicate defaulting to `defaultAuthorize`, checked with `isAuthorized` —
+ * and re-running: the three *admission* cases fail against it, because a
+ * console with its own door never looks at analytics' credential or
+ * predicate and refuses all three.
+ *
+ * The two refusal cases pass against the plant as well, and are kept as
+ * controls rather than as evidence. A wrong key is refused by any guard, and
+ * "neither configured" is refused by the old one too — `bun test` runs with
+ * `PROD` set, so `defaultAuthorize` denies before `isLoopback` is reached, and
+ * `isLoopback` would deny anyway with no server to read a peer address from.
+ * They pin the shape of the denial; the three above pin the delegation.
+ */
+describe('the console delegates its door to analytics', () => {
+  afterAll(() => {
+    // Same reason as the block above: back to the file-wide allow, and the
+    // outer `afterAll` clears both halves before the next file loads.
+    closeTheDoor()
+    openTheDoor()
+  })
+
+  test('the analytics credential admits a dashboard request', async () => {
+    closeTheDoor()
+    setAnalyticsCredential('ops-key-7')
+
+    const res = await handleDashboardRequest(
+      new Request('http://localhost/api/_dashboard/schema', {
+        headers: { 'x-analytics-key': 'ops-key-7' },
+      }),
+    )
+
+    // Not a `Response`: the guard returns one only to refuse. Reaching the
+    // endpoint means the envelope comes back instead.
+    expect(res).not.toBeInstanceOf(Response)
+  })
+
+  test('the analytics credential admits the console page too', async () => {
+    // The page half takes the 404 branch when refused, so a bare status check
+    // on `/api/` alone would not tell the two apart.
+    closeTheDoor()
+    setAnalyticsCredential('ops-key-7')
+
+    const res = await handleDashboardRequest(
+      new Request('http://localhost/_dashboard?analytics-key=ops-key-7'),
+    )
+
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(200)
+  })
+
+  test('a wrong analytics credential is refused', async () => {
+    closeTheDoor()
+    setAnalyticsCredential('ops-key-7')
+
+    const res = await handleDashboardRequest(
+      new Request('http://localhost/api/_dashboard/schema', {
+        headers: { 'x-analytics-key': 'wrong' },
+      }),
+    )
+
+    expect((res as Response).status).toBe(401)
+    expect(dbCalls).toEqual([])
+  })
+
+  test('an analytics authorize predicate admits a dashboard request', async () => {
+    closeTheDoor()
+    setAnalyticsAuthorize(req => req.headers.get('x-role') === 'admin')
+
+    const admitted = await handleDashboardRequest(
+      new Request('http://localhost/api/_dashboard/schema', {
+        headers: { 'x-role': 'admin' },
+      }),
+    )
+    expect(admitted).not.toBeInstanceOf(Response)
+
+    const refused = await handleDashboardRequest(
+      new Request('http://localhost/api/_dashboard/schema', {
+        headers: { 'x-role': 'guest' },
+      }),
+    )
+    expect((refused as Response).status).toBe(401)
+  })
+
+  test('neither configured denies, and the console has no default of its own', async () => {
+    // The console's `defaultAuthorize` lives at the *setup* boundary now — it
+    // is forwarded into analytics as an explicit predicate — so an analytics
+    // door with nothing in it is closed even to loopback, which is exactly
+    // what a request arriving here with no configuration must find.
+    closeTheDoor()
+
+    expect(
+      (
+        (await handleDashboardRequest(
+          new Request('http://localhost/api/_dashboard/schema'),
+        )) as Response
+      ).status,
+    ).toBe(401)
+
+    expect(
+      (
+        (await handleDashboardRequest(
+          new Request('http://localhost/_dashboard'),
+        )) as Response
+      ).status,
+    ).toBe(404)
+
+    expect(dbCalls).toEqual([])
   })
 })
 

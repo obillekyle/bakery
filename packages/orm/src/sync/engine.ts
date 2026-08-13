@@ -3,16 +3,14 @@ import { Case } from '@bakery-framework/core/utils'
 import type { SQLAdapter } from '../adapters/base'
 import { SchemaBuilder } from './builder'
 import {
-  buildSyncPlan,
   calculateForeignKeyDiff,
-  calculateIndexDiff,
   collectForeignKeys,
   executeSyncPlan,
   hasOldWrappers,
-  logPlannedChanges,
-} from './helpers'
+} from './execute'
 import { writeLedger } from './ledger'
 import type { SchemaLayout } from './load'
+import { buildSyncPlan, calculateIndexDiff, logPlannedChanges } from './plan'
 import type * as SyncTypes from './types'
 
 // prettier-ignore
@@ -70,6 +68,15 @@ export const syncMsgs = {
   EXEC_SYNC_VIEW: 'D Syncing view: %y{view}%*...',
   EXEC_SYNC_CONS: 'D Syncing constraints for: %y{table}%*...',
   EXEC_ADD_INDEX: 'I Creating %y{type}%* index: %g{name}%*...',
+  // Declared late. `executeSyncPlan` has always called these two, and
+  // `messageLogger`'s proxy answers an undeclared key with a live emitter that
+  // prints `E Error message not found: EXEC_ADD_FK` — so every foreign key
+  // added or dropped on a dialect that can ALTER one logged an *error* where
+  // its ten sibling operations logged progress. Only reachable with
+  // `supportsAlterForeignKey`, which is why SQLite-only local runs never
+  // showed it.
+  EXEC_DROP_FK: 'I Dropping foreign key: %r{table}.{name}%*...',
+  EXEC_ADD_FK: 'I Adding foreign key: %g{table}%* -> %g{ref}%*...',
   CATCH_UP_SUCCESS: 'I %gDatabase successfully caught up%*!',
   PROD_FORCE_REQUIRED: 'E %rProduction requires %y--force-sync%* to proceed.%*',
   BACKUP_REQUIRED:
@@ -274,7 +281,7 @@ export class SyncEngine {
     {
       await using _session = new SyncSession(adapter)
       await adapter.transaction(tx =>
-        executeSyncPlan(
+        executeSyncPlan({
           tx,
           plan,
           constraints,
@@ -284,7 +291,7 @@ export class SyncEngine {
           tsFks,
           fksToAdd,
           fksToDrop,
-        ),
+        }),
       )
     }
 

@@ -93,6 +93,52 @@ export interface ForeignKeyInfo {
   onUpdate?: ForeignKeyAction
 }
 
+/**
+ * The diff, as one value: what `sync/plan.ts` decided and `sync/execute.ts`
+ * applies.
+ *
+ * It lives here rather than beside `buildSyncPlan` because `sync/rename.ts` and
+ * `sync/diff.ts` both mutate a plan and are both imported *by* the planner. A
+ * home in `plan.ts` would make that pair of edges circular — type-only, and so
+ * erased under `verbatimModuleSyntax`, but this repo has been bitten by import
+ * cycles often enough that not creating one is worth more than the adjacency.
+ */
+export namespace SyncPlan {
+  export interface TableRename {
+    oldName: string
+    newName: string
+  }
+  export interface ColumnDrop {
+    table: string
+    column: string
+  }
+  export interface ColumnAdd {
+    table: string
+    column: string
+    def: ColumnConstraint
+  }
+  export interface ColumnRename {
+    table: string
+    oldColumn: string
+    newColumn: string
+  }
+}
+
+export interface SyncPlan {
+  tablesToDrop: string[]
+  tablesToRename: SyncPlan.TableRename[]
+  columnsToDrop: SyncPlan.ColumnDrop[]
+  columnsToAdd: SyncPlan.ColumnAdd[]
+  columnsToRename: SyncPlan.ColumnRename[]
+  tablesToRebuild: Set<string>
+  /** Which source `dbConstraintsForDiff` came from, so the run can say so. */
+  ledgerSource?: 'ledger' | 'introspection'
+  ledgerReason?: string
+  viewsToUpdate: string[]
+  unmappedTsTables: Set<string>
+  dbConstraintsForDiff: DBConstraints
+}
+
 export type DBForeignKeys = Record<string, ForeignKeyInfo>
 
 export type DBConstraints = Record<string, TableConstraints>

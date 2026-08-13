@@ -114,15 +114,21 @@ or empty variable turns the door **off**, never open.
 ([`analytics/src/endpoints/stats.ts`](../../packages/plugins/analytics/src/endpoints/stats.ts)):
 
 - the credential above, and
-- the legacy `DASHPASS_SESSION_KEY` session flag (`__bakery.dashpass`).
+- an optional `authorize(req)` predicate, for applications that gate by their
+  own roles rather than by a shared key. Either door admits.
 
-**The credential is the reachable door.** Nothing in the repository writes
-the session key — it was set by the dashboard's login form, deleted when the
-dashboard moved to an [`authorize(req)` predicate](dashboard.md) — so without
-a configured credential the endpoints stay closed to everyone. That is the
-safe default (an earlier version returned "authorized" when `DASHPASS` was
-unset, publishing process stats to anyone), but it also left the stats
-unreachable until the credential option existed.
+With neither configured analytics is closed to everyone. That is the safe
+default — an earlier version returned "authorized" when the old `DASHPASS`
+variable was unset, publishing process stats to anyone — and it is the reason
+the plugin ships off rather than open.
+
+**This is the dashboard's door too.** `@bakery-framework/plugin-analytics` is
+a hard dependency of [`@bakery-framework/plugin-dashboard`](dashboard.md),
+which forwards its own `authorize` and `credential` here and guards
+`/_dashboard` with `isAnalyticsAuthorized`: the analytics key *is* the
+dashboard key. Configure it on either plugin — a call that omits an option
+leaves whatever the other one set, so registration order does not decide the
+answer.
 
 Applied uniformly:
 
@@ -135,7 +141,9 @@ Applied uniformly:
 
 The regression tests in
 [`analytics-auth.test.ts`](../../packages/plugins/analytics/src/analytics-auth.test.ts)
-pin both doors and the off-when-unset default.
+pin both doors, the off-when-unset default, and that a bare `setupAnalytics`
+call does not clear what a configured one set. The dashboard half is pinned in
+[`dashboard/src/setup.test.ts`](../../packages/plugins/dashboard/src/setup.test.ts).
 
 ## Programmatic access
 

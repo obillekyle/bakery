@@ -37,66 +37,6 @@ try {
   process.exit(1)
 }
 
-/**
- * Hash everything the boot-time schema sync reads: the schema source files
- * (resolved with the same probe order as orm/sync/load.ts — configured path,
- * then the `orm/` folder layout, then a root `schema.ts`) plus the DB target,
- * since switching `DB_URL` changes what "synced" means.
- *
- * Returns `null` for any indeterminate state — a configured path that does not
- * exist, an unreadable file — so `classifySchemaSync` fails closed into
- * re-syncing. Total absence of a schema is *not* indeterminate (it is a
- * supported state for the defaults) and hashes to a stable value.
- */
-async function computeSchemaHash(
-  configured: string | undefined,
-): Promise<string | null> {
-  const { fs, Try } = await import('@bakery-framework/core/utils')
-
-  const files: string[] = []
-  const scanDir = async (dir: string) => {
-    for await (const file of new Bun.Glob('*.ts').scan({
-      cwd: dir,
-      absolute: true,
-    })) {
-      files.push(file)
-    }
-  }
-
-  const [error] = await Try.catch(
-    (async () => {
-      if (configured) {
-        const path = fs.resolve(fs.cwd, configured)
-        if (await fs.isDir(path)) {
-          await scanDir(path)
-        } else if (await Bun.file(path).exists()) {
-          files.push(path)
-        } else {
-          // Configured-but-missing is SyncService's SCHEMA_NOT_FOUND case:
-          // let the sync run and produce its proper error.
-          throw new Error(`configured schema path not found: ${path}`)
-        }
-      } else if (await Bun.file(`${fs.cwd}/orm/index.ts`).exists()) {
-        await scanDir(`${fs.cwd}/orm`)
-      } else if (await Bun.file(`${fs.cwd}/schema.ts`).exists()) {
-        files.push(`${fs.cwd}/schema.ts`)
-      }
-    })(),
-  )
-  if (error) return null
-
-  files.sort()
-  const hasher = new Bun.CryptoHasher('sha256')
-  hasher.update(process.env.DB_URL || process.env.DATABASE_URL || '')
-  for (const file of files) {
-    hasher.update(`\0${file}\0`)
-    const [readError, content] = await Try.catch(Bun.file(file).text())
-    if (readError) return null
-    hasher.update(content)
-  }
-  return hasher.digest('hex')
-}
-
 // The entire block is schema sync, so with no ORM there is nothing here to do.
 // Silently: a dev boot of an app that never had a database should not report
 // the absence of one on every reload.
@@ -108,6 +48,10 @@ if (hasORM()) {
     )
     const { schemaFromConfig } = await import('@bakery-framework/orm/sync/load')
     const { Try } = await import('@bakery-framework/core/utils')
+    // Dynamic, like every other import in this block: `schema-hash.ts` is only
+    // needed when the ORM is installed, and a static import would pull it (and
+    // its own dynamic core barrel) onto the no-ORM boot path.
+    const { computeSchemaHash } = await import('./schema-hash')
 
     const hashFile = `${Bakery.cacheDir}/schema-sync.hash`
     const currentHash = await computeSchemaHash(schemaFromConfig(config))

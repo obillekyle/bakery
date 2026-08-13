@@ -5,14 +5,14 @@ import { errorMsg } from '@bakery-framework/core/logger'
 import type { PluginRouteTable } from '@bakery-framework/core/plugins'
 import { routeTable } from '@bakery-framework/core/plugins'
 import { fs } from '@bakery-framework/core/utils'
-import { response } from '@bakery-framework/core/utils/http'
 import {
   type AuthorizeFn,
-  credentialMatches,
   defaultAuthorize,
   isAuthorized,
   resolveAuthorize,
-} from './authorize'
+  response,
+} from '@bakery-framework/core/utils/http'
+import { hasDbKey } from './credential'
 import { handleSchema, handleTableData } from './endpoints'
 
 /**
@@ -136,7 +136,7 @@ export class DbExplorerHandler extends Handler {
     // dashboard. Everything else fails closed. Either door admits: the
     // shared credential (constant-time, off when unset) or the predicate.
     const admitted =
-      credentialMatches(credential, req) || (await isAuthorized(authorize, req))
+      hasDbKey(credential, req) || (await isAuthorized(authorize, req))
     if (!/\.(css|js)$/.test(path) && !admitted) {
       return path.startsWith('/api/')
         ? response.error('Unauthorized', 401)

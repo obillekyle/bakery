@@ -18,7 +18,8 @@ import '@bakery-framework/core/core/init'
 import { setLogCallback } from '@bakery-framework/core/logger'
 import { SQLiteAdapter } from '../adapters/sqlite'
 import { isProductionSync, SyncEngine } from './engine'
-import { buildSyncPlan, executeSyncPlan } from './helpers'
+import { executeSyncPlan } from './execute'
+import { buildSyncPlan } from './plan'
 
 /**
  * The two guards in `SyncEngine` that were not doing their job.
@@ -259,14 +260,14 @@ describe('SQLite column renames survive execution', () => {
       logger,
       silent,
     )
-    await executeSyncPlan(
-      db as any,
+    await executeSyncPlan({
+      tx: db as any,
       plan,
-      constraints as any,
-      new Set(),
-      new Map(),
-      silent,
-    )
+      constraints: constraints as any,
+      indexesToDrop: new Set(),
+      indexesToAdd: new Map(),
+      MESSAGES: silent,
+    })
   }
 
   const pk = { type: 'integer', primary: true, autoIncrement: true }

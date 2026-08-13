@@ -4,34 +4,15 @@ import '@bakery-framework/core/core/init'
 // Safe as a static import: `core/port` reads `process.env` and imports nothing,
 // so it cannot be the edge that closes core's barrel cycle.
 import { applyPortFlag } from '@bakery-framework/core/core/port'
+// Safe as a static import for the same reason as `core/port`: `args.ts` imports
+// nothing at all.
+import { parseThreadsOption } from './args'
 
 const isDev = import.meta.env.DEV
 const isDevWorker = import.meta.env.DEV_WORKER
 const isThreadWorker = import.meta.env.THREAD_WORKER
 
-function getThreadsOption(): number | null {
-  const args = process.argv.slice(2)
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-    if (arg === '--threads' || arg === '-t') {
-      const next = args[i + 1]
-      if (next && /^\d+$/.test(next)) {
-        return Math.max(1, parseInt(next, 10))
-      }
-      return Math.min(Math.max(1, navigator.hardwareConcurrency || 4), 8)
-    }
-    if (arg.startsWith('--threads=') || arg.startsWith('-t=')) {
-      const val = arg.split('=')[1]
-      if (val && /^\d+$/.test(val)) {
-        return Math.max(1, parseInt(val, 10))
-      }
-      return Math.min(Math.max(1, navigator.hardwareConcurrency || 4), 8)
-    }
-  }
-  return null
-}
-
-const threadsOption = getThreadsOption()
+const threadsOption = parseThreadsOption(process.argv.slice(2))
 
 // Before any mode takes over, and before the config is read: `applyPortFlag`
 // writes `process.env.PORT`, which is what the worker, the startup banner and

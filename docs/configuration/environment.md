@@ -57,8 +57,10 @@ setting it does not protect anything.
 
 The dashboard no longer authenticates anyone. It takes an `authorize` predicate
 from your application, and with none configured it allows loopback in
-development and denies everything in production
-(`packages/plugins/dashboard/src/authorize.ts`):
+development and denies everything in production. The guard itself lives in core
+(`packages/core/src/utils/http/authorize.ts`) and is shared with the analytics
+and db-explorer plugins — the dashboard hands its predicate to analytics, which
+owns the decision for both:
 
 ```ts
 import { defineConfig } from '@bakery-framework/core'

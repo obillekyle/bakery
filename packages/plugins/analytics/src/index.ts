@@ -1,4 +1,5 @@
 import { definePlugin } from '@bakery-framework/core/plugins'
+import { parsedUrl } from '@bakery-framework/core/utils/http'
 import { recordErrorPageHit, recordRouteHit } from './core'
 
 export {
@@ -52,7 +53,7 @@ export default function analyticsPlugin(options: AnalyticsPluginOptions = {}) {
       })
     },
     onRoute(req) {
-      const url: URL = (req as any).__parsedUrl || new URL(req.url)
+      const url = parsedUrl(req)
       recordRouteHit(req.method, url.pathname, url.search)
     },
     onStart: async server => {

@@ -2,6 +2,7 @@ import { Bakery } from '../../core/bakery'
 import { handlerLog } from '../../logger/serve-log'
 import { FileSystem } from '../../utils/fs'
 import { checkCsrf, response } from '../../utils/http'
+import { parsedUrl } from '../../utils/http/url'
 import type { Handler } from '../core/$base'
 import { bustInDev, DynamicHandler } from '../core/$dynamic'
 import { ErrorHandler } from '../core/$error'
@@ -29,8 +30,7 @@ export class ApiHandler extends DynamicHandler {
   static async handle(path: string, req: Request) {
     // State-changing methods must be same-origin. SameSite=Lax alone does not
     // cover this: a cross-site form POST is a CORS-simple request.
-    const url: URL = (req as any).__parsedUrl || new URL(req.url)
-    const csrf = checkCsrf(req, url)
+    const csrf = checkCsrf(req, parsedUrl(req))
     if (csrf) return response.json.error(403, csrf) as unknown as Response
 
     const info = await this.resolveRoute(path)

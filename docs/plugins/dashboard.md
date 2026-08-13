@@ -32,31 +32,64 @@ Options ([`dashboard/src/index.ts`](../../packages/plugins/dashboard/src/index.t
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `authorize` | see below | `(req: Request) => boolean \| Promise<boolean>`. Return `true` to allow. |
+| `credential` | unset (off) | A shared key, presented as `Authorization: Bearer`, `x-analytics-key`, or `?analytics-key=`. Composes with `authorize`: either admits. |
 | `enabled` | `true` | `false` keeps the plugin out entirely — nothing is registered, no routes exist. The documented way to disable it in production. |
+
+## The door belongs to analytics
+
+[`@bakery-framework/plugin-analytics`](analytics.md) is a **hard dependency**
+of this package, not an optional companion. The console renders analytics, its
+client calls `/api/_analytics/reset` and opens the `/_analytics_ws` socket, and
+registering the dashboard brings analytics' handlers up so those endpoints
+exist.
+
+It follows that they share one door rather than two. `dashboardPlugin`
+forwards both `authorize` and `credential` to `setupAnalytics`, and the
+console's request guard *is* `isAnalyticsAuthorized` — the analytics key is
+literally the dashboard key. A console admitted by one key while the data it
+renders answered to another would be half-open by construction.
+
+```ts no-check — import.meta.env keys are app-defined
+dashboardPlugin({ credential: import.meta.env.ANALYTICS_KEY })
+```
+
+Configure it on either plugin. A call that omits an option leaves whatever the
+other one set, so registration order does not decide the answer; to turn a
+door off, pass the empty string or do not register the plugin.
 
 ## The default is closed
 
-With no `authorize` supplied
-([`dashboard/src/authorize.ts`](../../packages/plugins/dashboard/src/authorize.ts)):
+With no `authorize` supplied, `setupDashboard` forwards core's
+`defaultAuthorize`
+([`core/src/utils/http/authorize.ts`](../../packages/core/src/utils/http/authorize.ts)):
 
 ```ts no-check — the default predicate, quoted; supply your own instead
 export function defaultAuthorize(req: Request): boolean {
-  if (!import.meta.env.DEV) return false
+  if (import.meta.env.PROD !== false) return false
   return isLoopback(req)
 }
 ```
 
-- **Development**: allowed from loopback only — `127.0.0.1`, `::1`, or a
-  request whose hostname is `localhost`. The client IP is read through
-  `getClientIp`, and if that throws (no config, early boot) the hostname alone
-  decides.
-- **Production**: denied, always. Forgetting to configure the console cannot
-  expose a database browser to the internet.
+- **Development**: allowed from loopback only — `127.0.0.1`, `::1` or
+  `::ffff:127.0.0.1`, read from the peer address through `getClientIp`. Never
+  a hostname: `Host: localhost` is chosen by the client, and honouring it once
+  meant any peer on the LAN could ask for a database browser.
+- **Production**: denied, always. The gate reads `PROD` rather than `!DEV`, and
+  an *unset* flag counts as production — so a process that never booted through
+  `core/init` is closed too. Forgetting to configure the console cannot expose
+  a database browser to the internet.
 
-The predicate runs inside `isAuthorized`, which coerces the result and treats a
-**throw as a denial**. An authorization check that errors is indeterminate, and
-indeterminate fails closed — the same guard convention the rest of the
-framework follows. A predicate that returns `undefined` is not trusted either.
+This is the one place the console is not simply analytics': analytics on its
+own is closed until configured, and forwarding `defaultAuthorize` keeps the
+loopback-in-development convenience that a scaffolded `dashboardPlugin()`
+relies on. It can only ever narrow — it denies in production and admits
+nothing but this machine in development.
+
+The predicate runs behind `isAuthorized`, which requires the exact boolean
+`true` and treats a **throw as a denial**. An authorization check that errors
+is indeterminate, and indeterminate fails closed — the same guard convention
+the rest of the framework follows. A truthy non-boolean is not trusted either:
+a predicate that answers with a status string would otherwise grant on `"no"`.
 
 Because the predicate receives the raw `Request`, it composes with whatever the
 application already has: a session role, a signed cookie, an IP allow-list, an

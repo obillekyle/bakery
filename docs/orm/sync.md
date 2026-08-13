@@ -93,7 +93,7 @@ column list, the plan can contain:
 Then the phases execute inside a single transaction, in this order: drop
 indexes, rename tables, rename columns, drop tables, drop columns, add columns,
 rebuild tables, create tables and views, add indexes
-([`sync/helpers.ts`](../../packages/orm/src/sync/helpers.ts)). A failure
+([`sync/execute.ts`](../../packages/orm/src/sync/execute.ts)). A failure
 anywhere rolls back the lot.
 
 ## Renames

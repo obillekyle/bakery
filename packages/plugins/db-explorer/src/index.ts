@@ -1,7 +1,12 @@
 import { definePlugin } from '@bakery-framework/core/plugins'
-import type { AuthorizeFn } from './authorize'
+import type { AuthorizeFn } from '@bakery-framework/core/utils/http'
 
-export type { AuthorizeFn } from './authorize'
+/**
+ * Part of this plugin's public surface, and re-exported rather than declared:
+ * the predicate type is core's now, shared with the dashboard and analytics,
+ * so an application can write one `AuthorizeFn` and hand it to all three.
+ */
+export type { AuthorizeFn } from '@bakery-framework/core/utils/http'
 
 export interface DbExplorerPluginOptions {
   /**

@@ -42,6 +42,60 @@ left behind puts wrong dependency ranges on npm — which is how every
 
 ## [Unreleased]
 
+### Changed
+
+- **The dashboard's authorization is analytics' authorization.**
+  `@bakery-framework/plugin-analytics` is now a hard dependency of the
+  dashboard, `dashboardPlugin({ authorize, credential })` forwards both to
+  analytics, and the console's guard is `isAnalyticsAuthorized`. The analytics
+  key is the dashboard key. The dashboard's client already called
+  `/api/_analytics/reset` and opened `/_analytics_ws`, so the dependency was
+  real before it was declared.
+
+- **One authorization guard, in core.** The dashboard, db-explorer and analytics
+  each carried a private copy, and the copies had drifted. `utils/http/
+  authorize.ts` is the single implementation; the two plugin copies are deleted.
+
+### Fixed
+
+- **A truthy non-boolean no longer grants dashboard access.** Its guard coerced
+  with `Boolean(await authorize(req))`, so a predicate answering with a status
+  string *granted* on `"no"` and denied on `""`, and one answering with a count
+  granted on any non-zero. It now requires exactly `true`.
+
+- **An unset `PROD` denies rather than falling through.** The mode flags do not
+  exist until `core/init.ts` has run, and `if (PROD)` read `undefined` as "not
+  production" and opened the loopback door in a process that had established
+  nothing.
+
+- **Foreign-key sync logged an error instead of progress.** `EXEC_DROP_FK` and
+  `EXEC_ADD_FK` were never declared in the message table, and the logger's proxy
+  answers an undeclared key with a live emitter — so every foreign key added or
+  dropped printed `E Error message not found`. Only reachable on a dialect that
+  can `ALTER` one, so a SQLite-only run never showed it.
+
+- **A plugin-local `credentialMatches` collided with core's**, which is
+  reachable by wildcard from the same barrel the plugin already imported. Same
+  name, same arity, different second parameter; renamed to `hasDbKey`.
+
+### Internal
+
+- `parsedUrl(req)` replaces the `(req as any).__parsedUrl` property — 6 readers
+  and 2 writers, where a reader that ran before the writer silently re-parsed.
+  It memoizes through a WeakMap, so there is no ordering left to get wrong.
+- `orm/sync/helpers.ts` (1145 lines) split into `rename`, `diff`, `plan` and
+  `execute`. `executeSyncPlan`'s 9 positional parameters became one options
+  object with a typed message table.
+- First tests for `handlers/routes/proxy.ts` (which strips credentials before
+  forwarding), `handlers/assets/image.ts` (whose clamped cache key bounds the
+  cache), cli's boot path, and vue's `utils.ts`.
+- Four bugs found and **pinned rather than repaired**, so each fix is a visible
+  change with a test already waiting: `computeSchemaHash` misses schema files
+  the sync actually reads; `ProxyHandler` matches prefixes first-declared-wins
+  with no path boundary; vue's server-block regex false-positives on an
+  attribute *value* containing `server`; and `compileServerBlock` turns an
+  `export class` or a late `import` into a silently empty data object.
+
 ## [2.0.0-alpha.4] — 2026-08-13
 
 ## [2.0.0-alpha.3] — 2026-08-13
