@@ -30,10 +30,43 @@ export interface DashboardPluginOptions {
    *
    * Omitted, access is limited to loopback in development and denied in
    * production, so an unconfigured console is never exposed.
+   *
+   * Handed straight to `@bakery-framework/plugin-analytics`, which owns the
+   * door for both surfaces — so this predicate also admits to
+   * `/api/_analytics/stats` and the `/_analytics_ws` socket the console reads.
    */
   authorize?: AuthorizeFn
+
+  /**
+   * A shared access key, typically from the environment:
+   *
+   * ```ts
+   * dashboardPlugin({ credential: import.meta.env.ANALYTICS_KEY })
+   * ```
+   *
+   * Presented as `Authorization: Bearer`, an `x-analytics-key` header, or an
+   * `?analytics-key=` query. Checked in constant time. Unset or empty means
+   * this path is off — it never means open. Composes with `authorize`: either
+   * admits.
+   *
+   * It is the *analytics* key, not a second one: the console delegates its
+   * authorization to `@bakery-framework/plugin-analytics`, so configuring it
+   * here and configuring it on `analyticsPlugin` are the same act. Set it on
+   * either plugin — a bare call never clears what the other one set.
+   */
+  credential?: string
 }
 
+/**
+ * The operator console at `/_dashboard`.
+ *
+ * `@bakery-framework/plugin-analytics` is a hard dependency, not an optional
+ * companion: the console renders analytics, its client calls
+ * `/api/_analytics/reset` and opens `/_analytics_ws`, and registering the
+ * dashboard brings analytics' handlers up so those endpoints exist. It follows
+ * that they share one door rather than two — see `authorize` and `credential`
+ * above.
+ */
 export default function dashboardPlugin(options: DashboardPluginOptions = {}) {
   const enabled = options.enabled ?? true
 
@@ -42,7 +75,10 @@ export default function dashboardPlugin(options: DashboardPluginOptions = {}) {
     async setup() {
       if (!enabled) return
       const { setupDashboard } = await import('./setup')
-      await setupDashboard({ authorize: options.authorize })
+      await setupDashboard({
+        authorize: options.authorize,
+        credential: options.credential,
+      })
     },
   })
 }

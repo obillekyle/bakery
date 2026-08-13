@@ -283,13 +283,47 @@ describe('conventions (CLAUDE.md)', () => {
       { dir: 'packages/plugins/', banned: /@bakery-framework\/(cli|plugin-)/ },
     ]
 
+    /**
+     * The one plugin-to-plugin edge, allowed by name rather than by relaxing
+     * the rule.
+     *
+     * `@bakery-framework/plugin-analytics` is a hard dependency of
+     * `@bakery-framework/plugin-dashboard`: authorization is analytics' —
+     * `dashboardPlugin` forwards `authorize` and `credential` to
+     * `setupAnalytics`, and the console's request guard *is*
+     * `isAnalyticsAuthorized`, so the analytics key is literally the dashboard
+     * key. The console's client also calls `/api/_analytics/reset` and opens
+     * `/_analytics_ws`, which it could only ever do against a plugin it can
+     * rely on being there.
+     *
+     * An allow-list of exactly one pair, and **directional**. The reverse edge
+     * — analytics importing the dashboard — is the cycle this rule exists to
+     * stop and still fails, as does any other plugin pair, because coupling
+     * two plugins is a decision that should cost an edit here.
+     */
+    const ALLOWED_EDGES = [
+      {
+        dir: 'packages/plugins/dashboard/',
+        specifier: '@bakery-framework/plugin-analytics',
+      },
+    ]
+
+    // Matched against the quoted specifier, not with `includes`: a bare
+    // substring test would also admit `@bakery-framework/plugin-analytics-x`.
+    const isAllowed = (hit: string) =>
+      ALLOWED_EDGES.some(
+        edge =>
+          hit.startsWith(edge.dir) &&
+          new RegExp(`['"]${edge.specifier}(?:/[^'"]*)?['"]`).test(hit),
+      )
+
     const offenders: string[] = []
     for (const rule of RULES) {
       const files = packageSources.filter(f => f.path.startsWith(rule.dir))
       const specifier = new RegExp(
         `(?:from|import)\\s*\\(?\\s*['"][^'"]*${rule.banned.source}`,
       )
-      offenders.push(...find(files, specifier))
+      offenders.push(...find(files, specifier).filter(hit => !isAllowed(hit)))
     }
 
     expect(offenders).toEqual([])
@@ -634,7 +668,9 @@ describe('release versions', () => {
       // It has to appear **twice** — publish.yml packs in one loop and
       // publishes in another, and a package added to only the first is packed
       // and never shipped.
-      const occurrences = publish.split(new RegExp(`^\\s*${dir}\\s*\\\\?$`, 'm'))
+      const occurrences = publish.split(
+        new RegExp(`^\\s*${dir}\\s*\\\\?$`, 'm'),
+      )
       const inPublish = occurrences.length >= 3
       const inManifests = MANIFESTS.includes(`${dir}/package.json`)
       return !inRelease || !inPublish || !inManifests

@@ -187,19 +187,48 @@ export function handleAnalyticsRequest(
 
 let registered = false
 
-export function setupAnalytics(
-  options: { credential?: string; authorize?: AuthorizeFn } = {},
-) {
-  // Auth is (re)applied every call — last config wins — so a second setup
-  // carrying a key overrides an earlier bare `analyticsPlugin()`, whichever
-  // order they ran in.
-  setAnalyticsCredential(options.credential)
-  setAnalyticsAuthorize(options.authorize)
+export interface AnalyticsAuthOptions {
+  credential?: string
+  authorize?: AuthorizeFn
+}
 
-  // The rest runs once, because setup can be called more than once in a
-  // process: the handler registrations are idempotent but the shutdown hook
-  // and data load are not, and a doubled load would race two reads of the
-  // same file.
+/**
+ * The auth half of `setupAnalytics`, split out from the once-only half.
+ *
+ * Auth is (re)applied on every call — last config wins — so the dashboard
+ * bringing analytics up with the shared key overrides a bare
+ * `analyticsPlugin()`, whichever order they registered in.
+ *
+ * "Whichever order" is what the `!== undefined` buys, and it is the whole
+ * reason each option is applied conditionally rather than assigned straight
+ * through. Both plugins forward their options here and an application
+ * configures whichever of the two it thinks of as the console, so under a
+ * plain assignment the answer would depend on registration order: in
+ * `apps/example`, `analyticsPlugin({ credential })` runs after
+ * `dashboardPlugin({ authorize })` and would have wiped the predicate,
+ * shutting the console it was registered to open. A call that carries a value
+ * wins; a bare call is a no-op against auth rather than a silent disarm.
+ * Turning a door off means not registering the plugin, or passing the empty
+ * string — never omitting the option.
+ *
+ * It is separate, and exported, because `setupAnalytics` cannot be called from
+ * a test: it also registers two handlers, installs a shutdown hook and kicks
+ * off a data load, none of them restorable (convention 9).
+ */
+export function applyAnalyticsAuth(options: AnalyticsAuthOptions): void {
+  if (options.credential !== undefined) {
+    setAnalyticsCredential(options.credential)
+  }
+  if (options.authorize !== undefined) setAnalyticsAuthorize(options.authorize)
+}
+
+export function setupAnalytics(options: AnalyticsAuthOptions = {}) {
+  applyAnalyticsAuth(options)
+
+  // The rest runs once. Analytics is now a hard dependency of the dashboard,
+  // so both may set it up in one process; the handler registrations are
+  // idempotent but the shutdown hook and data load are not, and a doubled
+  // load would race two reads of the same file.
   if (registered) return
   registered = true
 

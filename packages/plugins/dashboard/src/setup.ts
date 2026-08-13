@@ -18,12 +18,14 @@ import { Try } from '@bakery-framework/core/utils/common'
 import {
   type AuthorizeFn,
   checkCsrf,
-  defaultAuthorize,
   injectIfHtml,
-  isAuthorized,
   resolveAuthorize,
   response,
 } from '@bakery-framework/core/utils/http'
+// The console's door is analytics'. This is the one plugin-to-plugin edge in
+// the tree, allow-listed by name in `tests/conventions.test.ts`.
+import { setupAnalytics } from '@bakery-framework/plugin-analytics/setup'
+import { isAnalyticsAuthorized } from '@bakery-framework/plugin-analytics/stats'
 import {
   handleExecuteAction,
   handleQuery,
@@ -85,28 +87,29 @@ export class DashboardHandler extends Handler {
   }
 }
 
-let authorize: AuthorizeFn = defaultAuthorize
-
 /**
- * Test seam for the module-level predicate, symmetric with `__setTestDb` in
- * `@bakery-framework/orm` and `__setTestConfig` in core.
+ * The console holds no authorization state of its own — there is no
+ * `__setTestAuthorize` seam here any more, because there is nothing local to
+ * seam. Both options land in analytics, and a test drives the door with
+ * `setAnalyticsAuthorize` / `setAnalyticsCredential` from
+ * `@bakery-framework/plugin-analytics/stats`, which is the same state the
+ * request guard reads.
  *
- * `setupDashboard` is the only other way to set it, and it also mounts routes,
- * registers the handler at priority 120 and installs a global log callback —
- * three process-global mutations, none of them restorable. A test that only
- * needs the request pipeline sets the predicate directly and puts it back in
- * `afterAll`. Always pair with `__resetTestAuthorize()`.
+ * `resolveAuthorize` still runs here rather than in analytics, and that
+ * asymmetry is deliberate. Analytics on its own is closed until configured;
+ * the console keeps its documented default of loopback-in-development,
+ * because `bun create bakery` scaffolds a bare `dashboardPlugin()` and a
+ * console that 404s on the first `bun run dev` is the wrong first impression.
+ * Forwarding `defaultAuthorize` can only ever narrow — it denies in
+ * production and admits nothing but this machine in development.
  */
-export function __setTestAuthorize(fn: AuthorizeFn): void {
-  authorize = fn
-}
-
-export function __resetTestAuthorize(): void {
-  authorize = defaultAuthorize
-}
-
-export function setupDashboard(options: { authorize?: AuthorizeFn } = {}) {
-  authorize = resolveAuthorize(options.authorize)
+export function setupDashboard(
+  options: { authorize?: AuthorizeFn; credential?: string } = {},
+) {
+  setupAnalytics({
+    authorize: resolveAuthorize(options.authorize),
+    credential: options.credential,
+  })
 
   setLogCallback(entry => {
     // Broadcast to the registry LiveReloadHandler actually populates. This used
@@ -171,12 +174,26 @@ async function handleJsAsset() {
   return response.type(bundleResult.content, 'text/javascript')
 }
 
+/**
+ * One door, and it is analytics'. `isAnalyticsAuthorized` reads the same
+ * credential and the same predicate that gate `/api/_analytics/stats` and the
+ * `/_analytics_ws` socket — which the console's own client calls, so a console
+ * admitted by a different key than the data it renders would be half-open by
+ * construction.
+ *
+ * The 401/404 split is the console's and stays here: an API path says
+ * "Unauthorized" because a caller with a key needs to know its key was
+ * refused, while a page says "Not Found" because a 401 on the shell confirms
+ * to anyone probing that a console is mounted at this path. Analytics makes
+ * the same distinction along a different axis (armed → 401, unconfigured →
+ * 404); neither is a substitute for the other.
+ */
 async function checkAuthMiddleware(req: Request, path: string) {
   // Styling and script for the console are not secrets, and letting them
   // through keeps an unauthorised response from rendering unstyled.
   if (/\.(css|js)$/.test(path)) return null
 
-  if (await isAuthorized(authorize, req)) return null
+  if (await isAnalyticsAuthorized(req)) return null
 
   return path.startsWith('/api/')
     ? response.error('Unauthorized', 401)

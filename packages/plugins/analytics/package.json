@@ -25,6 +25,7 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./setup": "./src/setup.ts",
     "./stats": "./src/endpoints/stats.ts",
     "./package.json": "./package.json"
   },

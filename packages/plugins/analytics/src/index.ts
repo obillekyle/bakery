@@ -29,8 +29,8 @@ export interface AnalyticsPluginOptions {
    *
    * Presented as `Authorization: Bearer`, an `x-analytics-key` header, or an
    * `?analytics-key=` query. Checked in constant time; unset or empty means
-   * this door is closed. It gates the analytics endpoints and websocket, and
-   * nothing else.
+   * this door is closed. The same key gates the dashboard, which delegates
+   * its auth here.
    */
   credential?: string
 

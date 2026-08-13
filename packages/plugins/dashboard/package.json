@@ -34,7 +34,8 @@
   ],
   "dependencies": {
     "@bakery-framework/core": "workspace:^",
-    "@bakery-framework/orm": "workspace:^"
+    "@bakery-framework/orm": "workspace:^",
+    "@bakery-framework/plugin-analytics": "workspace:^"
   },
   "engines": {
     "bun": ">=1.3.14"

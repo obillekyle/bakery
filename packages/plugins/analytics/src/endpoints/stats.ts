@@ -92,8 +92,9 @@ export type AnalyticsStats = ReturnType<typeof computeStats>
 export type { AuthorizeFn } from '@bakery-framework/core/utils/http'
 
 /**
- * Analytics owns authorization for its own endpoints. Two doors, both fail
- * closed and both off until configured:
+ * Analytics owns the auth for its endpoints, and the dashboard delegates to
+ * it (`isAnalyticsAuthorized`) — the analytics key *is* the dashboard key.
+ * Two doors, both fail closed and both off until configured:
  *
  *   - the shared `credential` (`x-analytics-key`, Bearer, or `?analytics-key=`)
  *   - an optional `authorize(req)` predicate for role-based access
