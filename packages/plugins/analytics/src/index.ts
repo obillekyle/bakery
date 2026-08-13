@@ -1,4 +1,5 @@
 import { definePlugin } from '@bakery-framework/core/plugins'
+import { parsedUrl } from '@bakery-framework/core/utils/http'
 import { recordErrorPageHit, recordRouteHit } from './core'
 
 export {
@@ -28,8 +29,8 @@ export interface AnalyticsPluginOptions {
    *
    * Presented as `Authorization: Bearer`, an `x-analytics-key` header, or an
    * `?analytics-key=` query. Checked in constant time; unset or empty means
-   * this door is closed. The same key gates the dashboard, which delegates
-   * its auth here.
+   * this door is closed. It gates the analytics endpoints and websocket, and
+   * nothing else.
    */
   credential?: string
 
@@ -52,7 +53,7 @@ export default function analyticsPlugin(options: AnalyticsPluginOptions = {}) {
       })
     },
     onRoute(req) {
-      const url: URL = (req as any).__parsedUrl || new URL(req.url)
+      const url = parsedUrl(req)
       recordRouteHit(req.method, url.pathname, url.search)
     },
     onStart: async server => {

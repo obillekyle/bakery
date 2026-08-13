@@ -3,8 +3,8 @@
  *
  * Why memoize at all: `new URL` measures ~1.7µs, and the router, the body
  * parser and the proxy handler all want the same parse of the same request —
- * so the parse was hoisted into the server's `fetch` and shared (see the
- * comment at `packages/cli/src/worker.ts:146-147`).
+ * so the parse was hoisted into the server's `fetch` in `packages/cli/src/worker.ts`
+ * and shared.
  *
  * Why a `WeakMap` rather than the property it replaces. The memo used to be
  * `(req as any).__parsedUrl`: two writers, six readers across three packages,

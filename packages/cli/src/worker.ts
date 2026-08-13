@@ -20,7 +20,7 @@ import {
 import { Session } from '@bakery-framework/core/session'
 import { runStartupBanner, setupServer } from '@bakery-framework/core/startup'
 import { deferredValue, is, Try } from '@bakery-framework/core/utils/common'
-import { getClientIp } from '@bakery-framework/core/utils/http'
+import { getClientIp, parsedUrl } from '@bakery-framework/core/utils/http'
 import { COUNTER_SLOTS } from '@bakery-framework/core/utils/shared-pool'
 import { hasORM } from './orm'
 import {
@@ -142,10 +142,10 @@ try {
     maxRequestBodySize: Bakery.config.maxBodySize,
 
     async fetch(req) {
-      // Parsed once here and attached: `new URL` measures ~1.7us and the
-      // router, body parser and proxy all want the same parse.
-      const url = new URL(req.url)
-      ;(req as any).__parsedUrl = url
+      // Memoized for the lifetime of the request: the router, body parser and
+      // proxy all want the same parse, and every one of them asks for it the
+      // same way.
+      const url = parsedUrl(req)
       const hostname = getHostname(req)
       const hostConfig = resolveHostConfig(hostname)
 

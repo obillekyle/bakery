@@ -19,6 +19,7 @@ import {
   withStatus,
 } from './utils/http'
 import { applyCors, preflightResponse } from './utils/http/cors'
+import { parsedUrl } from './utils/http/url'
 
 /**
  * Resolve a WebSocket upgrade, refusing cross-origin handshakes first.
@@ -39,7 +40,7 @@ export async function upgradeWebsocket(
   req: Request,
   path: string,
 ): Promise<boolean | undefined> {
-  const url: URL = (req as any).__parsedUrl || new URL(req.url)
+  const url = parsedUrl(req)
   const denied = checkWebSocketOrigin(req, url)
   if (denied) {
     serveLog.WEBSOCKET_ERR({
@@ -85,10 +86,9 @@ export function handleRequest(
   req: Request,
 ): Handler.Response | MixedPromise<symbol>
 export async function handleRequest(req: Request) {
-  // worker.ts parses and attaches this before calling in; the fallback keeps
-  // direct callers (tests, embedders) working.
-  const url: URL = (req as any).__parsedUrl || new URL(req.url)
-  ;(req as any).__parsedUrl = url
+  // Shared with worker.ts, which has already asked for the same parse; a
+  // direct caller (test, embedder) gets it parsed here instead.
+  const url = parsedUrl(req)
   const path = url.pathname
 
   // One read of the config getter, not three: `Bakery.serveRoot` walks

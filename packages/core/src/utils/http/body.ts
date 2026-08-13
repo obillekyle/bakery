@@ -1,4 +1,5 @@
 import type { MapOf } from '../../types'
+import { parsedUrl } from './url'
 
 export async function processBody(req: Request): Promise<MapOf<any>> {
   const getParsedBody = async (): Promise<MapOf<any>> => {
@@ -18,8 +19,7 @@ export async function processBody(req: Request): Promise<MapOf<any>> {
 }
 
 function getBodyFromURI(req: Request): MapOf<any> {
-  const url = (req as any).__parsedUrl || new URL(req.url)
-  const searchParams = url.searchParams
+  const searchParams = parsedUrl(req).searchParams
   return Object.fromEntries(searchParams.entries())
 }
 
