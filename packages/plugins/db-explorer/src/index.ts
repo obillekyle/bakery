@@ -1,5 +1,5 @@
 import { definePlugin } from '@bakery-framework/core/plugins'
-import type { AccessConfig, AccessFn } from './access'
+import type { AccessConfig } from './access'
 
 /**
  * Part of this plugin's public surface.

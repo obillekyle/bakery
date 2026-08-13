@@ -4,7 +4,9 @@
  * kept deliberately small — this file is the entire browser side.
  */
 
-type SchemaTable = { name: string; rowCount?: number }
+type SchemaTable = { name: string; rowCount?: number; writable?: boolean }
+
+type SchemaReport = { access: 'read' | 'write' | false; tables: SchemaTable[] }
 
 type TablePage = {
   rows: Record<string, unknown>[]
@@ -182,9 +184,11 @@ async function renderTable() {
 
 async function boot() {
   try {
-    // `getSchema` answers a list of table descriptors, not a keyed object.
-    const schema = await api<SchemaTable[]>('schema')
-    renderShell((schema ?? []).map(t => t.name).filter(Boolean))
+    // `{access, tables}` since the write endpoints landed: the client has to
+    // know its own posture before it renders, so it does not draw edit
+    // affordances for a `read` caller or for a table with no identity.
+    const schema = await api<SchemaReport>('schema')
+    renderShell((schema?.tables ?? []).map(t => t.name).filter(Boolean))
   } catch (error) {
     app.replaceChildren(el('p', 'error', String(error)))
   }

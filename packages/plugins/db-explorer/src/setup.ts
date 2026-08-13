@@ -7,7 +7,15 @@ import { routeTable } from '@bakery-framework/core/plugins'
 import { fs } from '@bakery-framework/core/utils'
 import { response } from '@bakery-framework/core/utils/http'
 import { type AccessConfig, accessStore, resolveAccess } from './access'
-import { handleSchema, handleTableData } from './endpoints'
+import { handleGraph, handleLookup } from './endpoints/graph'
+import { handleImport } from './endpoints/import'
+import { handleSchema, handleTableData } from './endpoints/read'
+import {
+  handleBulkEdit,
+  handleDeleteRows,
+  handleInsertRows,
+  handleUpdateRow,
+} from './endpoints/rows'
 
 /**
  * Where this plugin's own files live — each package that ships files anchors
@@ -90,19 +98,41 @@ async function handleClientJs() {
 }
 
 /**
- * Read-only by construction: the two data endpoints call only `getSchema`
- * and `getData`. No raw SQL, no row mutations, no DDL — the write paths do
- * not exist, which is a stronger property than any gate over them. The keys
- * are method-unqualified because a bare key matches any method and every
- * handler here is a read; there is nothing a smuggled POST could mutate,
- * which is also why this table carries no CSRF middleware where the
- * dashboard's must.
+ * The whole request surface, and **the key spellings are the CSRF policy** —
+ * `guardFor` in `plugins/routes.ts` reads them, so getting one wrong here
+ * silently loosens a guard rather than failing anywhere visible.
+ *
+ * - **Bare keys are the reads.** A bare key matches every method and gets
+ *   `checkSameOrigin` on *all* of them, which is the stricter of the two: no
+ *   cross-site page reaches these, whatever verb it uses.
+ * - **Every write key names its method.** That pins the verb — a `GET
+ *   /api/_db/rows` no longer resolves at all — and applies `checkCsrf`.
+ *
+ * This comment used to say the table needed no CSRF middleware because nothing
+ * here could mutate anything. That was true when the plugin was read-only and
+ * is now false: rows are inserted, edited and deleted below. What is still
+ * true, and is the claim that survives, is **structural**: there is no
+ * raw-SQL endpoint and nothing that creates, drops or alters a table. The write
+ * surface is bounded and enumerable — it is exactly the six keys below — rather
+ * than gated behind a flag the way the dashboard's is.
+ *
+ * `/api/_db/graph` and `/api/_db/lookup` are reads despite one of them taking a
+ * POST body, so they stay bare and take the stricter guard. Method-qualifying
+ * `GET /api/_db/graph` would *weaken* it: a qualified GET gets `checkCsrf`,
+ * which lets every GET through by definition.
  */
-const explorerRoutes = {
+export const explorerRoutes = {
   '/_db': () => response.html(SHELL),
   '/_db/app.js': () => handleClientJs(),
   '/api/_db/schema': () => handleSchema(),
   '/api/_db/table-data': (_req, url) => handleTableData(url),
+  '/api/_db/graph': () => handleGraph(),
+  '/api/_db/lookup': req => handleLookup(req),
+  'POST /api/_db/rows': req => handleInsertRows(req),
+  'PATCH /api/_db/row': req => handleUpdateRow(req),
+  'POST /api/_db/rows/bulk': req => handleBulkEdit(req),
+  'DELETE /api/_db/rows': req => handleDeleteRows(req),
+  'POST /api/_db/import': req => handleImport(req),
 } satisfies PluginRouteTable
 
 const dispatchExplorerRoute = routeTable(explorerRoutes)

@@ -1,26 +1,75 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { initConfig } from '@bakery-framework/core/core/config'
 import { __resetTestDb, __setTestDb } from '@bakery-framework/orm/connection'
-import { handleSchema, handleTableData } from './endpoints'
+import { handleSchema, handleTableData } from './endpoints/read'
 import { __resetTestAccess, __setTestAccess, DbExplorerHandler } from './setup'
 
 /**
  * A database stand-in that records what it was asked and does none of it —
  * same factory pattern as the dashboard's fixture, reduced to the explorer's
- * surface. The list of recordable methods *is* the read-only claim: if an
- * endpoint ever reaches for something this stub does not have, the test
- * fails with a TypeError naming the new capability.
+ * surface.
+ *
+ * **The list of recordable methods is still the contract; what it claims has
+ * changed.** It used to enumerate *no* write capability at all, because there
+ * was none. It now enumerates a **bounded** one: four introspection reads,
+ * `getData`, `query` and a `transaction`. There is deliberately no `drop`, no
+ * `truncate`, no `syncSchema`, no `remove`, and no `update(table, rowid, row)`
+ * — an endpoint reaching for any of those fails here with a TypeError naming
+ * the capability it wanted, which is the property this fixture is for.
+ *
+ * The write endpoints' own behaviour lives in `crud.test.ts`; this file is the
+ * explorer's wiring — which paths it claims, which door admits, and what an
+ * unauthorised answer looks like.
  */
 function createStubDb() {
   const calls: string[] = []
   const db = {
     getSchema: async () => {
       calls.push('getSchema')
-      return { parcels: { id: {}, courier: {} } }
+      return [
+        {
+          name: 'parcels',
+          rowCount: 1,
+          columns: [
+            { name: 'id', type: 'INTEGER', notnull: true, pk: true },
+            { name: 'courier', type: 'TEXT', notnull: true, pk: false },
+          ],
+          indexes: [],
+        },
+      ]
+    },
+    getConstraints: async () => {
+      calls.push('getConstraints')
+      return {
+        parcels: {
+          id: { type: 'integer', primary: true, nullable: false },
+          courier: { type: 'string', nullable: false },
+        },
+      }
+    },
+    getIndexes: async () => {
+      calls.push('getIndexes')
+      return {}
+    },
+    getForeignKeys: async () => {
+      calls.push('getForeignKeys')
+      return {}
     },
     getData: async (table: string, opts: Record<string, unknown>) => {
       calls.push(`getData:${table}:${opts.page}`)
-      return { rows: [{ id: 1, courier: 'dhl' }], total: 1 }
+      return { rows: [{ id: 1, courier: 'dhl' }], totalRows: 1 }
+    },
+    query: (sql: string) => {
+      calls.push(`query:${sql.trim().split(/\s+/)[0]}`)
+      return {
+        all: () => [],
+        get: () => undefined,
+        run: () => ({ changes: 0, lastInsertRowid: null }),
+      }
+    },
+    transaction: async (callback: (tx: unknown) => Promise<unknown>) => {
+      calls.push('transaction')
+      return await callback(db)
     },
   }
   return { db, calls }
@@ -46,8 +95,7 @@ const req = (path: string, init: RequestInit = {}) =>
 // mode flags directly. The four cases that used to sit here were assertions
 // about that shared guard, not about the explorer; duplicating them in each
 // of the three plugins that consume it is how the copies drifted in the first
-// place. What remains below is the explorer's own wiring: which paths it
-// claims, which door admits, and what an unauthorised answer looks like.
+// place. What remains below is the explorer's own wiring.
 
 describe('routing and the auth split', () => {
   test('canHandle claims exactly the two namespaces', () => {
@@ -74,6 +122,21 @@ describe('routing and the auth split', () => {
     )) as Response
     expect(api.status).toBe(401)
     expect(calls).not.toContain('getSchema')
+  })
+
+  test('an unauthorised write is 401 before anything else is decided', async () => {
+    __setTestAccess({})
+    const res = (await DbExplorerHandler.handle(
+      '/api/_db/rows',
+      req('/api/_db/rows', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{"table":"parcels","rows":[{"courier":"dhl"}]}',
+      }),
+    )) as Response
+    // 401, not 403: the handler's own guard runs before the endpoint's
+    // `currentCanWrite()`, and an unadmitted caller has no access level at all.
+    expect(res.status).toBe(401)
   })
 
   test('authorised requests reach the endpoints', async () => {
@@ -104,12 +167,13 @@ describe('routing and the auth split', () => {
   })
 })
 
-describe('read-only is structural', () => {
-  test('the write endpoints the dashboard has simply do not exist here', async () => {
-    __setTestAccess({ authorize: () => 'read' })
+describe('no raw SQL and no DDL — structurally, not by configuration', () => {
+  test('the write endpoints the dashboard has still do not exist here', async () => {
+    __setTestAccess({ authorize: () => 'write' })
 
-    // The dashboard's write surface, requested from the explorer: every one
-    // must be a 404 — not a 403 behind a flag, a route that is not there.
+    // The dashboard's write surface, requested from the explorer with the
+    // *highest* level this plugin grants: every one must be a 404 — not a 403
+    // behind a flag, a route that is not there.
     for (const path of [
       '/api/_db/query',
       '/api/_db/execute-action',
@@ -121,9 +185,39 @@ describe('read-only is structural', () => {
       )) as Response
       expect(`${path}:${res.status}`).toBe(`${path}:404`)
     }
+  })
 
-    // And nothing above ever touched the database.
-    expect(calls.filter(c => !c.startsWith('get'))).toEqual([])
+  test('the route table is exactly the eleven keys, six of them writes', async () => {
+    // The bounded-write-surface claim, stated as the enumeration it is. The
+    // assertion that used to sit here — "no non-`get*` DB call" — is false by
+    // design now, so the boundary has to be drawn somewhere it is still true:
+    // the set of routes, and the fact that nothing in it takes SQL or DDL.
+    const { explorerRoutes } = await import('./setup')
+    const keys = Object.keys(explorerRoutes).sort()
+    expect(keys).toEqual(
+      [
+        '/_db',
+        '/_db/app.js',
+        '/api/_db/schema',
+        '/api/_db/table-data',
+        '/api/_db/graph',
+        '/api/_db/lookup',
+        'POST /api/_db/rows',
+        'PATCH /api/_db/row',
+        'POST /api/_db/rows/bulk',
+        'DELETE /api/_db/rows',
+        'POST /api/_db/import',
+      ].sort(),
+    )
+
+    // Reads bare, writes method-qualified — `guardFor` in `plugins/routes.ts`
+    // reads exactly this distinction, so it is policy rather than style.
+    const qualified = keys.filter(k => k.includes(' '))
+    expect(qualified.length).toBe(5)
+    expect(keys.filter(k => !k.includes(' ')).length).toBe(6)
+    for (const key of qualified) {
+      expect(key).toMatch(/^(POST|PATCH|DELETE) /)
+    }
   })
 
   test('endpoints reject a bad table name before the database hears of it', async () => {
@@ -135,10 +229,14 @@ describe('read-only is structural', () => {
     expect(calls.length).toBe(before)
   })
 
-  test('handleSchema answers through the envelope', async () => {
+  test('handleSchema answers through the envelope, with the caller’s posture', async () => {
     const res = (await handleSchema()) as any
     expect(res.status).toBe(200)
-    expect(res.data.parcels).toBeDefined()
+    expect(res.data.tables[0].name).toBe('parcels')
+    expect(res.data.tables[0].identity).toEqual({ mode: 'pk', cols: ['id'] })
+    // Outside a request there is no access level, and the safe answer is none.
+    expect(res.data.access).toBe(false)
+    expect(res.data.tables[0].writable).toBe(false)
   })
 })
 
