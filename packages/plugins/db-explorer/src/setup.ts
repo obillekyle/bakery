@@ -5,14 +5,8 @@ import { errorMsg } from '@bakery-framework/core/logger'
 import type { PluginRouteTable } from '@bakery-framework/core/plugins'
 import { routeTable } from '@bakery-framework/core/plugins'
 import { fs } from '@bakery-framework/core/utils'
-import {
-  type AuthorizeFn,
-  defaultAuthorize,
-  isAuthorized,
-  resolveAuthorize,
-  response,
-} from '@bakery-framework/core/utils/http'
-import { hasDbKey } from './credential'
+import { response } from '@bakery-framework/core/utils/http'
+import { type AccessConfig, accessStore, resolveAccess } from './access'
 import { handleSchema, handleTableData } from './endpoints'
 
 /**
@@ -22,26 +16,19 @@ import { handleSchema, handleTableData } from './endpoints'
  */
 const pluginRoot: string = fs.resolve(import.meta.dir)
 
-let authorize: AuthorizeFn = defaultAuthorize
-let credential: string | undefined
+let config: AccessConfig = {}
 
 /**
- * Test seam, same shape as the dashboard's: `setupExplorer` mutates process
- * globals that cannot be restored, so tests that only need the request
- * pipeline set the predicate directly. Always pair with the reset.
+ * Test seam: `setupExplorer` registers a handler and cannot be undone, so
+ * tests that only need the request pipeline set the access config directly.
+ * Always pair with the reset.
  */
-export function __setTestAuthorize(fn: AuthorizeFn): void {
-  authorize = fn
+export function __setTestAccess(next: AccessConfig): void {
+  config = next
 }
 
-export function __resetTestAuthorize(): void {
-  authorize = defaultAuthorize
-  credential = undefined
-}
-
-/** Test seam for the credential path; reset with __resetTestAuthorize. */
-export function __setTestCredential(value: string | undefined): void {
-  credential = value
+export function __resetTestAccess(): void {
+  config = {}
 }
 
 const SHELL = `<!DOCTYPE html>
@@ -133,28 +120,28 @@ export class DbExplorerHandler extends Handler {
   static async handle(path: string, req: Request) {
     // Styling and script are not secrets, and letting them through keeps an
     // unauthorised response from rendering unstyled — same split as the
-    // dashboard. Everything else fails closed. Either door admits: the
-    // shared credential (constant-time, off when unset) or the predicate.
-    const admitted =
-      hasDbKey(credential, req) || (await isAuthorized(authorize, req))
-    if (!/\.(css|js)$/.test(path) && !admitted) {
+    // dashboard. Everything else fails closed.
+    const access = await resolveAccess(req, config)
+    if (!/\.(css|js)$/.test(path) && !access) {
       return path.startsWith('/api/')
         ? response.error('Unauthorized', 401)
         : response.error('Not Found', 404)
     }
 
-    // Dispatch keys on `url.pathname` from the request itself — the `path`
-    // argument only steers the auth split above.
-    const result = await dispatchExplorerRoute(req)
-    return result ?? response.error('Not Found', 404)
+    // The level travels with the request rather than in a module variable —
+    // see `accessStore`. `read` is the floor for the asset paths admitted
+    // above, which never consult it but must not run outside a store.
+    return await accessStore.run(access || 'read', async () => {
+      // Dispatch keys on `url.pathname` from the request itself — the `path`
+      // argument only steers the auth split above.
+      const result = await dispatchExplorerRoute(req)
+      return result ?? response.error('Not Found', 404)
+    })
   }
 }
 
-export function setupExplorer(
-  options: { authorize?: AuthorizeFn; credential?: string } = {},
-) {
-  authorize = resolveAuthorize(options.authorize)
-  credential = options.credential
+export function setupExplorer(options: AccessConfig = {}) {
+  config = options
   // Above the content handlers, below nothing that matters: the /_db and
   // /api/_db namespaces are reserved for framework routes (convention 10),
   // so priority only needs to beat ApiHandler (70) for the /api half.

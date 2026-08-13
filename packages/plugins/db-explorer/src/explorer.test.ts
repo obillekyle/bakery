@@ -1,14 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { initConfig } from '@bakery-framework/core/core/config'
 import { __resetTestDb, __setTestDb } from '@bakery-framework/orm/connection'
-import { hasDbKey } from './credential'
 import { handleSchema, handleTableData } from './endpoints'
-import {
-  __resetTestAuthorize,
-  __setTestAuthorize,
-  __setTestCredential,
-  DbExplorerHandler,
-} from './setup'
+import { __resetTestAccess, __setTestAccess, DbExplorerHandler } from './setup'
 
 /**
  * A database stand-in that records what it was asked and does none of it —
@@ -41,7 +35,7 @@ beforeAll(async () => {
 
 afterAll(() => {
   __resetTestDb()
-  __resetTestAuthorize()
+  __resetTestAccess()
 })
 
 const req = (path: string, init: RequestInit = {}) =>
@@ -66,7 +60,7 @@ describe('routing and the auth split', () => {
   })
 
   test('unauthorised page requests 404, api requests 401', async () => {
-    __setTestAuthorize(() => false)
+    __setTestAccess({})
 
     const page = (await DbExplorerHandler.handle(
       '/_db',
@@ -83,7 +77,7 @@ describe('routing and the auth split', () => {
   })
 
   test('authorised requests reach the endpoints', async () => {
-    __setTestAuthorize(() => true)
+    __setTestAccess({ authorize: () => 'read' })
 
     const schema = (await DbExplorerHandler.handle(
       '/api/_db/schema',
@@ -101,7 +95,7 @@ describe('routing and the auth split', () => {
   })
 
   test('an unknown path under the namespace is 404, authorised or not', async () => {
-    __setTestAuthorize(() => true)
+    __setTestAccess({ authorize: () => 'read' })
     const res = (await DbExplorerHandler.handle(
       '/api/_db/execute-action',
       req('/api/_db/execute-action', { method: 'POST' }),
@@ -112,7 +106,7 @@ describe('routing and the auth split', () => {
 
 describe('read-only is structural', () => {
   test('the write endpoints the dashboard has simply do not exist here', async () => {
-    __setTestAuthorize(() => true)
+    __setTestAccess({ authorize: () => 'read' })
 
     // The dashboard's write surface, requested from the explorer: every one
     // must be a 404 — not a 403 behind a flag, a route that is not there.
@@ -148,42 +142,23 @@ describe('read-only is structural', () => {
   })
 })
 
-describe('credential access', () => {
+/**
+ * Which door admits, and what a level means once inside. The doors themselves —
+ * constant-time comparison, the three credential spellings, `true` being a
+ * denial, higher-wins — are `access.test.ts`'s subject and are not repeated
+ * here; copying a shared guard's assertions into every consumer is how the
+ * three plugin copies drifted in the first place.
+ */
+describe('access reaches the handler', () => {
   afterAll(() => {
-    __resetTestAuthorize()
+    __resetTestAccess()
   })
 
-  test('unset or empty means off, never open', () => {
-    expect(hasDbKey(undefined, req('/_db'))).toBe(false)
-    expect(hasDbKey('', req('/_db'))).toBe(false)
-    // Even a request *presenting* an empty key against an empty credential.
-    expect(hasDbKey('', req('/_db', { headers: { 'x-db-key': '' } }))).toBe(
-      false,
-    )
-  })
-
-  test('header, bearer and query spellings all admit; wrong values do not', () => {
-    const secret = 'warehouse-key-9'
-    expect(
-      hasDbKey(secret, req('/_db', { headers: { 'x-db-key': secret } })),
-    ).toBe(true)
-    expect(
-      hasDbKey(
-        secret,
-        req('/_db', { headers: { authorization: `Bearer ${secret}` } }),
-      ),
-    ).toBe(true)
-    expect(hasDbKey(secret, req(`/_db?db-key=${secret}`))).toBe(true)
-
-    expect(
-      hasDbKey(secret, req('/_db', { headers: { 'x-db-key': 'nope' } })),
-    ).toBe(false)
-    expect(hasDbKey(secret, req('/_db?db-key=warehouse-key-'))).toBe(false)
-  })
-
-  test('the handler admits on credential even when the predicate denies', async () => {
-    __setTestAuthorize(() => false)
-    __setTestCredential('warehouse-key-9')
+  test('a users key admits where the predicate refuses', async () => {
+    __setTestAccess({
+      users: { ops: { credential: 'warehouse-key-9', access: 'read' } },
+      authorize: () => false,
+    })
 
     const denied = (await DbExplorerHandler.handle(
       '/api/_db/schema',
@@ -196,5 +171,17 @@ describe('credential access', () => {
       req('/api/_db/schema', { headers: { 'x-db-key': 'warehouse-key-9' } }),
     )) as any
     expect(admitted.status).toBe(200)
+  })
+
+  test('assets are served without a credential, so a denial is not unstyled', async () => {
+    __setTestAccess({})
+    const res = (await DbExplorerHandler.handle(
+      '/_db/app.js',
+      req('/_db/app.js'),
+    )) as Response
+    // Bundling may fail in a bare test process; what matters is that the guard
+    // did not turn it into a 404 the way it does for `/_db`.
+    expect(res.status).not.toBe(404)
+    expect(res.status).not.toBe(401)
   })
 })

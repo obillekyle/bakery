@@ -19,30 +19,43 @@ export default defineConfig({
   root: 'src',
   plugins: [
     dbExplorerPlugin({
-      // Decide who may browse. The explorer authenticates nobody itself —
-      // your app already knows who its users are.
-      authorize: req => req.headers.get('x-operator') === 'on-call',
+      // Decide who may browse, and what they may do. The explorer
+      // authenticates nobody itself — your app already knows who its users
+      // are. Return 'write', 'read', or false.
+      authorize: req =>
+        req.headers.get('x-operator') === 'on-call' ? 'read' : false,
     }),
   ],
 })
 ```
 
-Omit `authorize` and access is **loopback-only in development and denied in
-production** — an unconfigured explorer is never exposed. The loopback check
-uses the peer address, never the `Host` header, for the same reason the
-dashboard's does: a header is evidence the client chooses.
+**Access is a level, not a yes.** `'read'` gets the grid with no edit
+affordances and a 403 from every write endpoint; `'write'` gets the editor.
+Anything else the predicate returns — including `true` — is a denial, because a
+predicate written against a boolean API means "let them in" and cannot mean
+"let them write".
 
-A shared key is the lighter alternative for a team without user roles:
+Named keys are the other door, for people and scripts with no session:
 
 ```ts no-check — import.meta.env keys are app-defined
-dbExplorerPlugin({ credential: import.meta.env.DB_EXPLORER_KEY })
+dbExplorerPlugin({
+  users: {
+    ops: { credential: import.meta.env.OPS_KEY, access: 'write' },
+    oncall: { credential: import.meta.env.ONCALL_KEY, access: 'read' },
+  },
+})
 ```
 
-Present it as `Authorization: Bearer <key>`, an `x-db-key` header, or open
+Present a key as `Authorization: Bearer <key>`, an `x-db-key` header, or open
 `/_db?db-key=<key>` once — the client stores it for its API calls and strips it
-from the URL. Compared in constant time; an unset or empty variable turns the
-path **off**, never open. `credential` and `authorize` compose: either
-admits.
+from the URL. Compared in constant time; an unset or empty credential turns
+that entry **off**, never open. **The `?db-key=` form is refused on writes** —
+a credential in a URL travels with any link, and `checkCsrf` is an `Origin`
+check that passes when `Origin` is absent.
+
+`users` and `authorize` compose: either admits, and the **higher** level wins,
+because they answer about the same caller. With neither configured the explorer
+admits nobody.
 
 An unauthorised page request answers 404 (the explorer does not advertise its
 existence); an unauthorised `/api/_db/*` request answers 401.
