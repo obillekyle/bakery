@@ -188,6 +188,104 @@ describe('dashboard CSRF and method qualification', () => {
   })
 })
 
+/**
+ * The predicate's own semantics — loopback matching, throwing predicates,
+ * truthy-non-boolean denial, the production default — live in
+ * `packages/core/src/utils/http/authorize.test.ts` now that the guard is
+ * core's. What is dashboard's and stays here is the *wiring*: that the console
+ * consults the predicate at all, and that a denial is shaped differently for an
+ * API path than for a page.
+ */
+describe('dashboard authorization wiring', () => {
+  const denyAll = () => false
+
+  afterAll(() => {
+    // Back to the file-wide allow set in the outer `beforeAll`, so ordering
+    // between describes cannot decide whether the CSRF cases above are reached.
+    __setTestAuthorize(() => true)
+  })
+
+  test('an unauthorized API request is refused with 401', async () => {
+    __setTestAuthorize(denyAll)
+
+    const res = await handleDashboardRequest(
+      new Request('http://localhost/api/_dashboard/schema'),
+    )
+
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(401)
+    expect(dbCalls).toEqual([])
+  })
+
+  test('an unauthorized page request is refused with 404, not 401', async () => {
+    // A 401 on the shell would confirm the console is mounted at this path to
+    // anyone who probes for it; the page half answers as if nothing is there.
+    __setTestAuthorize(denyAll)
+
+    const res = await handleDashboardRequest(
+      new Request('http://localhost/_dashboard'),
+    )
+
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(404)
+  })
+
+  test('the denial happens before CSRF, so a probe learns nothing', async () => {
+    // Auth runs first deliberately: a cross-origin POST from an unauthenticated
+    // peer must get the same 401 as any other unauthenticated request, not the
+    // 403 that would tell it the endpoint exists.
+    __setTestAuthorize(denyAll)
+
+    const res = await handleDashboardRequest(
+      new Request(ACTION_URL, {
+        method: 'POST',
+        headers: {
+          origin: 'https://evil.example',
+          'content-type': 'application/json',
+        },
+        body: truncateBody(),
+      }),
+    )
+
+    expect((res as Response).status).toBe(401)
+    expect(dbCalls).toEqual([])
+  })
+
+  test('assets are served without consulting the predicate', async () => {
+    // Styling and script are not secrets, and letting them through keeps an
+    // unauthorised response from rendering unstyled.
+    __setTestAuthorize(() => {
+      throw new Error('the predicate must not be consulted for assets')
+    })
+
+    expect(
+      await handleDashboardRequest(
+        new Request('http://localhost/_dashboard/style.css'),
+      ),
+    ).toBeNull()
+  })
+
+  test('a granting predicate lets the same API request through', async () => {
+    // The other direction: the guard must not have made the console useless.
+    __setTestAuthorize(() => true)
+
+    const res = await handleDashboardRequest(
+      new Request('http://localhost/api/_dashboard/schema'),
+    )
+
+    expect(res).not.toBeInstanceOf(Response)
+  })
+
+  // Not covered here: that `setupDashboard` hands its `authorize` option to
+  // `resolveAuthorize` rather than dropping it. Reaching it means calling
+  // `setupDashboard`, which also mounts routes, registers the handler at
+  // priority 120 and installs a global log callback — three process-global
+  // mutations with no restore, which is the leak convention 9 exists to stop
+  // and the reason the `beforeAll` above uses the `__setTestAuthorize` seam
+  // instead. The line is one `resolveAuthorize` call; the seam covers
+  // everything downstream of it.
+})
+
 describe('dashboard namespace boundary', () => {
   test('a look-alike path is not claimed at priority 120', () => {
     // Claiming it shadowed the application route that really owned it: this

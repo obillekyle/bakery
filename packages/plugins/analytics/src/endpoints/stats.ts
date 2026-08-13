@@ -2,6 +2,7 @@ import { Bakery } from '@bakery-framework/core/core/bakery'
 import { Session } from '@bakery-framework/core/session'
 import type { JsonResponseData } from '@bakery-framework/core/utils/common'
 import {
+  type AuthorizeFn,
   requestHasCredential,
   response,
 } from '@bakery-framework/core/utils/http'
@@ -83,13 +84,16 @@ export type AnalyticsStats = ReturnType<typeof computeStats>
  * A request predicate, for apps that gate by their own roles rather than (or
  * as well as) a shared key. Returning `true` admits; throwing or returning
  * anything else denies (convention 2).
+ *
+ * Re-exported from core rather than declared here: the dashboard and
+ * db-explorer plugins need the same type, and three byte-identical copies of a
+ * security type drift the way the guards themselves already had.
  */
-export type AuthorizeFn = (req: Request) => boolean | Promise<boolean>
+export type { AuthorizeFn } from '@bakery-framework/core/utils/http'
 
 /**
- * Analytics owns the auth for its endpoints, and the dashboard delegates to
- * it (`isAnalyticsAuthorized`) — the analytics key *is* the dashboard key.
- * Two doors, both fail closed and both off until configured:
+ * Analytics owns authorization for its own endpoints. Two doors, both fail
+ * closed and both off until configured:
  *
  *   - the shared `credential` (`x-analytics-key`, Bearer, or `?analytics-key=`)
  *   - an optional `authorize(req)` predicate for role-based access

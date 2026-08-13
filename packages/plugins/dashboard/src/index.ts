@@ -1,7 +1,13 @@
 import { definePlugin } from '@bakery-framework/core/plugins'
-import type { AuthorizeFn } from './authorize'
+import type { AuthorizeFn } from '@bakery-framework/core/utils/http'
 
-export type { AuthorizeFn } from './authorize'
+/**
+ * Re-exported so the plugin's public surface is unchanged by the guard moving
+ * into core. It is the same type either way — an app that imported it from here
+ * keeps working, and one that reaches for `@bakery-framework/core/utils/http`
+ * directly gets the identical declaration rather than a structural twin.
+ */
+export type { AuthorizeFn } from '@bakery-framework/core/utils/http'
 
 export interface DashboardPluginOptions {
   /**

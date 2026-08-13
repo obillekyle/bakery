@@ -1,12 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { initConfig } from '@bakery-framework/core/core/config'
 import { __resetTestDb, __setTestDb } from '@bakery-framework/orm/connection'
-import {
-  credentialMatches,
-  defaultAuthorize,
-  isAuthorized,
-  isLoopback,
-} from './authorize'
+import { hasDbKey } from './credential'
 import { handleSchema, handleTableData } from './endpoints'
 import {
   __resetTestAuthorize,
@@ -52,30 +47,13 @@ afterAll(() => {
 const req = (path: string, init: RequestInit = {}) =>
   new Request(`http://localhost${path}`, init)
 
-describe('authorize', () => {
-  test('an indeterminate address is a denial, not a fallback', () => {
-    // No live server, no config host resolution: getClientIp throws or
-    // returns nothing, and convention 2 says that means no.
-    expect(isLoopback(req('/_db'))).toBe(false)
-  })
-
-  test('a throwing predicate is a denial', async () => {
-    const denied = await isAuthorized(() => {
-      throw new Error('identity service down')
-    }, req('/_db'))
-    expect(denied).toBe(false)
-  })
-
-  test('only a literal true admits', async () => {
-    expect(await isAuthorized(() => 1 as any, req('/_db'))).toBe(false)
-    expect(await isAuthorized(() => 'yes' as any, req('/_db'))).toBe(false)
-    expect(await isAuthorized(() => true, req('/_db'))).toBe(true)
-  })
-
-  test('the default denies when the peer cannot be established', () => {
-    expect(defaultAuthorize(req('/_db'))).toBe(false)
-  })
-})
+// The predicate itself — isLoopback, isAuthorized, defaultAuthorize — is
+// core's now (`utils/http/authorize.ts`) and is tested there, against the
+// mode flags directly. The four cases that used to sit here were assertions
+// about that shared guard, not about the explorer; duplicating them in each
+// of the three plugins that consume it is how the copies drifted in the first
+// place. What remains below is the explorer's own wiring: which paths it
+// claims, which door admits, and what an unauthorised answer looks like.
 
 describe('routing and the auth split', () => {
   test('canHandle claims exactly the two namespaces', () => {
@@ -176,39 +154,31 @@ describe('credential access', () => {
   })
 
   test('unset or empty means off, never open', () => {
-    expect(credentialMatches(undefined, req('/_db'))).toBe(false)
-    expect(credentialMatches('', req('/_db'))).toBe(false)
+    expect(hasDbKey(undefined, req('/_db'))).toBe(false)
+    expect(hasDbKey('', req('/_db'))).toBe(false)
     // Even a request *presenting* an empty key against an empty credential.
-    expect(
-      credentialMatches('', req('/_db', { headers: { 'x-db-key': '' } })),
-    ).toBe(false)
+    expect(hasDbKey('', req('/_db', { headers: { 'x-db-key': '' } }))).toBe(
+      false,
+    )
   })
 
   test('header, bearer and query spellings all admit; wrong values do not', () => {
     const secret = 'warehouse-key-9'
     expect(
-      credentialMatches(
-        secret,
-        req('/_db', { headers: { 'x-db-key': secret } }),
-      ),
+      hasDbKey(secret, req('/_db', { headers: { 'x-db-key': secret } })),
     ).toBe(true)
     expect(
-      credentialMatches(
+      hasDbKey(
         secret,
         req('/_db', { headers: { authorization: `Bearer ${secret}` } }),
       ),
     ).toBe(true)
-    expect(credentialMatches(secret, req(`/_db?db-key=${secret}`))).toBe(true)
+    expect(hasDbKey(secret, req(`/_db?db-key=${secret}`))).toBe(true)
 
     expect(
-      credentialMatches(
-        secret,
-        req('/_db', { headers: { 'x-db-key': 'nope' } }),
-      ),
+      hasDbKey(secret, req('/_db', { headers: { 'x-db-key': 'nope' } })),
     ).toBe(false)
-    expect(credentialMatches(secret, req('/_db?db-key=warehouse-key-'))).toBe(
-      false,
-    )
+    expect(hasDbKey(secret, req('/_db?db-key=warehouse-key-'))).toBe(false)
   })
 
   test('the handler admits on credential even when the predicate denies', async () => {

@@ -16,16 +16,14 @@ import {
 import type { JsonResponseData } from '@bakery-framework/core/utils/common'
 import { Try } from '@bakery-framework/core/utils/common'
 import {
-  checkCsrf,
-  injectIfHtml,
-  response,
-} from '@bakery-framework/core/utils/http'
-import {
   type AuthorizeFn,
+  checkCsrf,
   defaultAuthorize,
+  injectIfHtml,
   isAuthorized,
   resolveAuthorize,
-} from './authorize'
+  response,
+} from '@bakery-framework/core/utils/http'
 import {
   handleExecuteAction,
   handleQuery,

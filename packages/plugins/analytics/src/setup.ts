@@ -190,16 +190,16 @@ let registered = false
 export function setupAnalytics(
   options: { credential?: string; authorize?: AuthorizeFn } = {},
 ) {
-  // Auth is (re)applied every call — last config wins — so the dashboard
-  // bringing analytics up with the shared key overrides a bare
-  // `analyticsPlugin()`, whichever order they registered in.
+  // Auth is (re)applied every call — last config wins — so a second setup
+  // carrying a key overrides an earlier bare `analyticsPlugin()`, whichever
+  // order they ran in.
   setAnalyticsCredential(options.credential)
   setAnalyticsAuthorize(options.authorize)
 
-  // The rest runs once. Analytics is now a hard dependency of the dashboard,
-  // so both may set it up in one process; the handler registrations are
-  // idempotent but the shutdown hook and data load are not, and a doubled
-  // load would race two reads of the same file.
+  // The rest runs once, because setup can be called more than once in a
+  // process: the handler registrations are idempotent but the shutdown hook
+  // and data load are not, and a doubled load would race two reads of the
+  // same file.
   if (registered) return
   registered = true
 
