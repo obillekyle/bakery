@@ -118,9 +118,12 @@ where security bugs hide:
   and **nothing in production**. "Development" means `PROD` explicitly `false`;
   an unset flag is not evidence of development and also denies.
 - Every dashboard write needs `DASHBOARD_ALLOW_WRITES=1` — the SQL console and
-  the grid editor alike, including table truncate. `ATTACH`, `DETACH` and
-  `VACUUM INTO` are refused outright
-  (`packages/plugins/dashboard/src/endpoints/database.ts`).
+  the grid editor alike, including table truncate. The read/write
+  classification fails closed: a statement it cannot recognise counts as a
+  write, comments and literals are stripped before matching, and a write
+  keyword at any nesting depth disqualifies it
+  (`packages/plugins/dashboard/src/endpoints/sql-classify.ts`). `ATTACH`,
+  `DETACH` and `VACUUM` are refused whether or not writes are enabled.
 
 ### Request size
 

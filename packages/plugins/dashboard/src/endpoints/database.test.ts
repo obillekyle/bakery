@@ -99,6 +99,52 @@ describe('dashboard write gate', () => {
     expect(res.status).toBe(403)
   })
 
+  /**
+   * The gate was bypassable, and these are the ways. `sql-classify.test.ts`
+   * covers the classifier itself exhaustively; these assert the endpoint
+   * actually consults it — the classifier being right is no use if
+   * `handleQuery` still runs its own prefix test.
+   *
+   * `dbCalls` being empty is the real assertion in each. A 403 with the query
+   * already executed would be a pass on status alone.
+   */
+  test.each([
+    ['a CTE laundering a DELETE', 'WITH x AS (SELECT 1) DELETE FROM users'],
+    ['a data-modifying CTE', 'WITH x AS (INSERT INTO t VALUES (1)) SELECT 1'],
+    ['PRAGMA writable_schema', 'PRAGMA writable_schema = ON'],
+    ['a second statement', 'SELECT 1; DROP TABLE users'],
+    ['EXPLAIN ANALYZE', 'EXPLAIN ANALYZE DELETE FROM users'],
+  ])('%s is refused with the flag unset', async (_name, sql) => {
+    const res = await handleQuery(
+      new Request('http://localhost/api/_dashboard/query', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sql }),
+      }),
+    )
+
+    expect(dbCalls).toEqual([])
+    expect(res.status).toBe(403)
+  })
+
+  test('ATTACH is refused even when writes are enabled', async () => {
+    // Enabling writes says "this console may change my data". It does not say
+    // "this console may write files to my host", which is what ATTACH plus
+    // VACUUM INTO amounts to on SQLite.
+    process.env.DASHBOARD_ALLOW_WRITES = '1'
+    const res = await handleQuery(
+      new Request('http://localhost/api/_dashboard/query', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sql: "ATTACH DATABASE 'evil.db' AS e" }),
+      }),
+    )
+
+    expect(dbCalls).toEqual([])
+    expect(res.status).toBe(403)
+    expect(res.message).toContain('ATTACH')
+  })
+
   test('the SQL console keeps its own half of the same gate', async () => {
     const res = await handleQuery(
       new Request('http://localhost/api/_dashboard/query', {

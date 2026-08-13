@@ -4,6 +4,7 @@ import type { JsonResponseData } from '@bakery-framework/core/utils/common'
 import { is, Try } from '@bakery-framework/core/utils/common'
 import { response } from '@bakery-framework/core/utils/http'
 import { connection } from '@bakery-framework/orm/connection'
+import { classifyStatement, stripNoise } from './sql-classify'
 
 export async function handleSchema(): Promise<JsonResponseData<unknown>> {
   return await Try.return(
@@ -38,8 +39,18 @@ export async function handleTableData(
  * Statements that reach outside the database itself. SQLite's `ATTACH` plus
  * `VACUUM INTO` is an arbitrary file write, which turns any dashboard session
  * (or any XSS in the dashboard origin) into host filesystem access.
+ *
+ * `attach`, `detach` and `vacuum` are all in `WRITE_KEYWORDS`, so
+ * `classifyStatement` already refuses them whenever writes are disabled. This
+ * refuses them **even when writes are enabled**, which is the point: enabling
+ * writes says "this console may change my data", not "this console may write
+ * files to my host".
+ *
+ * It no longer has to catch `VACUUM/*x*​/INTO` on its own — the text it matches
+ * against has had comments and literals removed first, which is what the old
+ * raw-text version of this regex could not survive.
  */
-const RX_OUT_OF_BAND_SQL = /\b(attach|detach|vacuum\s+into)\b/i
+const RX_OUT_OF_BAND_SQL = /\b(attach|detach|vacuum)\b/i
 
 /**
  * Writes from the dashboard need an explicit opt-in.
@@ -66,22 +77,28 @@ export async function handleQuery(
   if (!is.string(body?.sql))
     return response.json.error(400, 'Invalid SQL query')
 
-  if (RX_OUT_OF_BAND_SQL.test(body.sql)) {
+  // Comments and quoted text go first, so neither check can be fooled by
+  // either. The old code matched both against the raw string.
+  if (RX_OUT_OF_BAND_SQL.test(stripNoise(body.sql))) {
     return response.json.error(
       403,
-      'ATTACH / DETACH / VACUUM INTO are not permitted from the dashboard.',
+      'ATTACH / DETACH / VACUUM are not permitted from the dashboard.',
     )
   }
 
-  const sqlLower = body.sql.trim().toLowerCase()
-  const isSelect = /^(select|with|show|describe|pragma|explain)/.test(sqlLower)
+  const { readOnly: isSelect, reason } = classifyStatement(body.sql)
 
   // Writes require an explicit opt-in; the browser console should not be a
   // one-keystroke path to DROP TABLE on a production database.
+  //
+  // The classifier fails closed — anything it cannot recognise is a write.
+  // Its predecessor was a prefix test that failed *open*, so
+  // `WITH x AS (SELECT 1) DELETE FROM users` ran with this gate shut.
   if (!isSelect && !writesEnabled()) {
     return response.json.error(
       403,
-      'Write statements are disabled. Set DASHBOARD_ALLOW_WRITES=1 to enable them.',
+      `Write statements are disabled (${reason}).` +
+        ' Set DASHBOARD_ALLOW_WRITES=1 to enable them.',
     )
   }
 

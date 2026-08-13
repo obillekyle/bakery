@@ -162,20 +162,29 @@ every asset before the mount was ever consulted.
 database. Three guards sit on it
 ([`dashboard/src/endpoints/database.ts`](../../packages/plugins/dashboard/src/endpoints/database.ts)):
 
-1. **Reads only, by default.** A statement that does not begin with `SELECT`,
-   `WITH`, `SHOW`, `DESCRIBE`, `PRAGMA` or `EXPLAIN` is rejected with 403
-   unless the environment sets `DASHBOARD_ALLOW_WRITES=1`. A browser console
-   should not be a one-keystroke path to `DROP TABLE` in production.
+1. **Reads only, by default**, unless the environment sets
+   `DASHBOARD_ALLOW_WRITES=1`. A browser console should not be a one-keystroke
+   path to `DROP TABLE` in production.
 
-   The same flag now gates the **grid editor** too — row insert, update and
-   delete, and table truncate. It previously covered only the SQL console, so
-   the Truncate button was exactly the one-keystroke path that rule describes.
-   A control covering one of two routes to the same effect is worse than none,
+   The classification is a real one and it **fails closed**: anything it cannot
+   recognise counts as a write. It used to be a prefix test on the raw string,
+   which failed *open* — `WITH x AS (SELECT 1) DELETE FROM users` begins with
+   `WITH`, so it read as a `SELECT` and ran with the flag unset. So did
+   `PRAGMA writable_schema = ON`. Comments and string literals are stripped
+   before anything is matched, a write keyword at *any* nesting depth disqualifies
+   the statement (Postgres data-modifying CTEs hide one inside parentheses), and
+   only one statement per request is accepted.
+
+   The same flag gates the **grid editor** too — row insert, update and delete,
+   and table truncate. It previously covered only the SQL console, so the
+   Truncate button was exactly the one-keystroke path that rule describes. A
+   control covering one of two routes to the same effect is worse than none,
    because it reads as protection.
-2. **`ATTACH` / `DETACH` / `VACUUM INTO` are always rejected**, write mode or
-   not. In SQLite, `ATTACH` plus `VACUUM INTO` is an arbitrary file write —
-   which would turn any dashboard session, or any XSS in this origin, into host
-   filesystem access.
+2. **`ATTACH` / `DETACH` / `VACUUM` are always rejected**, write mode or not.
+   In SQLite, `ATTACH` plus `VACUUM INTO` is an arbitrary file write — which
+   would turn any dashboard session, or any XSS in this origin, into host
+   filesystem access. Enabling writes says the console may change your data, not
+   that it may write files to your host.
 3. **Table names are validated** against `^[a-zA-Z0-9_]+$` before reaching any
    query builder.
 
