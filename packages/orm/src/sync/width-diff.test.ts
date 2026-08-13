@@ -4,7 +4,7 @@ import { MySQLAdapter } from '../adapters/mysql'
 import { PGAdapter } from '../adapters/pgsql'
 import { SQLiteAdapter } from '../adapters/sqlite'
 import { Field } from '../field'
-import { buildSyncPlan } from './helpers'
+import { buildSyncPlan } from './plan'
 
 const MYSQL_URL = process.env.MYSQL_TEST_URL
 const PGSQL_URL = process.env.PGSQL_TEST_URL

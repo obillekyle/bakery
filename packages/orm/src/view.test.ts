@@ -258,7 +258,7 @@ describe('a schema with a view settles', () => {
 
   test('the view is not counted as a table waiting to be created', async () => {
     const { db, constraints } = await fixture()
-    const { buildSyncPlan } = await import('./sync/helpers')
+    const { buildSyncPlan } = await import('./sync/plan')
     const quiet: any = { log() {}, confirm: () => false, selectIndex: () => 0 }
     const msgs: any = new Proxy({}, { get: () => () => {} })
     const plan = await buildSyncPlan(db as any, constraints, quiet, msgs)
@@ -305,7 +305,7 @@ describe('a schema with a view settles', () => {
     // `executeSyncPlan` rather than `syncSchema`: the plan is the unit under
     // test, and the full path additionally wants a backup, which wants config.
     const { collectForeignKeys, executeSyncPlan } = await import(
-      './sync/helpers'
+      './sync/execute'
     )
     const msgs: any = new Proxy({}, { get: () => () => {} })
     const plan: any = {
@@ -320,17 +320,17 @@ describe('a schema with a view settles', () => {
       dbConstraintsForDiff: {},
     }
     await db.transaction(tx =>
-      executeSyncPlan(
+      executeSyncPlan({
         tx,
         plan,
         constraints,
-        new Set(),
-        new Map(),
-        msgs,
-        collectForeignKeys(indexes as any),
-        new Map(),
-        new Map(),
-      ),
+        indexesToDrop: new Set(),
+        indexesToAdd: new Map(),
+        MESSAGES: msgs,
+        tsFks: collectForeignKeys(indexes as any),
+        fksToAdd: new Map(),
+        fksToDrop: new Map(),
+      }),
     )
 
     const fks = (await db
@@ -372,7 +372,7 @@ describe('the view lifecycle is planned', () => {
   }
 
   async function plan(db: any, constraints: any) {
-    const { buildSyncPlan } = await import('./sync/helpers')
+    const { buildSyncPlan } = await import('./sync/plan')
     return buildSyncPlan(db, constraints, quiet, msgs)
   }
 
@@ -500,7 +500,7 @@ describe('view bodies across dialects', () => {
         )
         await alive(db.createView('vd_active', BODY))
 
-        const { buildSyncPlan } = await import('./sync/helpers')
+        const { buildSyncPlan } = await import('./sync/plan')
         const { writeLedger } = await import('./sync/ledger')
         const live: any = await alive(db.getConstraints())
         const tk = Object.keys(live).find(k => /vdUsers|vd_users/i.test(k))!

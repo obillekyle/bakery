@@ -282,7 +282,7 @@ rather than proceeding (`packages/orm/src/sync/engine.ts`). `backups` in
 A disappearing column and an appearing one are indistinguishable from a rename,
 so the engine asks rather than guessing: it prompts with the best fuzzy match
 (bigram similarity over the snake-cased names), every remaining candidate, and
-"drop it" (`packages/orm/src/sync/helpers.ts`). **Answering wrongly drops the
+"drop it" (`packages/orm/src/sync/rename.ts`). **Answering wrongly drops the
 column.**
 
 Say it in the schema instead, with `old()`. See

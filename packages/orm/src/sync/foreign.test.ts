@@ -5,7 +5,7 @@ import {
   calculateForeignKeyDiff,
   collectForeignKeys,
   orderTablesByDependency,
-} from './helpers'
+} from './execute'
 
 const FK = {
   posts_author: {

@@ -492,7 +492,7 @@ describe('live round-trip', () => {
         // Feeding it exactly what it just read is the self-comparison that
         // matters — if a column differs from itself, it lands in `tablesToRebuild`
         // and every sync from here to eternity rewrites the table.
-        const { buildSyncPlan } = await import('./sync/helpers')
+        const { buildSyncPlan } = await import('./sync/plan')
         const { Logger, messageLogger } = await import(
           '@bakery-framework/core/logger'
         )

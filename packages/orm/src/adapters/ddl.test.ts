@@ -1115,7 +1115,7 @@ describe('SQLite: DDL round-trips through introspection', () => {
       score: { type: 'number', nullable: true, default: 1.5 },
       // Declared `boolean`; SQLite has no boolean type, so it comes back as the
       // INTEGER it is really stored as. The sync diff special-cases exactly
-      // this pair (sync/helpers.ts diffColumnMismatch), so it is not drift.
+      // this pair (sync/diff.ts diffColumnMismatch), so it is not drift.
       isActive: { type: 'integer', default: 1 },
       payload: { type: 'buffer', nullable: true, default: null },
       email: { type: 'string', nullable: true, default: null },
