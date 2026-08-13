@@ -111,10 +111,12 @@ where security bugs hide:
 
 - A middleware that throws produces `500`; the request does not continue
   (`packages/core/src/handlers/core/$middleware.ts`).
-- An `authorize` predicate that throws is a denial
-  (`packages/plugins/dashboard/src/authorize.ts`).
+- An `authorize` predicate that throws is a denial, and so is one that returns
+  anything other than exactly `true` — a truthy non-boolean does not admit
+  (`packages/core/src/utils/http/authorize.ts`).
 - With no `authorize` configured, the dashboard allows loopback in development
-  and **nothing in production** (`authorize.ts`).
+  and **nothing in production**. "Development" means `PROD` explicitly `false`;
+  an unset flag is not evidence of development and also denies.
 - Every dashboard write needs `DASHBOARD_ALLOW_WRITES=1` — the SQL console and
   the grid editor alike, including table truncate. `ATTACH`, `DETACH` and
   `VACUUM INTO` are refused outright
