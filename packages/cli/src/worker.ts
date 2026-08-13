@@ -19,15 +19,12 @@ import {
 } from '@bakery-framework/core/router'
 import { Session } from '@bakery-framework/core/session'
 import { runStartupBanner, setupServer } from '@bakery-framework/core/startup'
-import { deferredValue, is, Try } from '@bakery-framework/core/utils/common'
-import { getClientIp, parsedUrl } from '@bakery-framework/core/utils/http'
+import { deferredValue, Try } from '@bakery-framework/core/utils/common'
+import { parsedUrl } from '@bakery-framework/core/utils/http'
 import { COUNTER_SLOTS } from '@bakery-framework/core/utils/shared-pool'
 import { hasORM } from './orm'
-import {
-  rateLimitSlot,
-  retryAfterSeconds,
-  sampleRateLimitLog,
-} from './rate-limit'
+import { isErrorResult, rateLimitKey, tooManyRequests } from './pipeline'
+import { rateLimitSlot, sampleRateLimitLog } from './rate-limit'
 import { runShutdownSequence } from './shutdown'
 
 /**
@@ -157,7 +154,7 @@ try {
 
         const rl = Bakery.config.rateLimit
         if (rl) {
-          const key = (rl.keyBy ? rl.keyBy(req) : getClientIp(req)) || hostname
+          const key = rateLimitKey(rl, req, hostname)
           const slot = rateLimitSlot(key)
           if (!Bakery.sharedPool.consumeToken(slot, rl.max, rl.refill)) {
             // Sampled — availability under flood: stdout is effectively
@@ -171,12 +168,7 @@ try {
                 serveLog.RATE_LIMITED({ ip: key })
               }
             }
-            return new Response('Too Many Requests', {
-              status: 429,
-              headers: {
-                'Retry-After': String(retryAfterSeconds(rl.refill)),
-              },
-            })
+            return tooManyRequests(rl.refill)
           }
         }
 
@@ -186,10 +178,7 @@ try {
           async function fetchHandler() {
             const res = await handleRequest(req)
 
-            const isResError = res instanceof Response && res.status >= 400
-            const isObjError = is.object(res) && 'errorCode' in res
-
-            if (isResError || isObjError) {
+            if (isErrorResult(res)) {
               Bakery.sharedPool.incrementCounter(COUNTER_SLOTS.TOTAL_ERRORS, 1)
               return await handleRequestError(path, req, res)
             }
