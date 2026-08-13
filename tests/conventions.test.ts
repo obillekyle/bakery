@@ -643,6 +643,45 @@ describe('release versions', () => {
     expect(missing).toEqual([])
   })
 
+  /**
+   * **`bun.lock` is what decides the published dependency ranges, not the
+   * manifests.** `bun pm pack` expands a `workspace:^` dependency using the
+   * version recorded in the lockfile's workspace entry, so a lock left behind
+   * by a bump is not a stale-metadata annoyance — it is wrong ranges on npm.
+   *
+   * That is exactly how it shipped. CI installs with `--frozen-lockfile`, the
+   * bump never reached the lock, and all seven 2.0.0-alpha packages went out
+   * declaring `@bakery-framework/core@^1.2.3`. Installing the alpha channel
+   * therefore resolved a *stable* core — and 1.2.3 is the barrel-cycle release,
+   * so the alpha channel did not merely mismatch, it could not be imported.
+   *
+   * Nothing else can see this. The lockstep test above compares manifests to
+   * each other and passes; the packed tarball is the only place the skew is
+   * visible, and by then it is on the registry. `release.ts` step 3b keeps
+   * these in sync — this fails if that stops working, or if someone bumps a
+   * version by hand.
+   */
+  test('bun.lock workspace versions match the manifests', async () => {
+    const lock = await Bun.file(`${ROOT}/bun.lock`).text()
+    const expected: Record<string, string> = {}
+    const actual: Record<string, string> = {}
+
+    for (const rel of MANIFESTS.slice(1)) {
+      const dir = rel.replace('/package.json', '')
+      expected[dir] = (await Bun.file(`${ROOT}/${rel}`).json()).version
+      // Anchored on the workspace key so a same-named entry in the resolved
+      // `"packages"` section below cannot be read instead.
+      const found = lock.match(
+        new RegExp(
+          `"${dir}":\\s*\\{\\s*"name":\\s*"[^"]+",\\s*"version":\\s*"([^"]+)"`,
+        ),
+      )
+      actual[dir] = found?.[1] ?? 'ABSENT FROM bun.lock'
+    }
+
+    expect(actual).toEqual(expected)
+  })
+
   test('the client tsconfig has no bun-types', async () => {
     // The whole point of splitting one app tsconfig into three. `Bun.hash()`
     // in a file destined for the browser used to typecheck happily and fail at

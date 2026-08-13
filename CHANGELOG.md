@@ -36,6 +36,29 @@ gates, bumps all seven, and rolls the `Unreleased` section into the new heading.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every 2.0.0-alpha package was published depending on
+  `@bakery-framework/core@^1.2.3`.** `bun pm pack` expands a `workspace:^`
+  dependency from the version recorded in `bun.lock`, not from the sibling
+  manifest — and nothing was updating the lock, because CI installs with
+  `--frozen-lockfile` and a version bump is not a dependency-graph change, so
+  even a plain `bun install` leaves it alone.
+
+  The alpha channel was therefore unusable rather than merely mislabelled:
+  installing any alpha plugin resolved a *stable* core, and 1.2.3 is the
+  barrel-cycle release that cannot be imported at all.
+
+  `bun run release` now carries the new version into the lockfile's workspace
+  entries, rewriting those lines in place. Not by regenerating the lock —
+  deleting it does work, but re-resolves every external dependency *after* the
+  release gates have run, which publishes a tree that nothing tested.
+
+  `tests/conventions.test.ts` fails if the lock and the manifests disagree.
+  Nothing else could see this: the existing lockstep check compares manifests
+  only to each other, and the skew is first visible in the packed tarball —
+  by which point it is on the registry.
+
 ## [2.0.0-alpha.2] — 2026-08-12
 
 ## [2.0.0-alpha.1] — 2026-08-12

@@ -293,6 +293,63 @@ for (const rel of targets) {
   console.log(`  ↑ ${String(json.name).padEnd(26)} ${from} -> ${version}`)
 }
 
+// 3b. Carry the same version into `bun.lock`'s workspace entries.
+//
+// **This is what makes the published dependency ranges correct, and it shipped
+// broken.** `bun pm pack` expands `workspace:^` using the version recorded in
+// the *lockfile*, not the one in the sibling manifest — and CI installs with
+// `--frozen-lockfile`, so the lock still said 1.2.3 long after every manifest
+// said 2.0.0-alpha.2. All seven 2.0.0-alpha packages went to npm declaring
+// `@bakery-framework/core@^1.2.3`, so installing the alpha channel resolved a
+// *stable* core: the one version the alpha plugins cannot run against, and
+// (1.2.3 being the barrel-cycle release) one that cannot even be imported.
+//
+// Rewritten in place rather than regenerated. `bun install` alone will not do
+// it — bun rewrites the lock when the dependency *graph* changes and a version
+// bump is not a graph change — and deleting the lock first, which does work,
+// re-resolves every external dependency *after* the gates in step 2 have
+// already run, publishing a tree that nothing tested. Only these lines may
+// move, so only these lines are touched.
+//
+// `version.yml` already does `git add -A`, so the edit rides along in the bump
+// commit with no workflow change.
+if (changed.length) {
+  const lockPath = `${ROOT}/bun.lock`
+  const lock = await Bun.file(lockPath)
+    .text()
+    .catch(() => '')
+
+  if (!lock) {
+    // A checkout that has never installed. Nothing to keep in sync, and the
+    // next install writes the current versions anyway.
+    console.log('  · bun.lock         absent, nothing to sync')
+  } else {
+    let patched = lock
+    const stale: string[] = []
+
+    for (const pkg of PACKAGES) {
+      // Anchored to the workspace key so this cannot wander into the
+      // `"packages"` section below, where a same-named entry would be a
+      // resolved npm tarball rather than the local directory.
+      const re = new RegExp(
+        `("${pkg}":\\s*\\{\\s*"name":\\s*"[^"]+",\\s*"version":\\s*")([^"]+)(")`,
+      )
+      const found = patched.match(re)
+      if (!found) die(`bun.lock has no workspace entry for ${pkg}`)
+      if (found[2] === version) continue
+      stale.push(pkg)
+      patched = patched.replace(re, `$1${version}$3`)
+    }
+
+    if (!stale.length) {
+      console.log('  = bun.lock         already at ' + version)
+    } else {
+      if (!dryRun) await Bun.write(lockPath, patched)
+      console.log(`  ↑ bun.lock         ${stale.length} workspace entries`)
+    }
+  }
+}
+
 // 4. Roll `## [Unreleased]` into a dated heading, and open a fresh one.
 const changelogPath = `${ROOT}/CHANGELOG.md`
 const changelog = await Bun.file(changelogPath).text()
