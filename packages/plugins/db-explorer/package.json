@@ -1,6 +1,6 @@
 {
   "name": "@bakery-framework/plugin-db-explorer",
-  "version": "2.0.0-alpha.2",
+  "version": "2.0.0-alpha.3",
   "description": "Bakery database explorer plugin — read-only browsing of the app database.",
   "keywords": [
     "bakery",
