@@ -42,6 +42,8 @@ left behind puts wrong dependency ranges on npm — which is how every
 
 ## [Unreleased]
 
+## [2.0.0-alpha.5] — 2026-08-13
+
 ### Changed
 
 - **The dashboard's authorization is analytics' authorization.**
