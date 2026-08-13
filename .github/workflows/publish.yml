@@ -39,7 +39,7 @@ on:
 
 concurrency:
   # Two runs publishing the same tag would race, and the loser would fail
-  # halfway through the seven packages. Never cancel a run mid-publish.
+  # halfway through the eight packages. Never cancel a run mid-publish.
   group: publish-${{ github.ref }}
   cancel-in-progress: false
 
@@ -51,7 +51,7 @@ permissions:
 
 jobs:
   publish:
-    name: seven packages
+    name: eight packages
     runs-on: ubuntu-latest
 
     # One name for the tag whichever trigger fired. On a tag push `ref_name` is
@@ -133,7 +133,7 @@ jobs:
       #   npm pack     -> "@bakery-framework/core": "workspace:^"   (broken)
       #   bun pm pack  -> "@bakery-framework/core": "^1.0.0"        (correct)
       #
-      # So publishing straight from the working tree with npm would ship seven
+      # So publishing straight from the working tree with npm would ship eight
       # manifests that no consumer can resolve, permanently. Packing with Bun
       # and handing npm a finished tarball keeps Bun's rewriting *and* gets
       # OIDC, because npm publishes the bytes it is given.
@@ -148,6 +148,7 @@ jobs:
             packages/plugins/vue \
             packages/plugins/analytics \
             packages/plugins/dashboard \
+            packages/plugins/db-explorer \
             packages/create
           do
             ( cd "$pkg" && bun pm pack --destination "$GITHUB_WORKSPACE/dist" )
@@ -175,7 +176,7 @@ jobs:
       # scaffolder that references them all. It does not affect whether a
       # publish succeeds — npm does not check that a dependency exists — but it
       # decides what a consumer sees if they install while this is half done.
-      # **Resumable on purpose.** Seven publishes are seven chances to fail
+      # **Resumable on purpose.** Eight publishes are eight chances to fail
       # partway, and the first real run did exactly that: six succeeded and
       # `create-bakery` failed, leaving the set split across two versions. A
       # loop that cannot be re-run leaves you hand-publishing the remainder,
@@ -199,6 +200,7 @@ jobs:
             packages/plugins/vue \
             packages/plugins/analytics \
             packages/plugins/dashboard \
+            packages/plugins/db-explorer \
             packages/create
           do
             name=$(bun -e "console.log(require('./$pkg/package.json').name)")
