@@ -7,11 +7,12 @@ All notable changes to Bakery are recorded here, following
 
 **Every package ships one version, together.** `@bakery-framework/core`, `@bakery-framework/orm`,
 `@bakery-framework/cli`, `@bakery-framework/plugin-vue`, `@bakery-framework/plugin-analytics`,
-`@bakery-framework/plugin-dashboard` and `create-bakery` are always at the same number,
-and a release publishes all seven — including the ones with no changes.
+`@bakery-framework/plugin-dashboard`, `@bakery-framework/plugin-db-explorer` and
+`create-bakery` are always at the same number, and a release publishes all
+eight — including the ones with no changes.
 
 That is a deliberate trade. It costs some no-op releases. It buys the thing a
-framework split across seven packages most needs: _"which plugin works with core
+framework split across eight packages most needs: _"which plugin works with core
 1.2?"_ has one answer, always, without a compatibility table.
 
 It is also already load-bearing rather than newly chosen. `create-bakery`
@@ -32,7 +33,12 @@ actually run against. Raising it is a **major**, because an install that
 previously resolved will stop.
 
 Release with `bun run release <version>` — it refuses a dirty tree, runs the
-gates, bumps all seven, and rolls the `Unreleased` section into the new heading.
+gates, bumps all eight, and rolls the `Unreleased` section into the new heading.
+
+**The bump includes `bun.lock`, and that is not bookkeeping.** `bun pm pack`
+expands each `workspace:^` from the version recorded in the lockfile, so a lock
+left behind puts wrong dependency ranges on npm — which is how every
+2.0.0-alpha before alpha.3 shipped asking for `core@^1.2.3`.
 
 ## [Unreleased]
 
