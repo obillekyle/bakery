@@ -986,9 +986,22 @@ describe('Postgres introspection queries', () => {
     ])
   })
 
-  test('getSchema casts the count to int and finds pks via regclass', async () => {
+  test('getSchema casts the count to int and binds the table for regclass', async () => {
     // COUNT(*) is bigint in Postgres and arrives as a string without the cast,
     // which would make rowCount a string in every dashboard payload.
+    //
+    // The regclass line below used to read `= "app_users"::regclass`, and this
+    // assertion pinned it happily for months. `::regclass` casts a *string*;
+    // a double-quoted identifier is a column reference, so the real server
+    // answered `column "app_users" does not exist` and **`getSchema()` threw
+    // for every table on this dialect** — the db-explorer plugin did not work
+    // on Postgres at all.
+    //
+    // Worth sitting with, because the file says so three lines below its own
+    // last test: everything here asserts *text*, and text was exactly what was
+    // wrong. A string assertion cannot tell a valid query from an invalid one.
+    // The live counterpart is `contract.test.ts`'s composite-PK test, which
+    // runs `getSchema()` against real servers and fails on all of this.
     const db = new PGAdapter()
     const calls = record(db, sql => {
       if (sql.includes('information_schema.tables'))
@@ -1025,7 +1038,7 @@ describe('Postgres introspection queries', () => {
       "SELECT table_name AS name, table_type AS type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_name",
       'SELECT COUNT(*)::int as count FROM "app_users"',
       "SELECT column_name AS name, data_type AS type, is_nullable AS is_nullable FROM information_schema.columns WHERE table_name = $1 AND table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY ordinal_position",
-      'SELECT a.attname AS name FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) WHERE i.indisprimary AND i.indrelid = "app_users"::regclass',
+      'SELECT a.attname AS name FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) WHERE i.indisprimary AND i.indrelid = $1::regclass',
       "SELECT indexname AS name, indexdef AS def FROM pg_indexes WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND tablename = $1",
     ])
   })

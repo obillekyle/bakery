@@ -304,7 +304,18 @@ export class SQLiteAdapter extends SQLAdapter {
           name: c.name,
           type: c.type,
           notnull: c.notnull === 1,
-          pk: c.pk === 1,
+          // `pk` is the column's **1-based position within the primary key**,
+          // not a boolean — `PRAGMA table_info` reports 0 for "not part of the
+          // key", 1 for the first key column, 2 for the second. So `=== 1`
+          // reported a composite `PRIMARY KEY (a, b)` as a single-column key on
+          // `a`, silently, and only on SQLite: MySQL reads `column_key = 'PRI'`
+          // and Postgres reads `pg_index.indisprimary`, both of which are set on
+          // every member.
+          //
+          // `parseConstraints` a few hundred lines down already had this right
+          // (`col.pk > 0`), which is why `getConstraints()` disagreed with
+          // `getSchema()` about the same table.
+          pk: c.pk > 0,
         })),
         indexes: idxs.map(i => ({ name: i.name, unique: i.unique === 1 })),
       })

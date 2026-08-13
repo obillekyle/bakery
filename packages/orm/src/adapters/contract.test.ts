@@ -292,4 +292,53 @@ describe('changes counts rows on every dialect', () => {
       },
     )
   }
+
+  /**
+   * `getSchema()` must name **every** column of a composite primary key.
+   *
+   * SQLite reported only the first. `PRAGMA table_info` gives `pk` as the
+   * column's 1-based position in the key, not a boolean, and the adapter tested
+   * `c.pk === 1` — so `PRIMARY KEY (tenant_id, code)` came back as a
+   * single-column key on `tenant_id`. MySQL and Postgres were always right,
+   * which is exactly why this needs to run on all three: the bug is invisible
+   * unless you compare them.
+   *
+   * It matters beyond tidiness. Anything that derives a row's identity from
+   * `getSchema()` — a grid editor addressing a row for UPDATE, say — would
+   * build `WHERE tenant_id = ?` and hit every row in the tenant.
+   */
+  for (const [name, skip, open] of DIALECTS) {
+    test.skipIf(skip)(
+      `${name}: getSchema names every composite PK column`,
+      async () => {
+        const db = open()
+        const t = `bakery_cpk_${process.pid}`
+        const run = (s: string, ...p: unknown[]) => alive(db.query(s).run(...p))
+        cleanup.push(async () => {
+          await run(`DROP TABLE IF EXISTS ${t}`)
+          await db.close?.()
+        })
+
+        await run(`DROP TABLE IF EXISTS ${t}`)
+        await run(
+          `CREATE TABLE ${t} (${db.quote('tenant_id')} INT NOT NULL,` +
+            ` ${db.quote('code')} VARCHAR(16) NOT NULL,` +
+            ` ${db.quote('label')} VARCHAR(32),` +
+            ` PRIMARY KEY (${db.quote('tenant_id')}, ${db.quote('code')}))`,
+        )
+
+        const schema = await alive(db.getSchema())
+        const table = schema.find((s: any) => s.name === t)
+        const pkCols = table?.columns
+          .filter((c: any) => c.pk)
+          .map((c: any) => c.name)
+          .sort()
+
+        expect({ dialect: name, pkCols }).toEqual({
+          dialect: name,
+          pkCols: ['code', 'tenant_id'],
+        })
+      },
+    )
+  }
 })

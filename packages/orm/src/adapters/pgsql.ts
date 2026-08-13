@@ -267,13 +267,22 @@ export class PGAdapter extends SQLAdapter {
             " AND table_schema NOT IN ('pg_catalog', 'information_schema')" +
             ' ORDER BY ordinal_position',
         ).all(t.name),
+        // `::regclass` casts a **string**, so the table name binds as a
+        // parameter. It used to interpolate `qName` — a double-quoted
+        // *identifier* — which Postgres reads as a column reference, so this
+        // threw `column "<table>" does not exist` for every table and took the
+        // whole of `getSchema()` down with it on this dialect.
+        //
+        // The quiet case was worse than the loud one: a table with a column of
+        // the same name resolved, casting that column's *value* to a regclass
+        // and reporting some other table's primary key as this one's.
         this.query(
           'SELECT a.attname AS name' +
             ' FROM pg_index i' +
             ' JOIN pg_attribute a ON a.attrelid = i.indrelid' +
             ' AND a.attnum = ANY(i.indkey)' +
-            ` WHERE i.indisprimary AND i.indrelid = ${qName}::regclass`,
-        ).all(),
+            ' WHERE i.indisprimary AND i.indrelid = ?::regclass',
+        ).all(t.name),
         this.query(
           'SELECT indexname AS name, indexdef AS def' +
             ' FROM pg_indexes' +
