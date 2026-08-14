@@ -277,5 +277,24 @@ export async function handleDashboardRequest(
   const csrfBlock = checkCsrfMiddleware(req, url)
   if (csrfBlock) return csrfBlock
 
-  return dispatchDashboardRoute(req, url)
+  const result = await dispatchDashboardRoute(req, url)
+  if (result) return result
+
+  // `dispatch` answers `null` for a path no key matched, and a handler
+  // returning `null` means "not mine" — which core turns into **204 No
+  // Content**. Every unmatched request under this namespace therefore answered
+  // 204: a status that reads as success and carries nothing.
+  //
+  // Retiring the write endpoints is what made that matter. A script still
+  // posting to `/api/_dashboard/execute-action` was told 204, took it for
+  // success, and silently changed nothing. For a route that has been deleted
+  // that is the worst available answer.
+  //
+  // **Only under `/api/`, and that boundary is load-bearing.** The stylesheet
+  // is served by `mountRoutes`, not by a key in the table above, so `null` is
+  // precisely how `/_dashboard/style.css` *falls through* to the static
+  // pipeline. A blanket 404 here claims it and the console loads unstyled —
+  // which is what happened when this was first written without the condition.
+  if (path.startsWith('/api/')) return response.error('Not Found', 404)
+  return null
 }

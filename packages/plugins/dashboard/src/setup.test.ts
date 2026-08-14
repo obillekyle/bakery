@@ -90,7 +90,8 @@ describe('dashboard CSRF and method qualification', () => {
       }),
     )
 
-    expect(res).toBeNull()
+    // 404 rather than `null`: see the note in the GET test below.
+    expect((res as Response)?.status).toBe(404)
   })
 
   test('a same-origin GET cannot reach sessions/delete either', async () => {
@@ -98,7 +99,7 @@ describe('dashboard CSRF and method qualification', () => {
       new Request(`${DELETE_URL}?id=${VICTIM}`),
     )
 
-    expect(res).toBeNull()
+    expect((res as Response)?.status).toBe(404)
   })
 
   test('a cross-origin POST is rejected before dispatch', async () => {
@@ -147,9 +148,14 @@ describe('dashboard CSRF and method qualification', () => {
     ]
 
     for (const path of paths) {
-      expect(
-        await handleDashboardRequest(new Request(`http://localhost${path}`)),
-      ).toBeNull()
+      // 404, not `null`. Both mean "no route matched", but only one of them is
+      // what a caller sees: core renders a handler's `null` as 204 No Content,
+      // which reads as success. Under `/api/` the handler now answers 404
+      // itself.
+      const res = await handleDashboardRequest(
+        new Request(`http://localhost${path}`),
+      )
+      expect(`${path}:${(res as Response)?.status}`).toBe(`${path}:404`)
     }
   })
 
@@ -157,6 +163,15 @@ describe('dashboard CSRF and method qualification', () => {
     // Not merely gated — absent. `DASHBOARD_ALLOW_WRITES` is gone with them,
     // so there is no flag that brings them back, and a stale client or a
     // bookmarked probe finds nothing to dispatch to.
+    //
+    // **404, not `null`.** This asserted `toBeNull()` and passed, because that
+    // is what `dispatch` answers for an unmatched key — and core turns a `null`
+    // from a handler into **204 No Content**. A script still posting to
+    // `execute-action` was therefore told 204, read it as success, and silently
+    // changed nothing. For a route that has been deleted that is the worst
+    // available answer, so `handleDashboardRequest` now supplies the 404 and
+    // this checks the status a caller actually sees rather than the value the
+    // dispatcher happens to return.
     for (const path of [
       '/api/_dashboard/query',
       '/api/_dashboard/execute-action',
@@ -177,10 +192,30 @@ describe('dashboard CSRF and method qualification', () => {
         }),
       )
 
-      expect(post).toBeNull()
+      expect((post as Response)?.status).toBe(404)
     }
 
     expect(dbCalls).toEqual([])
+  })
+
+  test('any unmatched dashboard path is a 404, not an empty success', async () => {
+    // The general rule the case above is one instance of. A handler returning
+    // `null` means "not mine" to the router, which answers 204 — fine for a
+    // handler declining a path, wrong for a handler that claims the whole
+    // `/api/_dashboard/*` namespace and simply has no key for this one.
+    const res = await handleDashboardRequest(
+      new Request('http://localhost/api/_dashboard/no-such-endpoint', {
+        method: 'POST',
+        headers: {
+          origin: 'http://localhost',
+          'sec-fetch-site': 'same-origin',
+          'content-type': 'application/json',
+        },
+        body: '{}',
+      }),
+    )
+
+    expect((res as Response)?.status).toBe(404)
   })
 
   test('a same-origin POST still reaches the endpoint', async () => {
