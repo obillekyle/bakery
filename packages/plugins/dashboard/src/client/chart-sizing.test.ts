@@ -66,3 +66,53 @@ describe('chart canvases are sized by CSS, not by their own attributes', () => {
     expect(bigChartRule()).toMatch(/display\s*:\s*block/)
   })
 })
+
+/**
+ * The card labels are `<span>`s, and a span is inline.
+ *
+ * Inside `.card` they stacked anyway, because that rule is
+ * `display: flex; flex-direction: column` and a flex container blockifies its
+ * children. The labels themselves never claimed to be blocks — so in
+ * `.chart-card`, an ordinary block, the same two spans shared a line and every
+ * chart read
+ * `PING LATENCY HISTORYClient-to-server connection latency (last 1 min…)`.
+ *
+ * Stated on the labels rather than by making `.chart-card` another flex column:
+ * the property belongs to "this is a caption on its own line", not to the two
+ * containers that happen to remember to be flex today.
+ *
+ * A grep again, and for the same reason as above — it renders, it is just
+ * wrong, so nothing fails.
+ */
+describe('card labels are block-level in their own right', () => {
+  const css = readFileSync(
+    join(import.meta.dir, '..', '..', 'public', 'style.css'),
+    'utf8',
+  )
+
+  /**
+   * The declaration block for a selector, found by string search.
+   *
+   * Deliberately not a constructed `RegExp`: the selector begins with `.`, so
+   * building a pattern from it means escaping, and an escaping mistake here
+   * fails by matching *nothing* — which reads exactly like the rule being
+   * absent, i.e. like the bug this file exists to catch.
+   */
+  function rule(selector: string): string {
+    const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    // Line-anchored, so `.foo .card-title { … }` cannot answer for `.card-title`.
+    const at = withoutComments.indexOf(`\n${selector} {`)
+    if (at === -1) return ''
+    const open = withoutComments.indexOf('{', at)
+    const close = withoutComments.indexOf('}', open)
+    return close === -1 ? '' : withoutComments.slice(open + 1, close)
+  }
+
+  test.each([
+    '.card-title',
+    '.card-sub',
+  ])('%s does not rely on its parent being a flex column', selector => {
+    expect(rule(selector).trim()).not.toBe('')
+    expect(rule(selector)).toMatch(/display\s*:\s*block/)
+  })
+})

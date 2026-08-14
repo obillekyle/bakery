@@ -372,7 +372,21 @@ main {
   backdrop-filter: none;
 }
 
+/*
+ * `display: block` on both labels, and it is not redundant with `.card`.
+ *
+ * These are `<span>`s. Inside `.card` they look right only because that rule is
+ * `display: flex; flex-direction: column`, which blockifies its children — the
+ * labels themselves never said they were blocks. `.chart-card` is an ordinary
+ * block, so the same two spans ran together on one line there and every chart
+ * read `PING LATENCY HISTORYClient-to-server connection latency (last 1 min…)`.
+ *
+ * Stating it here rather than making `.chart-card` another flex column fixes it
+ * for any card that uses these labels, instead of for the two that currently
+ * remember to be flex containers.
+ */
 .card-title {
+  display: block;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -389,6 +403,7 @@ main {
 }
 
 .card-sub {
+  display: block;
   font-size: 12px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
