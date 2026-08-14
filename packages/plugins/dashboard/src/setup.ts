@@ -26,12 +26,7 @@ import {
 // the tree, allow-listed by name in `tests/conventions.test.ts`.
 import { setupAnalytics } from '@bakery-framework/plugin-analytics/setup'
 import { isAnalyticsAuthorized } from '@bakery-framework/plugin-analytics/stats'
-import {
-  handleExecuteAction,
-  handleQuery,
-  handleSchema,
-  handleTableData,
-} from './endpoints/database'
+import { handleSchema, handleTableData } from './endpoints/database'
 import {
   handleDeleteSession,
   handleGetSessions,
@@ -209,9 +204,14 @@ async function checkAuthMiddleware(req: Request, path: string) {
  *
  * Necessary but **not sufficient on its own**. `SAFE_METHODS` exempts GET, and
  * `processBody` reads a GET's query string as the body, so a plain
- * `<img src="/api/_dashboard/execute-action?action=truncate&tableName=…">`
- * sails past this guard. The mutating keys in the table below are
- * method-qualified for exactly that reason; neither half closes the hole alone.
+ * `<img src="/api/_dashboard/sessions/delete?id=victim">` sails past this
+ * guard. The mutating keys in the table below are method-qualified for exactly
+ * that reason; neither half closes the hole alone.
+ *
+ * The example used to be `execute-action?action=truncate`, which was the worst
+ * of them — a link that emptied a table. That endpoint is gone with the grid
+ * editor, and the two session routes are what is left to protect. The hazard
+ * is unchanged; only the blast radius shrank.
  */
 function checkCsrfMiddleware(req: Request, url: URL): DashboardResponse | null {
   const reason = checkCsrf(req, url)
@@ -243,8 +243,6 @@ const dashboardRoutes = {
   'POST /api/_dashboard/sessions/update': req => handleUpdateSession(req),
   '/api/_dashboard/schema': () => handleSchema(),
   '/api/_dashboard/table-data': (_req, url) => handleTableData(url),
-  'POST /api/_dashboard/query': req => handleQuery(req),
-  'POST /api/_dashboard/execute-action': req => handleExecuteAction(req),
 } satisfies PluginRouteTable
 
 const dispatchDashboardRoute = routeTable(dashboardRoutes)

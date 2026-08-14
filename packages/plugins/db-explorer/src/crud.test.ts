@@ -199,7 +199,7 @@ async function call(
 }
 
 describe('the write surface is bounded, and this is its boundary', () => {
-  test('the dashboard’s three write paths are still 404 here', async () => {
+  test('a raw-SQL prompt, an action dispatcher and a foreign namespace are all 404', async () => {
     for (const path of [
       '/api/_db/query',
       '/api/_db/execute-action',
@@ -691,5 +691,45 @@ describe('graph and lookup', () => {
     expect(res.data.rows[0].row).toEqual({ id: 1, courier: 'dhl' })
     // Ref 2 and 3 found nothing; they are nulls, not omissions.
     expect(res.data.rows[1].row).toBe(null)
+  })
+})
+
+/**
+ * The write surface is described in prose in three places — `setup.ts`'s header,
+ * `index.ts`'s docblock and `docs/plugins/db-explorer.md` — and prose drifts.
+ * `setup.ts` said "exactly the six keys below" above five keys.
+ *
+ * A count on its own would be a weak test. What this pins is the *spelling*:
+ * which verbs exist and which paths they sit on, so adding a write route is a
+ * visible edit here rather than a silent widening, and the number in the
+ * comment has something to be wrong against.
+ */
+describe('the write keys, enumerated', () => {
+  test('there are exactly five, and these are they', async () => {
+    const source = await Bun.file(
+      `${import.meta.dir}/setup.ts`,
+    ).text()
+
+    const keys = [...source.matchAll(/'([A-Z]+ \/api\/_db\/[^']*)':/g)]
+      .map(match => match[1])
+      .sort()
+
+    expect(keys).toEqual([
+      'DELETE /api/_db/rows',
+      'PATCH /api/_db/row',
+      'POST /api/_db/import',
+      'POST /api/_db/rows',
+      'POST /api/_db/rows/bulk',
+    ])
+  })
+
+  test('the header comment counts them correctly', async () => {
+    const source = await Bun.file(
+      `${import.meta.dir}/setup.ts`,
+    ).text()
+    // The literal that was wrong. Spelled out rather than derived, so the test
+    // fails when the prose and the table disagree — which is the only failure
+    // mode a comment has.
+    expect(source).toContain('exactly the five method-qualified')
   })
 })

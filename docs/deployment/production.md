@@ -278,6 +278,7 @@ prevents it; only a worker that misses that deadline can lose buffered writes.
 - [ ] Rate limit reviewed rather than duplicated.
 - [ ] Dashboard plugin either removed, or given an `authorize` predicate — see
       [Security](security.md).
-- [ ] `DASHBOARD_ALLOW_WRITES` **not** set.
+- [ ] Database explorer either removed, or given users whose access levels you
+      can defend — see [Database Explorer](../plugins/db-explorer.md).
 - [ ] Migrations run as an explicit step, with a verified backup.
 - [ ] A stop timeout long enough for shutdown hooks.

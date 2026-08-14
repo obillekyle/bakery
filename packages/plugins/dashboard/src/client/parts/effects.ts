@@ -4,8 +4,8 @@ export let refreshShimmerCache = () => {}
  * Both effects below run on import. Without this guard, importing anything that
  * transitively reaches this file outside a browser throws on the first `window`
  * access — which made every module in `client/parts/` untestable, including the
- * hand-built HTML in `database.ts` that has produced every XSS found in this
- * repo. A DOM effect with no DOM is a no-op, not an error.
+ * hand-built HTML in the since-retired `database.ts` that produced every XSS
+ * found in this repo. A DOM effect with no DOM is a no-op, not an error.
  */
 const HAS_DOM = typeof window !== 'undefined' && typeof document !== 'undefined'
 

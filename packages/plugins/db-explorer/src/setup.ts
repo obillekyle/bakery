@@ -78,7 +78,8 @@ async function handleClientJs() {
  * is now false: rows are inserted, edited and deleted below. What is still
  * true, and is the claim that survives, is **structural**: there is no
  * raw-SQL endpoint and nothing that creates, drops or alters a table. The write
- * surface is bounded and enumerable — it is exactly the six keys below — rather
+ * surface is bounded and enumerable — it is exactly the five method-qualified
+ * keys below — rather
  * than gated behind a flag the way the dashboard's is.
  *
  * `/api/_db/graph` and `/api/_db/lookup` are reads despite one of them taking a

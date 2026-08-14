@@ -182,12 +182,18 @@ describe('routing and the auth split', () => {
 })
 
 describe('no raw SQL and no DDL — structurally, not by configuration', () => {
-  test('the write endpoints the dashboard has still do not exist here', async () => {
+  test('the write endpoints the dashboard used to have do not exist here', async () => {
     __setTestAccess({ authorize: () => 'write' })
 
-    // The dashboard's write surface, requested from the explorer with the
-    // *highest* level this plugin grants: every one must be a 404 — not a 403
-    // behind a flag, a route that is not there.
+    // The shapes these paths name are the ones this plugin refuses to have:
+    // a raw-SQL prompt, a generic action dispatcher, and a write to another
+    // plugin's namespace. Requested with the *highest* level this plugin
+    // grants, every one must be a 404 — a route that is not there, rather than
+    // a route refusing.
+    //
+    // The dashboard's own versions of the first two are now deleted rather
+    // than gated, so this no longer contrasts two live designs. It still pins
+    // the claim that matters: nothing here answers a statement someone sends.
     for (const path of [
       '/api/_db/query',
       '/api/_db/execute-action',

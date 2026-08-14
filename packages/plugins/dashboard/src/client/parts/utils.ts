@@ -1,12 +1,15 @@
 /**
  * Shared browser-side helpers for the dashboard panels.
  *
- * The three panels (database, sessions, stats) were built independently and
- * each grew its own copy of the same four things: an element-text setter, a
- * `results-empty` block, a fetch/`.json()` pair, and a prev/next pager. They
- * are declared once here because this file is compiled into the shipped
- * bundle — a duplicated string literal is duplicated bytes, the minifier does
- * not merge them.
+ * The panels were built independently and each grew its own copy of the same
+ * four things: an element-text setter, a `results-empty` block, a
+ * fetch/`.json()` pair, and a prev/next pager. They are declared once here
+ * because this file is compiled into the shipped bundle — a duplicated string
+ * literal is duplicated bytes, the minifier does not merge them.
+ *
+ * Shrank when the database editor was retired: `executeAction`, `getJson`,
+ * `errorBox` and three icon paths had no caller left once `database.ts` went,
+ * and dead code in a browser bundle is bytes every operator downloads.
  */
 
 /** `innerText` on an element that may not be in the DOM yet. */
@@ -22,9 +25,10 @@ export function setText(id: string, value: string) {
  * These helpers previously took a string straight into `innerHTML`: every
  * caller happened to pass a literal or escape first, which is exactly the state
  * a codebase is in right before it stops being true. Every XSS found in this
- * repo came from hand-built DOM strings in these three files, including a
- * stored-XSS to arbitrary-SQL chain, so the default here is the safe one and
- * markup is not expressible through it at all.
+ * repo came from hand-built DOM strings in these panel files, including a
+ * stored-XSS to arbitrary-SQL chain through the database grid — which is gone
+ * now, but the escaping default it argued for is not, because the sessions and
+ * stats panels build markup the same way from data they did not write.
  */
 export function emptyBox(message: string, isError = false): string {
   const style = isError ? ' style="color: var(--accent-red);"' : ''
@@ -53,36 +57,10 @@ export function icon(d: string, size: string): string {
   )
 }
 
-export const ICON_TABLE =
-  'M19 21H5q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21M5 8h14V5H5zm2.5 2H5v9h2.5zm9 0v9H19v-9zm-2 0h-5v9h5z'
-export const ICON_EYE =
-  'M15.188 14.688Q16.5 13.375 16.5 11.5t-1.312-3.187T12 7T8.813 8.313T7.5 11.5t1.313 3.188T12 16t3.188-1.312m-5.1-1.276Q9.3 12.625 9.3 11.5t.788-1.912T12 8.8t1.913.788t.787 1.912t-.787 1.913T12 14.2t-1.912-.787m-4.738 3.55Q2.35 14.925 1 11.5q1.35-3.425 4.35-5.462T12 4t6.65 2.038T23 11.5q-1.35 3.425-4.35 5.463T12 19t-6.65-2.037m11.838-1.45Q19.55 14.025 20.8 11.5q-1.25-2.525-3.613-4.012T12 6T6.813 7.488T3.2 11.5q1.25 2.525 3.613 4.013T12 17t5.188-1.487'
 export const ICON_EDIT =
   'M5 19h1.425L16.2 9.225L14.775 7.8L5 17.575zm-2 2v-4.25L16.2 3.575q.3-.275.663-.425t.762-.15t.775.15t.65.45L20.425 5q.3.275.438.65T21 6.4q0 .4-.137.763t-.438.662L7.25 21zM19 6.4L17.6 5zm-3.525 2.125l-.7-.725L16.2 9.225z'
 export const ICON_DELETE =
   'M7 21q-.825 0-1.412-.587T5 19V6H4V4h5V3h6v1h5v2h-1v13q0 .825-.587 1.413T17 21zM17 6H7v13h10zM9 17h2V8H9zm4 0h2V8h-2zM7 6v13z'
-export const ICON_WARN =
-  'M1 21L12 2l11 19zm3.45-2h15.1L12 6zm8.263-1.287Q13 17.425 13 17t-.288-.712T12 16t-.712.288T11 17t.288.713T12 18t.713-.288M11 15h2v-5h-2zm1-2.5'
-
-/**
- * An error block with the warning glyph, as the fetch failure paths render it.
- * `message` is escaped — see `emptyBox`. The two dynamic callers pass a driver
- * error string, which quotes the caller's own SQL back at them.
- */
-export function errorBox(message: string): string {
-  return (
-    `<div class="results-empty" style="color: var(--accent-red);">` +
-    `<span style="display: inline-flex; align-items: center; gap: 0.25rem;">` +
-    `${icon(ICON_WARN, '1.1rem')}${escapeHTML(message)}</span></div>`
-  )
-}
-
-/** GET a dashboard endpoint and unwrap the JSON envelope. */
-export async function getJson(url: string): Promise<any> {
-  const res = await fetch(url)
-  return await res.json()
-}
-
 /** POST a JSON body to a dashboard endpoint and unwrap the envelope. */
 export async function postJson(url: string, body: unknown): Promise<any> {
   const res = await fetch(url, {
@@ -91,11 +69,6 @@ export async function postJson(url: string, body: unknown): Promise<any> {
     body: JSON.stringify(body),
   })
   return await res.json()
-}
-
-/** The mutating half of the database panel; every action shares one endpoint. */
-export function executeAction(body: Record<string, unknown>): Promise<any> {
-  return postJson('/api/_dashboard/execute-action', body)
 }
 
 /** Page N of M, with the prev/next buttons disabled at the ends. */

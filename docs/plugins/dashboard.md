@@ -1,8 +1,14 @@
 # Dashboard plugin
 
 `@bakery-framework/plugin-dashboard` serves an admin console at `/_dashboard`: server
-metrics, live logs, a session browser and editor, and a database browser with a
-SQL console.
+metrics, live logs, and a session browser and editor.
+
+**It no longer edits your database.** The grid editor and the raw SQL console
+that used to live in the Database tab are gone, along with the
+`DASHBOARD_ALLOW_WRITES` flag that gated them —
+[`@bakery-framework/plugin-db-explorer`](db-explorer.md) does that work at
+`/_db` with a per-caller access level instead of one process-wide environment
+variable. The Database tab is now a link to it.
 
 **The dashboard does not authenticate anyone.** It takes a predicate from the
 application, which already knows who its users are. The old shared-secret
@@ -128,8 +134,15 @@ everything else, so it sees these paths first.
 | `/api/_dashboard/sessions/update` | set or remove one key on one session |
 | `/api/_dashboard/schema` | the live database schema |
 | `/api/_dashboard/table-data` | paged rows for one table (`tableName`, `page`, `pageSize`, `sortBy`, `sortOrder`, `filters`) |
-| `/api/_dashboard/query` | run SQL |
-| `/api/_dashboard/execute-action` | row-level actions: `delete-row`, `insert-row`, `update-row`, `truncate`, `import-csv` |
+
+The two write routes that used to complete this table — `POST
+/api/_dashboard/query` and `POST /api/_dashboard/execute-action` — are not
+gated, they are **absent**. No environment variable brings them back. The
+console's only remaining mutating endpoints are the two session ones.
+
+`schema` and `table-data` are read-only and stay, but nothing in the shipped
+client calls them any more; they are kept for anything that scripted against
+them.
 
 Every `/api/_dashboard/*` route answers with the standard JSON envelope; the
 shell is a `Response` and `dashboard.js` is a `Bun.BunFile` once cached, which
@@ -156,37 +169,40 @@ This is why `DashboardHandler.canHandle` is written so narrowly: it claims
 else. A handler at priority 120 that claimed `/_dashboard/*` would intercept
 every asset before the mount was ever consulted.
 
-## The SQL console
+## The Database tab
 
-`/api/_dashboard/query` is a real SQL prompt against the application's
-database. Three guards sit on it
-([`dashboard/src/endpoints/database.ts`](../../packages/plugins/dashboard/src/endpoints/database.ts)):
+A panel with a link to `/_db`, and nothing else — no fetch, no client module.
 
-1. **Reads only, by default**, unless the environment sets
-   `DASHBOARD_ALLOW_WRITES=1`. A browser console should not be a one-keystroke
-   path to `DROP TABLE` in production.
+It used to be a grid editor over `execute-action` and a raw SQL prompt over
+`query`, both behind `DASHBOARD_ALLOW_WRITES=1`. The whole arrangement is
+retired in favour of
+[`@bakery-framework/plugin-db-explorer`](db-explorer.md), which reaches the
+same data through an access level tied to the caller rather than a flag tied
+to the process, and which does not accept raw SQL at all.
 
-   The classification is a real one and it **fails closed**: anything it cannot
-   recognise counts as a write. It used to be a prefix test on the raw string,
-   which failed *open* — `WITH x AS (SELECT 1) DELETE FROM users` begins with
-   `WITH`, so it read as a `SELECT` and ran with the flag unset. So did
-   `PRAGMA writable_schema = ON`. Comments and string literals are stripped
-   before anything is matched, a write keyword at *any* nesting depth disqualifies
-   the statement (Postgres data-modifying CTEs hide one inside parentheses), and
-   only one statement per request is accepted.
+Register the explorer alongside the console if you want the link to lead
+anywhere:
 
-   The same flag gates the **grid editor** too — row insert, update and delete,
-   and table truncate. It previously covered only the SQL console, so the
-   Truncate button was exactly the one-keystroke path that rule describes. A
-   control covering one of two routes to the same effect is worse than none,
-   because it reads as protection.
-2. **`ATTACH` / `DETACH` / `VACUUM` are always rejected**, write mode or not.
-   In SQLite, `ATTACH` plus `VACUUM INTO` is an arbitrary file write — which
-   would turn any dashboard session, or any XSS in this origin, into host
-   filesystem access. Enabling writes says the console may change your data, not
-   that it may write files to your host.
-3. **Table names are validated** against `^[a-zA-Z0-9_]+$` before reaching any
-   query builder.
+```ts
+import { defineConfig } from '@bakery-framework/core'
+import dbExplorerPlugin from '@bakery-framework/plugin-db-explorer'
+import dashboardPlugin from '@bakery-framework/plugin-dashboard'
+
+export default defineConfig({
+  root: 'src',
+  plugins: [dashboardPlugin(), dbExplorerPlugin()],
+})
+```
+
+What this removes is worth stating plainly, because the old text made a
+security promise on the flag's behalf: an operator who set
+`DASHBOARD_ALLOW_WRITES=1` had a browser tab that could `DROP TABLE`, and one
+who left it unset was relying on a statement classifier to tell reads from
+writes. Neither situation exists now. Setting the variable does nothing.
+
+Table names on the surviving read endpoints are still validated against
+`^[a-zA-Z0-9_]+$` before reaching any query builder
+([`dashboard/src/endpoints/database.ts`](../../packages/plugins/dashboard/src/endpoints/database.ts)).
 
 Session editing has its own guard: a key under the reserved `__bakery.` prefix
 is rejected with 403. Without it, editing a session could set a framework
@@ -221,13 +237,16 @@ Two things follow:
   `analyticsPlugin({ credential })` arms them. See
   [Analytics → Authorization](analytics.md#authorization).
 
-The Sessions, Database and Logs panels are unaffected — they use
-`/api/_dashboard/*`, which is gated by your `authorize` predicate and works.
+The Sessions and Logs panels are unaffected — they use `/api/_dashboard/*`,
+which is gated by your `authorize` predicate and works. The Database panel is
+a static link and fetches nothing at all.
 
 ## Production checklist
 
 - Pass `enabled: false`, or an `authorize` predicate you can defend. There is
   no third option that leaves the console reachable safely.
-- Leave `DASHBOARD_ALLOW_WRITES` unset.
 - Remember that the console runs at the same origin as the application, so an
   XSS anywhere in that origin inherits whatever the predicate grants.
+- If you register the explorer for the Database link, give it its own access
+  configuration — the console's `authorize` does not carry over. See
+  [Database Explorer](db-explorer.md).
