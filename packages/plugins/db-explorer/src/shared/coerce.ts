@@ -37,7 +37,6 @@
  * the characters.
  */
 
-
 /**
  * What kind of value a column holds.
  *

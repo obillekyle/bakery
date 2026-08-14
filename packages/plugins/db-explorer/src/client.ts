@@ -10,6 +10,11 @@
  * is left here is the composition: state, routing, and which callback goes
  * where.
  *
+ * The layout is the one a database client is expected to have: a table list, a
+ * strip of table tabs with VS Code preview semantics, Data / Structure /
+ * Relations under it — **one level of nesting and no more** — and a status bar.
+ * Tab state lives in `client/tabs.ts` and is pure; this module owns the hash.
+ *
  * What is deliberately *not* here, and is not anywhere: a SQL console, an ER
  * diagram, and grid virtualisation. The first is refused by the plugin's
  * contract — no raw SQL, structurally — and the other two are not what a row
@@ -19,21 +24,44 @@
 import { adoptUrlKey, fetchGraph, fetchPage, fetchSchema } from './client/api'
 import { confirmChoice, notify } from './client/confirm'
 import { el } from './client/dom'
-import { openDrawer } from './client/drawer'
 import { EditSession, UndoStack } from './client/edit-session'
+import { equalityFilters } from './client/filter-builder'
 import { FkResolver, type FkTarget } from './client/fk'
-import type { SchemaColumn, SchemaTable, TablePage } from './client/meta'
+import type { SchemaColumn, SchemaTable } from './client/meta'
 import { Page } from './client/page'
+import { openPanel } from './client/panel'
 import { saveRow } from './client/save'
+import { renderSidebar } from './client/sidebar'
 import {
   type AppState,
   createState,
-  decodeView,
   defaultView,
-  encodeView,
+  isSystemTable,
+  type TableView,
   tableOf,
   type ViewState,
 } from './client/state'
+import {
+  activeTab,
+  activeView,
+  closeTab,
+  createTabs,
+  decodeTabs,
+  encodeTabs,
+  openPermanent,
+  openPreview,
+  promoteActive,
+  pruneTabs,
+  replaceActiveView,
+  selectTab,
+  type TabsState,
+} from './client/tabs'
+import {
+  renderNewTabPage,
+  renderTabStrip,
+  renderViewTabs,
+} from './client/tabstrip'
+import type { Filter } from './shared/filters'
 
 const app = document.getElementById('app')!
 
@@ -42,32 +70,48 @@ const session = new EditSession()
 const resolver = new FkResolver()
 const undoStack = new UndoStack(20)
 
+let tabs: TabsState = createTabs()
+
 /** Set while `writeHash` writes, so the `hashchange` listener ignores itself. */
 let selfNavigation = false
 
 const page = new Page(state, session, resolver, undoStack, {
   goto: view => void goto(view),
-  saveRow: (table, id) =>
-    void saveRow(table, id, {
-      session,
-      surface: () => page.grid,
-      reload: renderMain,
-      onDirtyChange: () => page.paintDirty(),
-    }),
-  openRow: openRowDrawer,
+  saveRow: (table, id) => void save(table, id),
+  openRow: openRowPanel,
   followFk: (target, key) => void followFk(target, key),
   reload: () => renderMain(),
+  openTable: (table, filters) => void openTable(table, filters),
+  onEdit: () => {
+    if (!activeTab(tabs)?.preview) return
+    tabs = promoteActive(tabs)
+    writeHash()
+    renderChrome()
+  },
   rewind: depth => {
     state.trail = state.trail.slice(0, depth)
-    void goto(state.trail[depth] ?? defaultView(state.view.table))
+    void goto(state.trail[depth] ?? defaultView(currentTable()))
   },
 })
+
+function currentTable(): string {
+  return activeView(tabs)?.table ?? ''
+}
+
+function save(table: SchemaTable, id: string): void {
+  void saveRow(table, id, {
+    session,
+    surface: () => page.grid,
+    reload: renderMain,
+    onDirtyChange: () => page.paintDirty(),
+  })
+}
 
 // ------------------------------------------------------------------- routing
 
 function writeHash(): void {
   selfNavigation = true
-  location.hash = encodeView(state.view)
+  location.hash = encodeTabs(tabs)
   // `hashchange` fires as a task, so the flag has to survive at least until
   // the next one — a microtask would clear it before the listener ran.
   setTimeout(() => {
@@ -76,60 +120,188 @@ function writeHash(): void {
 }
 
 /**
- * Move to a view, asking first if anything is unsaved.
+ * Ask before losing typed values.
  *
  * The navigation half of the unload guard: losing typed values to a mis-click
  * on a table name is the same loss as losing them to a closed tab, and only one
  * of the two was ever guarded by the browser.
  */
+async function confirmDiscard(): Promise<boolean> {
+  if (session.dirtyRows() === 0) return true
+  const ok = await confirmChoice({
+    verb: 'discard',
+    count: session.dirtyRows(),
+    table: currentTable() || '—',
+    detail: 'unsaved edits will be thrown away',
+  })
+  if (ok) session.clear()
+  return ok
+}
+
+/** Move the active tab to a new view of the same table. */
 async function goto(view: ViewState): Promise<void> {
-  if (session.dirtyRows() > 0) {
-    const ok = await confirmChoice({
-      verb: 'discard',
-      count: session.dirtyRows(),
-      table: state.view.table || '—',
-      detail: 'unsaved edits will be thrown away',
-    })
-    if (!ok) return
-  }
-  session.clear()
-  state.view = view
+  if (!(await confirmDiscard())) return
+  tabs = replaceActiveView(tabs, view)
   writeHash()
+  await renderMain()
+}
+
+/** Switch which tab is showing. Each tab keeps its own page, sort and filters. */
+async function select(index: number): Promise<void> {
+  if (index === tabs.active) return
+  if (!(await confirmDiscard())) return
+  tabs = selectTab(tabs, index)
+  writeHash()
+  await renderAll()
+}
+
+/** Single click in the sidebar: a replaceable preview tab. */
+async function preview(table: string): Promise<void> {
+  if (!(await confirmDiscard())) return
+  tabs = openPreview(tabs, defaultView(table))
+  writeHash()
+  await renderAll()
+}
+
+/** Double click, or a link from Relations: a tab that stays. */
+async function openTable(table: string, filters: Filter[] = []): Promise<void> {
+  if (!(await confirmDiscard())) return
+  tabs = openPermanent(tabs, { ...defaultView(table), filters })
+  // A link that carries filters is a deliberate destination, so it replaces
+  // whatever the tab held rather than restoring the tab's old view.
+  if (filters.length) {
+    tabs = replaceActiveView(tabs, { ...defaultView(table), filters })
+  }
+  writeHash()
+  await renderAll()
+}
+
+async function close(index: number): Promise<void> {
+  if (index === tabs.active && !(await confirmDiscard())) return
+  tabs = closeTab(tabs, index)
+  writeHash()
+  await renderAll()
+}
+
+function switchView(view: TableView): void {
+  const current = activeView(tabs)
+  if (!current) return
+  void goto({ ...current, view })
+}
+
+// ------------------------------------------------------------------ painting
+
+/**
+ * The four regions, built **once**.
+ *
+ * The slots matter: `renderChrome` repaints the sidebar and the strip in
+ * place, and `#main` is not one of them. Rebuilding the whole shell on every
+ * tab-strip change would tear down the grid — including any editor open in it
+ * and the focus inside that editor — every time a staged edit promoted a
+ * preview tab, which is precisely when it must not.
+ */
+const sideSlot = el('div', { class: 'side-slot' })
+const stripSlot = el('div', { class: 'strip-slot' })
+const mainSlot = el('main', { class: 'main', id: 'main' })
+
+function renderShell(): void {
+  const column = el('div', { class: 'column' })
+  column.append(stripSlot, mainSlot, page.status.node)
+  app.replaceChildren(sideSlot, column)
+}
+
+/** Sidebar and tab strip. Repainted whenever the *set* of tabs changes. */
+function renderChrome(): void {
+  sideSlot.replaceChildren(
+    renderSidebar({
+      tables: state.report?.tables ?? [],
+      showSystem: state.showSystem,
+      activeTable: activeView(tabs)?.table ?? null,
+      onPreview: table => void preview(table),
+      onOpen: table => void openTable(table),
+      onToggleSystem: show => {
+        state.showSystem = show
+        renderChrome()
+      },
+    }),
+  )
+
+  const strip = renderTabStrip({
+    tabs,
+    onSelect: index => void select(index),
+    onPromote: index => {
+      tabs = selectTab(tabs, index)
+      tabs = promoteActive(tabs)
+      writeHash()
+      renderChrome()
+    },
+    onClose: index => void close(index),
+    onNew: () => {
+      tabs = { ...tabs, active: -1 }
+      writeHash()
+      void renderAll()
+    },
+  })
+
+  const current = activeView(tabs)
+  stripSlot.replaceChildren(strip)
+  if (current) {
+    stripSlot.appendChild(
+      renderViewTabs({ current: current.view, onSelect: switchView }),
+    )
+  }
+}
+
+async function renderAll(): Promise<void> {
+  renderChrome()
   await renderMain()
 }
 
 /** Fetch, then render — the two never live in one function. */
 async function renderMain(): Promise<void> {
-  const main = document.getElementById('main')!
-  const table = tableOf(state, state.view.table)
+  const main = mainSlot
+  const view = activeView(tabs)
+  if (!view) {
+    page.paintEmpty(main, renderNewTabPage())
+    return
+  }
+
+  const table = tableOf(state, view.table)
   if (!table) {
-    main.replaceChildren(el('p', { class: 'note', text: 'Pick a table.' }))
+    page.paintEmpty(
+      main,
+      el('p', { class: 'note', text: `${view.table} is not in this schema.` }),
+    )
+    return
+  }
+
+  // Structure and Relations render from the schema report the client already
+  // holds — no request, so no loading state and no failure path.
+  if (view.view !== 'data') {
+    page.paintMeta(main, view, table)
     return
   }
 
   main.replaceChildren(
     el('p', { class: 'note', text: `loading ${table.name}…` }),
   )
-  let data: TablePage
   try {
-    data = await fetchPage(state.view)
+    const answer = await fetchPage(view)
+    page.paint(main, view, table, answer.data, answer.ms)
   } catch (error) {
     main.replaceChildren(el('p', { class: 'error', text: messageOf(error) }))
-    return
   }
-  page.paint(main, table, data)
-  page.refreshSidebar(app)
 }
 
-// ---------------------------------------------------------- drawer and links
+// ----------------------------------------------------------- panel and links
 
-function openRowDrawer(
+function openRowPanel(
   table: SchemaTable,
   columns: SchemaColumn[],
   editable: boolean,
   row: Record<string, unknown>,
 ): void {
-  const handle = openDrawer({
+  const handle = openPanel({
     table,
     columns,
     row,
@@ -138,36 +310,39 @@ function openRowDrawer(
     session,
     onSave: id => {
       handle.close()
-      void saveRow(table, id, {
-        session,
-        surface: () => page.grid,
-        reload: renderMain,
-        onDirtyChange: () => page.paintDirty(),
-      })
+      save(table, id)
     },
-    onDirtyChange: () => page.paintDirty(),
-    onNavigate: (name, filters) => void goto({ ...defaultView(name), filters }),
+    // A real edit is what makes a preview tab permanent — VS Code's rule, and
+    // the one that matters: nobody wants the tab they just typed into replaced
+    // by the next single click in the sidebar.
+    onDirtyChange: () => {
+      tabs = promoteActive(tabs)
+      page.paintDirty()
+      renderChrome()
+    },
+    onNavigate: (name, filters) => void openTable(name, filters),
   })
 }
 
 /**
  * Follow a foreign key.
  *
- * The filter narrows the page and `focus` names the row, because the only
- * filter the endpoint offers is a substring `LIKE` — `1` also matches `11`, so
- * a filter alone cannot say "this row". The current view is pushed first, so
- * Back returns to where the reference was followed from.
+ * One `eq` filter per referenced column, which *is* the row identity — so the
+ * destination page holds exactly the referenced row. This used to need a
+ * second mechanism: `filters` was a substring `LIKE`, `id=1` also matched `11`,
+ * so a link carried a separate `focus` identity and the grid highlighted it.
+ * `eq` removed the need and `focus` went with it.
+ *
+ * The current view is pushed first, so Back returns to where the reference was
+ * followed from — the breadcrumb, which stays.
  */
 async function followFk(
   target: FkTarget,
   key: Record<string, unknown>,
 ): Promise<void> {
-  state.trail.push(state.view)
-  const filters: Record<string, string> = {}
-  for (const [column, value] of Object.entries(key)) {
-    filters[column] = String(value)
-  }
-  await goto({ ...defaultView(target.refTable), filters, focus: key })
+  const current = activeView(tabs)
+  if (current) state.trail.push(current)
+  await openTable(target.refTable, equalityFilters(key))
 }
 
 // ------------------------------------------------------------------ plumbing
@@ -204,14 +379,26 @@ async function boot(): Promise<void> {
   // ordinary, and a failure here must not cost anyone the grid.
   state.graph = await fetchGraph().catch(() => null)
 
-  state.view = decodeView(location.hash)
-  page.renderShell(app)
-  await renderMain()
+  // A hash can name a table that has since been dropped; pruning here means
+  // the strip never carries a tab that can only ever render an error.
+  const known = new Set((state.report.tables ?? []).map(table => table.name))
+  tabs = pruneTabs(decodeTabs(location.hash), known)
+
+  // A system table reached by link opens with the sidebar toggle already on,
+  // so the tab it lands in is visible in the list beside it rather than
+  // appearing to have come from nowhere.
+  if (tabs.tabs.some(tab => isSystemTable(tab.view.table))) {
+    state.showSystem = true
+  }
+
+  renderShell()
+  await renderAll()
 
   window.addEventListener('beforeunload', guardUnload)
   window.addEventListener('hashchange', () => {
     if (selfNavigation) return
-    void goto(decodeView(location.hash))
+    tabs = pruneTabs(decodeTabs(location.hash), known)
+    void renderAll()
   })
 }
 

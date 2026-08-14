@@ -36,11 +36,20 @@ export interface Identity {
   reason?: string
 }
 
+export interface SchemaIndex {
+  name: string
+  type: string
+  cols: string[]
+}
+
 export interface SchemaTable {
   name: string
   rowCount: number
   columns: SchemaColumn[]
   identity: Identity
+  /** Optional so a fixture — and an older server — need not carry them. */
+  indexes?: SchemaIndex[]
+  isView?: boolean
   writable: boolean
   reason?: string
 }

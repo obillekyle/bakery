@@ -2,8 +2,10 @@ import { describe, expect, test } from 'bun:test'
 import {
   describeIdentity,
   isAddressable,
+  metaOf,
   type TableIntrospection,
 } from './identity'
+import { omittableOnInsert } from './shared/coerce'
 
 /**
  * `describeIdentity` takes the shapes the adapter reports, camel-cased keys and
@@ -179,5 +181,57 @@ describe('addressability', () => {
     )
     expect(identity.mode).toBe('none')
     expect(identity.reason).toContain('not addressable')
+  })
+})
+
+/**
+ * `hasDefault` decides, through `omittableOnInsert`, whether the insert form
+ * may leave a column out. It was `'default' in constraint`, which reads like
+ * the careful choice — `DEFAULT NULL` is a real default and is filed as
+ * `default: null`, so testing for the key's presence looks right.
+ *
+ * It is wrong because `parseConstraints` writes `default` on **every** column.
+ * So `hasDefault` was true for all of them, `omittableOnInsert` became
+ * `true` unconditionally, and the insert dialog would offer to omit a NOT NULL
+ * column with no default — leaving the database to refuse what the form had
+ * every fact needed to refuse itself.
+ *
+ * Caught by opening the page and reading the Structure view, where every column
+ * claimed a default. No test could have caught it: the fixtures wrote the
+ * `default` key only on columns that had one, so `in` and `!== null` agreed.
+ */
+describe('metaOf: hasDefault', () => {
+  const schemaColumn = {
+    name: 'author_id',
+    type: 'INTEGER',
+    notnull: true,
+    pk: false,
+  }
+
+  test('a null default is not a default', () => {
+    // Exactly what `getConstraints()` reports for a column with no DEFAULT.
+    expect(
+      metaOf({ type: 'integer', default: null }, schemaColumn).hasDefault,
+    ).toBe(false)
+  })
+
+  test('a real default is', () => {
+    expect(metaOf({ type: 'integer', default: 0 }, schemaColumn).hasDefault).toBe(
+      true,
+    )
+    expect(
+      metaOf({ type: 'string', default: '' }, { ...schemaColumn, type: 'TEXT' })
+        .hasDefault,
+    ).toBe(true)
+  })
+
+  test('no constraint at all is not a default', () => {
+    expect(metaOf(undefined, schemaColumn).hasDefault).toBe(false)
+  })
+
+  test('a NOT NULL column with no default cannot be omitted on insert', () => {
+    // The property that actually matters, stated end to end.
+    const meta = metaOf({ type: 'integer', default: null }, schemaColumn)
+    expect(omittableOnInsert(meta)).toBe(false)
   })
 })

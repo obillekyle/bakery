@@ -23,6 +23,7 @@ import { __resetTestAccess, __setTestAccess, DbExplorerHandler } from './setup'
  */
 function createStubDb() {
   const calls: string[] = []
+  const seen: { filters?: unknown } = {}
   const db = {
     getSchema: async () => {
       calls.push('getSchema')
@@ -33,6 +34,10 @@ function createStubDb() {
           columns: [
             { name: 'id', type: 'INTEGER', notnull: true, pk: true },
             { name: 'courier', type: 'TEXT', notnull: true, pk: false },
+            // Snake-cased on purpose: `getIndexes()` camel-cases its column
+            // names and the report has to translate them back, so a column
+            // whose two spellings differ is the only one that proves it.
+            { name: 'picked_up', type: 'TEXT', notnull: false, pk: false },
           ],
           indexes: [],
         },
@@ -44,12 +49,17 @@ function createStubDb() {
         parcels: {
           id: { type: 'integer', primary: true, nullable: false },
           courier: { type: 'string', nullable: false },
+          pickedUp: { type: 'string', nullable: true },
         },
       }
     },
     getIndexes: async () => {
       calls.push('getIndexes')
-      return {}
+      // Keyed by index name, `table` and `cols` camel-cased — the shape the
+      // adapters actually report.
+      return {
+        ix_picked: { type: 'index', table: 'parcels', cols: ['pickedUp'] },
+      }
     },
     getForeignKeys: async () => {
       calls.push('getForeignKeys')
@@ -57,6 +67,10 @@ function createStubDb() {
     },
     getData: async (table: string, opts: Record<string, unknown>) => {
       calls.push(`getData:${table}:${opts.page}`)
+      // Recorded rather than merely counted: the filter vocabulary is the one
+      // thing this endpoint validates, and "did it reach the adapter, in what
+      // shape" is the question the tests below ask.
+      seen.filters = opts.filters
       return { rows: [{ id: 1, courier: 'dhl' }], totalRows: 1 }
     },
     query: (sql: string) => {
@@ -72,10 +86,10 @@ function createStubDb() {
       return await callback(db)
     },
   }
-  return { db, calls }
+  return { db, calls, seen }
 }
 
-const { db: stubDb, calls } = createStubDb()
+const { db: stubDb, calls, seen } = createStubDb()
 
 beforeAll(async () => {
   await initConfig()
@@ -237,6 +251,82 @@ describe('no raw SQL and no DDL — structurally, not by configuration', () => {
     // Outside a request there is no access level, and the safe answer is none.
     expect(res.data.access).toBe(false)
     expect(res.data.tables[0].writable).toBe(false)
+  })
+
+  test('handleSchema reports the indexes it has always computed', async () => {
+    // `introspect()` walks them to find a usable unique key when there is no
+    // primary key, and used to throw them away. The Structure view is the
+    // first thing that shows them and there is no other endpoint that knows
+    // them, so their absence here is the feature missing.
+    const res = (await handleSchema()) as any
+    expect(res.data.tables[0].indexes).toEqual([
+      // `pickedUp` on the way in, `picked_up` on the way out: `getIndexes()`
+      // camel-cases its column names and the grid speaks raw ones, so showing
+      // the spelling as it arrived would name a column the table does not have.
+      { name: 'ix_picked', type: 'index', cols: ['picked_up'] },
+    ])
+    expect(res.data.tables[0].isView).toBe(false)
+  })
+})
+
+/**
+ * The filter vocabulary at the endpoint.
+ *
+ * The direction is the whole point: the ORM *drops* an operator it does not
+ * know (`filterClause` in `orm/src/adapters/base.ts`), and a dropped filter
+ * **widens** the result — on the very view the Delete button acts on. So the
+ * endpoint refuses rather than forwards, and that refusal has to reach the
+ * adapter as "no query at all" rather than "an unfiltered one".
+ */
+describe('table-data filters', () => {
+  const url = (filters: string) =>
+    new URL(
+      `http://localhost/api/_db/table-data?tableName=parcels&filters=${encodeURIComponent(filters)}`,
+    )
+
+  test('an operator filter reaches the adapter in the object form', async () => {
+    const res = (await handleTableData(
+      url(JSON.stringify({ courier: { op: 'eq', value: 'dhl' } })),
+    )) as any
+    expect(res.status).toBe(200)
+    expect(seen.filters).toEqual({ courier: { op: 'eq', value: 'dhl' } })
+  })
+
+  test('a nullary operator reaches it with no value to bind', async () => {
+    await handleTableData(url(JSON.stringify({ courier: { op: 'null' } })))
+    expect(seen.filters).toEqual({ courier: { op: 'null' } })
+  })
+
+  test('the bare scalar form still passes through unchanged', async () => {
+    await handleTableData(url(JSON.stringify({ courier: 'dh' })))
+    expect(seen.filters).toEqual({ courier: 'dh' })
+  })
+
+  test('an unknown operator is a 400 and never reaches the database', async () => {
+    const before = calls.length
+    const res = (await handleTableData(
+      url(JSON.stringify({ courier: { op: 'regex', value: '.*' } })),
+    )) as any
+    expect(res.status).toBe(400)
+    expect(res.message).toContain('regex')
+    expect(calls.length).toBe(before)
+  })
+
+  test('a mangled filters parameter is a 400, not silently no filters', async () => {
+    // Treating it as "no filters" would answer a question nobody asked, with
+    // more rows than the caller believes they are looking at.
+    const before = calls.length
+    const res = (await handleTableData(url('{not json'))) as any
+    expect(res.status).toBe(400)
+    expect(calls.length).toBe(before)
+  })
+
+  test('no filters parameter is no filters, not an error', async () => {
+    const res = (await handleTableData(
+      new URL('http://localhost/api/_db/table-data?tableName=parcels'),
+    )) as any
+    expect(res.status).toBe(200)
+    expect(seen.filters).toEqual({})
   })
 })
 

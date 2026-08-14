@@ -7,9 +7,12 @@ import {
   defaultView,
   editableTable,
   encodeView,
+  isSystemTable,
   readOnlyReason,
+  systemTableCount,
   tableOf,
   type ViewState,
+  visibleTables,
 } from './state'
 
 const table = (over: Partial<SchemaTable> = {}): SchemaTable => ({
@@ -35,11 +38,11 @@ describe('view state in the URL', () => {
   test('a full view round trips', () => {
     const view: ViewState = {
       table: 'parcels',
+      view: 'structure',
       page: 3,
       sortBy: 'courier',
       sortOrder: 'DESC',
-      filters: { courier: 'dh' },
-      focus: { id: 7 },
+      filters: [{ column: 'courier', op: 'contains', value: 'dh' }],
     }
     expect(decodeView(`#${encodeView(view)}`)).toEqual(view)
   })
@@ -50,16 +53,38 @@ describe('view state in the URL', () => {
     expect(decodeView(encoded).sortOrder).toBe('ASC')
   })
 
-  test('a mangled link renders the page it asked for rather than an error', () => {
-    // The hash is user-supplied; a truncated `r=` must not take the grid down.
-    const view = decodeView('#t=parcels&r=%7Bbroken&f=notjson')
-    expect(view.table).toBe('parcels')
-    expect(view.focus).toBeNull()
-    expect(view.filters).toEqual({})
+  test('the Data view does not spend a parameter saying so either', () => {
+    expect(encodeView(defaultView('t'))).not.toContain('v=')
+    expect(decodeView('#t=x').view).toBe('data')
   })
 
-  test('an array where an object belongs is refused, not iterated', () => {
-    expect(decodeView('#t=x&r=%5B1%2C2%5D').focus).toBeNull()
+  test('an unknown view name falls back to Data rather than rendering nothing', () => {
+    expect(decodeView('#t=x&v=sql').view).toBe('data')
+  })
+
+  test('a mangled link renders the page it asked for rather than an error', () => {
+    // The hash is user-supplied; a truncated `f=` must not take the grid down.
+    const view = decodeView('#t=parcels&f=notjson')
+    expect(view.table).toBe('parcels')
+    expect(view.filters).toEqual([])
+  })
+
+  test('a filter carrying an unknown operator is dropped, not sent', () => {
+    // The ORM *drops* an operator it does not know, which widens the result —
+    // so a hand-edited link must not be able to smuggle one through.
+    const raw = encodeURIComponent(
+      JSON.stringify([
+        { column: 'a', op: 'eq', value: '1' },
+        { column: 'b', op: 'regex', value: '.*' },
+      ]),
+    )
+    expect(decodeView(`#t=x&f=${raw}`).filters).toEqual([
+      { column: 'a', op: 'eq', value: '1' },
+    ])
+  })
+
+  test('an object where a filter list belongs is refused, not iterated', () => {
+    expect(decodeView('#t=x&f=%7B%22a%22%3A%22b%22%7D').filters).toEqual([])
   })
 
   test('a nonsense page number falls back to one', () => {
@@ -69,6 +94,46 @@ describe('view state in the URL', () => {
 
   test('an empty hash is the empty view, not a crash', () => {
     expect(decodeView('')).toEqual(defaultView(''))
+  })
+
+  test('a pre-tabs link that carried a row identity still opens its page', () => {
+    // `r=` was the focused-row identity, removed when `eq` filters made it
+    // unnecessary. Old links are in bookmarks and chat logs.
+    const view = decodeView('#t=parcels&p=2&r=%7B%22id%22%3A7%7D')
+    expect(view.table).toBe('parcels')
+    expect(view.page).toBe(2)
+  })
+})
+
+describe('system tables', () => {
+  const ledger = table({ name: '__bakery_schema' })
+
+  test('the ORM sync ledger is a system table', () => {
+    expect(isSystemTable('__bakery_schema')).toBe(true)
+  })
+
+  test('the reserved prefix is matched, not the one literal name', () => {
+    expect(isSystemTable('__bakery_anything')).toBe(true)
+  })
+
+  test("a user's table is not one, even when it looks close", () => {
+    expect(isSystemTable('bakery_schema')).toBe(false)
+    expect(isSystemTable('_bakery_schema')).toBe(false)
+    expect(isSystemTable('parcels')).toBe(false)
+  })
+
+  test('they are hidden by default and revealed by the toggle', () => {
+    const all = [table(), ledger]
+    expect(visibleTables(all, false).map(t => t.name)).toEqual(['parcels'])
+    expect(visibleTables(all, true).map(t => t.name)).toEqual([
+      'parcels',
+      '__bakery_schema',
+    ])
+  })
+
+  test('the count is what the checkbox label promises to reveal', () => {
+    expect(systemTableCount([table(), ledger])).toBe(1)
+    expect(systemTableCount([table()])).toBe(0)
   })
 })
 

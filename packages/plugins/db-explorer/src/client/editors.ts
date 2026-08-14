@@ -56,6 +56,29 @@ function textControl(_column: SchemaColumn, value: unknown): Control {
   }
 }
 
+/**
+ * The same text column, in a box you can actually read.
+ *
+ * Used **only by the row panel**, which is where a description or a rendered
+ * template is edited; the grid keeps the one-line input because a textarea in a
+ * table cell breaks row height and the Tab-commits-right key model. Opting in
+ * rather than switching on the value's current length matters: a column whose
+ * first row happens to be short would otherwise get a different editor from the
+ * same column two rows down.
+ */
+function longTextControl(_column: SchemaColumn, value: unknown): Control {
+  const input = el('textarea', { class: 'ed ed-long' })
+  input.rows = 5
+  input.value = value === null || value === undefined ? '' : String(value)
+  return {
+    input,
+    read: () => input.value,
+    write: next => {
+      input.value = next === null || next === undefined ? '' : String(next)
+    },
+  }
+}
+
 function enumControl(column: SchemaColumn, value: unknown): Control {
   const input = el('select', { class: 'ed' })
   for (const option of column.enum ?? []) {
@@ -163,6 +186,15 @@ const CONTROLS: Record<WidgetKind, Factory> = {
   text: textControl,
 }
 
+export interface EditorOptions {
+  /**
+   * Render a `text` column as a textarea. The row panel passes this; the grid
+   * does not, because a textarea in a table cell breaks the row height and the
+   * Tab-commits-right key model.
+   */
+  multiline?: boolean
+}
+
 /**
  * An editor for one cell.
  *
@@ -175,10 +207,14 @@ export function createEditor(
   column: SchemaColumn,
   value: unknown,
   hooks: EditorHooks,
+  options: EditorOptions = {},
 ): EditorHandle {
   const meta = columnMeta(column)
   const wrap = el('div', { class: 'editor' })
-  const control = CONTROLS[columnKind(column)](column, value)
+  const kind = columnKind(column)
+  const factory =
+    options.multiline && kind === 'text' ? longTextControl : CONTROLS[kind]
+  const control = factory(column, value)
   let isNull = value === null || value === undefined
   let lastNonNull: unknown = isNull ? '' : control.read()
 
@@ -204,7 +240,7 @@ export function createEditor(
    * given a value, so an opening notification would put every column in the
    * record as null and defeat every default in the schema. And a real `DATE`
    * column round trips through `datetime-local` as a different string than the
-   * driver returned, so the drawer would mark a row dirty for opening it.
+   * driver returned, so the row panel would mark a row dirty for opening it.
    */
   const refresh = (touched: boolean) => {
     ;(control.input as HTMLInputElement).disabled = isNull

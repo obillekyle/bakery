@@ -91,7 +91,7 @@ describe('fkLabel', () => {
 })
 
 describe('reverseFks', () => {
-  test('finds the keys pointing at a table, for the drawer', () => {
+  test('finds the keys pointing at a table, for the row panel', () => {
     expect(reverseFks(graph, 'couriers').map(fk => fk.table)).toEqual([
       'parcels',
     ])

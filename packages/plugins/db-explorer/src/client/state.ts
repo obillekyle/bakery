@@ -15,111 +15,131 @@
  * place for "which row am I on".
  */
 
+import type { Filter } from '../shared/filters'
+import { isFilterOp } from '../shared/filters'
 import type { SchemaGraph, SchemaReport, SchemaTable } from './meta'
 
 export const PAGE_SIZE = 50
 
+/** The three views a table has. One level of nesting, and only one. */
+export type TableView = 'data' | 'structure' | 'relations'
+
+const TABLE_VIEWS: readonly TableView[] = ['data', 'structure', 'relations']
+
 export interface ViewState {
   table: string
+  /** Which of Data / Structure / Relations is showing. */
+  view: TableView
   page: number
   sortBy: string | null
   sortOrder: 'ASC' | 'DESC'
-  /** Column → substring. See the note on `filters` in `api.ts`. */
-  filters: Record<string, string>
   /**
-   * The identity of a row to scroll to and highlight, so a link can name a row
-   * rather than a page. `null` when the link is only about a page.
+   * Column, operator and operand — several, each removable.
+   *
+   * A **list** rather than a record, because the builder lets a filter exist
+   * before it has a column or a value and a record cannot hold a half-built
+   * one. `toWire` is what collapses it to the record `getData` takes.
    */
-  focus: Record<string, unknown> | null
+  filters: Filter[]
 }
 
 export function defaultView(table = ''): ViewState {
   return {
     table,
+    view: 'data',
     page: 1,
     sortBy: null,
     sortOrder: 'ASC',
-    filters: {},
-    focus: null,
+    filters: [],
   }
 }
 
 /**
- * `t` table, `p` page, `s` sort column, `o` order, `f` filters, `r` row.
+ * `t` table, `v` view, `p` page, `s` sort column, `o` order, `f` filters.
  *
- * Short keys because the focus of a composite key is already JSON in a URL and
- * the whole thing has to stay something a person can paste into chat. Defaults
- * are omitted rather than written, so the common case is `#t=parcels`.
+ * Short keys because several of these are encoded per open tab and the whole
+ * thing has to stay something a person can paste into chat. Defaults are
+ * omitted rather than written, so the common case is `t=parcels`.
+ *
+ * There is no `r` any more. It carried a row identity because a filter could
+ * not name a row — `id=1` matched `11` under a substring `LIKE` — and with `eq`
+ * available a foreign-key jump is just a filter. An old link with `r=` decodes
+ * to the same page it always did, minus the highlight.
  */
 export function encodeView(view: ViewState): string {
   const params = new URLSearchParams()
   if (view.table) params.set('t', view.table)
+  if (view.view !== 'data') params.set('v', view.view)
   if (view.page > 1) params.set('p', String(view.page))
   if (view.sortBy) {
     params.set('s', view.sortBy)
     if (view.sortOrder === 'DESC') params.set('o', 'DESC')
   }
-  if (Object.keys(view.filters).length) {
-    params.set('f', JSON.stringify(view.filters))
-  }
-  if (view.focus) params.set('r', JSON.stringify(view.focus))
+  if (view.filters.length) params.set('f', JSON.stringify(view.filters))
   return params.toString()
 }
 
 export function decodeView(hash: string): ViewState {
   const params = new URLSearchParams(hash.replace(/^#/, ''))
   const view = defaultView(params.get('t') ?? '')
+  view.view = readTableView(params.get('v'))
   const page = Number.parseInt(params.get('p') ?? '1', 10)
   view.page = Number.isFinite(page) && page > 0 ? page : 1
   view.sortBy = params.get('s')
   view.sortOrder = params.get('o') === 'DESC' ? 'DESC' : 'ASC'
-  view.filters = readRecord(params.get('f'))
-  view.focus = readObject(params.get('r'))
+  view.filters = readFilters(params.get('f'))
   return view
 }
 
-/**
- * A JSON object out of a URL, or nothing.
- *
- * Nothing here is trusted: the hash is user-supplied, an array or a string
- * would break every consumer that iterates it, and a parse failure is a
- * mangled link rather than an error worth showing.
- */
-function readObject(raw: string | null): Record<string, unknown> | null {
-  if (!raw) return null
-  try {
-    const value = JSON.parse(raw) as unknown
-    return typeof value === 'object' && value !== null && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null
-  } catch {
-    // A truncated or hand-edited link. Falling back to "no focus" renders the
-    // page the link asked for, which is strictly better than an error page.
-    return null
-  }
+function readTableView(raw: string | null): TableView {
+  return TABLE_VIEWS.find(name => name === raw) ?? 'data'
 }
 
-function readRecord(raw: string | null): Record<string, string> {
-  const object = readObject(raw)
-  if (!object) return {}
-  const out: Record<string, string> = {}
-  for (const [key, value] of Object.entries(object)) {
-    if (typeof value === 'string' && value !== '') out[key] = value
+/**
+ * Filters out of a URL, or none.
+ *
+ * Nothing here is trusted: the hash is user-supplied, and a filter carrying an
+ * operator the ORM does not know would be *dropped* server-side and quietly
+ * widen the result. Anything that does not typecheck as a filter is discarded
+ * here, before it can be sent.
+ */
+function readFilters(raw: string | null): Filter[] {
+  if (!raw) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    // A truncated or hand-edited link. Falling back to "no filters" renders
+    // the table the link asked for, which beats an error page.
+    return []
   }
-  return out
+  if (!Array.isArray(parsed)) return []
+  return parsed.filter(isFilter)
+}
+
+function isFilter(value: unknown): value is Filter {
+  if (typeof value !== 'object' || value === null) return false
+  const entry = value as Record<string, unknown>
+  return (
+    typeof entry.column === 'string' &&
+    entry.column !== '' &&
+    isFilterOp(entry.op) &&
+    (entry.value === undefined || typeof entry.value === 'string')
+  )
 }
 
 /** Everything the running client holds. One object, mutated in place. */
 export interface AppState {
   report: SchemaReport | null
   graph: SchemaGraph | null
-  view: ViewState
   /** Views to return to, pushed by a foreign-key jump. */
   trail: ViewState[]
+  /** Whether the sidebar lists the framework's own tables. Off by default. */
+  showSystem: boolean
 }
 
 export function createState(): AppState {
-  return { report: null, graph: null, view: defaultView(), trail: [] }
+  return { report: null, graph: null, trail: [], showSystem: false }
 }
 
 export function tableOf(
@@ -127,6 +147,46 @@ export function tableOf(
   name: string,
 ): SchemaTable | undefined {
   return state.report?.tables.find(table => table.name === name)
+}
+
+/**
+ * The ORM's own bookkeeping, which is not the user's data.
+ *
+ * `__bakery_schema` is the sync ledger (`orm/src/sync/ledger.ts`), and
+ * `__bakery` is the reserved prefix convention 10 names. Matching the prefix
+ * rather than the one literal name means a second ledger table would be hidden
+ * on the day it lands rather than on the day someone notices.
+ *
+ * Matched against the **raw** database name, which is what the schema report
+ * carries: `introspect()` builds from `getSchema()`, and that speaks raw names.
+ * (`getConstraints()` camel-cases, so the same table is `bakerySchema` there —
+ * that spelling never reaches this client, and matching it here would risk
+ * hiding a user table that happens to be called `bakerySchema`.)
+ */
+const SYSTEM_PREFIX = '__bakery'
+
+export function isSystemTable(name: string): boolean {
+  return name.startsWith(SYSTEM_PREFIX)
+}
+
+/**
+ * The tables the sidebar shows.
+ *
+ * Hidden behind a checkbox rather than removed outright, because every real
+ * client offers the toggle: a ledger row is occasionally exactly what someone
+ * needs to look at, and a table that cannot be reached at all is a support
+ * question.
+ */
+export function visibleTables(
+  tables: readonly SchemaTable[],
+  showSystem: boolean,
+): SchemaTable[] {
+  return showSystem ? [...tables] : tables.filter(t => !isSystemTable(t.name))
+}
+
+/** How many are being hidden, for the checkbox's own label. */
+export function systemTableCount(tables: readonly SchemaTable[]): number {
+  return tables.filter(table => isSystemTable(table.name)).length
 }
 
 /**

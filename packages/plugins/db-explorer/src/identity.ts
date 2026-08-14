@@ -215,6 +215,14 @@ export interface ColumnFacts {
   meta: ColumnMeta
 }
 
+/** One index, with its columns translated back to raw database names. */
+export interface IndexFacts {
+  name: string
+  type: string
+  /** Raw column names where they resolve, the camel spelling where they do not. */
+  cols: string[]
+}
+
 export interface TableFacts {
   name: string
   camel: string
@@ -224,6 +232,14 @@ export interface TableFacts {
   /** By raw column name. */
   byName: Map<string, ColumnFacts>
   identity: Identity
+  /**
+   * Declared indexes.
+   *
+   * Computed here already — `describeIdentity` walks them to find a usable
+   * unique key — and now carried out rather than discarded, because the
+   * Structure view shows them and there is no second endpoint that knows them.
+   */
+  indexes: IndexFacts[]
   /**
    * The first text column that is not part of the identity — what a foreign-key
    * reference shows instead of a bare id. `null` when the table has none.
@@ -258,7 +274,7 @@ function kindOf(declared: string | undefined, sqlType: string): ColumnKind {
   return kind
 }
 
-function metaOf(
+export function metaOf(
   constraint: ColumnConstraint | undefined,
   schemaColumn: TableDetails['columns'][number],
 ): ColumnMeta {
@@ -270,9 +286,22 @@ function metaOf(
     nullable: constraint?.nullable ?? !schemaColumn.notnull,
     length: constraint?.length,
     enum: constraint?._enum,
-    // `in`, not `!== undefined`: `DEFAULT NULL` is a default, and it is filed
-    // as `default: null`.
-    hasDefault: constraint ? 'default' in constraint : false,
+    // **Not `'default' in constraint`.** That reads as the careful choice —
+    // `DEFAULT NULL` is a real default and is filed as `default: null`, so the
+    // key's presence looks like the honest test. It is not: `parseConstraints`
+    // writes the key on **every** column, defaulted or not, so `in` answered
+    // `true` for all of them.
+    //
+    // That is not cosmetic. `omittableOnInsert` is
+    // `autoIncrement || hasDefault || nullable`, so an always-true `hasDefault`
+    // makes every column omittable — and the insert dialog would happily leave
+    // out a NOT NULL column with no default, to be refused by the database
+    // rather than by the form that knew.
+    //
+    // A column genuinely declared `DEFAULT NULL` reads as having none here. It
+    // loses nothing: such a column is nullable, and `nullable` is the next term
+    // in that same expression.
+    hasDefault: constraint?.default !== null && constraint?.default !== undefined,
     primary: constraint?.primary ?? schemaColumn.pk,
     autoIncrement: constraint?.autoIncrement,
   }
@@ -334,6 +363,17 @@ export async function introspect(): Promise<Map<string, TableFacts>> {
       columns.find(c => c.meta.kind === 'string' && !identityCols.has(c.name))
         ?.name ?? null
 
+    // `getIndexes()` camel-cases its column names like `getConstraints()` does.
+    // Translating back through the same map `describeIdentity` uses keeps one
+    // spelling on screen; an unresolvable name is shown as it came rather than
+    // dropped, so a mismatch is visible instead of silently missing a column.
+    const rawColumns = rawByCamel(table.columns.map(c => c.name))
+    const tableIndexFacts = tableIndexes.map(index => ({
+      name: index.name,
+      type: index.type,
+      cols: index.cols.map(col => rawColumns.get(col) ?? col),
+    }))
+
     byTable.set(table.name, {
       name: table.name,
       camel,
@@ -342,6 +382,7 @@ export async function introspect(): Promise<Map<string, TableFacts>> {
       columns,
       byName: new Map(columns.map(c => [c.name, c])),
       identity,
+      indexes: tableIndexFacts,
       label,
     })
   }

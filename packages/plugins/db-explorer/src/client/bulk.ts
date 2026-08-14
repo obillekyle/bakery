@@ -82,7 +82,7 @@ async function openSetColumn(ctx: BulkContext): Promise<void> {
 
   let column = first
   let value: unknown = null
-  const slot = box('drawer-field')
+  const slot = box('panel-field')
 
   const paint = () => {
     slot.replaceChildren()
@@ -287,8 +287,8 @@ function openInsert(ctx: BulkContext): void {
 }
 
 function insertField(column: SchemaColumn, draft: Map<string, unknown>): Node {
-  const wrap = box('drawer-field')
-  wrap.appendChild(el('label', { class: 'drawer-label', text: column.name }))
+  const wrap = box('panel-field')
+  wrap.appendChild(el('label', { class: 'panel-label', text: column.name }))
   const editor = createEditor(column, null, {
     onInput: value => draft.set(column.name, value),
     onKey: () => {},

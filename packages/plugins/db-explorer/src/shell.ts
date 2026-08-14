@@ -24,7 +24,10 @@ const CSS = `
   body { margin: 0; font: 14px/1.5 ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--text); }
   #app { display: flex; min-height: 100vh; }
 
-  .side { width: 230px; padding: 1rem; border-right: 1px solid var(--line); flex-shrink: 0; overflow-y: auto; max-height: 100vh; }
+  .side-slot { flex-shrink: 0; }
+  .side { width: 230px; padding: 1rem; border-right: 1px solid var(--line); height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: .3rem; }
+  .table-list { flex: 1; min-height: 0; overflow-y: auto; }
+  .system-toggle { border-top: 1px solid var(--line); padding-top: .5rem; cursor: pointer; display: block; }
   .brand { font-size: 1rem; margin: 0 0 .2rem; }
   .note { color: var(--dim); font-size: .8rem; }
   .error, .row-error { color: var(--bad); }
@@ -34,7 +37,50 @@ const CSS = `
   .table-btn.active { background: var(--accent-bg); color: var(--accent-text); }
   .table-btn .ro { color: var(--faint); float: right; }
 
-  .main { flex: 1; padding: 1rem 1.5rem; min-width: 0; }
+  /* The right-hand column: tab strip, the active view, then the status bar. */
+  .column { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100vh; }
+  .main { flex: 1; padding: 1rem 1.5rem; min-width: 0; overflow-y: auto; }
+
+  /* Table tabs. Italic is the preview state, borrowed from VS Code. */
+  .tabstrip { display: flex; align-items: stretch; gap: 2px; border-bottom: 1px solid var(--line); background: var(--panel); overflow-x: auto; }
+  .tab { display: flex; align-items: center; border-right: 1px solid var(--line); background: transparent; max-width: 16rem; }
+  .tab.active { background: var(--bg); box-shadow: inset 0 2px 0 var(--accent); }
+  .tab-label { font: inherit; font-family: ui-monospace, monospace; font-size: .8rem; background: none; border: 0; color: var(--dim); padding: .45rem .3rem .45rem .8rem; cursor: pointer; max-width: 13rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tab.active .tab-label { color: var(--text); }
+  .tab.preview .tab-label { font-style: italic; }
+  .tab-close { font: inherit; background: none; border: 0; color: var(--faint); cursor: pointer; padding: .2rem .5rem .2rem .2rem; border-radius: 4px; }
+  .tab-close:hover { color: var(--bad); background: var(--bad-bg); }
+  .tab-new { font: inherit; background: none; border: 0; color: var(--dim); cursor: pointer; padding: .3rem .8rem; }
+  .tab-new:hover { color: var(--accent-text); }
+
+  /* Data / Structure / Relations — one level of nesting, and only one. */
+  .viewtabs { display: flex; gap: .2rem; padding: .3rem .8rem 0; border-bottom: 1px solid var(--line); background: var(--bg); }
+  .viewtab { font: inherit; font-size: .8rem; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--dim); padding: .3rem .7rem; cursor: pointer; }
+  .viewtab:hover { color: var(--text); }
+  .viewtab.active { color: var(--accent-text); border-bottom-color: var(--accent); }
+  .newtab { padding: 2rem; }
+
+  .statusbar { border-top: 1px solid var(--line); background: var(--panel); color: var(--dim); font-size: .75rem; padding: .3rem 1rem; flex-shrink: 0; font-family: ui-monospace, monospace; }
+  .statusbar.dirty { color: var(--bad); }
+
+  /* Structure and Relations. */
+  .structure, .relations { display: flex; flex-direction: column; gap: 1.2rem; }
+  .structure-section h3 { margin: 0 0 .3rem; font-size: .9rem; }
+  .structure-grid td { white-space: normal; }
+  .relation-list { display: flex; flex-direction: column; gap: .3rem; margin-top: .4rem; }
+  .relation { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  .relation-cols { font-family: ui-monospace, monospace; font-size: .8rem; color: var(--dim); }
+
+  /* The filter builder: a chip per condition. */
+  .filter-bar { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; margin-bottom: .6rem; }
+  .filter-chip { display: flex; gap: .2rem; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: .15rem .3rem .15rem .5rem; }
+  .filter-chip .sel { border: 0; background: transparent; font-size: .78rem; }
+  .filter-value { font: inherit; font-size: .78rem; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: .1rem .35rem; width: 8rem; }
+  .filter-drop { border: 0; background: none; color: var(--faint); padding: 0 .4rem; }
+  .filter-drop:hover { color: var(--bad); }
+  .filter-add { font-size: .78rem; }
+  .filter-clash { color: var(--bad); font-size: .75rem; }
+
   .table-head { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
   .table-head h2 { margin: .2rem 0 .8rem; font-family: ui-monospace, monospace; font-size: 1rem; }
   .banner { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--panel); padding: .5rem .8rem; border-radius: 6px; margin: 0 0 .8rem; }
@@ -76,6 +122,7 @@ const CSS = `
   .editor.is-null .ed { opacity: .4; }
   .ed { font: inherit; font-family: ui-monospace, monospace; background: var(--bg); color: var(--text); border: 1px solid var(--accent); border-radius: 4px; padding: .15rem .3rem; min-width: 6rem; }
   .ed-json { min-width: 22rem; }
+  .ed-long { min-width: 22rem; resize: vertical; }
   .ed-check { min-width: 0; }
   .ed-null { font: inherit; width: 1.6rem; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--dim); cursor: pointer; }
   .ed-null[aria-pressed='true'] { border-color: var(--accent); color: var(--accent-text); }
@@ -93,15 +140,18 @@ const CSS = `
   dialog h4 { margin: .8rem 0 .3rem; font-size: .85rem; color: var(--dim); }
   .sel { font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: .15rem .3rem; }
 
-  .drawer { position: fixed; top: 0; right: 0; width: min(34rem, 100vw); height: 100vh; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 1rem; z-index: 30; }
-  .drawer-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
-  .drawer-title h3 { margin: 0; font-family: ui-monospace, monospace; }
-  .drawer-fields { display: flex; flex-direction: column; gap: .6rem; margin: .8rem 0; }
-  .drawer-field { display: flex; flex-direction: column; gap: .15rem; }
-  .drawer-label { font-family: ui-monospace, monospace; font-size: .8rem; }
-  .drawer-value { font-family: ui-monospace, monospace; color: var(--dim); word-break: break-all; }
-  .drawer-refs { margin-top: 1rem; }
-  .drawer-ref { display: flex; gap: .5rem; align-items: center; margin: .3rem 0; }
+  /* The row side panel — where JSON, long text and both graph directions live. */
+  .panel { position: fixed; top: 0; right: 0; width: min(38rem, 100vw); height: 100vh; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 1rem; z-index: 30; }
+  .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+  .panel-title h3 { margin: 0; font-family: ui-monospace, monospace; }
+  .panel-fields { display: flex; flex-direction: column; gap: .6rem; margin: .8rem 0; }
+  .panel-field { display: flex; flex-direction: column; gap: .15rem; }
+  .panel-label { font-family: ui-monospace, monospace; font-size: .8rem; }
+  .panel-value { font-family: ui-monospace, monospace; color: var(--dim); word-break: break-all; }
+  .panel-refs { margin-top: 1rem; }
+  .panel-ref { display: flex; gap: .5rem; align-items: center; margin: .3rem 0; }
+  .panel-field .editor { width: 100%; }
+  .panel-field .ed { width: 100%; }
 
   .undo-bar { position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%); display: flex; gap: .8rem; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .9rem; z-index: 40; }
   .undo-bar.error { border-color: var(--bad); color: var(--bad); }

@@ -1,5 +1,5 @@
 /**
- * The editable grid.
+ * The editable grid: which node holds which value, and where focus is.
  *
  * Two rules keep this file's functions under biome's complexity ceiling, and
  * they are worth stating because the old `renderTable` broke both and scored
@@ -10,29 +10,33 @@
  *  2. **Every loop body is a named function.** `each()` from `dom.ts` takes the
  *     factory; an inline body would fold its branches into the caller's score.
  *
- * The editing model itself is in `edit-session.ts` and the keyboard model in
- * `cell.ts`, both pure and both tested. What is left here is the part that
- * genuinely needs a DOM: which node holds which value, and where focus is.
+ * Three neighbours carry the parts that do not need the cursor:
+ * `grid-header.ts` builds the heading row, `grid-body.ts` paints a cell's
+ * contents, and `grid-rowbar.ts` owns the per-row save strip. The editing model
+ * itself is in `edit-session.ts` and the keyboard model in `cell.ts`, both pure
+ * and both tested. What is left here genuinely needs a DOM.
+ *
+ * `focus` used to live here too — a row identity carried alongside the filters,
+ * because a substring `LIKE` could not name a row. With `eq` in the filter
+ * vocabulary a foreign-key jump is an ordinary filter, and the highlight, the
+ * `focusedMissing()` note and the whole concept are gone.
  */
 
 import { afterCommit, type CellAction, type CellState, keyOnCell } from './cell'
-import { append, box, button, each, el, on, setBusy } from './dom'
+import { box, each, el, on, setBusy } from './dom'
 import type { EditSession } from './edit-session'
 import { rowId } from './edit-session'
 import { createEditor, type EditorHandle } from './editors'
+import type { FkResolver, FkTarget } from './fk'
+import { type CellPaintContext, paintCell } from './grid-body'
+import { buildHead } from './grid-header'
 import {
-  type FkResolver,
-  type FkTarget,
-  fkForColumn,
-  fkKeyOf,
-  fkLabel,
-} from './fk'
-import {
-  cellProps,
-  type SchemaColumn,
-  type SchemaGraph,
-  type SchemaTable,
-} from './meta'
+  buildRowBar,
+  paintRowBar,
+  type RowBar,
+  setRowBarMessage,
+} from './grid-rowbar'
+import type { SchemaColumn, SchemaGraph, SchemaTable } from './meta'
 
 export interface GridContext {
   table: SchemaTable
@@ -44,8 +48,6 @@ export interface GridContext {
   resolver: FkResolver
   sortBy: string | null
   sortOrder: 'ASC' | 'DESC'
-  /** The row a link asked for, highlighted when it is on this page. */
-  focus: Record<string, unknown> | null
   onSort: (column: string) => void
   onSaveRow: (id: string) => void
   onOpenRow: (row: Record<string, unknown>) => void
@@ -59,9 +61,7 @@ interface RowSlot {
   row: Record<string, unknown>
   tr: HTMLTableRowElement
   cells: HTMLTableCellElement[]
-  bar: HTMLTableRowElement
-  message: HTMLElement
-  count: HTMLElement
+  bar: RowBar
   check: HTMLInputElement | null
 }
 
@@ -69,65 +69,36 @@ export class Grid {
   readonly node: HTMLElement
   private readonly slots: RowSlot[] = []
   private readonly body: HTMLTableSectionElement
+  private readonly paintCtx: CellPaintContext
   private cursor = { row: 0, col: 0 }
   private editor: EditorHandle | null = null
   private editing: { row: number; col: number } | null = null
   readonly selected = new Set<string>()
 
   constructor(private readonly ctx: GridContext) {
+    this.paintCtx = {
+      table: ctx.table.name,
+      graph: ctx.graph,
+      resolver: ctx.resolver,
+      onFollowFk: ctx.onFollowFk,
+    }
+
     const table = el('table', { class: 'grid' })
-    table.appendChild(this.buildHead())
+    table.appendChild(
+      buildHead({
+        columns: ctx.columns,
+        editable: ctx.editable,
+        sortBy: ctx.sortBy,
+        sortOrder: ctx.sortOrder,
+        onSort: ctx.onSort,
+        onToggleAll: checked => this.setAllSelected(checked),
+      }),
+    )
     this.body = el('tbody')
     table.appendChild(this.body)
     each(this.body, ctx.rows, (row, index) => this.buildRow(row, index))
     this.node = box('scroll', table)
     on(this.node, 'keydown', event => this.onKeyDown(event as KeyboardEvent))
-    this.highlightFocused()
-  }
-
-  // ------------------------------------------------------------------ header
-
-  private buildHead(): HTMLTableSectionElement {
-    const head = el('thead')
-    const tr = el('tr')
-    tr.appendChild(this.buildSelectAll())
-    each(tr, this.ctx.columns, column => this.buildHeaderCell(column))
-    head.appendChild(tr)
-    return head
-  }
-
-  /**
-   * The leading column exists on every table, editable or not: it carries the
-   * row drawer's opener, which a read-only table needs just as much — a
-   * forty-column row is unreadable in a grid whether or not it can be changed.
-   * The select-all checkbox joins it only when there is something to select
-   * *for*.
-   */
-  private buildSelectAll(): HTMLTableCellElement {
-    const th = el('th', { class: 'pick' })
-    if (!this.ctx.editable) return th
-    const check = el('input', { attrs: { 'aria-label': 'select all rows' } })
-    check.type = 'checkbox'
-    on(check, 'change', () => this.setAllSelected(check.checked))
-    th.appendChild(check)
-    return th
-  }
-
-  private buildHeaderCell(column: SchemaColumn): HTMLTableCellElement {
-    const arrow =
-      this.ctx.sortBy === column.name
-        ? this.ctx.sortOrder === 'ASC'
-          ? ' ↑'
-          : ' ↓'
-        : ''
-    const th = el('th', {
-      text: column.name + arrow,
-      title: `${column.type}${column.notnull ? ' NOT NULL' : ''}`,
-      attrs: { 'data-kind': column.kind },
-    })
-    if (column.pk) th.classList.add('pk')
-    on(th, 'click', () => this.ctx.onSort(column.name))
-    return th
   }
 
   // -------------------------------------------------------------------- rows
@@ -143,18 +114,12 @@ export class Grid {
       return td
     })
 
-    const bar = this.buildBar(index)
-    const slot: RowSlot = {
-      id,
-      row,
-      tr,
-      cells,
-      bar: bar.tr,
-      message: bar.message,
-      count: bar.count,
-      check,
-    }
-    this.slots[index] = slot
+    const bar = buildRowBar(this.ctx.columns.length + 1, {
+      onSave: () => this.saveRow(index),
+      onRevert: () => this.revertRow(index),
+    })
+    this.slots[index] = { id, row, tr, cells, bar, check }
+
     // A fragment so one `each` callback can add two rows: the data row and the
     // save/revert bar that lives under it.
     const fragment = document.createDocumentFragment()
@@ -162,7 +127,7 @@ export class Grid {
     return fragment
   }
 
-  /** Selection checkbox (when editable) and the drawer opener (always). */
+  /** Selection checkbox (when editable) and the panel opener (always). */
   private buildPick(
     tr: HTMLTableRowElement,
     row: Record<string, unknown>,
@@ -177,36 +142,16 @@ export class Grid {
       on(check, 'change', () => this.setSelected(id, check!.checked))
       td.appendChild(check)
     }
-    td.appendChild(
-      button('⋯', () => this.ctx.onOpenRow(row), {
-        class: 'btn',
-        title: 'open this row',
-      }),
-    )
+    const open = el('button', {
+      class: 'btn',
+      text: '⋯',
+      title: 'open this row',
+    })
+    open.type = 'button'
+    on(open, 'click', () => this.ctx.onOpenRow(row))
+    td.appendChild(open)
     tr.appendChild(td)
     return check
-  }
-
-  private buildBar(index: number): {
-    tr: HTMLTableRowElement
-    message: HTMLElement
-    count: HTMLElement
-  } {
-    const tr = el('tr', { class: 'row-bar-row' })
-    const td = el('td')
-    td.colSpan = this.ctx.columns.length + 1
-    const bar = box('row-bar')
-    const count = el('span', { class: 'note' })
-    const message = el('span', { class: 'row-error' })
-    append(bar, [
-      count,
-      button('Save', () => this.saveRow(index), { class: 'btn primary' }),
-      button('Revert', () => this.revertRow(index), { class: 'btn' }),
-      message,
-    ])
-    td.appendChild(bar)
-    tr.appendChild(td)
-    return { tr, message, count }
   }
 
   // ------------------------------------------------------------------- cells
@@ -220,7 +165,7 @@ export class Grid {
     const td = el('td', { attrs: { tabindex: -1 } })
     on(td, 'click', () => this.focusCell(rowIndex, col))
     on(td, 'dblclick', () => this.requestEdit(rowIndex, col))
-    this.paintCell(rowIndex, col, td, row, column)
+    this.repaintCell(rowIndex, col, td, row, column)
     return td
   }
 
@@ -228,10 +173,9 @@ export class Grid {
    * Render one cell from the session's current view of it.
    *
    * Called on build, after every stage, and after an editor closes — so a
-   * staged value and a saved value take exactly the same path and cannot
-   * diverge in how they look.
+   * staged value and a saved value take exactly the same path.
    */
-  private paintCell(
+  private repaintCell(
     rowIndex: number,
     col: number,
     node?: HTMLTableCellElement,
@@ -248,64 +192,8 @@ export class Grid {
     const value = id
       ? this.ctx.session.value(id, meta.name, source[meta.name])
       : source[meta.name]
-    const props = cellProps(value, meta)
-
-    td.replaceChildren()
-    td.className = props.className
-    if (id && this.ctx.session.isStaged(id, meta.name))
-      td.classList.add('staged')
-    if (props.title) td.title = props.title
-    td.appendChild(this.cellBody(source, meta, value))
-  }
-
-  /**
-   * A cell's content: a foreign-key button, or text.
-   *
-   * The button is a real `<button>` rather than a styled span, because it is
-   * activated by keyboard and read as an action by a screen reader — a `div`
-   * with a click handler is neither.
-   */
-  private cellBody(
-    row: Record<string, unknown>,
-    column: SchemaColumn,
-    value: unknown,
-  ): Node {
-    const target = fkForColumn(this.ctx.graph, this.ctx.table.name, column.name)
-    const key = target ? fkKeyOf(target, row) : null
-    if (!target || !key) {
-      return document.createTextNode(cellProps(value, column).text)
-    }
-    return this.fkButton(target, key, cellProps(value, column).text)
-  }
-
-  private fkButton(
-    target: FkTarget,
-    key: Record<string, unknown>,
-    text: string,
-  ): HTMLButtonElement {
-    const node = button(text, () => this.ctx.onFollowFk(target, key), {
-      class: 'fk',
-      title: `→ ${target.refTable}`,
-    })
-    const show = (resolved: Record<string, unknown> | null) => {
-      const label = fkLabel(this.ctx.graph, target.refTable, resolved)
-      node.title = label
-        ? `${target.refTable}: ${label}`
-        : `→ ${target.refTable}`
-      if (label) node.textContent = `${text} · ${label}`
-    }
-    const cached = this.ctx.resolver.cached(target.refTable, key)
-    if (cached !== undefined) show(cached)
-
-    let disarm: (() => void) | null = null
-    on(node, 'pointerenter', () => {
-      disarm = this.ctx.resolver.arm(target.refTable, key, show)
-    })
-    on(node, 'pointerleave', () => {
-      disarm?.()
-      disarm = null
-    })
-    return node
+    const staged = id ? this.ctx.session.isStaged(id, meta.name) : false
+    paintCell(td, this.paintCtx, source, meta, value, staged)
   }
 
   // ----------------------------------------------------------------- cursor
@@ -439,7 +327,7 @@ export class Grid {
     this.closeEditor()
     if (slot?.id && column) {
       this.ctx.session.stage(slot.id, slot.row, column.name, value)
-      this.paintCell(at.row, at.col)
+      this.repaintCell(at.row, at.col)
       this.refreshBar(at.row)
       this.ctx.onDirtyChange()
     }
@@ -455,7 +343,7 @@ export class Grid {
     const at = this.editing
     if (!at) return
     this.closeEditor()
-    this.paintCell(at.row, at.col)
+    this.repaintCell(at.row, at.col)
     this.focusCell(at.row, at.col)
   }
 
@@ -472,23 +360,18 @@ export class Grid {
     const column = this.ctx.columns[this.cursor.col]
     if (!slot?.id || !column) return
     this.ctx.session.stage(slot.id, slot.row, column.name, null)
-    this.paintCell(this.cursor.row, this.cursor.col)
+    this.repaintCell(this.cursor.row, this.cursor.col)
     this.refreshBar(this.cursor.row)
     this.ctx.onDirtyChange()
   }
 
   // ------------------------------------------------------------- the row bar
 
-  /** The changed-column count, and whether the bar is shown at all. */
   refreshBar(rowIndex: number): void {
     const slot = this.slots[rowIndex]
     if (!slot) return
     const changed = slot.id ? this.ctx.session.changedColumns(slot.id) : []
-    slot.bar.classList.toggle('open', changed.length > 0)
-    slot.count.textContent = changed.length
-      ? `${changed.length} column${changed.length === 1 ? '' : 's'} changed: ${changed.join(', ')}`
-      : ''
-    if (changed.length) slot.message.textContent = ''
+    paintRowBar(slot.bar, changed)
   }
 
   private saveRow(rowIndex: number): void {
@@ -508,18 +391,17 @@ export class Grid {
     const slot = this.slots[rowIndex]
     if (!slot) return
     this.ctx.columns.forEach((_column, col) => {
-      this.paintCell(rowIndex, col)
+      this.repaintCell(rowIndex, col)
     })
     this.refreshBar(rowIndex)
-    slot.message.textContent = ''
+    slot.bar.message.textContent = ''
   }
 
   /** Where a save's failure is reported: under the row it belongs to. */
   setRowMessage(rowIndex: number, message: string): void {
     const slot = this.slots[rowIndex]
     if (!slot) return
-    slot.bar.classList.add('open')
-    slot.message.textContent = message
+    setRowBarMessage(slot.bar, message)
   }
 
   setRowBusy(rowIndex: number, busy: boolean): void {
@@ -580,30 +462,5 @@ export class Grid {
       else this.selected.delete(slot.id)
     }
     this.ctx.onSelectionChange(this.selected.size)
-  }
-
-  /**
-   * The row a link named, if it is on this page.
-   *
-   * `filters` is a substring `LIKE` and cannot name a row (see `api.ts`), so a
-   * link carries the identity separately and this is where the two meet. When
-   * the row is not here, `focusedMissing()` tells the caller to say so rather
-   * than silently highlighting nothing.
-   */
-  private highlightFocused(): void {
-    const wanted = this.ctx.focus
-    if (!wanted) return
-    const id = rowId(wanted, this.ctx.table.identity.cols)
-    if (!id) return
-    const index = this.indexOfRow(id)
-    if (index < 0) return
-    this.slots[index]?.tr.classList.add('focused')
-    this.slots[index]?.tr.scrollIntoView({ block: 'center' })
-  }
-
-  focusedMissing(): boolean {
-    if (!this.ctx.focus) return false
-    const id = rowId(this.ctx.focus, this.ctx.table.identity.cols)
-    return id === null || this.indexOfRow(id) < 0
   }
 }

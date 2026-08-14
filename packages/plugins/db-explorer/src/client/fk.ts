@@ -20,6 +20,7 @@
  */
 
 import { type LookupRef, lookupRefs } from './api'
+import { type ForeignKeyInfo, type SchemaGraph, sameTable } from './meta'
 
 /**
  * A least-recently-used map, in nine lines.
@@ -62,7 +63,7 @@ class BoundedCache<V> {
     return this.map.size
   }
 }
-import { type ForeignKeyInfo, type SchemaGraph, sameTable } from './meta'
+
 
 export interface FkTarget {
   /** Columns in *this* table that make up the key. */
@@ -97,7 +98,7 @@ export function fkForColumn(
   return null
 }
 
-/** Every key pointing *at* this table. The drawer's "referenced by" list. */
+/** Every key pointing *at* this table. The row panel's "referenced by" list. */
 export function reverseFks(
   graph: SchemaGraph | null,
   table: string,
@@ -215,7 +216,7 @@ export class FkResolver {
     this.inflight = null
   }
 
-  /** One batched lookup. Public so the drawer can resolve without hovering. */
+  /** One batched lookup. Public so the panel can resolve without hovering. */
   async resolve(
     refTable: string,
     key: Record<string, unknown>,

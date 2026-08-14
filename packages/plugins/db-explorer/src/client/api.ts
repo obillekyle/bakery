@@ -7,6 +7,7 @@
  * 34 against a maximum of 25 with a fraction of this feature set.
  */
 
+import { toWire } from '../shared/filters'
 import type { SchemaGraph, SchemaReport, TablePage } from './meta'
 import type { ViewState } from './state'
 import { PAGE_SIZE } from './state'
@@ -65,9 +66,25 @@ interface Envelope {
   status?: number
   message?: string
   data?: unknown
+  /** Milliseconds the server spent, filled in by `router.ts`. */
+  time?: number
 }
 
-async function unwrap<T>(res: Response): Promise<T> {
+/**
+ * The data, plus what the server said it cost.
+ *
+ * `time` is the envelope's own field — `router.ts` fills it from `getElapsed`,
+ * so it is the server's measurement of its own work rather than a round trip
+ * timed in the browser. The status bar shows it, which is the one honest number
+ * available for "why is this slow": a filter that cannot use an index shows up
+ * here immediately.
+ */
+export interface Timed<T> {
+  data: T
+  ms: number
+}
+
+async function unwrapEnvelope<T>(res: Response): Promise<Timed<T>> {
   const body = (await res.json().catch(() => null)) as Envelope | null
   const status = body?.status ?? res.status
   if (!body || status < 200 || status >= 300) {
@@ -77,7 +94,11 @@ async function unwrap<T>(res: Response): Promise<T> {
       body?.data,
     )
   }
-  return body.data as T
+  return { data: body.data as T, ms: body.time ?? 0 }
+}
+
+async function unwrap<T>(res: Response): Promise<T> {
+  return (await unwrapEnvelope<T>(res)).data
 }
 
 export async function apiGet<T>(
@@ -117,16 +138,18 @@ export async function fetchGraph(): Promise<SchemaGraph> {
 }
 
 /**
- * One page of a table.
+ * One page of a table, with the server's own timing.
  *
- * **`filters` is a substring match, not equality** — `buildFilterSort` in the
- * ORM's base adapter emits `col LIKE '%value%'` — so it narrows a page and
- * cannot name a row. That is why `ViewState.focus` exists separately: the
- * filter gets the row onto a page, the focus identifies it once it is there.
- * Anything written here that assumes `filters` selects exactly one row is
- * wrong on any table where `1` is also a substring of `11`.
+ * **`filters` carries an operator now.** It used to be a bare column→substring
+ * record, which meant `col LIKE '%value%'` and nothing else — so a filter could
+ * narrow a page but could never *name* a row, `1` matching `11` and `21`. With
+ * `eq` in the vocabulary it can, which is what removed `ViewState.focus` and
+ * turned a foreign-key jump into an ordinary filter.
+ *
+ * The scalar form is still what the endpoint accepts from anyone else; `toWire`
+ * always sends the object form from here.
  */
-export async function fetchPage(view: ViewState): Promise<TablePage> {
+export async function fetchPage(view: ViewState): Promise<Timed<TablePage>> {
   const params: Record<string, string> = {
     tableName: view.table,
     page: String(view.page),
@@ -134,10 +157,14 @@ export async function fetchPage(view: ViewState): Promise<TablePage> {
     sortOrder: view.sortOrder,
   }
   if (view.sortBy) params.sortBy = view.sortBy
-  if (Object.keys(view.filters).length) {
-    params.filters = JSON.stringify(view.filters)
-  }
-  return await apiGet<TablePage>('table-data', params)
+  const wire = toWire(view.filters)
+  if (Object.keys(wire).length) params.filters = JSON.stringify(wire)
+
+  const query = `?${new URLSearchParams(params)}`
+  const res = await fetch(`/api/_db/table-data${query}`, {
+    headers: keyHeaders(),
+  })
+  return await unwrapEnvelope<TablePage>(res)
 }
 
 export interface LookupRef {
