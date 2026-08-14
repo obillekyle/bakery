@@ -4,6 +4,10 @@ import { Case, is, Math2, match, Try } from '../utils/common'
 import { encodeSSE, response, sse } from '../utils/http'
 import Bakery, { getHostname, hostKey, hostStore } from './bakery'
 import { getConfig, NOOP } from './config'
+// `./context` is already in this barrel's graph — line 5 reaches it through
+// `./bakery`, which re-exports `hostStore` from exactly here — so naming it
+// adds no module edge, only a name.
+import { getFrameworkVersion } from './context'
 import { createElement, Fragment, html } from './jsx'
 
 export const defineConfig = <T extends AppConfig>(config: T): T => config
@@ -63,6 +67,19 @@ export {
   encodeSSE,
   Fragment,
   getConfig,
+  /**
+   * The version of `@bakery-framework/core` itself, read from its own manifest.
+   *
+   * **Not the app's version**, which is what `import.meta.env.BAKERY_VERSION`
+   * and `getAppVersion()` report — the compiler reads those from
+   * `<cwd>/package.json`, so in an application they answer with the
+   * application's number. The name is a long-standing misnomer and this is the
+   * one that means what "Bakery version" sounds like it means.
+   *
+   * Exported because a plugin rendering framework chrome has no other way to
+   * ask. The dashboard's footer showed a hardcoded `v3` for want of it.
+   */
+  getFrameworkVersion,
   // Multi-host helpers. Documented in docs/configuration/multi-host.md, and
   // the only reason `./core/bakery` had to be a subpath of its own.
   getHostname,

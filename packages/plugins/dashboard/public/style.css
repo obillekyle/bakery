@@ -178,6 +178,23 @@ a:hover {
   font-weight: 600;
 }
 
+/*
+ * The Database entry is an `<a>` rather than a `<button>` when the explorer is
+ * mounted, because it leaves the console instead of switching a tab. It should
+ * be indistinguishable from its neighbours, so this only undoes the anchor
+ * defaults `.tab-btn` does not already cover.
+ */
+a.tab-btn {
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.nav-external {
+  margin-left: auto;
+  font-size: 11px;
+  opacity: 0.55;
+}
+
 .tab-btn.active::before {
   content: "";
   position: absolute;

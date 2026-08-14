@@ -8,6 +8,11 @@
  * access level per caller instead, so the console points at it rather than
  * shipping a second, weaker copy.
  *
+ * Rendered **only when nothing serves `/_db`**. With the explorer mounted the
+ * nav entry links straight to it and this panel never appears — a tab whose
+ * whole content is "go there" is a click of ceremony in front of going there.
+ * Without it, this is what explains where the editor went.
+ *
  * Deliberately static: no fetch, no client module, nothing to escape. It is
  * plain markup so that a tab which now only links somewhere cannot grow a
  * data path back by accident.

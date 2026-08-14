@@ -30,16 +30,45 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
     }
   }
 
-  set(handlerClass: any, priority: number = 10): this {
-    super.set(handlerClass, priority)
+  /** Drop the derived views. Every mutation has to call this, not just `set`. */
+  private invalidate(): void {
     this.cachedList = null
     this.cachedGates = null
     this.cachedOrder = null
+  }
+
+  set(handlerClass: any, priority: number = 10): this {
+    super.set(handlerClass, priority)
+    this.invalidate()
     return this
   }
 
   add(handlerClass: any, priority?: number): this {
     return this.set(handlerClass, priority)
+  }
+
+  /**
+   * `delete` and `clear` invalidate too, and neither used to.
+   *
+   * `list()` memoizes the sorted handler array and only `set` cleared it, so a
+   * removed handler stayed in the list — and therefore stayed *in the request
+   * pipeline* — until something happened to add one. Registration is
+   * add-only in a served process, which is why this never bit: it is reachable
+   * only by code that unregisters, and the first thing to do that was a test.
+   *
+   * A cache that survives the removal of its input is wrong regardless of who
+   * currently calls it, and "nothing removes handlers today" is a property of
+   * the callers rather than of this class.
+   */
+  override delete(handlerClass: any): boolean {
+    const removed = super.delete(handlerClass)
+    if (removed) this.invalidate()
+    return removed
+  }
+
+  override clear(): void {
+    super.clear()
+    this.invalidate()
   }
 
   list(): T[] {
