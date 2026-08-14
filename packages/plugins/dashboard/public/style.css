@@ -416,8 +416,30 @@ main {
   margin-bottom: 14px;
 }
 
+/*
+ * **CSS owns the display size, and that is load-bearing rather than tidy.**
+ *
+ * A canvas with no CSS width lays out at its `width`/`height` *attributes*.
+ * `drawSparkline` sizes the bitmap from the element's measured box for
+ * device-pixel sharpness:
+ *
+ *   canvas.width = getBoundingClientRect().width * devicePixelRatio
+ *
+ * With only `min-height` here, the measured box *was* the attribute — so that
+ * line read the attribute, multiplied it by the pixel ratio, and wrote it back.
+ * A feedback loop with gain `dpr`, re-entered on every redraw: on a 125% display
+ * the charts grew 300 → 375 → 469 → 586 px once a second and spilled out of
+ * their cards. At `dpr: 1` it is a fixed point, which is why this only ever
+ * reproduced on a scaled display.
+ *
+ * An explicit `width`/`height` breaks the loop: the box no longer depends on the
+ * attribute, so the assignment sets the bitmap and nothing else. `display:
+ * block` also drops the inline baseline gap under the canvas.
+ */
 .big-chart {
-  min-height: 220px;
+  display: block;
+  width: 100%;
+  height: 220px;
 }
 
 .chart-stats {
