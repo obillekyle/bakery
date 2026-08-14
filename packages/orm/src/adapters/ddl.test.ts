@@ -825,13 +825,89 @@ describe('MySQL introspection queries', () => {
     })
     // The bogus sort column is dropped rather than interpolated, and only the
     // real filter column produces a bound LIKE.
+    //
+    // `ESCAPE '!'` rides along on every LIKE now. `%` and `_` are wildcards, so
+    // without it a filter for `50%` matched every row and one for `a_b` matched
+    // `axb` — the old code passed user input into the pattern untouched. The
+    // escape character is `!` rather than a backslash on purpose; see
+    // `likeEscape` in `adapters/base.ts` for why a backslash cannot survive
+    // `normalizePostgresSQL`.
     expect(calls[1].sql).toBe(
-      'SELECT COUNT(*) as count FROM `app_users` WHERE `nick_name` LIKE ?',
+      "SELECT COUNT(*) as count FROM `app_users` WHERE `nick_name` LIKE ? ESCAPE '!'",
     )
     expect(calls[2]).toEqual({
-      sql: 'SELECT * FROM `app_users` WHERE `nick_name` LIKE ? LIMIT ? OFFSET ?',
+      sql: "SELECT * FROM `app_users` WHERE `nick_name` LIKE ? ESCAPE '!' LIMIT ? OFFSET ?",
       params: ['%an%', 10, 10],
     })
+  })
+
+  /**
+   * Operators. A filter used to be a column and a substring, which is why the
+   * dashboard's operator dropdown sends `is_null`/`>`/`<` that the server has
+   * always ignored — it flattened them to `{column: value}` and LIKEd the
+   * literal string `"is_null"`.
+   *
+   * The bare-scalar form still means `contains`, because `getData` is public
+   * and that is what every existing caller sends.
+   */
+  test('getData understands filter operators', async () => {
+    const db = new MySQLAdapter()
+    const calls = record(db, sql => {
+      if (sql.includes('information_schema.columns'))
+        return [{ name: 'nick_name' }, { name: 'age' }]
+      if (sql.includes('COUNT(*)')) return [{ count: 1 }]
+      return []
+    })
+    await db.getData('app_users', {
+      page: 1,
+      pageSize: 10,
+      filters: {
+        nick_name: { op: 'eq', value: 'ada' },
+        age: { op: 'gte', value: 18 },
+      },
+    })
+    expect(calls[2]).toEqual({
+      sql: 'SELECT * FROM `app_users` WHERE `nick_name` = ? AND `age` >= ? LIMIT ? OFFSET ?',
+      params: ['ada', 18, 10, 0],
+    })
+  })
+
+  test('IS NULL binds nothing, which is why a filter is not a column/value pair', async () => {
+    const db = new MySQLAdapter()
+    const calls = record(db, sql => {
+      if (sql.includes('information_schema.columns'))
+        return [{ name: 'nick_name' }]
+      if (sql.includes('COUNT(*)')) return [{ count: 1 }]
+      return []
+    })
+    await db.getData('app_users', {
+      page: 1,
+      pageSize: 10,
+      filters: { nick_name: { op: 'null' } },
+    })
+    // Two params, not three: the placeholder count has to match the arguments,
+    // and an operator that binds nothing is the case that breaks a naive
+    // one-value-per-filter model.
+    expect(calls[2]).toEqual({
+      sql: 'SELECT * FROM `app_users` WHERE `nick_name` IS NULL LIMIT ? OFFSET ?',
+      params: [10, 0],
+    })
+  })
+
+  test('an unknown operator is dropped rather than guessed at', async () => {
+    const db = new MySQLAdapter()
+    const calls = record(db, sql => {
+      if (sql.includes('information_schema.columns'))
+        return [{ name: 'nick_name' }]
+      if (sql.includes('COUNT(*)')) return [{ count: 1 }]
+      return []
+    })
+    await db.getData('app_users', {
+      page: 1,
+      pageSize: 10,
+      filters: { nick_name: { op: 'regex', value: '.*' } },
+    })
+    expect(calls[2].sql).toBe('SELECT * FROM `app_users` LIMIT ? OFFSET ?')
   })
 })
 
@@ -986,9 +1062,22 @@ describe('Postgres introspection queries', () => {
     ])
   })
 
-  test('getSchema casts the count to int and finds pks via regclass', async () => {
+  test('getSchema casts the count to int and binds the table for regclass', async () => {
     // COUNT(*) is bigint in Postgres and arrives as a string without the cast,
     // which would make rowCount a string in every dashboard payload.
+    //
+    // The regclass line below used to read `= "app_users"::regclass`, and this
+    // assertion pinned it happily for months. `::regclass` casts a *string*;
+    // a double-quoted identifier is a column reference, so the real server
+    // answered `column "app_users" does not exist` and **`getSchema()` threw
+    // for every table on this dialect** — the db-explorer plugin did not work
+    // on Postgres at all.
+    //
+    // Worth sitting with, because the file says so three lines below its own
+    // last test: everything here asserts *text*, and text was exactly what was
+    // wrong. A string assertion cannot tell a valid query from an invalid one.
+    // The live counterpart is `contract.test.ts`'s composite-PK test, which
+    // runs `getSchema()` against real servers and fails on all of this.
     const db = new PGAdapter()
     const calls = record(db, sql => {
       if (sql.includes('information_schema.tables'))
@@ -1025,7 +1114,7 @@ describe('Postgres introspection queries', () => {
       "SELECT table_name AS name, table_type AS type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_name",
       'SELECT COUNT(*)::int as count FROM "app_users"',
       "SELECT column_name AS name, data_type AS type, is_nullable AS is_nullable FROM information_schema.columns WHERE table_name = $1 AND table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY ordinal_position",
-      'SELECT a.attname AS name FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) WHERE i.indisprimary AND i.indrelid = "app_users"::regclass',
+      'SELECT a.attname AS name FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) WHERE i.indisprimary AND i.indrelid = $1::regclass',
       "SELECT indexname AS name, indexdef AS def FROM pg_indexes WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND tablename = $1",
     ])
   })

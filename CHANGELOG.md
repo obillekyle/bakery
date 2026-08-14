@@ -42,6 +42,63 @@ left behind puts wrong dependency ranges on npm — which is how every
 
 ## [Unreleased]
 
+### Added
+
+- **The database explorer edits rows.** `@bakery-framework/plugin-db-explorer`
+  was a read-only viewer; it is now a database client — tabs, Data/Structure/
+  Relations views per table, a filter builder, inline and side-panel editing,
+  bulk actions, foreign-key navigation and a CSV import wizard.
+
+  **No raw SQL and no DDL, structurally.** There is no endpoint that runs a
+  statement you supply and none that creates, drops or alters a table. The write
+  surface is five method-qualified routes, enumerable rather than gated.
+
+  **A row is addressed by a declared key** — a primary key, or the narrowest
+  all-NOT-NULL unique index, or the table is read-only for everyone and says so
+  before you try. Never `rowid`, never `ctid`, never "the first primary-key
+  column". Composite keys are ordinary.
+
+  Editing is compare-and-set: every change carries the pre-image of the columns
+  it touches, and a mismatch is a 409 with the current row rather than a
+  last-write-wins overwrite.
+
+- **Filter operators in the ORM.** `getData`'s `filters` accepts
+  `{op, value}` — `eq ne gt gte lt lte contains starts ends null notnull` — as
+  well as the bare scalar it always took, which still means `contains`.
+
+### Changed
+
+- **Access to the explorer is a level, not a yes.** `dbExplorerPlugin` takes a
+  `users` map of named credentials each with `'read'` or `'write'`, and an
+  `authorize` predicate returning `'write' | 'read' | false`. Either admits and
+  the higher wins. With neither configured nobody is admitted.
+
+- **The dashboard no longer touches your database.** Its grid editor and raw-SQL
+  console are deleted — 1,893 lines — and `DASHBOARD_ALLOW_WRITES` goes with
+  them. The Database tab links to `/_db`. There is no raw-SQL surface anywhere
+  in the framework now, deliberately.
+
+### Fixed
+
+- **`getSchema()` threw on every Postgres call.** The primary-key lookup
+  interpolated a quoted *identifier* into `::regclass`, which casts a string, so
+  Postgres read it as a column reference. The db-explorer plugin therefore did
+  not work on Postgres at all.
+
+- **`getSchema()` reported only the first column of a composite primary key on
+  SQLite.** `PRAGMA table_info` returns `pk` as a 1-based position, not a
+  boolean. Anything deriving a row's identity from it would build
+  `WHERE first_col = ?` and hit every row sharing that value.
+
+- **The dashboard's write gate was bypassable.** It classified statements by
+  prefix, so `WITH x AS (SELECT 1) DELETE FROM users` read as a `SELECT` and ran
+  with the gate shut; so did `PRAGMA writable_schema = ON`. Replaced with a
+  classifier that fails closed — then deleted along with the console it guarded.
+
+- **`LIKE` filters ate wildcards.** `%` and `_` in a filter value reached the
+  pattern untouched, so searching for `50%` matched every row and `a_b` matched
+  `axb`.
+
 ## [2.0.0-alpha.5] — 2026-08-13
 
 ### Changed

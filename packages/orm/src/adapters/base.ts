@@ -849,20 +849,69 @@ export abstract class SQLAdapter {
     return new DatabaseStatement(this, sqlText)
   }
 
+  /**
+   * The `LIKE` escape character — `!`, and deliberately **not** a backslash.
+   *
+   * A backslash is the obvious choice and is unusable here. MySQL processes
+   * backslash escapes inside string literals where SQLite and Postgres do not,
+   * so the clause would need to differ per dialect; and worse, Postgres never
+   * receives what is written. `normalizePostgresSQL` treats `\'` as an escaped
+   * quote — MySQL's rule, applied to every dialect — so `ESCAPE '\'` leaves the
+   * string literal *open*, swallows the rest of the statement, and the driver
+   * reports `syntax error at or near "OFFSET"` from a clause several tokens
+   * later.
+   *
+   * That normalizer behaviour is a real defect and is not fixed here: a test
+   * pins it (`a backslash escape keeps the character it escapes`), and changing
+   * it would change every literal the framework emits. Choosing a character
+   * with no meaning to any of the three parsers sidesteps it entirely, and one
+   * spelling for all dialects beats a capability getter per dialect.
+   */
+  protected readonly likeEscape = '!'
+
+  get likeEscapeClause(): string {
+    return ` ESCAPE '${this.likeEscape}'`
+  }
+
+  /**
+   * Make a value match literally under `LIKE`.
+   *
+   * Without this a search for `50%` matches every row and one for `a_b` matches
+   * `axb` — `%` and `_` are the wildcards, and the filter passed user input
+   * through untouched. The escape character itself goes first, or escaping it
+   * afterwards would double the ones this method just added.
+   */
+  protected escapeLike(value: string): string {
+    const e = this.likeEscape
+    return value
+      .split(e)
+      .join(e + e)
+      .replace(/[%_]/g, m => `${e}${m}`)
+  }
+
+  /**
+   * `WHERE` and `ORDER BY` for a browsable table listing.
+   *
+   * A filter is either a **bare scalar**, which means `contains` and is what
+   * every caller sent before operators existed, or **`{op, value}`**. Keeping
+   * the scalar form meaningful is not politeness: `getData` is public and the
+   * dashboard still calls it that way.
+   *
+   * Columns are intersected with the real column set by the caller, so an
+   * unknown column disappears rather than reaching SQL. Values always bind.
+   */
   protected buildFilterSort(
     options: SQLAdapter.FilterSortOptions,
     validCols: Set<string>,
   ) {
     const whereParams: unknown[] = []
-    const whereClauses = Object.entries(options.filters || {})
-      .filter(
-        ([col, val]) =>
-          validCols.has(col) && val !== undefined && val !== null && val !== '',
-      )
-      .map(([col, val]) => {
-        whereParams.push(`%${val}%`)
-        return `${this.quote(col)} LIKE ?`
-      })
+    const whereClauses: string[] = []
+
+    for (const [col, raw] of Object.entries(options.filters || {})) {
+      if (!validCols.has(col)) continue
+      const clause = this.filterClause(col, raw, whereParams)
+      if (clause) whereClauses.push(clause)
+    }
 
     const whereSql = whereClauses.length
       ? ` WHERE ${whereClauses.join(' AND ')}`
@@ -878,6 +927,67 @@ export abstract class SQLAdapter {
         : ''
 
     return { whereSql, orderSql, whereParams }
+  }
+
+  /**
+   * One filter, as SQL. Returns `null` when the filter says nothing.
+   *
+   * `params` is appended to rather than returned, because an operator may bind
+   * one value, two, or none at all — `IS NULL` has nothing to bind, and
+   * pretending otherwise is how a placeholder count drifts from its arguments.
+   */
+  private filterClause(
+    col: string,
+    raw: unknown,
+    params: unknown[],
+  ): string | null {
+    const quoted = this.quote(col)
+
+    // The pre-operator form. An empty string means "no filter" here, which is
+    // what a cleared text box sends and what every caller has relied on.
+    if (raw === null || raw === undefined || typeof raw !== 'object') {
+      if (raw === undefined || raw === null || raw === '') return null
+      params.push(`%${this.escapeLike(String(raw))}%`)
+      return `${quoted} LIKE ?${this.likeEscapeClause}`
+    }
+
+    const { op, value } = raw as { op?: string; value?: unknown }
+
+    // No value to bind, and none expected — these two are the whole reason a
+    // filter cannot be modelled as a plain column/value pair.
+    if (op === 'null') return `${quoted} IS NULL`
+    if (op === 'notnull') return `${quoted} IS NOT NULL`
+
+    if (value === undefined || value === null) return null
+
+    const comparison: Record<string, string> = {
+      eq: '=',
+      ne: '<>',
+      gt: '>',
+      gte: '>=',
+      lt: '<',
+      lte: '<=',
+    }
+    if (op && comparison[op]) {
+      params.push(value)
+      return `${quoted} ${comparison[op]} ?`
+    }
+
+    const pattern: Record<string, (v: string) => string> = {
+      contains: v => `%${v}%`,
+      starts: v => `${v}%`,
+      ends: v => `%${v}`,
+    }
+    const shape = op ? pattern[op] : undefined
+    if (shape) {
+      params.push(shape(this.escapeLike(String(value))))
+      return `${quoted} LIKE ?${this.likeEscapeClause}`
+    }
+
+    // An operator this dialect does not know is dropped rather than guessed
+    // at. Guessing would mean answering a question nobody asked, and the
+    // caller validates the vocabulary before it gets here.
+    return null
   }
 
   protected formatDefault(

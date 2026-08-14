@@ -32,19 +32,27 @@ function closeTheDoor() {
   setAnalyticsCredential(undefined)
 }
 
-const ACTION_URL = 'http://localhost/api/_dashboard/execute-action'
-// Nothing may be destroyed even when a case fails: this table does not exist,
-// and the stub adapter below never reaches a real database anyway.
+/**
+ * The console's mutating surface is now the two session routes and nothing
+ * else. These cases used to drive `POST /api/_dashboard/execute-action`,
+ * whose `truncate` emptied a table — the worst thing a CSRF hole here could
+ * reach. That endpoint retired with the grid editor
+ * (`@bakery-framework/plugin-db-explorer` owns row editing now), so the same
+ * two guards are exercised against what is left. The blast radius shrank; the
+ * guards did not, and a regression in either is still a session takeover.
+ */
+const DELETE_URL = 'http://localhost/api/_dashboard/sessions/delete'
+// A session id that does not exist, so a case that wrongly reaches the
+// endpoint destroys nothing while still proving it was dispatched.
+const VICTIM = 'nonexistent_session_csrf_probe'
 const TABLE = 'nonexistent_table_csrf_probe'
 
 /**
- * Records what the endpoint asked the database to do. The assertion that
- * matters in every case below is that this stays empty — a rejection that
- * arrives *after* the truncate is not a rejection.
+ * Records what the endpoint asked the database to do. The read endpoints below
+ * go through it; the assertion that matters is that it stays empty on every
+ * refused request.
  */
 const { db: stubDb, calls: dbCalls, reset: resetDbCalls } = createStubDb()
-
-const priorAllowWrites = process.env.DASHBOARD_ALLOW_WRITES
 
 beforeAll(() => {
   // The predicate, not `setupDashboard`: that also mounts routes, registers the
@@ -52,35 +60,29 @@ beforeAll(() => {
   // can be undone afterwards.
   openTheDoor()
   __setTestDb(stubDb)
-  // Writes deliberately *enabled*. The subject here is the routing and CSRF
-  // layer; leaving the write gate to reject everything would make these tests
-  // pass for a reason that has nothing to do with what they claim to guard.
-  process.env.DASHBOARD_ALLOW_WRITES = '1'
 })
 
 afterAll(() => {
   closeTheDoor()
   __resetTestDb()
-  if (priorAllowWrites === undefined) delete process.env.DASHBOARD_ALLOW_WRITES
-  else process.env.DASHBOARD_ALLOW_WRITES = priorAllowWrites
 })
 
 beforeEach(() => {
   resetDbCalls()
 })
 
-function truncateBody() {
-  return JSON.stringify({ action: 'truncate', tableName: TABLE })
+function deleteBody() {
+  return JSON.stringify({ id: VICTIM })
 }
 
 describe('dashboard CSRF and method qualification', () => {
-  test('a cross-origin GET cannot reach execute-action', async () => {
+  test('a cross-origin GET cannot reach sessions/delete', async () => {
     // GET is in `SAFE_METHODS`, so `checkCsrf` returns null for this by design;
     // `processBody` then reads the query string as the body. Method-qualifying
     // the route key is the only thing that stops it — this is the half the
     // CSRF guard structurally cannot cover.
     const res = await handleDashboardRequest(
-      new Request(`${ACTION_URL}?action=truncate&tableName=${TABLE}`, {
+      new Request(`${DELETE_URL}?id=${VICTIM}`, {
         headers: {
           origin: 'https://evil.example',
           'sec-fetch-site': 'cross-site',
@@ -88,17 +90,16 @@ describe('dashboard CSRF and method qualification', () => {
       }),
     )
 
-    expect(dbCalls).toEqual([])
-    expect(res).toBeNull()
+    // 404 rather than `null`: see the note in the GET test below.
+    expect((res as Response)?.status).toBe(404)
   })
 
-  test('a same-origin GET cannot reach execute-action either', async () => {
+  test('a same-origin GET cannot reach sessions/delete either', async () => {
     const res = await handleDashboardRequest(
-      new Request(`${ACTION_URL}?action=truncate&tableName=${TABLE}`),
+      new Request(`${DELETE_URL}?id=${VICTIM}`),
     )
 
-    expect(dbCalls).toEqual([])
-    expect(res).toBeNull()
+    expect((res as Response)?.status).toBe(404)
   })
 
   test('a cross-origin POST is rejected before dispatch', async () => {
@@ -106,17 +107,16 @@ describe('dashboard CSRF and method qualification', () => {
     // <form method=post> is a CORS-simple request and arrives with the
     // operator's cookies attached.
     const res = await handleDashboardRequest(
-      new Request(ACTION_URL, {
+      new Request(DELETE_URL, {
         method: 'POST',
         headers: {
           origin: 'https://evil.example',
           'content-type': 'application/json',
         },
-        body: truncateBody(),
+        body: deleteBody(),
       }),
     )
 
-    expect(dbCalls).toEqual([])
     expect(res).toBeInstanceOf(JsonResponseData)
     expect((res as JsonResponseData).status).toBe(403)
     expect((res as JsonResponseData).message).toContain('cross-origin')
@@ -124,70 +124,118 @@ describe('dashboard CSRF and method qualification', () => {
 
   test('a cross-site POST is rejected on Sec-Fetch-Site alone', async () => {
     const res = await handleDashboardRequest(
-      new Request(ACTION_URL, {
+      new Request(DELETE_URL, {
         method: 'POST',
         headers: {
           'sec-fetch-site': 'cross-site',
           'content-type': 'application/json',
         },
-        body: truncateBody(),
+        body: deleteBody(),
       }),
     )
 
-    expect(dbCalls).toEqual([])
     expect((res as JsonResponseData).status).toBe(403)
     expect((res as JsonResponseData).message).toContain('cross-site')
   })
 
-  test('a GET cannot reach any of the other mutating routes', async () => {
-    // The same bare-key hole as execute-action, and it applies to every
-    // mutating endpoint: an unqualified key matches any method, and
-    // `processBody` hands a GET its query string as the body. A link was
-    // enough to delete a session or to set a key on someone else's.
+  test('a GET cannot reach any mutating route', async () => {
+    // An unqualified route key matches any method, and `processBody` hands a
+    // GET its query string as the body. A link was enough to delete a session
+    // or to set a key on someone else's.
     const paths = [
       '/api/_dashboard/sessions/delete?id=victim',
       '/api/_dashboard/sessions/update?id=victim&key=role&value=admin',
-      '/api/_dashboard/query?sql=SELECT%201',
     ]
 
     for (const path of paths) {
-      expect(
-        await handleDashboardRequest(new Request(`http://localhost${path}`)),
-      ).toBeNull()
+      // 404, not `null`. Both mean "no route matched", but only one of them is
+      // what a caller sees: core renders a handler's `null` as 204 No Content,
+      // which reads as success. Under `/api/` the handler now answers 404
+      // itself.
+      const res = await handleDashboardRequest(
+        new Request(`http://localhost${path}`),
+      )
+      expect(`${path}:${(res as Response)?.status}`).toBe(`${path}:404`)
     }
   })
 
-  test('a cross-origin POST to sessions/delete is rejected too', async () => {
-    const res = await handleDashboardRequest(
-      new Request('http://localhost/api/_dashboard/sessions/delete', {
-        method: 'POST',
-        headers: {
-          origin: 'https://evil.example',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ id: 'anything' }),
-      }),
-    )
+  test('the retired write endpoints are not routes any more', async () => {
+    // Not merely gated — absent. `DASHBOARD_ALLOW_WRITES` is gone with them,
+    // so there is no flag that brings them back, and a stale client or a
+    // bookmarked probe finds nothing to dispatch to.
+    //
+    // **404, not `null`.** This asserted `toBeNull()` and passed, because that
+    // is what `dispatch` answers for an unmatched key — and core turns a `null`
+    // from a handler into **204 No Content**. A script still posting to
+    // `execute-action` was therefore told 204, read it as success, and silently
+    // changed nothing. For a route that has been deleted that is the worst
+    // available answer, so `handleDashboardRequest` now supplies the 404 and
+    // this checks the status a caller actually sees rather than the value the
+    // dispatcher happens to return.
+    for (const path of [
+      '/api/_dashboard/query',
+      '/api/_dashboard/execute-action',
+    ]) {
+      const post = await handleDashboardRequest(
+        new Request(`http://localhost${path}`, {
+          method: 'POST',
+          headers: {
+            origin: 'http://localhost',
+            'sec-fetch-site': 'same-origin',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            sql: `DELETE FROM ${TABLE}`,
+            action: 'truncate',
+            tableName: TABLE,
+          }),
+        }),
+      )
 
-    expect((res as JsonResponseData).status).toBe(403)
+      expect((post as Response)?.status).toBe(404)
+    }
+
+    expect(dbCalls).toEqual([])
   })
 
-  test('a same-origin POST still reaches the endpoint', async () => {
-    // The other direction: the guards must not have made the console useless.
+  test('any unmatched dashboard path is a 404, not an empty success', async () => {
+    // The general rule the case above is one instance of. A handler returning
+    // `null` means "not mine" to the router, which answers 204 — fine for a
+    // handler declining a path, wrong for a handler that claims the whole
+    // `/api/_dashboard/*` namespace and simply has no key for this one.
     const res = await handleDashboardRequest(
-      new Request(ACTION_URL, {
+      new Request('http://localhost/api/_dashboard/no-such-endpoint', {
         method: 'POST',
         headers: {
           origin: 'http://localhost',
           'sec-fetch-site': 'same-origin',
           'content-type': 'application/json',
         },
-        body: truncateBody(),
+        body: '{}',
       }),
     )
 
-    expect(dbCalls).toEqual([`truncate:${TABLE}`])
-    expect((res as JsonResponseData).status).toBe(200)
+    expect((res as Response)?.status).toBe(404)
+  })
+
+  test('a same-origin POST still reaches the endpoint', async () => {
+    // The other direction: the guards must not have made the console useless.
+    // The session does not exist, so the endpoint answers 404 — which is the
+    // proof it was dispatched rather than refused by a guard at 403.
+    const res = await handleDashboardRequest(
+      new Request(DELETE_URL, {
+        method: 'POST',
+        headers: {
+          origin: 'http://localhost',
+          'sec-fetch-site': 'same-origin',
+          'content-type': 'application/json',
+        },
+        body: deleteBody(),
+      }),
+    )
+
+    expect(res).toBeInstanceOf(JsonResponseData)
+    expect((res as JsonResponseData).status).toBe(404)
   })
 
   test('a same-origin GET still reaches a read endpoint', async () => {
@@ -253,13 +301,13 @@ describe('dashboard authorization wiring', () => {
     setAnalyticsAuthorize(denyAll)
 
     const res = await handleDashboardRequest(
-      new Request(ACTION_URL, {
+      new Request(DELETE_URL, {
         method: 'POST',
         headers: {
           origin: 'https://evil.example',
           'content-type': 'application/json',
         },
-        body: truncateBody(),
+        body: deleteBody(),
       }),
     )
 
@@ -428,7 +476,7 @@ describe('dashboard namespace boundary', () => {
 
   test('the namespace itself still resolves', () => {
     expect(DashboardHandler.canHandle('/api/_dashboard')).toBe(true)
-    expect(DashboardHandler.canHandle('/api/_dashboard/query')).toBe(true)
+    expect(DashboardHandler.canHandle('/api/_dashboard/schema')).toBe(true)
     expect(DashboardHandler.canHandle('/_dashboard')).toBe(true)
     expect(DashboardHandler.canHandle('/_dashboard/dashboard.js')).toBe(true)
   })

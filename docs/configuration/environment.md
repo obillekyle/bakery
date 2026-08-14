@@ -17,7 +17,6 @@ served (`packages/core/src/utils/constants.ts`).
 | `DATABASE_URL` | `packages/orm/src/adapters.ts` | Same, used when `DB_URL` is unset. |
 | `SQLITE_PATH` | `packages/orm/src/adapters/sqlite.ts` | SQLite file path, when neither URL is set. |
 | `NODE_ENV` | `packages/core/src/core/init.ts`, `packages/orm/src/sync/engine.ts` | `test` sets `import.meta.env.TEST`; `production` makes `db:sync` refuse destructive changes without `--force-sync`. |
-| `DASHBOARD_ALLOW_WRITES` | `packages/plugins/dashboard/src/endpoints/database.ts` | `1` allows every dashboard write: non-`SELECT` SQL from the console **and** the grid editor's row insert/update/delete and table truncate. Anything else rejects them with 403, leaving the console read-only. |
 | `THREAD_WORKER` | `packages/core/src/core/init.ts` | Set to `1` by the cluster master. Marks this process a cluster worker. |
 | `THREAD_ID` | `packages/core/src/core/init.ts` | Worker index within the cluster. Worker `0` prints the startup banner. |
 
@@ -59,8 +58,11 @@ The dashboard no longer authenticates anyone. It takes an `authorize` predicate
 from your application, and with none configured it allows loopback in
 development and denies everything in production. The guard itself lives in core
 (`packages/core/src/utils/http/authorize.ts`) and is shared with the analytics
-and db-explorer plugins — the dashboard hands its predicate to analytics, which
-owns the decision for both:
+plugin — the dashboard hands its predicate to analytics, which owns the
+decision for both. The db-explorer plugin shares neither door: it has its own
+access model, granting a level per caller rather than a yes, and configuring
+the dashboard grants nothing there. See
+[Database Explorer](../plugins/db-explorer.md).
 
 ```ts
 import { defineConfig } from '@bakery-framework/core'

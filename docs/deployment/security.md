@@ -117,10 +117,17 @@ where security bugs hide:
 - With no `authorize` configured, the dashboard allows loopback in development
   and **nothing in production**. "Development" means `PROD` explicitly `false`;
   an unset flag is not evidence of development and also denies.
-- Every dashboard write needs `DASHBOARD_ALLOW_WRITES=1` — the SQL console and
-  the grid editor alike, including table truncate. `ATTACH`, `DETACH` and
-  `VACUUM INTO` are refused outright
-  (`packages/plugins/dashboard/src/endpoints/database.ts`).
+- The database explorer admits nobody until an application configures it, and
+  what it grants is an access *level* rather than a yes — a caller with `read`
+  has no path to a write, and no caller has a path to raw SQL or DDL, because
+  no such endpoint exists. See
+  [Database Explorer](../plugins/db-explorer.md).
+
+  The dashboard used to carry its own database editor and SQL console behind a
+  single `DASHBOARD_ALLOW_WRITES` environment variable. Both are gone and so is
+  the variable; setting it now does nothing. If you have it in a deployment
+  environment, delete it — it is the kind of leftover that reads as a control
+  still being in force.
 
 ### Request size
 
@@ -232,7 +239,8 @@ back with credentials enabled is the same as having no check.
 ## Checklist
 
 - [ ] Dashboard plugin removed in production, or given a real `authorize`.
-- [ ] `DASHBOARD_ALLOW_WRITES` unset.
+- [ ] Database explorer removed in production, or given users whose access
+      levels you can defend — `write` is row editing on the live database.
 - [ ] `trustProxy` matches the deployment, with `host` bound to loopback if it
       is on.
 - [ ] Rate limit tuned rather than duplicated — or deliberately disabled with

@@ -1,58 +1,56 @@
 import { definePlugin } from '@bakery-framework/core/plugins'
-import type { AuthorizeFn } from '@bakery-framework/core/utils/http'
+import type { AccessConfig } from './access'
 
 /**
- * Part of this plugin's public surface, and re-exported rather than declared:
- * the predicate type is core's now, shared with the dashboard and analytics,
- * so an application can write one `AuthorizeFn` and hand it to all three.
+ * Part of this plugin's public surface.
+ *
+ * These are the explorer's own rather than core's `AuthorizeFn`, because the
+ * explorer asks a different question. The dashboard and analytics need to know
+ * *whether* a request is admitted; the explorer edits rows, so it needs to know
+ * *what* the request may do. A boolean cannot carry that.
  */
-export type { AuthorizeFn } from '@bakery-framework/core/utils/http'
+export type { Access, AccessFn, ExplorerUser, ExplorerUsers } from './access'
 
-export interface DbExplorerPluginOptions {
+export interface DbExplorerPluginOptions extends AccessConfig {
   /**
    * Register the explorer. Defaults to true; set false to keep it out of a
    * build entirely.
    */
   enabled?: boolean
-
-  /**
-   * Decide whether a request may browse the database. Return true to allow.
-   *
-   * The explorer authenticates nobody itself — the application does, because
-   * it already knows who its users are:
-   *
-   * ```ts
-   * dbExplorerPlugin({
-   *   authorize: req => req.session.get('role') === 'admin',
-   * })
-   * ```
-   *
-   * Omitted, access is loopback-only in development and denied in
-   * production, so an unconfigured explorer is never exposed.
-   */
-  authorize?: AuthorizeFn
-
-  /**
-   * A shared access key, typically from the environment:
-   *
-   * ```ts
-   * dbExplorerPlugin({ credential: import.meta.env.DB_EXPLORER_KEY })
-   * ```
-   *
-   * Presented as `Authorization: Bearer`, an `x-db-key` header, or a
-   * one-time `?key=` query for a browser (stored client-side, stripped from
-   * the URL). Checked in constant time. Unset or empty means this path is
-   * off — it never means open. Composes with `authorize`: either admits.
-   */
-  credential?: string
 }
 
 /**
- * A read-only database browser at `/_db`: table list, rows, paging, sorting.
+ * A database browser and editor at `/_db`: table list, rows, paging, sorting,
+ * inline editing, foreign-key navigation and CSV import.
  *
- * Read-only is the contract, not a mode. There is no raw-SQL endpoint, no
- * row mutation, and no DDL — where the dashboard gates its write paths
- * behind `DASHBOARD_ALLOW_WRITES`, the explorer has no write paths to gate.
+ * **No raw SQL and no DDL.** That is structural, not a mode: there is no
+ * endpoint that runs a statement you supply, and none that creates, drops or
+ * alters a table. What CRUD changed is row data. Where the dashboard gated its
+ * write paths behind an environment flag, the explorer still has no path for
+ * the things it refuses.
+ *
+ * Nobody is admitted until an application says who may come in, and access is
+ * a level rather than a yes:
+ *
+ * ```ts
+ * dbExplorerPlugin({
+ *   users: {
+ *     ops:    { credential: process.env.OPS_KEY!,    access: 'write' },
+ *     oncall: { credential: process.env.ONCALL_KEY!, access: 'read'  },
+ *   },
+ *   authorize: req => (req.session.get('role') === 'admin' ? 'write' : false),
+ * })
+ * ```
+ *
+ * Either door admits and the higher level wins — a session admin presenting a
+ * read-only key is still an admin. With neither configured the explorer admits
+ * nobody, which is the same default it had when it was read-only, and the
+ * reason there is no `writes: true` flag to leave set by accident.
+ *
+ * A `read` caller gets the grid with no edit affordances and a 403 on every
+ * write endpoint. A table with no primary key or unique index is read-only for
+ * everyone: there is no way to name one of its rows, so there is no way to
+ * change one safely.
  */
 export default function dbExplorerPlugin(
   options: DbExplorerPluginOptions = {},
@@ -64,10 +62,7 @@ export default function dbExplorerPlugin(
     async setup() {
       if (!enabled) return
       const { setupExplorer } = await import('./setup')
-      setupExplorer({
-        authorize: options.authorize,
-        credential: options.credential,
-      })
+      setupExplorer({ users: options.users, authorize: options.authorize })
     },
   })
 }

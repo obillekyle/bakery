@@ -262,7 +262,7 @@ and the right status.
 | [Routing](guides/routing.md) · [API routes](guides/api-routes.md) · [Middleware](guides/middleware.md) | The request surface in full |
 | [Sessions](guides/sessions.md) · [WebSockets](guides/websockets.md) · [Server-sent events](guides/server-sent-events.md) · [CORS](guides/cors.md) | Everything else core serves |
 | [Schema](orm/schema.md) · [Queries](orm/queries.md) · [Mutations](orm/mutations.md) · [Schema sync](orm/sync.md) · [Adapters](orm/adapters.md) | The optional ORM |
-| [Plugin API](plugins/plugin-api.md) · [Vue](plugins/vue.md) · [Analytics](plugins/analytics.md) · [Dashboard](plugins/dashboard.md) | Plugins, and writing your own |
+| [Plugin API](plugins/plugin-api.md) · [Vue](plugins/vue.md) · [Analytics](plugins/analytics.md) · [Dashboard](plugins/dashboard.md) · [Database Explorer](plugins/db-explorer.md) | Plugins, and writing your own |
 | [Production](deployment/production.md) · [Security](deployment/security.md) | Shipping it |
 | [Architecture](reference/architecture.md) · [The `Bakery` object](reference/bakery.md) · [CLI](reference/cli.md) · [Troubleshooting](reference/troubleshooting.md) | Reference |
 
