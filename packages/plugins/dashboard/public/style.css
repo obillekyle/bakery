@@ -457,6 +457,61 @@ main {
   height: 220px;
 }
 
+/*
+ * The chart hover tooltip, which had **no rule at all**.
+ *
+ * `updateSparklineTooltip` has always created this element, written a value
+ * into it, set `left`/`top` from the hovered sample, tagged it
+ * `data-placement`, and toggled `.visible`. With nothing here, every one of
+ * those was inert: an unpositioned block appended to the card, so it stacked
+ * under the MIN/MAX/AVG row and sat there permanently — the readout "stuck at
+ * the bottom" rather than floating at the point.
+ *
+ * `position: relative` on the card is half the fix. Absolute coordinates need a
+ * containing block, and the JS measures its offsets against the card's own
+ * rect, so the card must be the thing they resolve against or the tooltip
+ * lands relative to the page instead.
+ */
+.chart-card {
+  position: relative;
+}
+
+.chart-tooltip {
+  position: absolute;
+  z-index: 5;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-alt, #171b24);
+  color: var(--text);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  /* The pointer is already over the canvas; a tooltip that could take the
+     event would flicker as it stole and released the hover. */
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 90ms ease-out;
+}
+
+.chart-tooltip.visible {
+  opacity: 1;
+}
+
+/*
+ * `left`/`top` are the *sample's* position, so the box is shifted off that
+ * point rather than hung from its own corner — centred horizontally, and clear
+ * of the dot vertically. `below` is the fallback the JS asks for when the
+ * sample sits too near the top for the label to fit above it.
+ */
+.chart-tooltip[data-placement='above'] {
+  transform: translate(-50%, calc(-100% - 10px));
+}
+
+.chart-tooltip[data-placement='below'] {
+  transform: translate(-50%, 10px);
+}
+
 .chart-stats {
   display: flex;
   gap: 18px;

@@ -116,3 +116,60 @@ describe('card labels are block-level in their own right', () => {
     expect(rule(selector)).toMatch(/display\s*:\s*block/)
   })
 })
+
+/**
+ * The hover tooltip, which had **no rule at all**.
+ *
+ * `updateSparklineTooltip` has always created the element, written the hovered
+ * value into it, set `left`/`top` from that sample's position, tagged it
+ * `data-placement`, and toggled `.visible`. Every one of those was inert
+ * without CSS: an unpositioned block appended to the card, so it stacked under
+ * the MIN/MAX/AVG row and stayed there — the readout "stuck at the bottom"
+ * instead of floating at the point.
+ *
+ * Two of these are less obvious than they look. The card needs
+ * `position: relative`, because the JS measures its offsets against the card's
+ * own rect and absolute coordinates resolve against the nearest positioned
+ * ancestor — without it the tooltip lands relative to the page. And the
+ * `data-placement` rules carry the offset transforms, because `left`/`top` are
+ * the *sample's* position rather than where the box's corner should go.
+ */
+describe('the chart tooltip has the rules its JS assumes', () => {
+  const css = readFileSync(
+    join(import.meta.dir, '..', '..', 'public', 'style.css'),
+    'utf8',
+  ).replace(/\/\*[\s\S]*?\*\//g, '')
+
+  test('the card is a containing block for it', () => {
+    expect(css).toMatch(/\n\.chart-card \{[^}]*position:\s*relative/)
+  })
+
+  test('the tooltip is positioned rather than in flow', () => {
+    expect(css).toMatch(/\n\.chart-tooltip \{[^}]*position:\s*absolute/)
+  })
+
+  test('it is hidden until .visible, and shown by it', () => {
+    expect(css).toMatch(/\n\.chart-tooltip \{[^}]*opacity:\s*0/)
+    expect(css).toMatch(/\n\.chart-tooltip\.visible \{[^}]*opacity:\s*1/)
+  })
+
+  test('it does not eat the pointer events it depends on', () => {
+    expect(css).toMatch(/\n\.chart-tooltip \{[^}]*pointer-events:\s*none/)
+  })
+
+  test.each([
+    'above',
+    'below',
+  ])('placement %s has an offset transform', placement => {
+    // String search, not a constructed `RegExp` — for the second time in this
+    // file. A selector full of `.`, `[` and `'` needs escaping, and getting
+    // that wrong matches nothing, which is indistinguishable from the rule
+    // being missing: the test passes its own bug off as the bug it hunts.
+    const selector = `.chart-tooltip[data-placement='${placement}'] {`
+    const at = css.indexOf(selector)
+    expect(at).toBeGreaterThan(-1)
+
+    const block = css.slice(at, css.indexOf('}', at))
+    expect(block).toContain('transform:')
+  })
+})

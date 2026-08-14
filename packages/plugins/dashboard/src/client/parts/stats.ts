@@ -509,6 +509,14 @@ export function drawSparkline(
       )
     }
   })
+
+  // Last, so the marker sits above the fill rather than under it.
+  const hovered = resolveHoverPoint(canvasId, dataPoints, {
+    left: rect.left,
+    width,
+    height,
+  })
+  if (hovered) drawHoverMarker(ctx, hovered, height, colorStart)
 }
 
 interface SparklineHoverState {
@@ -518,6 +526,91 @@ interface SparklineHoverState {
 }
 
 export const sparklineHoverStates: Record<string, SparklineHoverState> = {}
+
+export interface HoverPoint {
+  index: number
+  value: number
+  /** Where the point sits on the canvas, in CSS pixels within its box. */
+  x: number
+  y: number
+}
+
+/**
+ * Which sample the pointer is over, and where that sample is drawn.
+ *
+ * Shared by the two things that must agree about it: the marker painted on the
+ * canvas and the tooltip positioned over the card. This arithmetic — the 50px
+ * reserved for the axis labels, the 24 and 12 of vertical padding, and the
+ * `L - M` offset for a series shorter than the window — used to live only in
+ * the tooltip. Copying it into the draw path would have worked exactly until
+ * one copy was adjusted, at which point the dot and its label would point at
+ * different samples and look like a rounding bug.
+ */
+export function resolveHoverPoint(
+  canvasId: string,
+  data: number[],
+  rect: { left: number; width: number; height: number },
+): HoverPoint | null {
+  const state = sparklineHoverStates[canvasId]
+  if (!state?.visible || data.length === 0) return null
+
+  const { min, max, range } = getSparklineScale(data)
+  const graphWidth = Math.max(rect.width - 50, 1)
+  const graphHeight = Math.max(rect.height - 24, 1)
+  const localX = Math.min(Math.max(state.clientX - rect.left, 0), graphWidth)
+
+  const L = getTimescaleLimit(activeTimescale)
+  const M = data.length
+  const j = L === 1 ? 0 : Math.round((localX / graphWidth) * (L - 1))
+  const index = j - (L - M)
+  if (index < 0 || index >= M) return null
+
+  const value = data[index]
+  if (value === null || value === undefined || Number.isNaN(value)) return null
+
+  const safeValue = Math.max(min, Math.min(value, max))
+  return {
+    index,
+    value,
+    x: L === 1 ? 0 : (j / (L - 1)) * graphWidth,
+    y: rect.height - 12 - ((safeValue - min) / range) * graphHeight,
+  }
+}
+
+/**
+ * The hover marker: a guide line down the chart and a ringed dot on the sample.
+ *
+ * The ring is drawn in the card's own background rather than left transparent,
+ * so the dot reads as sitting *on* the line instead of merging into it wherever
+ * the series is dense.
+ */
+function drawHoverMarker(
+  ctx: CanvasRenderingContext2D,
+  point: HoverPoint,
+  height: number,
+  color: string,
+) {
+  ctx.save()
+
+  ctx.beginPath()
+  ctx.moveTo(point.x, 8)
+  ctx.lineTo(point.x, height - 10)
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)'
+  ctx.lineWidth = 1
+  ctx.setLineDash([3, 3])
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  ctx.beginPath()
+  ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2)
+  ctx.fillStyle = color
+  ctx.fill()
+  ctx.lineWidth = 2
+  ctx.strokeStyle = 'rgba(15, 17, 21, 0.9)'
+  ctx.stroke()
+
+  ctx.restore()
+}
 
 function getSparklineScale(dataPoints: number[]) {
   const validPoints = dataPoints.filter(
@@ -619,34 +712,17 @@ export function updateSparklineTooltip(config: Metric) {
   const rect = canvas.getBoundingClientRect()
   const chartCard = canvas.closest('.chart-card') as HTMLElement | null
   const chartRect = chartCard?.getBoundingClientRect() || rect
-  const { min, max, range } = getSparklineScale(data)
-  const graphWidth = Math.max(rect.width - 50, 1)
-  const graphHeight = Math.max(rect.height - 24, 1)
-  const localX = Math.min(Math.max(state.clientX - rect.left, 0), graphWidth)
 
-  const L = getTimescaleLimit(activeTimescale)
-  const M = data.length
-  const j = L === 1 ? 0 : Math.round((localX / graphWidth) * (L - 1))
-  const index = j - (L - M)
-
-  if (index < 0 || index >= M) {
+  const point = resolveHoverPoint(config.canvas, data, rect)
+  if (!point) {
     tooltip.classList.remove('visible')
     return
   }
 
-  const value = data[index]
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    tooltip.classList.remove('visible')
-    return
-  }
-  const safeValue = Math.max(min, Math.min(value, max))
-  const pointX = L === 1 ? 0 : (j / (L - 1)) * graphWidth
-  const pointY = rect.height - 12 - ((safeValue - min) / range) * graphHeight
-
-  tooltip.textContent = `${formatSparklineTooltipValue(value, config.unit)} (${formatSparklineAge(index, data.length)})`
-  tooltip.dataset.placement = pointY < 28 ? 'below' : 'above'
-  tooltip.style.left = `${rect.left - chartRect.left + pointX}px`
-  tooltip.style.top = `${rect.top - chartRect.top + pointY}px`
+  tooltip.textContent = `${formatSparklineTooltipValue(point.value, config.unit)} (${formatSparklineAge(point.index, data.length)})`
+  tooltip.dataset.placement = point.y < 28 ? 'below' : 'above'
+  tooltip.style.left = `${rect.left - chartRect.left + point.x}px`
+  tooltip.style.top = `${rect.top - chartRect.top + point.y}px`
   tooltip.classList.add('visible')
 }
 
@@ -677,12 +753,18 @@ export function bindSparklineTooltips() {
       state.clientX = event.clientX
       state.clientY = event.clientY
       updateSparklineTooltip(config)
+      // The marker is painted *into* the canvas, so it only moves when the
+      // canvas is repainted. Without this it would lag the pointer by up to a
+      // second — the polling redraw's interval — and read as a stuck dot.
+      drawSparkline(config.canvas, config.history, config.stroke, config.fill)
     })
 
     canvas.addEventListener('pointerleave', () => {
       state.visible = false
       const tooltip = ensureSparklineTooltip(canvas)
       if (tooltip) tooltip.classList.remove('visible')
+      // Repaint to clear the marker, for the same reason.
+      drawSparkline(config.canvas, config.history, config.stroke, config.fill)
     })
   }
 
