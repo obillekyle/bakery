@@ -1,6 +1,6 @@
 {
   "name": "bakery-monorepo",
-  "version": "2.0.0-alpha.5",
+  "version": "2.0.0-alpha.6",
   "private": true,
   "description": "A ridiculously fast, zero-config full-stack framework built on Bun.",
   "author": "obillekyle",

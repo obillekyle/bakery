@@ -42,6 +42,8 @@ left behind puts wrong dependency ranges on npm — which is how every
 
 ## [Unreleased]
 
+## [2.0.0-alpha.6] — 2026-08-14
+
 ### Added
 
 - **The database explorer edits rows.** `@bakery-framework/plugin-db-explorer`
