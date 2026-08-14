@@ -825,13 +825,89 @@ describe('MySQL introspection queries', () => {
     })
     // The bogus sort column is dropped rather than interpolated, and only the
     // real filter column produces a bound LIKE.
+    //
+    // `ESCAPE '!'` rides along on every LIKE now. `%` and `_` are wildcards, so
+    // without it a filter for `50%` matched every row and one for `a_b` matched
+    // `axb` — the old code passed user input into the pattern untouched. The
+    // escape character is `!` rather than a backslash on purpose; see
+    // `likeEscape` in `adapters/base.ts` for why a backslash cannot survive
+    // `normalizePostgresSQL`.
     expect(calls[1].sql).toBe(
-      'SELECT COUNT(*) as count FROM `app_users` WHERE `nick_name` LIKE ?',
+      "SELECT COUNT(*) as count FROM `app_users` WHERE `nick_name` LIKE ? ESCAPE '!'",
     )
     expect(calls[2]).toEqual({
-      sql: 'SELECT * FROM `app_users` WHERE `nick_name` LIKE ? LIMIT ? OFFSET ?',
+      sql: "SELECT * FROM `app_users` WHERE `nick_name` LIKE ? ESCAPE '!' LIMIT ? OFFSET ?",
       params: ['%an%', 10, 10],
     })
+  })
+
+  /**
+   * Operators. A filter used to be a column and a substring, which is why the
+   * dashboard's operator dropdown sends `is_null`/`>`/`<` that the server has
+   * always ignored — it flattened them to `{column: value}` and LIKEd the
+   * literal string `"is_null"`.
+   *
+   * The bare-scalar form still means `contains`, because `getData` is public
+   * and that is what every existing caller sends.
+   */
+  test('getData understands filter operators', async () => {
+    const db = new MySQLAdapter()
+    const calls = record(db, sql => {
+      if (sql.includes('information_schema.columns'))
+        return [{ name: 'nick_name' }, { name: 'age' }]
+      if (sql.includes('COUNT(*)')) return [{ count: 1 }]
+      return []
+    })
+    await db.getData('app_users', {
+      page: 1,
+      pageSize: 10,
+      filters: {
+        nick_name: { op: 'eq', value: 'ada' },
+        age: { op: 'gte', value: 18 },
+      },
+    })
+    expect(calls[2]).toEqual({
+      sql: 'SELECT * FROM `app_users` WHERE `nick_name` = ? AND `age` >= ? LIMIT ? OFFSET ?',
+      params: ['ada', 18, 10, 0],
+    })
+  })
+
+  test('IS NULL binds nothing, which is why a filter is not a column/value pair', async () => {
+    const db = new MySQLAdapter()
+    const calls = record(db, sql => {
+      if (sql.includes('information_schema.columns'))
+        return [{ name: 'nick_name' }]
+      if (sql.includes('COUNT(*)')) return [{ count: 1 }]
+      return []
+    })
+    await db.getData('app_users', {
+      page: 1,
+      pageSize: 10,
+      filters: { nick_name: { op: 'null' } },
+    })
+    // Two params, not three: the placeholder count has to match the arguments,
+    // and an operator that binds nothing is the case that breaks a naive
+    // one-value-per-filter model.
+    expect(calls[2]).toEqual({
+      sql: 'SELECT * FROM `app_users` WHERE `nick_name` IS NULL LIMIT ? OFFSET ?',
+      params: [10, 0],
+    })
+  })
+
+  test('an unknown operator is dropped rather than guessed at', async () => {
+    const db = new MySQLAdapter()
+    const calls = record(db, sql => {
+      if (sql.includes('information_schema.columns'))
+        return [{ name: 'nick_name' }]
+      if (sql.includes('COUNT(*)')) return [{ count: 1 }]
+      return []
+    })
+    await db.getData('app_users', {
+      page: 1,
+      pageSize: 10,
+      filters: { nick_name: { op: 'regex', value: '.*' } },
+    })
+    expect(calls[2].sql).toBe('SELECT * FROM `app_users` LIMIT ? OFFSET ?')
   })
 })
 

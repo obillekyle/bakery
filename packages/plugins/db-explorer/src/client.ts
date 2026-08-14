@@ -1,197 +1,220 @@
 /**
- * The explorer UI: a table list, a row grid with paging and sorting, nothing
- * else. Compiled per request in dev and cached like the dashboard's client;
- * kept deliberately small — this file is the entire browser side.
+ * The explorer's browser entry: boot, then wiring. Nothing else.
+ *
+ * This file used to be the whole client — 197 lines, one `renderTable` that
+ * fetched, built a header, built a body and built a pager, and scored **34**
+ * against biome's ceiling of 25. Growing that into a data editor would have
+ * meant growing that one function, so the shape changed first. The pieces live
+ * under `client/`, each obeying two mechanical rules — **no function both
+ * fetches and renders**, and **every loop body is a named function** — and what
+ * is left here is the composition: state, routing, and which callback goes
+ * where.
+ *
+ * What is deliberately *not* here, and is not anywhere: a SQL console, an ER
+ * diagram, and grid virtualisation. The first is refused by the plugin's
+ * contract — no raw SQL, structurally — and the other two are not what a row
+ * editor is for.
  */
 
-type SchemaTable = { name: string; rowCount?: number; writable?: boolean }
-
-type SchemaReport = { access: 'read' | 'write' | false; tables: SchemaTable[] }
-
-type TablePage = {
-  rows: Record<string, unknown>[]
-  totalRows?: number
-  totalPages?: number
-}
+import { adoptUrlKey, fetchGraph, fetchPage, fetchSchema } from './client/api'
+import { confirmChoice, notify } from './client/confirm'
+import { el } from './client/dom'
+import { openDrawer } from './client/drawer'
+import { EditSession, UndoStack } from './client/edit-session'
+import { FkResolver, type FkTarget } from './client/fk'
+import type { SchemaColumn, SchemaTable, TablePage } from './client/meta'
+import { Page } from './client/page'
+import { saveRow } from './client/save'
+import {
+  type AppState,
+  createState,
+  decodeView,
+  defaultView,
+  encodeView,
+  tableOf,
+  type ViewState,
+} from './client/state'
 
 const app = document.getElementById('app')!
 
-let currentTable = ''
-let currentPage = 1
-let sortBy: string | null = null
-let sortOrder: 'ASC' | 'DESC' = 'ASC'
-const PAGE_SIZE = 50
+const state: AppState = createState()
+const session = new EditSession()
+const resolver = new FkResolver()
+const undoStack = new UndoStack(20)
 
-// A ?key= opened in the browser is kept for API calls and scrubbed from the
-// URL (and so from history) immediately.
-const urlKey = new URLSearchParams(location.search).get('db-key')
-if (urlKey) {
-  sessionStorage.setItem('__db_key', urlKey)
-  const clean = new URL(location.href)
-  clean.searchParams.delete('db-key')
-  history.replaceState(null, '', clean)
+/** Set while `writeHash` writes, so the `hashchange` listener ignores itself. */
+let selfNavigation = false
+
+const page = new Page(state, session, resolver, undoStack, {
+  goto: view => void goto(view),
+  saveRow: (table, id) =>
+    void saveRow(table, id, {
+      session,
+      surface: () => page.grid,
+      reload: renderMain,
+      onDirtyChange: () => page.paintDirty(),
+    }),
+  openRow: openRowDrawer,
+  followFk: (target, key) => void followFk(target, key),
+  reload: () => renderMain(),
+  rewind: depth => {
+    state.trail = state.trail.slice(0, depth)
+    void goto(state.trail[depth] ?? defaultView(state.view.table))
+  },
+})
+
+// ------------------------------------------------------------------- routing
+
+function writeHash(): void {
+  selfNavigation = true
+  location.hash = encodeView(state.view)
+  // `hashchange` fires as a task, so the flag has to survive at least until
+  // the next one — a microtask would clear it before the listener ran.
+  setTimeout(() => {
+    selfNavigation = false
+  }, 0)
 }
 
-function keyHeaders(): Record<string, string> {
-  const key = sessionStorage.getItem('__db_key')
-  return key ? { 'x-db-key': key } : {}
-}
-
-async function api<T>(path: string): Promise<T> {
-  const res = await fetch(`/api/_db/${path}`, { headers: keyHeaders() })
-  const json = await res.json()
-  if (json.status < 200 || json.status >= 300) {
-    throw new Error(json.message || `Request failed (${json.status})`)
-  }
-  return json.data as T
-}
-
-function el(tag: string, cls?: string, text?: string): HTMLElement {
-  const node = document.createElement(tag)
-  if (cls) node.className = cls
-  if (text !== undefined) node.textContent = text
-  return node
-}
-
-function renderShell(tables: string[]) {
-  app.replaceChildren()
-
-  const side = el('nav', 'side')
-  side.appendChild(el('h1', 'brand', 'db explorer'))
-  side.appendChild(el('p', 'note', 'read-only'))
-
-  for (const name of tables.sort()) {
-    const btn = el('button', 'table-btn', name)
-    btn.addEventListener('click', () => {
-      currentTable = name
-      currentPage = 1
-      sortBy = null
-      void renderTable()
-      side
-        .querySelectorAll('.table-btn')
-        .forEach(b => b.classList.toggle('active', b.textContent === name))
+/**
+ * Move to a view, asking first if anything is unsaved.
+ *
+ * The navigation half of the unload guard: losing typed values to a mis-click
+ * on a table name is the same loss as losing them to a closed tab, and only one
+ * of the two was ever guarded by the browser.
+ */
+async function goto(view: ViewState): Promise<void> {
+  if (session.dirtyRows() > 0) {
+    const ok = await confirmChoice({
+      verb: 'discard',
+      count: session.dirtyRows(),
+      table: state.view.table || '—',
+      detail: 'unsaved edits will be thrown away',
     })
-    side.appendChild(btn)
+    if (!ok) return
   }
-
-  const main = el('main', 'main')
-  main.id = 'main'
-  main.appendChild(el('p', 'note', 'Pick a table.'))
-
-  app.append(side, main)
+  session.clear()
+  state.view = view
+  writeHash()
+  await renderMain()
 }
 
-async function renderTable() {
+/** Fetch, then render — the two never live in one function. */
+async function renderMain(): Promise<void> {
   const main = document.getElementById('main')!
-  main.replaceChildren(el('p', 'note', `loading ${currentTable}…`))
-
-  const params = new URLSearchParams({
-    tableName: currentTable,
-    page: String(currentPage),
-    pageSize: String(PAGE_SIZE),
-    sortOrder,
-  })
-  if (sortBy) params.set('sortBy', sortBy)
-
-  let data: TablePage
-  try {
-    data = await api<TablePage>(`table-data?${params}`)
-  } catch (error) {
-    main.replaceChildren(el('p', 'error', String(error)))
+  const table = tableOf(state, state.view.table)
+  if (!table) {
+    main.replaceChildren(el('p', { class: 'note', text: 'Pick a table.' }))
     return
   }
 
-  const rows = data.rows ?? []
-  main.replaceChildren()
-
-  const head = el('header', 'table-head')
-  head.appendChild(el('h2', undefined, currentTable))
-  const meta = el('span', 'note')
-  meta.textContent =
-    data.totalRows !== undefined
-      ? `${data.totalRows} rows · page ${currentPage}${data.totalPages ? ` / ${data.totalPages}` : ''}`
-      : `page ${currentPage}`
-  head.appendChild(meta)
-  main.appendChild(head)
-
-  if (!rows.length) {
-    main.appendChild(el('p', 'note', 'No rows on this page.'))
-  } else {
-    const cols = Object.keys(rows[0])
-    const table = el('table', 'grid')
-    const thead = el('thead')
-    const headRow = el('tr')
-    for (const col of cols) {
-      const th = el('th', undefined, col)
-      if (col === sortBy) th.textContent += sortOrder === 'ASC' ? ' ↑' : ' ↓'
-      // rowid is in the payload but not in the sortable allow-list server-side;
-      // offering a header click that silently no-ops reads as a bug.
-      if (col === 'rowid') {
-        headRow.appendChild(th)
-        continue
-      }
-      th.addEventListener('click', () => {
-        sortOrder = sortBy === col && sortOrder === 'ASC' ? 'DESC' : 'ASC'
-        sortBy = col
-        void renderTable()
-      })
-      headRow.appendChild(th)
-    }
-    thead.appendChild(headRow)
-    table.appendChild(thead)
-
-    const tbody = el('tbody')
-    for (const row of rows) {
-      const tr = el('tr')
-      for (const col of cols) {
-        const value = row[col]
-        tr.appendChild(
-          el(
-            'td',
-            value === null ? 'null' : undefined,
-            value === null ? 'NULL' : String(value),
-          ),
-        )
-      }
-      tbody.appendChild(tr)
-    }
-    table.appendChild(tbody)
-
-    const scroller = el('div', 'scroll')
-    scroller.appendChild(table)
-    main.appendChild(scroller)
-  }
-
-  const pager = el('footer', 'pager')
-  const prev = el('button', undefined, '← prev') as HTMLButtonElement
-  prev.disabled = currentPage <= 1
-  prev.addEventListener('click', () => {
-    currentPage--
-    void renderTable()
-  })
-  const next = el('button', undefined, 'next →') as HTMLButtonElement
-  next.disabled =
-    data.totalPages !== undefined
-      ? currentPage >= data.totalPages
-      : rows.length < PAGE_SIZE
-  next.addEventListener('click', () => {
-    currentPage++
-    void renderTable()
-  })
-  pager.append(prev, next)
-  main.appendChild(pager)
-}
-
-async function boot() {
+  main.replaceChildren(
+    el('p', { class: 'note', text: `loading ${table.name}…` }),
+  )
+  let data: TablePage
   try {
-    // `{access, tables}` since the write endpoints landed: the client has to
-    // know its own posture before it renders, so it does not draw edit
-    // affordances for a `read` caller or for a table with no identity.
-    const schema = await api<SchemaReport>('schema')
-    renderShell((schema?.tables ?? []).map(t => t.name).filter(Boolean))
+    data = await fetchPage(state.view)
   } catch (error) {
-    app.replaceChildren(el('p', 'error', String(error)))
+    main.replaceChildren(el('p', { class: 'error', text: messageOf(error) }))
+    return
   }
+  page.paint(main, table, data)
+  page.refreshSidebar(app)
 }
 
-void boot()
+// ---------------------------------------------------------- drawer and links
+
+function openRowDrawer(
+  table: SchemaTable,
+  columns: SchemaColumn[],
+  editable: boolean,
+  row: Record<string, unknown>,
+): void {
+  const handle = openDrawer({
+    table,
+    columns,
+    row,
+    editable,
+    graph: state.graph,
+    session,
+    onSave: id => {
+      handle.close()
+      void saveRow(table, id, {
+        session,
+        surface: () => page.grid,
+        reload: renderMain,
+        onDirtyChange: () => page.paintDirty(),
+      })
+    },
+    onDirtyChange: () => page.paintDirty(),
+    onNavigate: (name, filters) => void goto({ ...defaultView(name), filters }),
+  })
+}
+
+/**
+ * Follow a foreign key.
+ *
+ * The filter narrows the page and `focus` names the row, because the only
+ * filter the endpoint offers is a substring `LIKE` — `1` also matches `11`, so
+ * a filter alone cannot say "this row". The current view is pushed first, so
+ * Back returns to where the reference was followed from.
+ */
+async function followFk(
+  target: FkTarget,
+  key: Record<string, unknown>,
+): Promise<void> {
+  state.trail.push(state.view)
+  const filters: Record<string, string> = {}
+  for (const [column, value] of Object.entries(key)) {
+    filters[column] = String(value)
+  }
+  await goto({ ...defaultView(target.refTable), filters, focus: key })
+}
+
+// ------------------------------------------------------------------ plumbing
+
+function messageOf(error: unknown): string {
+  return (error as Error)?.message ?? String(error)
+}
+
+/**
+ * The unload guard.
+ *
+ * `preventDefault` is the modern spelling and `returnValue` is what Safari
+ * still reads. Both, because losing an edit to a closed tab is the failure this
+ * exists for and the second line costs a line.
+ */
+function guardUnload(event: BeforeUnloadEvent): void {
+  if (session.dirtyRows() === 0) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+async function boot(): Promise<void> {
+  adoptUrlKey()
+  try {
+    // `{access, tables}`: the client has to know its posture *before* it
+    // renders, so it never draws an edit affordance it cannot honour.
+    state.report = await fetchSchema()
+  } catch (error) {
+    app.replaceChildren(el('p', { class: 'error', text: messageOf(error) }))
+    return
+  }
+
+  // The graph is decoration — a schema with no declared foreign keys is
+  // ordinary, and a failure here must not cost anyone the grid.
+  state.graph = await fetchGraph().catch(() => null)
+
+  state.view = decodeView(location.hash)
+  page.renderShell(app)
+  await renderMain()
+
+  window.addEventListener('beforeunload', guardUnload)
+  window.addEventListener('hashchange', () => {
+    if (selfNavigation) return
+    void goto(decodeView(location.hash))
+  })
+}
+
+void boot().catch(error => {
+  notify(messageOf(error), 'error')
+})

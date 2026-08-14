@@ -16,6 +16,7 @@ import {
   handleInsertRows,
   handleUpdateRow,
 } from './endpoints/rows'
+import { SHELL } from './shell'
 
 /**
  * Where this plugin's own files live — each package that ships files anchors
@@ -38,42 +39,6 @@ export function __setTestAccess(next: AccessConfig): void {
 export function __resetTestAccess(): void {
   config = {}
 }
-
-const SHELL = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Database explorer</title>
-<style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.5 ui-sans-serif, system-ui, sans-serif; background: #0f1115; color: #e6e8ee; }
-  #app { display: flex; min-height: 100vh; }
-  .side { width: 220px; padding: 1rem; border-right: 1px solid #262b36; flex-shrink: 0; }
-  .brand { font-size: 1rem; margin: 0; }
-  .note { color: #9aa3b2; font-size: 0.8rem; }
-  .error { color: #ff8ba0; padding: 1rem; }
-  .table-btn { display: block; width: 100%; text-align: left; background: none; border: 0; color: #cfd6e4; padding: 0.35rem 0.5rem; border-radius: 6px; cursor: pointer; font: inherit; }
-  .table-btn:hover { background: #1a1f2b; }
-  .table-btn.active { background: #16233d; color: #cfe0ff; }
-  .main { flex: 1; padding: 1rem 1.5rem; min-width: 0; }
-  .table-head { display: flex; align-items: baseline; gap: 1rem; }
-  .table-head h2 { margin: 0.2rem 0 0.8rem; font-family: ui-monospace, monospace; font-size: 1rem; }
-  .scroll { overflow-x: auto; border: 1px solid #262b36; border-radius: 8px; }
-  .grid { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
-  .grid th { text-align: left; padding: 0.45rem 0.7rem; background: #151922; cursor: pointer; white-space: nowrap; position: sticky; top: 0; }
-  .grid td { padding: 0.35rem 0.7rem; border-top: 1px solid #1e2430; font-family: ui-monospace, monospace; white-space: nowrap; max-width: 26rem; overflow: hidden; text-overflow: ellipsis; }
-  .grid td.null { color: #5b6472; font-style: italic; }
-  .pager { margin-top: 0.8rem; display: flex; gap: 0.5rem; }
-  .pager button { font: inherit; padding: 0.3rem 0.8rem; border-radius: 6px; border: 1px solid #2f6feb; background: #16233d; color: #cfe0ff; cursor: pointer; }
-  .pager button:disabled { opacity: 0.4; cursor: default; }
-</style>
-</head>
-<body>
-<div id="app"><p class="note" style="padding:1rem">loading…</p></div>
-<script type="module" src="/_db/app.js"></script>
-</body>
-</html>`
 
 let cachedClientJs: string | null = null
 

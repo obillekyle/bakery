@@ -7,9 +7,20 @@
  * wrong before a request is made and get the same answer the server would give.
  * One implementation is the only way those two answers stay equal.
  *
- * Core's `utils/isomorphic` is the one framework module this layer may import,
- * for exactly that reason: it is the framework's own pure layer and is already
- * compiled into browser bundles.
+ * **Pure also means importing nothing from `@bakery-framework/*`, including
+ * `utils/isomorphic`.** That reads like the one safe exception — it is the
+ * framework's own pure layer — and it is not, for a mechanical reason:
+ * `bundleModule` marks every *installed package* external
+ * (`compiler.ts:316`), so a framework import survives into the emitted bundle
+ * as a bare specifier, the browser tries to fetch
+ * `@bakery-framework/core/utils/isomorphic` as a URL, and the whole module
+ * fails to load. Chrome reports that as "Failed to fetch dynamically imported
+ * module", naming `app.js` rather than the import that actually broke.
+ *
+ * A `Try` import cost exactly that, and the dashboard's client avoids every
+ * `@bakery-framework/*` import for the same reason without saying so anywhere.
+ *
+ * So: duplicate the three lines. The alternative is a page that does not boot.
  *
  * **The three wire states the dashboard collapsed into one.** Its editor read
  * every cell as a string and let the driver sort it out, so there was no way to
@@ -26,7 +37,6 @@
  * the characters.
  */
 
-import { Try } from '@bakery-framework/core/utils/isomorphic'
 
 /**
  * What kind of value a column holds.
@@ -369,11 +379,17 @@ export function sameValue(a: unknown, b: unknown): boolean {
     return asBoolish(a) === asBoolish(b)
   }
   if (typeof a === 'object' || typeof b === 'object') {
-    // `Try` rather than a bare compare: a cyclic object throws in
-    // `JSON.stringify`, and "could not be compared" has to mean "not equal",
-    // which is the conservative direction — it keeps the column in the
-    // statement rather than dropping an edit the user made.
-    return Try(() => JSON.stringify(a) === JSON.stringify(b)) ?? false
+    // A cyclic object throws in `JSON.stringify`, and "could not be compared"
+    // has to mean "not equal" — the conservative direction, because it keeps
+    // the column in the statement rather than dropping an edit the user made.
+    //
+    // A bare try/catch rather than core's `Try`, and that is a constraint of
+    // this directory rather than a preference: see the module header.
+    try {
+      return JSON.stringify(a) === JSON.stringify(b)
+    } catch {
+      return false
+    }
   }
   return String(a) === String(b)
 }
