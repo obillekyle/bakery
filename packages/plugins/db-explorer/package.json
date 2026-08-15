@@ -1,6 +1,6 @@
 {
   "name": "@bakery-framework/plugin-db-explorer",
-  "version": "2.0.0-alpha.6",
+  "version": "2.0.0-alpha.7",
   "description": "Bakery database explorer plugin — browse and edit rows — no raw SQL, no DDL.",
   "keywords": [
     "bakery",
