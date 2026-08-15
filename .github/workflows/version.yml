@@ -10,8 +10,8 @@ on:
     branches:
       - main
       # Branch-declared versions: a branch called `1.2.0-beta` publishes betas
-      # towards 1.2.0. `scripts/version-from-commits.ts` parses the name; these
-      # globs only decide which pushes are worth waking the workflow for.
+      # towards 1.2.0. cutver parses the name; these globs only decide which
+      # pushes are worth waking the workflow for.
       - '*-alpha'
       - '*-beta'
       - '*-rc'
@@ -43,9 +43,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Full history and every tag. The script measures commits since the
-          # last *stable* tag; a shallow clone has neither the tags nor the
-          # range, and would silently compute from the first commit it can see.
+          # Full history and every tag. cutver measures commits since the last
+          # *stable* tag; a shallow clone has neither the tags nor the range, and
+          # would silently compute from the first commit it can see.
           fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
@@ -54,18 +54,25 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      # Runs the gates itself (typecheck + test) before writing anything, so a
-      # release cannot be cut from a tree that does not pass.
+      # **The gates, and they are steps here on purpose.**
       #
-      # `--if-needed` because most pushes here are docs or chores and warrant no
-      # release. Without it every ordinary merge ends in a red cross, and a
-      # workflow that is usually red is a workflow nobody reads.
+      # `scripts/release.ts` ran typecheck and test itself, so this workflow had
+      # none of its own. cutver deliberately runs no gates — it cannot know what
+      # a given repository's are — so they moved here in the same commit that
+      # removed the script. Take them out and releases get cut from a tree that
+      # never passed, silently, with the workflow still green.
+      - run: bun run typecheck
+      - run: bun run test
+
       - name: Note the version before
         id: before
         run: echo "value=$(bun -e 'console.log(require("./package.json").version)')" >> "$GITHUB_OUTPUT"
 
+      # `--if-needed` because most pushes here are docs or chores and warrant no
+      # release. Without it every ordinary merge ends in a red cross, and a
+      # workflow that is usually red is a workflow nobody reads.
       - name: Compute the version and bump every manifest
-        run: bun run release --if-needed --branch='${{ github.ref_name }}'
+        run: bunx cutver --if-needed --branch='${{ github.ref_name }}'
 
       # **Whether the version moved is the signal — not whether the tree is
       # dirty.** `git status` was the obvious check and it was wrong twice

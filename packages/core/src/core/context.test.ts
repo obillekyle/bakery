@@ -52,7 +52,7 @@ describe('getAppVersion', () => {
    * very first prerelease. The gate did its job (nothing reached npm), but the
    * assertion was wrong rather than the code.
    *
-   * Matches what `scripts/release.ts` accepts as a version, so the two agree
+   * Matches what cutver accepts as a version, so the two agree
    * on what this project can be numbered: core, optional `-prerelease`,
    * optional `+build`.
    */

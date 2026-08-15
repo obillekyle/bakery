@@ -6,6 +6,7 @@
       "name": "bakery-monorepo",
       "devDependencies": {
         "bun-types": "^1.3.14",
+        "cutver": "^1.1.0",
         "vue": "^3.5.38",
       },
       "peerDependencies": {
@@ -164,6 +165,8 @@
     "create-bakery": ["create-bakery@workspace:packages/create"],
 
     "csstype": ["csstype@3.2.3", "", {}, "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="],
+
+    "cutver": ["cutver@1.1.0", "", { "bin": { "cutver": "src/cli.ts" } }, "sha512-INUr48ev5RfY9kbm0oaHpkVMP1rWK3deXpye6Zr4fxYERnjZh4tDVpjY5FqHQcg7pj9R7FcBV56IwxSNt5p/mw=="],
 
     "entities": ["entities@7.0.1", "", {}, "sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA=="],
 

@@ -593,7 +593,7 @@ describe('conventions (CLAUDE.md)', () => {
  *
  * The private root manifest is included: `bakery-monorepo` naming a different
  * version than the packages it contains is the first thing that goes stale, and
- * it is what `bun run release` bumps alongside them.
+ * it is what cutver bumps alongside them.
  *
  * See CHANGELOG.md for the policy and what it trades away.
  */
@@ -626,18 +626,23 @@ describe('release versions', () => {
   })
 
   /**
-   * Every publishable package must appear in all three lists, and the lists
-   * must agree. `plugin-db-explorer` was added to some of them and not others:
-   * missing from `release.ts` it kept version 1.2.3 while the other seven went
-   * to 2.0.0-alpha.0, and missing from `MANIFESTS` the lockstep test above
-   * could not see the skew. Missing from `publish.yml` it simply never reached
-   * npm — the release "succeeded" and shipped seven of eight packages.
+   * Every publishable package must appear in both lists, and the lists must
+   * agree. `plugin-db-explorer` was added to some and not others: missing from
+   * `MANIFESTS` the lockstep test above could not see the skew, and missing
+   * from `publish.yml` it simply never reached npm — the release "succeeded"
+   * and shipped seven of eight packages.
    *
-   * Derived from the directories on disk rather than from a fourth hand-written
+   * **There used to be a third list.** `scripts/release.ts` carried its own
+   * `PACKAGES` array and was checked here too. cutver replaced the script and
+   * derives the publishable set from the workspace globs, so that arm went with
+   * it — one fewer place to forget. The two that remain are still hand-written
+   * and still worth checking.
+   *
+   * Derived from the directories on disk rather than from a third hand-written
    * list, so adding a ninth package fails here until it is registered
    * everywhere.
    */
-  test('every publishable package is in release.ts, publish.yml and MANIFESTS', async () => {
+  test('every publishable package is in publish.yml and MANIFESTS', async () => {
     const dirs: string[] = []
     for (const base of ['packages', 'packages/plugins']) {
       for (const entry of await readdir(`${ROOT}/${base}`, {
@@ -654,13 +659,11 @@ describe('release versions', () => {
       }
     }
 
-    const release = await Bun.file(`${ROOT}/scripts/release.ts`).text()
     const publish = await Bun.file(
       `${ROOT}/.github/workflows/publish.yml`,
     ).text()
 
     const missing = dirs.filter(dir => {
-      const inRelease = release.includes(`'${dir}'`)
       // Matched on its own line rather than with a trailing `\`: the last
       // entry of each shell loop has no continuation, which flagged
       // `packages/create` when this was first written.
@@ -673,7 +676,7 @@ describe('release versions', () => {
       )
       const inPublish = occurrences.length >= 3
       const inManifests = MANIFESTS.includes(`${dir}/package.json`)
-      return !inRelease || !inPublish || !inManifests
+      return !inPublish || !inManifests
     })
 
     expect(missing).toEqual([])
@@ -693,9 +696,11 @@ describe('release versions', () => {
    *
    * Nothing else can see this. The lockstep test above compares manifests to
    * each other and passes; the packed tarball is the only place the skew is
-   * visible, and by then it is on the registry. `release.ts` step 3b keeps
-   * these in sync — this fails if that stops working, or if someone bumps a
-   * version by hand.
+   * visible, and by then it is on the registry. cutver's js adapter keeps these
+   * in sync — this fails if that stops working, or if someone bumps a version
+   * by hand. It matters more since the migration, not less: the lockfile write
+   * now happens inside a dependency rather than in a script in this repository,
+   * and this is the only thing here that checks it happened at all.
    */
   test('bun.lock workspace versions match the manifests', async () => {
     const lock = await Bun.file(`${ROOT}/bun.lock`).text()
