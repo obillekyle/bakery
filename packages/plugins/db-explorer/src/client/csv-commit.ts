@@ -8,7 +8,7 @@
  * are in.
  */
 
-import { type ImportResult, importRows } from './api'
+import { type ImportResult, importRows, messageOf } from './api'
 import { notify } from './confirm'
 import {
   type BadRowPolicy,
@@ -171,7 +171,7 @@ async function sendBatch(
   try {
     return await importRows({ table: ctx.table.name, rows, onBadRow })
   } catch (error) {
-    notify((error as Error)?.message ?? 'import failed', 'error')
+    notify(messageOf(error), 'error')
     return null
   }
 }

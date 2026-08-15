@@ -13,7 +13,7 @@
  * own preview is the only number that is the number.
  */
 
-import { el, on } from './dom'
+import { button, el } from './dom'
 
 export type Friction = 'immediate' | 'confirm' | 'typed' | 'refuse'
 
@@ -109,8 +109,15 @@ function openDialog(request: DangerRequest, typed: boolean): Promise<boolean> {
   })
   dialog.append(title, where)
 
-  const confirm = el('button', { class: 'btn danger-btn', text: request.verb })
-  confirm.type = 'button'
+  let accepted = false
+  const confirm = button(
+    request.verb,
+    () => {
+      accepted = true
+      dialog.close()
+    },
+    { class: 'btn danger-btn' },
+  )
 
   if (typed) {
     const prompt = el('p', {
@@ -127,18 +134,10 @@ function openDialog(request: DangerRequest, typed: boolean): Promise<boolean> {
     dialog.append(prompt, input)
   }
 
-  const cancel = el('button', { class: 'btn', text: 'Cancel' })
-  cancel.type = 'button'
+  const cancel = button('Cancel', () => dialog.close(), { class: 'btn' })
   const bar = el('div', { class: 'row-bar' })
   bar.append(cancel, confirm)
   dialog.appendChild(bar)
-
-  let accepted = false
-  on(confirm, 'click', () => {
-    accepted = true
-    dialog.close()
-  })
-  on(cancel, 'click', () => dialog.close())
 
   // `settle` is narrowed to `(value: boolean) => void` rather than used as the
   // executor's own `resolve`, whose parameter is `boolean | PromiseLike<boolean>`
@@ -172,17 +171,20 @@ export function offerUndo(
   const bar = el('div', { class: 'undo-bar', attrs: { role: 'status' } })
   bar.appendChild(el('span', { text: message }))
 
-  const action = el('button', { class: 'btn', text: 'Undo' })
-  action.type = 'button'
   const remove = () => {
     clearTimeout(timer)
     bar.remove()
   }
-  on(action, 'click', () => {
-    remove()
-    void undo()
-  })
-  bar.appendChild(action)
+  bar.appendChild(
+    button(
+      'Undo',
+      () => {
+        remove()
+        void undo()
+      },
+      { class: 'btn' },
+    ),
+  )
 
   const timer = setTimeout(remove, seconds * 1000)
   document.body.appendChild(bar)

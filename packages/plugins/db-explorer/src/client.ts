@@ -21,7 +21,13 @@
  * editor is for.
  */
 
-import { adoptUrlKey, fetchGraph, fetchPage, fetchSchema } from './client/api'
+import {
+  adoptUrlKey,
+  fetchGraph,
+  fetchPage,
+  fetchSchema,
+  messageOf,
+} from './client/api'
 import { confirmChoice, notify } from './client/confirm'
 import { el } from './client/dom'
 import { EditSession, UndoStack } from './client/edit-session'
@@ -346,10 +352,6 @@ async function followFk(
 }
 
 // ------------------------------------------------------------------ plumbing
-
-function messageOf(error: unknown): string {
-  return (error as Error)?.message ?? String(error)
-}
 
 /**
  * The unload guard.

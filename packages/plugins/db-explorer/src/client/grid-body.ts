@@ -11,18 +11,20 @@
  */
 
 import { button } from './dom'
-import {
-  type FkResolver,
-  type FkTarget,
-  fkForColumn,
-  fkKeyOf,
-  fkLabel,
-} from './fk'
+import { type FkResolver, type FkTarget, fkKeyOf, fkLabel } from './fk'
 import { cellProps, type SchemaColumn, type SchemaGraph } from './meta'
 
 export interface CellPaintContext {
   table: string
   graph: SchemaGraph | null
+  /**
+   * Which columns of `table` are foreign keys, resolved once by `fkMapFor`.
+   *
+   * Built by the grid rather than looked up here: the answer depends on the
+   * table and not on the row, and asking per cell per paint made a page repaint
+   * quadratic in the size of the schema graph.
+   */
+  fks: ReadonlyMap<string, FkTarget>
   resolver: FkResolver
   onFollowFk: (target: FkTarget, key: Record<string, unknown>) => void
 }
@@ -47,18 +49,19 @@ export function paintCell(
   td.className = props.className
   if (staged) td.classList.add('staged')
   if (props.title) td.title = props.title
-  td.appendChild(cellBody(ctx, row, column, value))
+  // `props.text` is passed down rather than recomputed: `cellBody` wants the
+  // same string, and `cellProps` was being run twice for every cell.
+  td.appendChild(cellBody(ctx, row, column, props.text))
 }
 
 function cellBody(
   ctx: CellPaintContext,
   row: Record<string, unknown>,
   column: SchemaColumn,
-  value: unknown,
+  text: string,
 ): Node {
-  const target = fkForColumn(ctx.graph, ctx.table, column.name)
+  const target = ctx.fks.get(column.name)
   const key = target ? fkKeyOf(target, row) : null
-  const text = cellProps(value, column).text
   if (!target || !key) return document.createTextNode(text)
   return fkButton(ctx, target, key, text)
 }

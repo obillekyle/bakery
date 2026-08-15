@@ -9,7 +9,7 @@
  */
 
 import { coerceValue, omittableOnInsert } from '../shared/coerce'
-import { type ApiError, bulkEdit, deleteRows, insertRows } from './api'
+import { bulkEdit, deleteRows, insertRows, messageOf } from './api'
 import { confirmDanger, notify, offerUndo } from './confirm'
 import { append, box, button, each, el, select } from './dom'
 import type { UndoStack } from './edit-session'
@@ -139,7 +139,7 @@ async function applySetColumn(
     .map(key => ({ key, set: { [column.name]: check.value } }))
   if (!edits.length) return
 
-  const dry = await dryRun(() =>
+  const dry = await run(() =>
     bulkEdit({ table: ctx.table.name, edits, dryRun: true }),
   )
   if (!dry) return
@@ -173,7 +173,7 @@ async function runDelete(ctx: BulkContext): Promise<void> {
   const rows = ctx.selectedRows()
   if (!keys.length) return
 
-  const dry = await dryRun(() =>
+  const dry = await run(() =>
     deleteRows({ table: ctx.table.name, keys, dryRun: true }),
   )
   if (!dry) return
@@ -297,7 +297,7 @@ function insertField(column: SchemaColumn, draft: Map<string, unknown>): Node {
   return wrap
 }
 
-export interface BuiltRows {
+interface BuiltRows {
   rows: Record<string, unknown>[]
   errors: string[]
 }
@@ -305,11 +305,12 @@ export interface BuiltRows {
 /**
  * Drafts to records, with the same coercion the server will apply.
  *
- * Exported because it is the decision in this file that is worth pinning: an
- * untouched omittable column is *absent* from the record, and an untouched
- * required one is an error named here rather than a database exception later.
+ * Named rather than inlined into the submit handler because it is the decision
+ * in this file worth stating: an untouched omittable column is *absent* from
+ * the record, and an untouched required one is an error named here rather than
+ * a database exception later.
  */
-export function buildInsertRows(
+function buildInsertRows(
   columns: readonly SchemaColumn[],
   drafts: readonly Map<string, unknown>[],
 ): BuiltRows {
@@ -337,25 +338,20 @@ export function buildInsertRows(
 
 // ------------------------------------------------------------------ plumbing
 
-/** A dry run, with its failure reported rather than thrown at the click handler. */
-async function dryRun<T>(call: () => Promise<T>): Promise<T | null> {
+/**
+ * Run a call, reporting its failure rather than throwing at the click handler.
+ *
+ * A rejected promise from an event listener is an unhandled rejection and a
+ * silent no-op on screen, which is the one outcome a destructive action must
+ * not have. `null` is the failure, so a dry run's caller checks the result and
+ * an action's caller ignores it — they were two identically-bodied functions
+ * until the second was noticed to be the first with the value discarded.
+ */
+async function run<T>(call: () => Promise<T>): Promise<T | null> {
   try {
     return await call()
   } catch (error) {
     notify(messageOf(error), 'error')
     return null
   }
-}
-
-async function run(action: () => Promise<void>): Promise<void> {
-  try {
-    await action()
-  } catch (error) {
-    notify(messageOf(error), 'error')
-  }
-}
-
-export function messageOf(error: unknown): string {
-  const api = error as Partial<ApiError>
-  return api?.message ?? String(error)
 }

@@ -1,9 +1,13 @@
 /**
  * CSV, RFC 4180-ish, with the delimiter sniffed rather than assumed.
  *
- * **Pure** — see the note at the top of `coerce.ts`. The client parses the file
- * the user dropped and the server re-parses whatever it is sent, and they have
- * to agree, so there is one parser.
+ * **Pure** — see the note at the top of `coerce.ts` — and, unlike the rest of
+ * `shared/`, **browser-only**. It was written when the server re-parsed the
+ * text it was sent; `endpoints/import.ts` takes records that are already mapped
+ * and coerced, so no CSV text ever reaches it. `client/csv-model.ts` is the
+ * only caller. The file stays here because `client/safety.test.ts` holds
+ * `shared/` to the same no-framework-imports rule as `client/`, and because a
+ * server-side importer would want exactly this parser back.
  *
  * ## Why not `parseCSVRows` from `orm/adapters/base.ts:1071`
  *
@@ -31,23 +35,9 @@
  */
 
 /** The delimiters `sniffDelimiter` will consider, in preference order. */
-export const CANDIDATE_DELIMITERS = [',', ';', '\t', '|'] as const
+const CANDIDATE_DELIMITERS = [',', ';', '\t', '|'] as const
 
 export type Delimiter = (typeof CANDIDATE_DELIMITERS)[number]
-
-export interface CSVTable {
-  headers: string[]
-  rows: string[][]
-  delimiter: string
-  /**
-   * Rows whose field count differs from the header count, as
-   * `{row, fields}` — 1-based over the data rows, so it lines up with what a
-   * spreadsheet shows. Ragged rows are still returned in `rows`, padded with
-   * `''` or truncated; refusing the whole file for one short line is not the
-   * importer's call to make.
-   */
-  ragged: { row: number; fields: number }[]
-}
 
 /** Strip a UTF-8 BOM. Excel writes one; nothing downstream expects it. */
 export function stripBOM(text: string): string {
@@ -193,43 +183,4 @@ export function parseCSVRows(text: string, delimiter = ','): string[][] {
   if (pending) endRow()
 
   return rows
-}
-
-/**
- * A whole file: headers, data rows squared off against them, and what the
- * delimiter turned out to be.
- */
-export function parseCSV(
-  text: string,
-  options: { delimiter?: string } = {},
-): CSVTable {
-  const delimiter = options.delimiter ?? sniffDelimiter(text)
-  const all = parseCSVRows(text, delimiter)
-  if (!all.length) return { headers: [], rows: [], delimiter, ragged: [] }
-
-  // Headers are the one place trimming is right: a header is a name, and
-  // `" id "` naming the column `id` is what every spreadsheet means by it.
-  const headers = all[0]!.map(h => h.trim())
-  const ragged: { row: number; fields: number }[] = []
-  const rows = all.slice(1).map((fields, index) => {
-    if (fields.length !== headers.length) {
-      ragged.push({ row: index + 1, fields: fields.length })
-    }
-    const squared = fields.slice(0, headers.length)
-    while (squared.length < headers.length) squared.push('')
-    return squared
-  })
-
-  return { headers, rows, delimiter, ragged }
-}
-
-/** A parsed table as records, keyed by header. */
-export function csvRecords(table: CSVTable): Record<string, string>[] {
-  return table.rows.map(fields => {
-    const record: Record<string, string> = {}
-    for (let i = 0; i < table.headers.length; i++) {
-      record[table.headers[i]!] = fields[i] ?? ''
-    }
-    return record
-  })
 }

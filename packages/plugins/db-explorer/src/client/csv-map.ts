@@ -16,8 +16,8 @@ import {
 import { append, box, each, el, on, select } from './dom'
 import type { SchemaColumn } from './meta'
 
-export const SKIP_VALUE = ' skip'
-export const CONST_VALUE = ' const'
+const SKIP_VALUE = ' skip'
+const CONST_VALUE = ' const'
 
 export interface MapContext {
   columns: SchemaColumn[]
@@ -95,7 +95,7 @@ function summaryText(model: ImportModel): string {
  * itself contains the *new* delimiter survives the round trip. This is why the
  * wizard can offer a delimiter override at all without holding the file.
  */
-export function rebuildSource(model: ImportModel): string {
+function rebuildSource(model: ImportModel): string {
   const quote = (field: string) =>
     /["\n\r]/.test(field) || field.includes(model.delimiter)
       ? `"${field.replace(/"/g, '""')}"`
@@ -175,7 +175,7 @@ function currentValue(assignment: Assignment): string {
   return assignment.kind === 'constant' ? CONST_VALUE : SKIP_VALUE
 }
 
-export function assignmentFor(value: string, previous: Assignment): Assignment {
+function assignmentFor(value: string, previous: Assignment): Assignment {
   if (value === SKIP_VALUE) return { kind: 'skip' }
   if (value === CONST_VALUE) {
     return {

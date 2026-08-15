@@ -85,6 +85,26 @@ export function each<T>(
   })
 }
 
+/**
+ * A `<table class="grid">` with its heading row already in it.
+ *
+ * The two lines this replaces — build the table, loop `<th>` into a `<tr>` —
+ * had been written out three times, twice in `structure.ts` and once in
+ * `csv-preview.ts`. Rows are appended by the caller, because the three differ
+ * in what a row is: `structure.ts` has plain text cells, and `csv-preview.ts`
+ * puts a checkbox row directly under the headings.
+ */
+export function gridTable(
+  headings: readonly string[],
+  cls = 'grid',
+): HTMLTableElement {
+  const table = el('table', { class: cls })
+  const head = el('tr')
+  each(head, headings, heading => el('th', { text: heading }))
+  table.appendChild(head)
+  return table
+}
+
 export function clear(node: Node): void {
   ;(node as Element).replaceChildren()
 }

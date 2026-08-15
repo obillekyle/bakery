@@ -253,59 +253,62 @@ export class PGAdapter extends SQLAdapter {
         " WHERE table_schema NOT IN ('pg_catalog', 'information_schema')" +
         ' ORDER BY table_name',
     ).all()) as any[]
-    const tablesWithDetails: SQLAdapter.TableDetails[] = []
-
-    for (const t of res) {
-      const qName = this.quote(t.name)
-      const [countRes, cols, pkCols, idxs] = (await Promise.all([
-        this.query(`SELECT COUNT(*)::int as count FROM ${qName}`).get(),
-        this.query(
-          'SELECT column_name AS name, data_type AS type,' +
-            ' is_nullable AS is_nullable' +
-            ' FROM information_schema.columns' +
-            ' WHERE table_name = ?' +
-            " AND table_schema NOT IN ('pg_catalog', 'information_schema')" +
-            ' ORDER BY ordinal_position',
-        ).all(t.name),
-        // `::regclass` casts a **string**, so the table name binds as a
-        // parameter. It used to interpolate `qName` — a double-quoted
-        // *identifier* — which Postgres reads as a column reference, so this
-        // threw `column "<table>" does not exist` for every table and took the
-        // whole of `getSchema()` down with it on this dialect.
-        //
-        // The quiet case was worse than the loud one: a table with a column of
-        // the same name resolved, casting that column's *value* to a regclass
-        // and reporting some other table's primary key as this one's.
-        this.query(
-          'SELECT a.attname AS name' +
-            ' FROM pg_index i' +
-            ' JOIN pg_attribute a ON a.attrelid = i.indrelid' +
-            ' AND a.attnum = ANY(i.indkey)' +
-            ' WHERE i.indisprimary AND i.indrelid = ?::regclass',
-        ).all(t.name),
-        this.query(
-          'SELECT indexname AS name, indexdef AS def' +
-            ' FROM pg_indexes' +
-            " WHERE schemaname NOT IN ('pg_catalog', 'information_schema')" +
-            ' AND tablename = ?',
-        ).all(t.name),
-      ])) as [SQLAdapter.CountRow, any[], any[], any[]]
-      tablesWithDetails.push({
-        name: t.name,
-        rowCount: countRes?.count || 0,
-        columns: cols.map(c => ({
-          name: c.name,
-          type: c.type,
-          notnull: c.is_nullable === 'NO',
-          pk: pkCols.some(pk => pk.name === c.name),
-        })),
-        indexes: idxs.map(i => ({
-          name: i.name,
-          unique: /UNIQUE/i.test(i.def),
-        })),
-      })
-    }
-    return tablesWithDetails
+    // One wave rather than N. The four queries per table were already
+    // concurrent; the loop around them awaited each table in turn, so a
+    // 20-table schema cost 20 sequential round-trip waves. See the note in
+    // sqlite.ts about the COUNT(*), which is a full scan here too.
+    return await Promise.all(
+      res.map(async t => {
+        const qName = this.quote(t.name)
+        const [countRes, cols, pkCols, idxs] = (await Promise.all([
+          this.query(`SELECT COUNT(*)::int as count FROM ${qName}`).get(),
+          this.query(
+            'SELECT column_name AS name, data_type AS type,' +
+              ' is_nullable AS is_nullable' +
+              ' FROM information_schema.columns' +
+              ' WHERE table_name = ?' +
+              " AND table_schema NOT IN ('pg_catalog', 'information_schema')" +
+              ' ORDER BY ordinal_position',
+          ).all(t.name),
+          // `::regclass` casts a **string**, so the table name binds as a
+          // parameter. It used to interpolate `qName` — a double-quoted
+          // *identifier* — which Postgres reads as a column reference, so this
+          // threw `column "<table>" does not exist` for every table and took the
+          // whole of `getSchema()` down with it on this dialect.
+          //
+          // The quiet case was worse than the loud one: a table with a column of
+          // the same name resolved, casting that column's *value* to a regclass
+          // and reporting some other table's primary key as this one's.
+          this.query(
+            'SELECT a.attname AS name' +
+              ' FROM pg_index i' +
+              ' JOIN pg_attribute a ON a.attrelid = i.indrelid' +
+              ' AND a.attnum = ANY(i.indkey)' +
+              ' WHERE i.indisprimary AND i.indrelid = ?::regclass',
+          ).all(t.name),
+          this.query(
+            'SELECT indexname AS name, indexdef AS def' +
+              ' FROM pg_indexes' +
+              " WHERE schemaname NOT IN ('pg_catalog', 'information_schema')" +
+              ' AND tablename = ?',
+          ).all(t.name),
+        ])) as [SQLAdapter.CountRow, any[], any[], any[]]
+        return {
+          name: t.name,
+          rowCount: countRes?.count || 0,
+          columns: cols.map(c => ({
+            name: c.name,
+            type: c.type,
+            notnull: c.is_nullable === 'NO',
+            pk: pkCols.some(pk => pk.name === c.name),
+          })),
+          indexes: idxs.map(i => ({
+            name: i.name,
+            unique: /UNIQUE/i.test(i.def),
+          })),
+        }
+      }),
+    )
   }
 
   async getData(

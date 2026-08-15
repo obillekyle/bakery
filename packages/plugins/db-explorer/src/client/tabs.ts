@@ -21,7 +21,7 @@
  */
 
 import type { ViewState } from './state'
-import { decodeView, defaultView, encodeView } from './state'
+import { decodeView, encodeView } from './state'
 
 export interface Tab {
   view: ViewState
@@ -47,7 +47,7 @@ export function activeView(state: TabsState): ViewState | null {
   return activeTab(state)?.view ?? null
 }
 
-export function indexOfTable(state: TabsState, table: string): number {
+function indexOfTable(state: TabsState, table: string): number {
   return state.tabs.findIndex(tab => tab.view.table === table)
 }
 
@@ -216,9 +216,4 @@ function readIndex(raw: string | null, length: number): number {
   if (raw === null) return -1
   const value = Number.parseInt(raw, 10)
   return Number.isFinite(value) && value >= 0 && value < length ? value : -1
-}
-
-/** A fresh tab for a table, as the sidebar and the relations view make one. */
-export function tabView(table: string): ViewState {
-  return defaultView(table)
 }

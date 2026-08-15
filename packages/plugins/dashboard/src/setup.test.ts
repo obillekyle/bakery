@@ -6,6 +6,7 @@ import {
   expect,
   test,
 } from 'bun:test'
+import { initConfig } from '@bakery-framework/core/core/config'
 import { JsonResponseData } from '@bakery-framework/core/utils/common'
 import { __resetTestDb, __setTestDb } from '@bakery-framework/orm/connection'
 import {
@@ -54,12 +55,17 @@ const TABLE = 'nonexistent_table_csrf_probe'
  */
 const { db: stubDb, calls: dbCalls, reset: resetDbCalls } = createStubDb()
 
-beforeAll(() => {
+beforeAll(async () => {
   // The predicate, not `setupDashboard`: that also mounts routes, registers the
   // handler at priority 120 and installs a global log callback, none of which
   // can be undone afterwards.
   openTheDoor()
   __setTestDb(stubDb)
+  // The read probe below is `/api/_dashboard/sessions`, and the session store
+  // reads config. It used to be `/api/_dashboard/schema`, which did not — that
+  // endpoint is gone, along with the second read path to every table it gave
+  // the console.
+  await initConfig()
 })
 
 afterAll(() => {
@@ -241,7 +247,7 @@ describe('dashboard CSRF and method qualification', () => {
   test('a same-origin GET still reaches a read endpoint', async () => {
     const res = await handleDashboardRequest(
       new Request(
-        `http://localhost/api/_dashboard/table-data?tableName=${TABLE}`,
+        'http://localhost/api/_dashboard/sessions',
       ),
     )
 
@@ -273,7 +279,7 @@ describe('dashboard authorization wiring', () => {
     setAnalyticsAuthorize(denyAll)
 
     const res = await handleDashboardRequest(
-      new Request('http://localhost/api/_dashboard/schema'),
+      new Request('http://localhost/api/_dashboard/sessions'),
     )
 
     expect(res).toBeInstanceOf(Response)
@@ -334,7 +340,7 @@ describe('dashboard authorization wiring', () => {
     openTheDoor()
 
     const res = await handleDashboardRequest(
-      new Request('http://localhost/api/_dashboard/schema'),
+      new Request('http://localhost/api/_dashboard/sessions'),
     )
 
     expect(res).not.toBeInstanceOf(Response)
@@ -381,7 +387,7 @@ describe('the console delegates its door to analytics', () => {
     setAnalyticsCredential('ops-key-7')
 
     const res = await handleDashboardRequest(
-      new Request('http://localhost/api/_dashboard/schema', {
+      new Request('http://localhost/api/_dashboard/sessions', {
         headers: { 'x-analytics-key': 'ops-key-7' },
       }),
     )
@@ -410,7 +416,7 @@ describe('the console delegates its door to analytics', () => {
     setAnalyticsCredential('ops-key-7')
 
     const res = await handleDashboardRequest(
-      new Request('http://localhost/api/_dashboard/schema', {
+      new Request('http://localhost/api/_dashboard/sessions', {
         headers: { 'x-analytics-key': 'wrong' },
       }),
     )
@@ -424,14 +430,14 @@ describe('the console delegates its door to analytics', () => {
     setAnalyticsAuthorize(req => req.headers.get('x-role') === 'admin')
 
     const admitted = await handleDashboardRequest(
-      new Request('http://localhost/api/_dashboard/schema', {
+      new Request('http://localhost/api/_dashboard/sessions', {
         headers: { 'x-role': 'admin' },
       }),
     )
     expect(admitted).not.toBeInstanceOf(Response)
 
     const refused = await handleDashboardRequest(
-      new Request('http://localhost/api/_dashboard/schema', {
+      new Request('http://localhost/api/_dashboard/sessions', {
         headers: { 'x-role': 'guest' },
       }),
     )
@@ -448,7 +454,7 @@ describe('the console delegates its door to analytics', () => {
     expect(
       (
         (await handleDashboardRequest(
-          new Request('http://localhost/api/_dashboard/schema'),
+          new Request('http://localhost/api/_dashboard/sessions'),
         )) as Response
       ).status,
     ).toBe(401)

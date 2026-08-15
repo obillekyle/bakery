@@ -17,7 +17,7 @@ import {
   type RowPreview,
   setEmptyToNull,
 } from './csv-model'
-import { box, each, el, on } from './dom'
+import { box, each, el, gridTable, on } from './dom'
 import type { SchemaColumn } from './meta'
 
 export function paintPreview(
@@ -34,11 +34,9 @@ export function paintPreview(
     return
   }
 
-  const table = el('table', { class: 'grid' })
-  const head = el('tr')
   const names = rows[0]!.cells.map(cell => cell.column)
-  each(head, names, column => el('th', { text: column }))
-  table.append(head, nullToggleRow(model, names, update))
+  const table = gridTable(names)
+  table.appendChild(nullToggleRow(model, names, update))
   each(table, rows, row => previewRow(row))
   node.appendChild(box('scroll', table))
 }

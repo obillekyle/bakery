@@ -1,11 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  csvRecords,
-  parseCSV,
-  parseCSVRows,
-  sniffDelimiter,
-  stripBOM,
-} from './csv'
+import { parseCSVRows, sniffDelimiter, stripBOM } from './csv'
 
 /**
  * The four things `parseCSVRows` in `orm/adapters/base.ts` gets wrong are the
@@ -21,8 +15,7 @@ describe('the ORM parser’s four defects', () => {
   })
 
   test('a BOM does not become part of the first header', () => {
-    const table = parseCSV('﻿id,name\n1,ana\n')
-    expect(table.headers).toEqual(['id', 'name'])
+    expect(parseCSVRows('﻿id,name\n1,ana\n')[0]).toEqual(['id', 'name'])
     expect(stripBOM('﻿x')).toBe('x')
   })
 
@@ -38,7 +31,7 @@ describe('the ORM parser’s four defects', () => {
     // commas naively picks `,` and the whole file parses as one column.
     const text = 'id;address\n1;"12 High St, Ely"\n2;"9 Mill Rd, Ware"\n'
     expect(sniffDelimiter(text)).toBe(';')
-    expect(parseCSV(text).rows).toEqual([
+    expect(parseCSVRows(text, ';').slice(1)).toEqual([
       ['1', '12 High St, Ely'],
       ['2', '9 Mill Rd, Ware'],
     ])
@@ -73,35 +66,5 @@ describe('RFC 4180 shapes', () => {
 
   test('an empty input is no rows', () => {
     expect(parseCSVRows('')).toEqual([])
-    expect(parseCSV('')).toEqual({
-      headers: [],
-      rows: [],
-      delimiter: ',',
-      ragged: [],
-    })
-  })
-})
-
-describe('ragged rows are squared off and reported', () => {
-  test('short rows pad, long rows truncate, and both are named', () => {
-    const table = parseCSV('a,b,c\n1,2\n3,4,5,6\n')
-    expect(table.rows).toEqual([
-      ['1', '2', ''],
-      ['3', '4', '5'],
-    ])
-    expect(table.ragged).toEqual([
-      { row: 1, fields: 2 },
-      { row: 2, fields: 4 },
-    ])
-  })
-
-  test('headers are trimmed, because a header is a name', () => {
-    expect(parseCSV(' id , name \n1,ana').headers).toEqual(['id', 'name'])
-  })
-
-  test('records are keyed by header', () => {
-    expect(csvRecords(parseCSV('id,name\n1,ana\n'))).toEqual([
-      { id: '1', name: 'ana' },
-    ])
   })
 })

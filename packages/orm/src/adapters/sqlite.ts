@@ -287,40 +287,50 @@ export class SQLiteAdapter extends SQLAdapter {
       'SELECT name FROM sqlite_master' +
         " WHERE type='table' AND name NOT LIKE 'sqlite_%'",
     ).all()) as SQLAdapter.NameRow[]
-    const tablesWithDetails: SQLAdapter.TableDetails[] = []
-    for (const t of res) {
-      const tableName = this.quote(t.name)
+    // Per table rather than per wave: the three queries below were already
+    // concurrent, but the loop around them awaited each table in turn, so a
+    // 20-table schema cost 20 sequential round-trip waves. They share nothing,
+    // so the whole fan-out is one wave now.
+    //
+    // Worth knowing before this grows: the `COUNT(*)` is a full scan on this
+    // dialect and on Postgres, and it is paid on every caller of `getSchema()`
+    // even though only a schema *listing* displays the number. Making it
+    // optional means `rowCount` has to admit it can be absent, which is a type
+    // change across every consumer — recorded rather than done here.
+    return await Promise.all(
+      res.map(async t => {
+        const tableName = this.quote(t.name)
 
-      const [countRes, cols, idxs] = (await Promise.all([
-        this.query(`SELECT COUNT(*) as count FROM ${tableName}`).get(),
-        this.query(`PRAGMA table_info(${tableName})`).all(),
-        this.query(`PRAGMA index_list(${tableName})`).all(),
-      ])) as [SQLAdapter.CountRow, any[], any[]]
+        const [countRes, cols, idxs] = (await Promise.all([
+          this.query(`SELECT COUNT(*) as count FROM ${tableName}`).get(),
+          this.query(`PRAGMA table_info(${tableName})`).all(),
+          this.query(`PRAGMA index_list(${tableName})`).all(),
+        ])) as [SQLAdapter.CountRow, any[], any[]]
 
-      tablesWithDetails.push({
-        name: t.name,
-        rowCount: countRes?.count || 0,
-        columns: cols.map(c => ({
-          name: c.name,
-          type: c.type,
-          notnull: c.notnull === 1,
-          // `pk` is the column's **1-based position within the primary key**,
-          // not a boolean — `PRAGMA table_info` reports 0 for "not part of the
-          // key", 1 for the first key column, 2 for the second. So `=== 1`
-          // reported a composite `PRIMARY KEY (a, b)` as a single-column key on
-          // `a`, silently, and only on SQLite: MySQL reads `column_key = 'PRI'`
-          // and Postgres reads `pg_index.indisprimary`, both of which are set on
-          // every member.
-          //
-          // `parseConstraints` a few hundred lines down already had this right
-          // (`col.pk > 0`), which is why `getConstraints()` disagreed with
-          // `getSchema()` about the same table.
-          pk: c.pk > 0,
-        })),
-        indexes: idxs.map(i => ({ name: i.name, unique: i.unique === 1 })),
-      })
-    }
-    return tablesWithDetails
+        return {
+          name: t.name,
+          rowCount: countRes?.count || 0,
+          columns: cols.map(c => ({
+            name: c.name,
+            type: c.type,
+            notnull: c.notnull === 1,
+            // `pk` is the column's **1-based position within the primary key**,
+            // not a boolean — `PRAGMA table_info` reports 0 for "not part of the
+            // key", 1 for the first key column, 2 for the second. So `=== 1`
+            // reported a composite `PRIMARY KEY (a, b)` as a single-column key on
+            // `a`, silently, and only on SQLite: MySQL reads `column_key = 'PRI'`
+            // and Postgres reads `pg_index.indisprimary`, both of which are set on
+            // every member.
+            //
+            // `parseConstraints` a few hundred lines down already had this right
+            // (`col.pk > 0`), which is why `getConstraints()` disagreed with
+            // `getSchema()` about the same table.
+            pk: c.pk > 0,
+          })),
+          indexes: idxs.map(i => ({ name: i.name, unique: i.unique === 1 })),
+        }
+      }),
+    )
   }
 
   async getData(

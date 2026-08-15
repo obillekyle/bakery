@@ -350,8 +350,6 @@ main {
 .chart-card,
 .editor-card,
 .top-pages-card,
-.filter-builder-card,
-.login-card,
 .modal-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -425,8 +423,7 @@ main {
 .chart-card,
 .top-pages-card,
 .browser-card,
-.editor-card,
-.filter-builder-card {
+.editor-card {
   padding: 16px;
   margin-bottom: 14px;
 }
@@ -525,8 +522,7 @@ main {
 .btn,
 .login-btn,
 .timescale-btn,
-.pages-filter-btn,
-.sql-terminal-run {
+.pages-filter-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -551,8 +547,7 @@ main {
 }
 
 .btn-primary,
-.login-btn,
-.sql-terminal-run {
+.login-btn {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
@@ -560,8 +555,7 @@ main {
 }
 
 .btn-primary:hover,
-.login-btn:hover,
-.sql-terminal-run:hover {
+.login-btn:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
@@ -594,8 +588,7 @@ main {
 .label-row,
 .session-browser-title-row,
 .session-browser-pagination,
-.db-mobile-toggle,
-.import-upload-block {
+.db-mobile-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -618,7 +611,6 @@ main {
 .search-input,
 .session-search-input,
 .sidebar-search,
-.sql-textarea,
 select,
 input[type="text"],
 input[type="password"],
@@ -637,7 +629,6 @@ textarea {
 .input-field:focus,
 .filter-input:focus,
 .search-input:focus,
-.sql-textarea:focus,
 select:focus,
 input:focus,
 textarea:focus {
@@ -646,29 +637,17 @@ textarea:focus {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
-.sql-textarea {
-  font-family: var(--mono);
-  font-size: 12.5px;
-  min-height: 108px;
-  resize: vertical;
-}
-
 .form-group {
   display: flex;
   flex-direction: column;
   gap: 5px;
   margin-bottom: 12px;
 }
-.label,
-.filter-label {
+.label {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
 }
-.page-size-selector {
-  width: auto;
-}
-
 /* --------------------------------------------------------------- tables -- */
 
 table {
@@ -720,9 +699,7 @@ tbody tr:last-child td {
   font-variant-numeric: tabular-nums;
 }
 
-.db-container,
-.session-grid,
-.console-container {
+.session-grid {
   overflow: auto;
 }
 
@@ -730,8 +707,7 @@ tbody tr:last-child td {
 
 .badge,
 .console-mode-badge,
-.logo-badge,
-.table-row-count-badge {
+.logo-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -750,20 +726,8 @@ tbody tr:last-child td {
   font-size: 10.5px;
 }
 
-.error-box {
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--border));
-  border-left: 3px solid var(--danger);
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--danger) 7%, var(--surface));
-  color: var(--text);
-  font-size: 13px;
-  margin-bottom: 12px;
-}
-
 .log-console,
-.logs-console,
-.console-container {
+.logs-console {
   font-family: var(--mono);
   font-size: 12px;
   line-height: 1.6;
@@ -810,24 +774,6 @@ tbody tr:last-child td {
   margin-right: 14px;
 }
 
-.sidebar-title {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.sidebar-scroll-container {
-  max-height: 52vh;
-  overflow-y: auto;
-}
-.db-container {
-  display: flex;
-  align-items: flex-start;
-}
-
 .browser-header,
 .session-browser-header,
 .sql-terminal-header,
@@ -838,24 +784,6 @@ tbody tr:last-child td {
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 12px;
-}
-
-.sql-terminal-help {
-  font-size: 12px;
-  color: var(--text-faint);
-  font-family: var(--mono);
-}
-.active-filters-list {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-.filter-builder-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
-  gap: 8px;
-  align-items: end;
 }
 
 /* --------------------------------------------------------------- modals -- */
@@ -1000,24 +928,12 @@ tbody tr:last-child td {
 
 /* ---------------------------------------------------------------- login -- */
 
-.login-container,
-.dashboard-login {
+.login-container {
   min-height: 100vh;
   display: grid;
   place-items: center;
   padding: 24px;
   background: var(--bg);
-}
-
-.login-card {
-  width: min(380px, 100%);
-  padding: 26px;
-}
-.login-card .logo-area {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-bottom: 16px;
 }
 
 /* ----------------------------------------------------------- responsive -- */
@@ -1057,13 +973,7 @@ tbody tr:last-child td {
     border-bottom: 1px solid var(--border);
   }
 
-  .db-container {
-    flex-direction: column;
-  }
   main {
     padding: 16px 14px 32px;
-  }
-  .filter-builder-row {
-    grid-template-columns: 1fr;
   }
 }

@@ -8,7 +8,7 @@
  */
 
 import type { ColumnKind } from '../shared/coerce'
-import { type ApiError, patchRow } from './api'
+import { type ApiError, messageOf, patchRow } from './api'
 import { box, button, el } from './dom'
 import type { EditSession, RowPlan } from './edit-session'
 import type { SchemaTable } from './meta'
@@ -36,10 +36,6 @@ function kindLookup(
 ): (column: string) => ColumnKind | undefined {
   const kinds = new Map(table.columns.map(c => [c.name, c.kind as ColumnKind]))
   return column => kinds.get(column)
-}
-
-function messageOf(error: unknown): string {
-  return (error as Error)?.message ?? String(error)
 }
 
 /**

@@ -64,7 +64,6 @@ class BoundedCache<V> {
   }
 }
 
-
 export interface FkTarget {
   /** Columns in *this* table that make up the key. */
   cols: string[]
@@ -96,6 +95,34 @@ export function fkForColumn(
     if (fk.cols.includes(column)) return toTarget(fk)
   }
   return null
+}
+
+/**
+ * Every foreign-key column of one table, resolved once.
+ *
+ * `fkForColumn` is a linear scan of the whole graph, and the grid asked it per
+ * cell, per paint — a fifty-row page of twenty columns against forty foreign
+ * keys is forty thousand comparisons, each of which had `sameTable` allocate
+ * two lowercased strings, and `repaintRow`/`repaintCell` run it again. The scan
+ * does not depend on the row, so it happens once when the grid is built.
+ *
+ * First declaration wins, exactly as the scan's early `return` does, so a
+ * column named by two keys resolves to the same one either way.
+ */
+export function fkMapFor(
+  graph: SchemaGraph | null,
+  table: string,
+): Map<string, FkTarget> {
+  const map = new Map<string, FkTarget>()
+  if (!graph) return map
+  for (const fk of Object.values(graph.foreignKeys)) {
+    if (!sameTable(fk.table, table)) continue
+    const target = toTarget(fk)
+    for (const column of fk.cols) {
+      if (!map.has(column)) map.set(column, target)
+    }
+  }
+  return map
 }
 
 /** Every key pointing *at* this table. The row panel's "referenced by" list. */

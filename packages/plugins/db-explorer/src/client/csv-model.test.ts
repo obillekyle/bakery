@@ -110,6 +110,14 @@ describe('buildModel', () => {
     expect(model.rows[0]).toEqual(['1', '2', ''])
     expect(model.ragged).toEqual([{ row: 1, fields: 2 }])
   })
+
+  test('headers are trimmed, because a header is a name', () => {
+    // The one place trimming is right, and the only one that does it:
+    // `parseCSVRows` deliberately trims nothing, so `" id "` naming the column
+    // `id` is this function's doing rather than the parser's.
+    const model = buildModel(' id , courier \n1,dhl\n', COLUMNS)
+    expect(model.headers).toEqual(['id', 'courier'])
+  })
 })
 
 describe('reassign moves a target rather than duplicating it', () => {

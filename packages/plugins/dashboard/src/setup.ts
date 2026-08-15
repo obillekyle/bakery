@@ -26,7 +26,6 @@ import {
 // the tree, allow-listed by name in `tests/conventions.test.ts`.
 import { setupAnalytics } from '@bakery-framework/plugin-analytics/setup'
 import { isAnalyticsAuthorized } from '@bakery-framework/plugin-analytics/stats'
-import { handleSchema, handleTableData } from './endpoints/database'
 import {
   handleDeleteSession,
   handleGetSessions,
@@ -241,8 +240,6 @@ const dashboardRoutes = {
   '/api/_dashboard/sessions': (_req, url) => handleGetSessions(url),
   'POST /api/_dashboard/sessions/delete': req => handleDeleteSession(req),
   'POST /api/_dashboard/sessions/update': req => handleUpdateSession(req),
-  '/api/_dashboard/schema': () => handleSchema(),
-  '/api/_dashboard/table-data': (_req, url) => handleTableData(url),
 } satisfies PluginRouteTable
 
 const dispatchDashboardRoute = routeTable(dashboardRoutes)

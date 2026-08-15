@@ -30,6 +30,24 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * What to show a user when a call threw.
+ *
+ * Here rather than in `dom.ts` because the thing it knows about is `ApiError`,
+ * whose `message` is the server's own sentence from the envelope — the reason
+ * a failed write reads as "row was modified by someone else" instead of
+ * "Request failed (409)". `String(error)` is the fallback for the two throws
+ * that are not ours: an abort and a network failure.
+ *
+ * There used to be three of these — one exported from `bulk.ts`, a private
+ * near-copy in `save.ts`, and a third inlined at the `notify` call in
+ * `csv-commit.ts` — so improving the wording in one left the other two alone.
+ */
+export function messageOf(error: unknown): string {
+  const api = error as Partial<ApiError>
+  return api?.message ?? String(error)
+}
+
 const KEY_STORAGE = '__db_key'
 const KEY_PARAM = 'db-key'
 
@@ -79,7 +97,7 @@ interface Envelope {
  * available for "why is this slow": a filter that cannot use an index shows up
  * here immediately.
  */
-export interface Timed<T> {
+interface Timed<T> {
   data: T
   ms: number
 }
@@ -101,7 +119,7 @@ async function unwrap<T>(res: Response): Promise<T> {
   return (await unwrapEnvelope<T>(res)).data
 }
 
-export async function apiGet<T>(
+async function apiGet<T>(
   path: string,
   params?: Record<string, string>,
   signal?: AbortSignal,
@@ -114,7 +132,7 @@ export async function apiGet<T>(
   return await unwrap<T>(res)
 }
 
-export async function apiSend<T>(
+async function apiSend<T>(
   method: 'POST' | 'PATCH' | 'DELETE',
   path: string,
   body: unknown,
@@ -192,7 +210,7 @@ export async function lookupRefs(
   return data.rows ?? []
 }
 
-export interface UpdateResult {
+interface UpdateResult {
   changed: number
   row: Record<string, unknown> | null
 }
@@ -207,7 +225,7 @@ export async function patchRow(payload: {
   return await apiSend<UpdateResult>('PATCH', 'row', payload)
 }
 
-export interface BulkResult {
+interface BulkResult {
   changed: number
   conflicts: { index: number; key: Record<string, unknown>; reason: string }[]
 }
@@ -220,7 +238,7 @@ export async function bulkEdit(payload: {
   return await apiSend<BulkResult>('POST', 'rows/bulk', payload)
 }
 
-export interface DeleteResult {
+interface DeleteResult {
   deleted: number
   conflicts: { index: number; key: Record<string, unknown>; reason: string }[]
 }
@@ -233,7 +251,7 @@ export async function deleteRows(payload: {
   return await apiSend<DeleteResult>('DELETE', 'rows', payload)
 }
 
-export interface InsertResult {
+interface InsertResult {
   inserted: number
   rows?: Record<string, unknown>[]
 }

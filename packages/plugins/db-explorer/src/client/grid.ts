@@ -27,7 +27,7 @@ import { box, each, el, on, setBusy } from './dom'
 import type { EditSession } from './edit-session'
 import { rowId } from './edit-session'
 import { createEditor, type EditorHandle } from './editors'
-import type { FkResolver, FkTarget } from './fk'
+import { type FkResolver, type FkTarget, fkMapFor } from './fk'
 import { type CellPaintContext, paintCell } from './grid-body'
 import { buildHead } from './grid-header'
 import {
@@ -79,6 +79,8 @@ export class Grid {
     this.paintCtx = {
       table: ctx.table.name,
       graph: ctx.graph,
+      // Once per grid, not once per cell per paint — see `fkMapFor`.
+      fks: fkMapFor(ctx.graph, ctx.table.name),
       resolver: ctx.resolver,
       onFollowFk: ctx.onFollowFk,
     }

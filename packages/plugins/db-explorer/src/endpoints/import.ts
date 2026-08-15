@@ -1,10 +1,10 @@
 /**
  * CSV import — the rows, not the file.
  *
- * The parse happens in `shared/csv.ts`, which the browser runs to show a
- * preview and the server runs on whatever it is sent. This endpoint takes rows
- * that are already records, so the mapping the user confirmed in the dialog is
- * what arrives, rather than a file the server re-guesses the columns of.
+ * The parse happens in the browser, in `shared/csv.ts`, and stays there. This
+ * endpoint takes rows that are already records, so the mapping the user
+ * confirmed in the dialog is what arrives, rather than a file the server
+ * re-guesses the columns of. No CSV text reaches the server at all.
  *
  * Two things separate it from `POST /api/_db/rows`, and both are about scale:
  * the bound is a spreadsheet's worth of rows rather than an edit's, and a bad

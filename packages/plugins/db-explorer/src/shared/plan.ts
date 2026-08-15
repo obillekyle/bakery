@@ -54,7 +54,16 @@ export function autoMap(
   return mapping
 }
 
-function normalize(name: string): string {
+/**
+ * A name with case and separators removed.
+ *
+ * Exported because `client/meta.ts` compares *table* names the same way and
+ * held a byte-identical private copy called `flatten`. Both are in the browser
+ * bundle, so it was one rule written twice: a change to what counts as "the
+ * same name" would have fixed CSV auto-mapping and left foreign-key visibility
+ * on the old one.
+ */
+export function normalize(name: string): string {
   return name.toLowerCase().replace(/[\s_-]+/g, '')
 }
 

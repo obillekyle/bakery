@@ -14,7 +14,7 @@
  * is said to be is asserted rather than eyeballed.
  */
 
-import { box, el } from './dom'
+import { append, box, each, el, gridTable } from './dom'
 import type { SchemaColumn, SchemaIndex, SchemaTable } from './meta'
 
 /** One row of the columns table, already worded. */
@@ -109,6 +109,29 @@ const HEADINGS = [
   'identity',
 ] as const
 
+const INDEX_HEADINGS = ['index', 'type', 'columns'] as const
+
+/**
+ * A scrolling table of plain text cells.
+ *
+ * Columns and indexes are the same table twice — headings, then a `<tr>` of
+ * `<td class="cell">` per row — so they are one builder and two `string[][]`.
+ */
+function dataTable(
+  headings: readonly string[],
+  rows: readonly (readonly string[])[],
+): HTMLElement {
+  const grid = gridTable(headings, 'grid structure-grid')
+  each(grid, rows, cells => dataRow(cells))
+  return box('scroll', grid)
+}
+
+function dataRow(cells: readonly string[]): HTMLElement {
+  const tr = el('tr')
+  each(tr, cells, text => el('td', { class: 'cell', text }))
+  return tr
+}
+
 export interface StructureContext {
   table: SchemaTable
   editable: boolean
@@ -118,12 +141,11 @@ export interface StructureContext {
 
 export function renderStructure(ctx: StructureContext): HTMLElement {
   const node = box('structure')
-  const parts: (HTMLElement | null)[] = [
+  append(node, [
     identitySection(ctx),
     columnsSection(ctx.table),
     indexesSection(ctx.table),
-  ]
-  for (const part of parts) if (part) node.appendChild(part)
+  ])
   return node
 }
 
@@ -166,20 +188,15 @@ function identitySection(ctx: StructureContext): HTMLElement {
 function columnsSection(table: SchemaTable): HTMLElement {
   const section = box('structure-section')
   section.appendChild(el('h3', { text: `Columns (${table.columns.length})` }))
-
-  const grid = el('table', { class: 'grid structure-grid' })
-  const head = el('tr')
-  for (const heading of HEADINGS) head.appendChild(el('th', { text: heading }))
-  grid.appendChild(head)
-  for (const row of structureRows(table)) grid.appendChild(columnRow(row))
-
-  section.appendChild(box('scroll', grid))
+  section.appendChild(
+    dataTable(HEADINGS, structureRows(table).map(columnCells)),
+  )
   return section
 }
 
-function columnRow(row: StructureRow): HTMLElement {
-  const tr = el('tr')
-  const cells = [
+/** A `StructureRow` in `HEADINGS` order. The only place the two are paired. */
+function columnCells(row: StructureRow): string[] {
+  return [
     row.name,
     row.type,
     row.nullable,
@@ -188,8 +205,6 @@ function columnRow(row: StructureRow): HTMLElement {
     row.values,
     row.identity ? '✓' : '',
   ]
-  for (const text of cells) tr.appendChild(el('td', { class: 'cell', text }))
-  return tr
 }
 
 /**
@@ -210,22 +225,10 @@ function indexesSection(table: SchemaTable): HTMLElement {
     return section
   }
 
-  const grid = el('table', { class: 'grid structure-grid' })
-  const head = el('tr')
-  for (const heading of ['index', 'type', 'columns']) {
-    head.appendChild(el('th', { text: heading }))
-  }
-  grid.appendChild(head)
-  for (const index of indexes) grid.appendChild(indexRow(index))
-
-  section.appendChild(box('scroll', grid))
+  section.appendChild(dataTable(INDEX_HEADINGS, indexes.map(indexCells)))
   return section
 }
 
-function indexRow(index: SchemaIndex): HTMLElement {
-  const tr = el('tr')
-  for (const text of [index.name, index.type, index.cols.join(', ')]) {
-    tr.appendChild(el('td', { class: 'cell', text }))
-  }
-  return tr
+function indexCells(index: SchemaIndex): string[] {
+  return [index.name, index.type, index.cols.join(', ')]
 }

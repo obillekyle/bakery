@@ -16,6 +16,7 @@
  */
 
 import type { ColumnKind, ColumnMeta } from '../shared/coerce'
+import { normalize } from '../shared/plan'
 
 export interface SchemaColumn {
   name: string
@@ -180,9 +181,5 @@ export function cellProps(value: unknown, column: SchemaColumn): CellProps {
  * `snake_case` schema invisible, which is the entire feature silently absent.
  */
 export function sameTable(a: string, b: string): boolean {
-  return a === b || flatten(a) === flatten(b)
-}
-
-function flatten(name: string): string {
-  return name.toLowerCase().replace(/[\s_-]+/g, '')
+  return a === b || normalize(a) === normalize(b)
 }
