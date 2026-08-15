@@ -59,8 +59,8 @@ The `fetch` registry, as populated by `setupServer()`
 | 50 | `TSHandler` | `.ts` compiled to JS |
 | 0 | `StaticHandler` | everything else (fallback) |
 
-Plugins register into the same scale: `DashboardHandler` 120, `AnalyticsHandler`
-110, `VueHandler` 58.
+Plugins register into the same scale: `DashboardHandler` 120,
+`DbExplorerHandler` 115, `AnalyticsHandler` 110, `VueHandler` 58.
 
 `MiddlewareHandler` is the one whose "claims" column is easy to misread. Its
 `canHandle` *runs* the whole chain on every request, but returns true only if
@@ -366,7 +366,7 @@ Two layers cache route resolution:
 `HandlerMap.routeCache` is **not** cleared by `initRoutes()` — it is never
 cleared anywhere. On a cache hit, `resolve()` calls only the cached handler's
 `canHandle` and returns it if still true, skipping every higher-priority handler
-(`$registry.ts`). See [Middleware](middleware.md#the-route-cache-skips-middleware)
+(`$registry.ts`). See [Middleware](middleware.md#the-route-cache-does-not-skip-middleware)
 for the consequence, which is the sharpest edge in the framework.
 
 In development, edits to `server.config.ts` or anything under the api directory
@@ -390,6 +390,7 @@ only exist when that plugin is installed.
 | `/_nm/*` | `node_modules`, bundled on demand | core (`NMHandler`) |
 | `/_livereload` | the live-reload WebSocket — **development only** | core (`LiveReloadHandler`) |
 | `/_dashboard`, `/_dashboard/dashboard.js`, `/api/_dashboard`, `/api/_dashboard/*` | admin console | `@bakery-framework/plugin-dashboard` |
+| `/_db`, `/_db/*`, `/api/_db`, `/api/_db/*` | database explorer | `@bakery-framework/plugin-db-explorer` |
 | `/_analytics/ping`, `/api/_analytics/stats`, `/api/_analytics/reset` | telemetry endpoints | `@bakery-framework/plugin-analytics` |
 | `/_analytics_ws` | telemetry WebSocket | `@bakery-framework/plugin-analytics` |
 | `/_vue/*` | compiled SFC chunks and the Vue runtime | `@bakery-framework/plugin-vue` |

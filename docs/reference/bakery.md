@@ -118,9 +118,23 @@ name has misled people. `import.meta.env.BAKERY_VERSION`, the define available
 in browser code, is the same value under a worse name — the compiler reads it
 from `<cwd>/package.json`, which is the app being served
 ([packages/core/src/compiler/compiler.ts](../../packages/core/src/compiler/compiler.ts)).
-For the framework's own version, use `getFrameworkVersion()` from
-[`core/context`](../../packages/core/src/core/context.ts). Both invalidate the
-compiled cache; only one of them moves when you upgrade Bakery.
+For the framework's own version, use `getFrameworkVersion()`, exported from
+`@bakery-framework/core` alongside `Bakery` itself
+([`core/context`](../../packages/core/src/core/context.ts)). It reads
+`@bakery-framework/core`'s own manifest, resolved from the module's location
+rather than by package specifier. Both versions invalidate the compiled cache;
+only one of them moves on a framework upgrade.
+
+```ts
+import { getFrameworkVersion } from '@bakery-framework/core'
+
+export function versionBanner() {
+  return `Bakery v${getFrameworkVersion()}`
+}
+```
+
+It is on the public surface because a plugin rendering framework chrome has no
+other way to ask — the console's footer showed a hardcoded `v3` for want of it.
 
 `Bakery.sharedPool` is bound to the master's buffer in a cluster, so the
 rate-limit budget you configure is the budget **across all workers**, not per
@@ -158,7 +172,7 @@ Use `hostKey` for anything you cache per tenant. See
 - **No `Bakery.db`.** The ORM is a separate, optional package; import `DB` from
   `@bakery-framework/orm`.
 - **No `Bakery.logger`.** Logging goes through declared message tables — see
-  [the plugin API](../plugins/plugin-api.md#logging).
+  [the plugin API](../plugins/plugin-api.md#conventions-a-plugin-is-expected-to-follow).
 - **No request or response.** Those are arguments. The only ambient
   request-scoped thing is the host config, and that is deliberate.
 

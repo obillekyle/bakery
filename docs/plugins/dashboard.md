@@ -8,7 +8,8 @@ that used to live in the Database tab are gone, along with the
 `DASHBOARD_ALLOW_WRITES` flag that gated them —
 [`@bakery-framework/plugin-db-explorer`](db-explorer.md) does that work at
 `/_db` with a per-caller access level instead of one process-wide environment
-variable. The Database tab is now a link to it.
+variable. The console's Database entry is a link to it when it is mounted, and
+a panel saying where it went when it is not.
 
 **The dashboard does not authenticate anyone.** It takes a predicate from the
 application, which already knows who its users are. The old shared-secret
@@ -82,8 +83,8 @@ export function defaultAuthorize(req: Request): boolean {
   meant any peer on the LAN could ask for a database browser.
 - **Production**: denied, always. The gate reads `PROD` rather than `!DEV`, and
   an *unset* flag counts as production — so a process that never booted through
-  `core/init` is closed too. Forgetting to configure the console cannot expose
-  a database browser to the internet.
+  `core/init` is closed too. Forgetting to configure the console cannot put it
+  on the internet.
 
 This is the one place the console is not simply analytics': analytics on its
 own is closed until configured, and forwarding `defaultAuthorize` keeps the
@@ -132,17 +133,29 @@ everything else, so it sees these paths first.
 | `/api/_dashboard/sessions` | list sessions (`search`, `page`, `pageSize`, `sortBy`, `sortOrder`) |
 | `/api/_dashboard/sessions/delete` | delete one by id |
 | `/api/_dashboard/sessions/update` | set or remove one key on one session |
-| `/api/_dashboard/schema` | the live database schema |
-| `/api/_dashboard/table-data` | paged rows for one table (`tableName`, `page`, `pageSize`, `sortBy`, `sortOrder`, `filters`) |
+
+Three session routes are the whole `/api/_dashboard` surface. The console
+reads no table data of its own.
 
 The two write routes that used to complete this table — `POST
 /api/_dashboard/query` and `POST /api/_dashboard/execute-action` — are not
 gated, they are **absent**. No environment variable brings them back. The
-console's only remaining mutating endpoints are the two session ones.
+console's only mutating endpoints are the two session ones.
 
-`schema` and `table-data` are read-only and stay, but nothing in the shipped
-client calls them any more; they are kept for anything that scripted against
-them.
+`/api/_dashboard/schema` and `/api/_dashboard/table-data` are gone as well.
+They outlived the editor as read-only routes with no caller, and `table-data`
+was the worse of the two: it passed `JSON.parse(filters)` straight to the ORM's
+`getData` with no validation, and an operator the ORM does not recognise is
+*dropped* rather than refused — a dropped filter **widens** the result set.
+[The explorer](db-explorer.md) validates the vocabulary before the query
+builder sees it; this endpoint never learned to.
+
+**An unmatched `/api/_dashboard/*` path answers 404.** It used to answer 204:
+the dispatcher returns `null` for a key no route matched, a handler returning
+`null` means "not mine", and core turns that into No Content — so a script
+still posting to a retired endpoint was told success and changed nothing. The
+404 is scoped to `/api/` deliberately, because `null` is exactly how
+`/_dashboard/style.css` falls through to the route mount below.
 
 Every `/api/_dashboard/*` route answers with the standard JSON envelope; the
 shell is a `Response` and `dashboard.js` is a `Bun.BunFile` once cached, which
@@ -165,16 +178,37 @@ takes it from there — with the mount directory as the containment boundary
 ([`dashboard/src/setup.ts`](../../packages/plugins/dashboard/src/setup.ts)).
 
 This is why `DashboardHandler.canHandle` is written so narrowly: it claims
-`/api/_dashboard*`, `/_dashboard` and `/_dashboard/dashboard.js`, and nothing
-else. A handler at priority 120 that claimed `/_dashboard/*` would intercept
-every asset before the mount was ever consulted.
+`/api/_dashboard` and the segments below it, plus exactly `/_dashboard` and
+`/_dashboard/dashboard.js`, and nothing else. A handler at priority 120 that
+claimed `/_dashboard/*` would intercept every asset before the mount was ever
+consulted. The `/api/` half is matched as a namespace *root* rather than a
+string prefix for a second reason: a bare `startsWith` also claims — and then
+404s — an application route named `/api/_dashboard-export`.
 
-## The Database tab
+## The Database entry
 
-A panel with a link to `/_db`, and nothing else — no fetch, no client module.
+What that entry is depends on whether anything serves `/_db`
+([`shell.tsx`](../../packages/plugins/dashboard/src/shell.tsx)):
 
-It used to be a grid editor over `execute-action` and a raw SQL prompt over
-`query`, both behind `DASHBOARD_ALLOW_WRITES=1`. The whole arrangement is
+- **With an explorer mounted**, it is an `<a href="/_db">` rather than a tab
+  button, and the signpost panel is not rendered at all. A tab whose whole
+  content is "go there" is a click of ceremony in front of going there.
+- **With nothing at `/_db`**, it stays a tab, and the panel explains where the
+  editor went and how to get it back. An entry that silently navigated to a 404
+  would be worse than either shape.
+
+The console asks that question **behaviourally** — it walks the fetch registry
+for a handler that claims `/_db` *and declines a path nobody serves* — rather
+than importing the explorer, so an application serving its own explorer at
+`/_db` gets the link too. The second half of the test is load-bearing:
+`StaticHandler` sits at priority 0 with a `canHandle` that returns `true`
+unconditionally, so "does some handler claim `/_db`" is always yes. Only a
+handler that claims a *namespace* declines the control path.
+
+Either way it fetches nothing and ships no client module.
+
+The tab used to be a grid editor over `execute-action` and a raw SQL prompt
+over `query`, both behind `DASHBOARD_ALLOW_WRITES=1`. The whole arrangement is
 retired in favour of
 [`@bakery-framework/plugin-db-explorer`](db-explorer.md), which reaches the
 same data through an access level tied to the caller rather than a flag tied
@@ -198,11 +232,9 @@ What this removes is worth stating plainly, because the old text made a
 security promise on the flag's behalf: an operator who set
 `DASHBOARD_ALLOW_WRITES=1` had a browser tab that could `DROP TABLE`, and one
 who left it unset was relying on a statement classifier to tell reads from
-writes. Neither situation exists now. Setting the variable does nothing.
-
-Table names on the surviving read endpoints are still validated against
-`^[a-zA-Z0-9_]+$` before reaching any query builder
-([`dashboard/src/endpoints/database.ts`](../../packages/plugins/dashboard/src/endpoints/database.ts)).
+writes. Neither situation exists now. Setting the variable does nothing — if
+it is still in a deployment environment, delete it; a variable that reads as a
+control still in force is worse than no variable at all.
 
 Session editing has its own guard: a key under the reserved `__bakery.` prefix
 is rejected with 403. Without it, editing a session could set a framework
@@ -238,8 +270,8 @@ Two things follow:
   [Analytics → Authorization](analytics.md#authorization).
 
 The Sessions and Logs panels are unaffected — they use `/api/_dashboard/*`,
-which is gated by your `authorize` predicate and works. The Database panel is
-a static link and fetches nothing at all.
+which is gated by the `authorize` predicate and works. The Database entry
+fetches nothing at all, in either of its shapes.
 
 ## Production checklist
 

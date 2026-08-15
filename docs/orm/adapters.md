@@ -352,6 +352,94 @@ Two more hooks, both optional:
   dialect states what it can do; the sync engine and query builder read them
   instead of asking which driver they are talking to.
 
+### What a subclass must implement
+
+Fourteen abstract members
+([`adapters/base.ts`](../../packages/orm/src/adapters/base.ts)). Everything
+else on `SQLAdapter` is concrete and built on these — `query`, `insert`,
+`transaction`, `addCol`, `drop`, `rename`, `addForeignKey`, the capability
+getters — so the surface below is the whole job.
+
+**Execution**
+
+| Member | Must be |
+| --- | --- |
+| `protected sql` | the driver handle itself, typed `unknown` on the base class because each dialect narrows it. `transaction()` casts it to `{transaction, savepoint}` and calls one of the two, so a handle missing either breaks nesting rather than failing to compile |
+| `execute` | the five primitives — `all`, `run`, `get`, `values`, `iterate`. Build it with `createExecutor(all, run, driver)` rather than by hand: that is what wires the [query observer](#observing-queries), and it derives `get`, `values` and a paging `iterate` from the two you supply. Hand-rolling means no observer events, and `get`/`values` double-counted if they are routed back through the observed `all` |
+
+**DDL and type mapping**
+
+| Member | Must be |
+| --- | --- |
+| `colDef(def, column?)` | one column's type, `PRIMARY KEY`, auto-increment, nullability, default and enum `CHECK` as a DDL fragment. The `column` argument exists because an enum check names its column, and is absent on the `ALTER` path — emit a plain column rather than a syntax error when it is |
+| `hasCol(table, column)` | whether the column exists. Bind the table name as a parameter; the concrete `addCol` calls this before altering |
+
+**Introspection**
+
+| Member | Must be |
+| --- | --- |
+| `getSchema()` | one `TableDetails` per table: name, `rowCount`, columns (`name`, `type`, `notnull`, `pk`) and indexes (`name`, `unique`). `pk` must be `true` for **every** member of a composite primary key — a dialect that reports only the first one silently hands anything deriving a row identity from this a predicate matching every row that shares it |
+| `getConstraints()` | per column, the shape the sync differ compares against the declared schema. Disagreeing with `getSchema()` about the same table is the failure mode that has actually happened |
+| `getIndexes()` | declared indexes, keyed camel-case, with implicit ones the engine did not create filtered out or they present as permanent drift |
+| `protected parseConstraints(col, …)` | one catalog row folded into one `ColumnConstraint`. The extra parameters are dialect-shaped — SQLite passes the `CREATE TABLE` text alongside the row because its catalog does not carry width or enum members |
+
+`rowCount` is a `COUNT(*)` per table, which is a full scan on SQLite and
+Postgres and is paid by every caller even though only a table listing displays
+it. Do not treat it as free.
+
+**Data access**
+
+| Member | Must be |
+| --- | --- |
+| `getData(table, opts)` | one page of rows, plus `totalRows`, `page`, `pageSize` and `totalPages`. See the filter contract below |
+| `remove(table, rowid)` / `update(table, rowid, row)` | one row addressed by this dialect's row handle — the `rowid` / primary key / `ctid` row in the [dialect table](#what-differs-per-dialect). Both return `RunResult` |
+| `truncate(table)` | empty the table. SQLite has no `TRUNCATE`, so the built-in issues `DELETE` + `VACUUM`; the method exists so the engine never has to know that |
+
+**Lifecycle**
+
+| Member | Must be |
+| --- | --- |
+| `protected withConnection(sql)` | a *sibling adapter* around an already-open handle, so a transaction body gets the same API as the connection it came from. `transaction()` calls it on the child handle the driver hands its callback — this is the whole mechanism behind `getActiveDb()`, and an implementation that returns `this` gives every nested block the parent's connection |
+| `backup(keepCount?)` | a `BackupResult`, or **`null`** when nothing was written. Null is not an error channel and not success: the sync engine refuses a destructive migration on a falsy answer, so returning a result for a backup that did not happen removes that guard |
+
+### `getData`'s filter contract
+
+`opts.filters` is keyed by column, and each value is one of two shapes:
+
+- a **bare scalar**, meaning `contains`. Unchanged, and still what most callers
+  send;
+- **`{op, value}`**, where `op` is one of `eq` `ne` `gt` `gte` `lt` `lte`
+  `contains` `starts` `ends` `null` `notnull`.
+
+`null` and `notnull` bind **no value** — which is why a filter cannot be
+modelled as a plain column/value pair, since the placeholder count has to match
+the argument list and a pair-shaped model has one value it must invent. An
+empty string in the scalar form means *no filter*, which is what a cleared text
+box sends.
+
+The three pattern operators escape `%` and `_` in the value and emit
+`ESCAPE '!'`, so a filter for `50%` finds the literal percent sign rather than
+matching every row. `!` rather than a backslash for a dialect reason: MySQL
+processes backslash escapes inside string literals where SQLite and Postgres do
+not, and the Postgres normaliser applies MySQL's rule to every dialect — so
+`ESCAPE '\'` leaves the literal open, swallows the rest of the statement, and
+the driver reports a syntax error several tokens further on.
+
+**Call `buildFilterSort(opts, validCols)` rather than re-deriving any of it.**
+It is protected and concrete on the base class, all three built-ins use it, and
+it returns `{whereSql, orderSql, whereParams}` ready to interpolate. An adapter
+that hand-rolls the `WHERE` clause gets a subtly different filter vocabulary
+and nothing reports the divergence.
+
+The direction of the failure is what makes this worth stating. An operator
+`buildFilterSort` does not recognise is **dropped**, not refused — and so is a
+filter naming a column outside `validCols`, which is why that argument is the
+column set rather than a formality. A dropped filter *widens* the result set,
+so a filter that silently did nothing looks like a permissive query rather than
+a failed one. Validate the vocabulary before the query builder sees it: the
+retired `/api/_dashboard/table-data` endpoint passed `JSON.parse(filters)`
+straight through, and that is what got it deleted rather than fixed.
+
 ## Next
 
 - [Schema sync](sync.md) — where the DDL above comes from

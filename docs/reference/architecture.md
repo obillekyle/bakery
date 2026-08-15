@@ -145,6 +145,7 @@ entries are marked.
 | Priority | Handler | Claims |
 | --- | --- | --- |
 | 120 | `DashboardHandler` *(plugin)* | `/_dashboard`, `/_dashboard/dashboard.js`, `/api/_dashboard*` |
+| 115 | `DbExplorerHandler` *(plugin)* | `/_db`, `/_db/*`, `/api/_db`, `/api/_db/*` |
 | 110 | `AnalyticsHandler` *(plugin)* | `/_analytics/ping`, `/api/_analytics/{stats,reset}` |
 | 100 | `MiddlewareHandler` | claims a request only when `onRequest` or a middleware returned a `Response` |
 | 95 | `ProxyHandler` | any configured `proxy` prefix |

@@ -49,10 +49,11 @@ holds real data and must survive a redeploy — see
 `SQLITE_PATH` is consulted only when no URL was supplied. `DB_URL` and
 `DATABASE_URL` win over it.
 
-## `DASHPASS` is vestigial
+## `DASHPASS` does nothing
 
-Older material described `DASHPASS` as the dashboard password. It is not, and
-setting it does not protect anything.
+Older material described `DASHPASS` as the dashboard password. It never was
+one, and nothing reads it now — the name survives only in deployment
+environments that set it years ago.
 
 The dashboard no longer authenticates anyone. It takes an `authorize` predicate
 from your application, and with none configured it allows loopback in
@@ -75,13 +76,17 @@ export default defineConfig({
 })
 ```
 
-One reference survives: the analytics plugin's stats endpoint still checks
-`process.env.DASHPASS` before checking a session flag
-(`packages/plugins/analytics/src/endpoints/stats.ts`). It fails closed —
-unset gives `404`, set gives `401` unless the session already carries the
-`__bakery.dashpass` key, which nothing in the framework issues any more. So
-setting `DASHPASS` changes a status code and grants no access. Do not treat it
-as a credential.
+The last reference is gone too. The analytics stats endpoint used to read
+`process.env.DASHPASS` and a `__bakery.dashpass` session key before answering,
+which meant the variable changed a status code and granted nothing; analytics
+now owns its own door and the variable is not read anywhere in the framework
+(`packages/plugins/analytics/src/endpoints/stats.ts`). Delete it from any
+environment that still carries it — a variable that looks like a credential and
+controls nothing is the kind of leftover an operator reasons from.
+
+The shared key that replaced it is `credential` on `analyticsPlugin` or
+`dashboardPlugin`, configured in `server.config.ts` rather than the
+environment. See [Analytics](../plugins/analytics.md#authorization).
 
 ## `import.meta.env`
 

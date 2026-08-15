@@ -42,6 +42,71 @@ left behind puts wrong dependency ranges on npm — which is how every
 
 ## [Unreleased]
 
+### Removed
+
+- **`/api/_dashboard/schema` and `/api/_dashboard/table-data`.** They outlived
+  the database editor as read-only routes with no caller — the console fetches
+  neither. `table-data` was the more dangerous of the two: it passed
+  `JSON.parse(filters)` straight to the ORM's `getData` with no validation, and
+  an operator the ORM does not recognise is *dropped* rather than refused, so a
+  filter that silently did nothing widened the result set instead of narrowing
+  it. The explorer validates the vocabulary before the query builder sees it;
+  this endpoint never learned to, and it is deleted rather than taught.
+
+  Nothing in the framework called them. Anything that scripted against them
+  should move to [`@bakery-framework/plugin-db-explorer`](docs/plugins/db-explorer.md),
+  which answers the same two questions behind a per-caller access level.
+
+- **An unmatched `/api/_dashboard/*` path answers 404, where it used to answer
+  204.** A dispatcher returning `null` means "not mine", and core turns that into
+  No Content — so a script still posting to a retired endpoint was told it had
+  succeeded and had changed nothing. The 404 is scoped to `/api/` deliberately,
+  because `null` is exactly how `/_dashboard/style.css` falls through to the
+  route mount below it.
+
+### Fixed
+
+- **Postgres: `getSchema()` threw on every call.** The primary-key query
+  interpolated a double-quoted *identifier* into a `::regclass` cast, which
+  casts a string — so introspection failed against Postgres outright, and the
+  explorer could not open there at all. It binds a parameter now.
+
+- **SQLite: composite primary keys reported only their first column.** `PRAGMA
+  table_info` returns `pk` as a 1-based *position*, not a flag, and the adapter
+  read it as `pk === 1`. Any row-identity predicate built from that key matched
+  every row sharing the first column. Now `pk > 0`.
+
+- **The console's charts grew without bound.** `.big-chart` had no CSS width, so
+  each repaint sized the canvas from a box the previous repaint had widened —
+  a feedback loop with gain equal to the device pixel ratio. CSS owns the
+  display size; the canvas backing store follows it.
+
+- **Chart hover is a point and a tooltip again**, not a line of text pinned to
+  the bottom of the card: `.chart-tooltip` had no rule at all. A chart's caption
+  sits under its title rather than beside it.
+
+- **The console footer shows the real framework version.** It was a hardcoded
+  `v3`. `getFrameworkVersion()` is now exported from `@bakery-framework/core`'s
+  root barrel — note that `getAppVersion()` and `import.meta.env.BAKERY_VERSION`
+  report the *application's* version despite the name.
+
+### Changed
+
+- **Schema introspection is one round-trip wave, not one per table.** `getSchema`
+  on SQLite and Postgres ran its per-table queries concurrently *inside* the
+  loop but awaited each table in turn, so a 20-table schema cost 20 sequential
+  waves. The `COUNT(*)` those queries include is still a full scan on both
+  dialects — treat `rowCount` as expensive, not free.
+
+- **The dashboard's Database entry is a link.** When something serves `/_db` it
+  renders as an anchor and the explanatory panel is not rendered at all; when
+  nothing does, the tab and its explanation stay.
+
+- **`getData`'s filter contract is documented** for adapter authors, alongside
+  the fourteen abstract members a subclass of `SQLAdapter` must implement —
+  which the "Writing your own" guide previously omitted entirely. See
+  [Adapters](docs/orm/adapters.md).
+
 ## [2.0.0-alpha.6] — 2026-08-14
 
 ### Added

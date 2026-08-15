@@ -258,7 +258,7 @@ packages/
     cache/  logger/  compiler/  plugins/
   orm/src/             @bakery-framework/orm — adapters/, orm/, sync/, backup
   cli/src/             @bakery-framework/cli — the `bakery` bin and mode dispatch
-  plugins/{vue,analytics,dashboard}/
+  plugins/{vue,analytics,dashboard,db-explorer}/
 apps/
   example/             the bundled demo and end-to-end target
   starter/             a minimal second consumer, public entry points only

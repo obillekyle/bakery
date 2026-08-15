@@ -371,4 +371,7 @@ nothing checks them automatically.
   handler and a `routeTable`.
 - [Dashboard](dashboard.md) — a `routeTable`, a route mount, and an
   application-supplied authorization predicate.
+- [Database Explorer](db-explorer.md) — a `routeTable` whose key spellings
+  *are* its CSRF policy, and an authorize predicate that grants a level rather
+  than a boolean.
 - [Architecture](../reference/architecture.md) — the registries and priorities.

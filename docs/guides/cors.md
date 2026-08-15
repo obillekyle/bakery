@@ -128,7 +128,7 @@ does not affect the other.
 - **The CSRF guard** rejects unsafe `/api/` methods whose `Origin` disagrees
   with the request URL, or whose `Sec-Fetch-Site` says cross-site. It has no
   configuration switch. See
-  [API routes](api-routes.md#unsafe-methods-must-be-same-origin).
+  [API routes](api-routes.md#csrf-why-your-post-returns-403).
 - **CORS** tells the browser whether it may *read* a response from another
   origin.
 

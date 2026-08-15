@@ -338,6 +338,14 @@ operator + value, each chip removable
 | `contains` `starts` `ends` | substring, prefix, suffix |
 | `null` `notnull` | `IS NULL`, `IS NOT NULL` — these bind nothing, so the value input is *hidden* rather than ignored |
 
+The three pattern operators escape `%` and `_` in the value before it reaches
+the pattern, with `ESCAPE '!'` on the clause — so a filter for `50%` finds the
+literal percent sign rather than matching every row, and `a_b` does not match
+`axb`. `!` rather than a backslash, because MySQL processes backslash escapes
+inside string literals and the Postgres normalizer applies that rule to every
+dialect: `ESCAPE '\'` leaves the literal open and the driver reports a syntax
+error several tokens further on.
+
 The vocabulary is shared with the endpoint that validates it, and an unknown
 operator is a **400 rather than a dropped clause**. That direction matters: the
 ORM drops an operator it does not know, a dropped filter *widens* the result set,

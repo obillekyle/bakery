@@ -312,7 +312,7 @@ Two things exit 1 before any diffing:
 | `THREAD_WORKER`, `THREAD_ID` | init, cluster | set by the supervisor; do not set by hand |
 | `DETACHED` | dev supervisor | `1` detaches the worker's stdin and hides its window |
 | `DEV_WATCHER_ACTIVE` | logger, sync engine | set by the supervisor so prompts and restarts coordinate |
-| `DASHPASS` | **analytics** plugin | vestigial. Read only by `analytics/endpoints/stats.ts`; unset makes the stats endpoints 404, set makes them 401. Grants no access — see [Environment](../configuration/environment.md#dashpass-is-vestigial) |
+| `DASHPASS` | nothing | **not read anywhere.** It was never a password and the last code path that looked at it is gone; the analytics and dashboard key is `credential` in `server.config.ts`. See [Environment](../configuration/environment.md#dashpass-does-nothing) |
 
 `.env` files are read by Bun itself, not by Bakery.
 
