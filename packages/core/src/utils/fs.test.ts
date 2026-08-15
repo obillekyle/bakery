@@ -14,6 +14,14 @@ import { fs } from './fs'
  * claim breaks is a path shape nobody thought to write a case for — a drive
  * root, a POSIX root, a directory whose name is a prefix of its sibling's.
  * Comparing against the original over a corpus tests the claim directly.
+ *
+ * **One deliberate divergence from the original, added with the containment
+ * clause.** The pre-rewrite version returned `false` for a path outside `root`,
+ * because the `while` below never ran — a guard failing open on the input it
+ * most needs to refuse. Mirroring the clause here keeps this an oracle for the
+ * *walk* (same answer, fewer syscalls, which is what it was written to prove)
+ * without also certifying the bug. Left un-mirrored it would do the opposite:
+ * fail on every out-of-root pair and pin the fail-open behaviour as correct.
  */
 function referenceIsForbidden(pathToCheck: string, root: string): boolean {
   const safeResolve = (...paths: string[]) =>
@@ -21,6 +29,11 @@ function referenceIsForbidden(pathToCheck: string, root: string): boolean {
   if (!pathToCheck || !root) return false
   let curr = safeResolve(pathToCheck)
   const normalizedRoot = safeResolve(root)
+
+  const rootPrefix = normalizedRoot.endsWith('/')
+    ? normalizedRoot
+    : `${normalizedRoot}/`
+  if (curr !== normalizedRoot && !curr.startsWith(rootPrefix)) return true
 
   while (
     curr.startsWith(normalizedRoot) &&
@@ -93,6 +106,32 @@ describe('fs.isForbidden', () => {
     )
     expect(fs.isForbidden(fs.resolve(base, 'ab'), base)).toBe(false)
     expect(fs.isForbidden(fs.resolve(base, 'abc'), base)).toBe(false)
+  })
+
+  test('refuses a path outside the root, rather than allowing it', () => {
+    // The fail-closed clause, and the reason this guard is trusted for
+    // containment at all (`constants.ts` defers to it by name).
+    //
+    // The walk is bounded by `startsWith(root)`, so before the clause existed
+    // an out-of-root path skipped the loop entirely and returned `false` —
+    // "not forbidden" — which is a guard failing open on the one input it most
+    // needs to refuse. A Windows glob-escape in `$routing.ts` reached exactly
+    // this: a resolved file at `C:\` was asked about against a serve root six
+    // levels down and was told it was allowed.
+    const outside = fs.resolve(base, '../../elsewhere/secret.ts')
+    expect(outside.startsWith(`${base}/`)).toBe(false)
+    expect(fs.isForbidden(outside, base)).toBe(true)
+
+    // Traversal that resolves back inside is still judged on where it lands,
+    // not on how it was spelled — `safeResolve` collapses it first.
+    expect(fs.isForbidden(`${base}/pub/../pub/open/ok.html`, base)).toBe(false)
+
+    // A sibling whose name merely begins with the root's is outside it. This
+    // is why the clause tests for the separator rather than a bare prefix.
+    expect(fs.isForbidden(`${base}-sibling/file.ts`, base)).toBe(true)
+
+    // The root itself is inside the root.
+    expect(fs.isForbidden(base, base)).toBe(false)
   })
 
   test('walks up only as far as the root it was given', () => {

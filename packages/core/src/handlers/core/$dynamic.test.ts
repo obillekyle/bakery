@@ -116,6 +116,17 @@ describe('DynamicHandler.findDynamicRoute', () => {
     await Bun.write(HIDDEN, 'export default () => 1\n')
     await Bun.write(`${SCAN_DIR}/hidden/.forbidden`, '')
     __setTestConfig({ root: SCAN_DIR })
+
+    // `GONE` is the point of three tests below: an entry whose file is not
+    // there. Left implicit, that precondition is a property of the *host* — and
+    // it silently stopped holding. A glob escape in `$routing.ts` let route
+    // discovery resolve outside `SCAN_DIR` entirely and match a file Windows
+    // had created at `C:\`, so `resolveRoute` returned an `Info` for a path
+    // six levels above the serve root and the three tests failed on this
+    // machine while Linux CI stayed green. Asserting it here means a future
+    // recurrence names the precondition that broke instead of presenting as an
+    // unrelated assertion failure.
+    expect(await Bun.file(GONE).exists()).toBe(false)
   })
 
   afterAll(() => {

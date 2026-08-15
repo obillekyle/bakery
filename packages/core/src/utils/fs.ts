@@ -395,6 +395,35 @@ export namespace FileSystem {
     let curr = safeResolve(pathToCheck)
     const normalizedRoot = safeResolve(root)
 
+    // A path outside `root` is forbidden, and this is the clause that says so.
+    //
+    // The walk below is bounded by `curr.startsWith(normalizedRoot)`, so an
+    // out-of-root path skipped the loop body entirely and fell through to
+    // `return false` — "not forbidden". That is a guard failing *open* on the
+    // one input it most needs to refuse, and it made every caller that relied
+    // on this for containment (all of them: `constants.ts` said so in as many
+    // words) incapable of catching an escape.
+    //
+    // Not theoretical. `$routing.ts` builds its route globs with `\*` to mean a
+    // literal asterisk; on Windows a backslash is a path *separator*, so Bun
+    // read the pattern as drive-absolute, ignored `cwd`, and matched files at
+    // `C:\`. `getRoute` resolved one, asked this function, was told "allowed",
+    // and returned an `Info` pointing six levels above the serve root. The glob
+    // is fixed too, but the glob was only how it was reached — a resolved file
+    // outside the root has to be refused here whatever produced it.
+    //
+    // The separator suffix matters: a bare `startsWith` would also accept a
+    // sibling directory whose name merely begins with the root's. A root that
+    // is already a filesystem root ends in `/` and must not gain a second one —
+    // `C://` matches nothing, which would make every path under `C:/` read as
+    // an escape. `fs.test.ts` drives both through its root corpus.
+    const rootPrefix = normalizedRoot.endsWith('/')
+      ? normalizedRoot
+      : `${normalizedRoot}/`
+    if (curr !== normalizedRoot && !curr.startsWith(rootPrefix)) {
+      return true
+    }
+
     const store = hostStore.getStore()
     const seen = store ? (store.forbiddenProbes ??= new Map()) : null
 

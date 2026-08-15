@@ -21,15 +21,37 @@ export type RouteScanOptions = {
 const catchAllGlob = (ext: string) => new Bun.Glob(`[[]...*${ext || '.*'}`)
 
 // The single-param route forms, in the order they are tried: `[name].ext`
-// first, then the escaped-literal `*.ext`. Built here rather than twice inside
+// first, then the literal-asterisk `*.ext`. Built here rather than twice inside
 // `routeGlobs` — the `dynamicOnly` branch and the combined branch returned
 // character-identical pairs, and the two must stay in step or a route form
 // resolves under one caller and not the other. A function, not a hoisted
 // constant: `ext` varies per handler, and `staticOnly` returns before it needs
 // them at all.
-const dynamicGlobs = (ext: string) => [
+//
+// **The literal asterisk is a character class, `[*]`, never the escape `\*`.**
+// A backslash is the obvious spelling and is unusable on Windows, where `\` is
+// a path separator: Bun read `\*.*` as a drive-absolute pattern, ignored the
+// `cwd` in `GETFILE` entirely, and matched files at `C:\`. A route lookup under
+// a serve root six levels down returned `C:\$WINRE_BACKUP_PARTITION.MARKER`,
+// and `fs.isForbidden` — whose walk is bounded by `startsWith(root)` — waved it
+// through because an out-of-root path skipped the loop and answered "allowed".
+// That clamp now fails closed, so this is belt and braces; both halves are
+// pinned, and neither test can see the other's bug.
+//
+// Measured with a scan whose cwd was a temp directory holding one file: `[*]`
+// yields nothing, `\*` yields four files from the drive root. The escape is
+// also unreachable on Windows in the direction it was meant for — `*` is a
+// reserved character in a Windows filename, so a route file literally named
+// `*.ts` can only exist on POSIX, where both spellings match it identically
+// (verified on Linux). The character class costs nothing and means the same
+// thing on both platforms.
+//
+// Exported only as a test seam: with the clamp in place no test driving
+// `getRoute` can tell the two spellings apart — verified by reverting this line
+// and watching all 17 pass — so the pattern has to be asserted directly.
+export const dynamicGlobs = (ext: string) => [
   new Bun.Glob(`[[][!.]*${ext || '.*'}`),
-  new Bun.Glob(`\\*${ext || '.*'}`),
+  new Bun.Glob(`[*]${ext || '.*'}`),
 ]
 
 const routeGlobs = (
