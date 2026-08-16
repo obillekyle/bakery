@@ -36,3 +36,28 @@ channels:
     - rc
     - prerelease
     - '{version}-rc'
+
+# **Compiled from the commit bodies, and this file is cutver's now.**
+#
+# It is rewritten whole on every release — no `## [Unreleased]`, and edits do
+# not survive. That is the trade that lets it never parse the file, so a
+# mangled changelog cannot break a release. What makes it worth taking is the
+# commit *body*: each entry is the subject plus the paragraph under it, which
+# is release-note prose already.
+#
+# `prereleases` stays off, so an alpha does not get its own heading and each
+# stable release's span reaches back to the previous *stable* tag rather than
+# dropping the commits in between.
+changelog:
+  keep: 10
+
+  # The GitHub release body, rewritten to read like something a person wrote.
+  # `CHANGELOG.md` is never summarised — the file keeps exactly what the
+  # commits said, and only the page people land on gets the readable version.
+  #
+  # No key here on purpose: this file is committed. cutver reads
+  # CUTVER_SUMMARIZE_KEY, or GEMINI_API_KEY, from the environment.
+  summarizer:
+    connector: gemini
+    model: gemini-3.5-flash-lite
+    retry: true
