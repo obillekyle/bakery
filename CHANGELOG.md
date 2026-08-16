@@ -42,6 +42,8 @@ left behind puts wrong dependency ranges on npm — which is how every
 
 ## [Unreleased]
 
+## [2.0.0-alpha.8] — 2026-08-16
+
 ## [2.0.0-alpha.7] — 2026-08-15
 
 ### Removed
