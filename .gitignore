@@ -1,7 +1,11 @@
 .DAV
 */.DAV
 
-.env
+# **Every .env, not just `.env`.** The bare name is a literal: it does not
+# match `.env.local`, which is where a summariser key actually lands. An
+# example file stays committable.
+.env*
+!.env.example
 
 # An app's schema is app-owned and often generated, so it is not tracked.
 # The bare pattern matches at any depth, which silently swallowed the starter
