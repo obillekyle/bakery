@@ -8,6 +8,9 @@ name: Version
 on:
   push:
     branches:
+      # Every branch cutver.yml claims, and nothing else. A channel declared
+      # there but missing here never triggers anything — the push is simply
+      # ignored, with no error to notice. `cutver doctor` compares the two.
       - main
       # Branch-declared versions: a branch called `1.2.0-beta` publishes betas
       # towards 1.2.0. cutver parses the name; these globs only decide which
@@ -15,6 +18,12 @@ on:
       - '*-alpha'
       - '*-beta'
       - '*-rc'
+      # The same channels without a base. These let a long-lived `alpha` branch
+      # keep cutting alphas while the base moves on its own.
+      - alpha
+      - beta
+      - rc
+      - prerelease
 
 concurrency:
   # Never two releases at once on the same ref: both would compute the same
@@ -71,8 +80,13 @@ jobs:
       # `--if-needed` because most pushes here are docs or chores and warrant no
       # release. Without it every ordinary merge ends in a red cross, and a
       # workflow that is usually red is a workflow nobody reads.
+      #
+      # **`stage` is the verb since cutver 2.0.** A bare `cutver` prints help
+      # and exits 1 outside a terminal, so the old shape would not have failed
+      # loudly here — it would have released nothing while looking busy. The
+      # devDependency is pinned to a major, so this and the pin move together.
       - name: Compute the version and bump every manifest
-        run: bunx cutver --if-needed --branch='${{ github.ref_name }}'
+        run: bunx cutver stage --if-needed --branch '${{ github.ref_name }}'
 
       # **Whether the version moved is the signal — not whether the tree is
       # dirty.** `git status` was the obvious check and it was wrong twice

@@ -1,0 +1,38 @@
+# bakery's release rules.
+# Docs: https://cutver.okyle.dev/#/reference/config
+schema: 1
+
+# A Bun monorepo: the root manifest, every workspace package, and bun.lock's
+# workspace entries all carry the same number.
+target: bun
+
+# Every publishable package goes to npm. The root is `private: true` and stays
+# where it is; `publish` is about what a *tag* produces, not about which
+# manifests get written.
+publish: true
+
+# **Without this file every branch was a stable release branch.** The default
+# is `release: ['**']`, so a push to any branch that did not match a channel
+# would have cut a stable version — the alpha work only avoided it because
+# `2.0.0-alpha` matches the alpha channel's declaring pattern, and declaring
+# beats a glob. Naming `main` makes that an intention rather than an accident.
+channels:
+  release:
+    - main
+
+  # `2.0.0-alpha` is a *declaring* branch: it names the base it is building
+  # towards, so cutver refuses to cut from it once the commits imply something
+  # higher than 2.0.0. A bare `alpha` branch declares only the channel and lets
+  # the base move on its own.
+  alpha:
+    - alpha
+    - '{version}-alpha'
+
+  beta:
+    - beta
+    - '{version}-beta'
+
+  rc:
+    - rc
+    - prerelease
+    - '{version}-rc'

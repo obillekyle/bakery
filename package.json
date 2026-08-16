@@ -34,7 +34,7 @@
   },
   "devDependencies": {
     "bun-types": "^1.3.14",
-    "cutver": "^1.1.0",
+    "cutver": "^2.0.2",
     "vue": "^3.5.38"
   },
   "peerDependencies": {
