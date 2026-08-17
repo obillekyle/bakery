@@ -10,7 +10,7 @@ pull request, and on the release page.
 
 ## [1.2.3] — 2026-08-11
 
-diff: [026e63b...313df2a](https://github.com/obillekyle/bakery/compare/026e63b...313df2a)
+<sub>diff: [026e63b...313df2a](https://github.com/obillekyle/bakery/compare/026e63b...313df2a)</sub>
 
 ### Fixes
 
@@ -24,7 +24,7 @@ diff: [026e63b...313df2a](https://github.com/obillekyle/bakery/compare/026e63b..
 
 ## [1.2.2] — 2026-08-11
 
-diff: [ea8ec39...026e63b](https://github.com/obillekyle/bakery/compare/ea8ec39...026e63b)
+<sub>diff: [ea8ec39...026e63b](https://github.com/obillekyle/bakery/compare/ea8ec39...026e63b)</sub>
 
 ### Fixes
 
@@ -38,7 +38,7 @@ diff: [ea8ec39...026e63b](https://github.com/obillekyle/bakery/compare/ea8ec39..
 
 ## [1.2.1] — 2026-08-11
 
-diff: [38b33a1...ea8ec39](https://github.com/obillekyle/bakery/compare/38b33a1...ea8ec39)
+<sub>diff: [38b33a1...ea8ec39](https://github.com/obillekyle/bakery/compare/38b33a1...ea8ec39)</sub>
 
 ### Fixes
 
@@ -61,7 +61,7 @@ diff: [38b33a1...ea8ec39](https://github.com/obillekyle/bakery/compare/38b33a1..
 
 ## [1.2.0] — 2026-08-10
 
-diff: [8723c42...38b33a1](https://github.com/obillekyle/bakery/compare/8723c42...38b33a1)
+<sub>diff: [8723c42...38b33a1](https://github.com/obillekyle/bakery/compare/8723c42...38b33a1)</sub>
 
 ### New Features
 
@@ -107,7 +107,7 @@ diff: [8723c42...38b33a1](https://github.com/obillekyle/bakery/compare/8723c42..
 
 ## [1.1.1] — 2026-08-10
 
-diff: [35246ec...8723c42](https://github.com/obillekyle/bakery/compare/35246ec...8723c42)
+<sub>diff: [35246ec...8723c42](https://github.com/obillekyle/bakery/compare/35246ec...8723c42)</sub>
 
 ### Fixes
 
@@ -119,7 +119,7 @@ diff: [35246ec...8723c42](https://github.com/obillekyle/bakery/compare/35246ec..
 
 ## [1.1.0] — 2026-08-10
 
-diff: [025b1de...35246ec](https://github.com/obillekyle/bakery/compare/025b1de...35246ec)
+<sub>diff: [025b1de...35246ec](https://github.com/obillekyle/bakery/compare/025b1de...35246ec)</sub>
 
 ### New Features
 
@@ -129,7 +129,7 @@ diff: [025b1de...35246ec](https://github.com/obillekyle/bakery/compare/025b1de..
 
 ## [1.0.2] — 2026-08-10
 
-diff: [207d9fd...025b1de](https://github.com/obillekyle/bakery/compare/207d9fd...025b1de)
+<sub>diff: [207d9fd...025b1de](https://github.com/obillekyle/bakery/compare/207d9fd...025b1de)</sub>
 
 ### Fixes
 
@@ -145,7 +145,7 @@ diff: [207d9fd...025b1de](https://github.com/obillekyle/bakery/compare/207d9fd..
 
 ## [1.0.1] — 2026-08-10
 
-diff: [be0b90c...207d9fd](https://github.com/obillekyle/bakery/compare/be0b90c...207d9fd)
+<sub>diff: [18e65d8...207d9fd](https://github.com/obillekyle/bakery/compare/18e65d8...207d9fd)</sub>
 
 ### Fixes
 
@@ -173,7 +173,7 @@ diff: [be0b90c...207d9fd](https://github.com/obillekyle/bakery/compare/be0b90c..
 
 ## [1.0.0] — 2026-08-10
 
-diff: [5bf1a05...be0b90c](https://github.com/obillekyle/bakery/compare/5bf1a05...be0b90c)
+<sub>diff: [5bf1a05...18e65d8](https://github.com/obillekyle/bakery/compare/5bf1a05...18e65d8)</sub>
 
 ### Breaking Changes
 
