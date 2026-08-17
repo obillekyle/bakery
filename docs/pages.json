@@ -1,0 +1,68 @@
+[
+  {
+    "title": "Getting started",
+    "items": [
+      ["getting-started/installation", "Installation"],
+      ["getting-started/first-app", "Your first app"],
+      ["getting-started/project-structure", "Project structure"]
+    ]
+  },
+  {
+    "title": "Guides",
+    "items": [
+      ["guides/routing", "Routing"],
+      ["guides/api-routes", "API routes"],
+      ["guides/middleware", "Middleware"],
+      ["guides/static-assets", "Static assets"],
+      ["guides/proxy", "Proxy"],
+      ["guides/websockets", "WebSockets"],
+      ["guides/server-sent-events", "Server-sent events"],
+      ["guides/cors", "CORS"],
+      ["guides/sessions", "Sessions"]
+    ]
+  },
+  {
+    "title": "Configuration",
+    "items": [
+      ["configuration/server-config", "server.config.ts"],
+      ["configuration/multi-host", "Multi-host"],
+      ["configuration/environment", "Environment"]
+    ]
+  },
+  {
+    "title": "Database",
+    "items": [
+      ["orm/schema", "Schema"],
+      ["orm/queries", "Queries"],
+      ["orm/mutations", "Mutations"],
+      ["orm/sync", "Schema sync"],
+      ["orm/adapters", "Adapters"]
+    ]
+  },
+  {
+    "title": "Plugins",
+    "items": [
+      ["plugins/plugin-api", "Plugin API"],
+      ["plugins/vue", "Vue"],
+      ["plugins/analytics", "Analytics"],
+      ["plugins/dashboard", "Dashboard"],
+      ["plugins/db-explorer", "Database Explorer"]
+    ]
+  },
+  {
+    "title": "Deployment",
+    "items": [
+      ["deployment/production", "Production"],
+      ["deployment/security", "Security"]
+    ]
+  },
+  {
+    "title": "Reference",
+    "items": [
+      ["reference/cli", "CLI"],
+      ["reference/bakery", "The Bakery object"],
+      ["reference/architecture", "Architecture"],
+      ["reference/troubleshooting", "Troubleshooting"]
+    ]
+  }
+]
