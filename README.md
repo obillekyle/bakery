@@ -1,4 +1,34 @@
+<div align="center">
+
+<a href="https://bakery.okyle.dev"><img src="https://raw.githubusercontent.com/obillekyle/bakery/2.0.0-alpha/assets/logo.svg" alt="Bakery" title="Read the docs" width="88"></a>
+
 # Bakery
+
+### Drop a file in. It is a route.
+
+<!--
+  One line each. GitHub renders a single newline inside a centred block as a
+  `<br>`, so a wrapped paragraph breaks mid-sentence and each badge on its own
+  source line becomes its own row.
+
+  The asset URLs point at 2.0.0-alpha rather than main, because that is the
+  branch the files are on. They need repointing when the branch merges; until
+  then a main URL is a broken image.
+-->
+
+Filesystem routing, server-rendered JSX and a typed ORM for Bun, with no build step in development.
+
+[![npm](https://img.shields.io/npm/v/@bakery-framework/core?label=npm&color=a66d00&logo=npm)](https://www.npmjs.com/package/@bakery-framework/core) [![license](https://img.shields.io/badge/license-MIT-a66d00)](LICENSE) ![stars](https://img.shields.io/github/stars/obillekyle/bakery?color=a66d00)
+
+</div>
+
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/obillekyle/bakery/2.0.0-alpha/assets/terminal-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/obillekyle/bakery/2.0.0-alpha/assets/terminal-light.svg">
+  <img alt="bakery booting in development: the schema checked against the database, then the server listening on port 3000" src="https://raw.githubusercontent.com/obillekyle/bakery/2.0.0-alpha/assets/terminal-light.svg" width="820">
+</picture>
+</div>
 
 A batteries-included server framework for [Bun](https://bun.sh): filesystem
 routing, server-rendered JSX, cookie sessions, a typed ORM with schema sync, a

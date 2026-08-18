@@ -1,0 +1,57 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>bakery — terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; padding: 40px; background: #8b8b8b; display: flex; flex-direction: column; gap: 40px; align-items: flex-start; }
+  .win {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden; width: max-content; box-shadow: 0 8px 30px rgba(0,0,0,.18);
+  }
+  .bar {
+    height: 34px; background: var(--chrome); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; padding: 0 13px;
+  }
+  .d { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  .r { background: #ff5f57 } .y { background: #febc2e } .g { background: #28c840 }
+  .t {
+    margin-left: 10px; font-size: 12px; color: var(--title);
+    /* Google Sans if this machine has it, and the usual UI stack if not. */
+    font-family: "Google Sans", "Google Sans Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  pre {
+    margin: 0; padding: 18px 22px 20px;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px; line-height: 1.62; letter-spacing: 0;
+    white-space: pre; tab-size: 2;
+    /* Ligatures off, and this is not taste. JetBrains Mono draws the arrow on
+       each address row as one glyph and would do the same to any flag spelled
+       with two dashes. Everything in this window is something a reader retypes,
+       and a screenshot that renders a string differently from how it must be
+       typed is worse than no screenshot. */
+    font-variant-ligatures: none;
+    font-feature-settings: "liga" 0, "calt" 0;
+  }
+</style>
+<div class="win" id="dark" style="--bg:#0d1117;--chrome:#161b22;--border:#30363d;--title:#8b949e">
+  <div class="bar"><i class="d r"></i><i class="d y"></i><i class="d g"></i><span class="t">my-app — bakery</span></div>
+  <pre><span style="color:#c9d1d9">[I] process        </span><span style="color:#c9d1d9"> Starting server (PID: 7360)...</span><span style="color:#c9d1d9"> </span>
+<span style="color:#c9d1d9">[I] serve          </span><span style="color:#c9d1d9"> Starting server in </span><span style="color:#79c0ff">development</span><span style="color:#c9d1d9"> mode...</span><span style="color:#c9d1d9"> </span>
+<span style="color:#c9d1d9">[I] serve          </span><span style="color:#c9d1d9"> Schema unchanged since last sync — </span><span style="color:#d29922">skipping schema sync</span><span style="color:#c9d1d9"> (</span><span style="color:#79c0ff">--sync</span><span style="color:#c9d1d9"> forces it)</span><span style="color:#c9d1d9"> </span>
+<span style="color:#c9d1d9">[I] serve          </span><span style="color:#c9d1d9"> </span><span style="color:#7ee787">Server running at:</span><span style="color:#c9d1d9"> </span>
+<span style="color:#c9d1d9">[I] serve          </span><span style="color:#c9d1d9">   ➜ </span><span style="color:#c9d1d9">Local  </span><span style="color:#c9d1d9">: </span><span style="color:#4493f8">http://localhost:3000</span><span style="color:#c9d1d9"> </span>
+<span style="color:#c9d1d9">[I] serve          </span><span style="color:#c9d1d9">   ➜ </span><span style="color:#c9d1d9">Network</span><span style="color:#c9d1d9">: </span><span style="color:#4493f8">http://192.168.1.24:3000</span><span style="color:#c9d1d9"> </span>
+<span style="color:#c9d1d9">[I] serve          </span><span style="color:#c9d1d9"> Rate limit: </span><span style="color:#d29922">100</span><span style="color:#c9d1d9"> burst / </span><span style="color:#d29922">10</span><span style="color:#c9d1d9"> req/s per IP (default) — set </span><span style="color:#79c0ff">rateLimit: false</span><span style="color:#c9d1d9"> to disable</span><span style="color:#c9d1d9"> </span></pre>
+</div>
+<div class="win" id="light" style="--bg:#ffffff;--chrome:#f6f8fa;--border:#d0d7de;--title:#6e7781">
+  <div class="bar"><i class="d r"></i><i class="d y"></i><i class="d g"></i><span class="t">my-app — bakery</span></div>
+  <pre><span style="color:#24292f">[I] process        </span><span style="color:#24292f"> Starting server (PID: 7360)...</span><span style="color:#24292f"> </span>
+<span style="color:#24292f">[I] serve          </span><span style="color:#24292f"> Starting server in </span><span style="color:#0550ae">development</span><span style="color:#24292f"> mode...</span><span style="color:#24292f"> </span>
+<span style="color:#24292f">[I] serve          </span><span style="color:#24292f"> Schema unchanged since last sync — </span><span style="color:#9a6700">skipping schema sync</span><span style="color:#24292f"> (</span><span style="color:#0550ae">--sync</span><span style="color:#24292f"> forces it)</span><span style="color:#24292f"> </span>
+<span style="color:#24292f">[I] serve          </span><span style="color:#24292f"> </span><span style="color:#1a7f37">Server running at:</span><span style="color:#24292f"> </span>
+<span style="color:#24292f">[I] serve          </span><span style="color:#24292f">   ➜ </span><span style="color:#24292f">Local  </span><span style="color:#24292f">: </span><span style="color:#0969da">http://localhost:3000</span><span style="color:#24292f"> </span>
+<span style="color:#24292f">[I] serve          </span><span style="color:#24292f">   ➜ </span><span style="color:#24292f">Network</span><span style="color:#24292f">: </span><span style="color:#0969da">http://192.168.1.24:3000</span><span style="color:#24292f"> </span>
+<span style="color:#24292f">[I] serve          </span><span style="color:#24292f"> Rate limit: </span><span style="color:#9a6700">100</span><span style="color:#24292f"> burst / </span><span style="color:#9a6700">10</span><span style="color:#24292f"> req/s per IP (default) — set </span><span style="color:#0550ae">rateLimit: false</span><span style="color:#24292f"> to disable</span><span style="color:#24292f"> </span></pre>
+</div>
