@@ -1,0 +1,423 @@
+/*
+  Hand-written, no build step and no CDN — the site is one file plus the .md
+  sources it renders. That is deliberate: `docs/*.md` stays the single source of
+  truth, so `tests/docs-examples.test.ts` still compiles every example in it.
+  A generator would either fork the content or move it out of that test's reach.
+*/
+:root {
+  /* Tells the browser to render *native* UI — scrollbars, the search input's
+     clear button, focus rings — in the matching scheme. Without it the page
+     goes dark and the scrollbar stays white, which is the one piece of chrome
+     no amount of custom CSS reaches on its own. */
+  color-scheme: light;
+  --brand: #a66d00;
+  --brand-soft: #c98400;
+  --bg: #ffffff;
+  --bg-alt: #f6f6f7;
+  --bg-code: #f9f7f4;
+  --text: #3c3c43;
+  --text-strong: #1b1b1f;
+  --text-mute: #67676c;
+  --border: #e2e2e3;
+  --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.06);
+  --nav-h: 56px;
+  --sidebar-w: 260px;
+  --aside-w: 220px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --brand: #ffa800;
+  --brand-soft: #ffbb3d;
+  --bg: #1b1b1f;
+  --bg-alt: #202127;
+  --bg-code: #161618;
+  --text: #c9c9cc;
+  --text-strong: #ffffff;
+  --text-mute: #8e8e93;
+  --border: #2e2e32;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.4);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    /* Must match `:root[data-theme="dark"]` above. These were #e8974a/#f0a962
+       — bakery's orange, carried over when this shell was adapted from that
+       project's and never re-themed. The explicit toggle was right, so the bug
+       only showed for a reader whose OS is dark and who never touched the
+       control: the whole site in another project's brand colour. */
+  --brand: #ffa800;
+  --brand-soft: #ffbb3d;
+    --bg: #1b1b1f; --bg-alt: #202127; --bg-code: #161618;
+    --text: #c9c9cc; --text-strong: #ffffff; --text-mute: #8e8e93;
+    --border: #2e2e32;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.4);
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: calc(var(--nav-h) + 16px); }
+
+/* Both engines, because they disagree: Firefox takes `scrollbar-*`, WebKit and
+   Chromium take the pseudo-elements. Both read the theme variables, so the
+   thumb tracks light/dark without a second rule. */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-mute) 45%, transparent) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  /* Padded via a transparent border + background-clip so the thumb reads as a
+     slim pill rather than filling the gutter edge to edge. */
+  background: color-mix(in srgb, var(--text-mute) 45%, transparent);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--text-mute) 75%, transparent); background-clip: content-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.7 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- nav ---------- */
+.nav {
+  position: fixed; inset: 0 0 auto 0; height: var(--nav-h); z-index: 30;
+  display: flex; align-items: center; gap: 16px; padding: 0 20px;
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+/* Sized in em so a logo tracks the wordmark next to it rather than a
+   pixel value that only suits one of them. */
+.brand img {
+  width: 1.35em; height: 1.35em; object-fit: contain; display: block;
+  /* A glow in the brand colour, faint enough to read as light rather than as
+     an outline. `drop-shadow` follows the alpha of the mark, so it hugs the
+     shape; `box-shadow` would trace the square the image is drawn in and
+     announce a bounding box nobody can see. */
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--brand) 40%, transparent));
+}
+.brand {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 700; color: var(--text-strong); text-decoration: none; font-size: 17px;
+}
+.badge {
+  font: 600 11px/1 var(--mono); padding: 4px 6px; border-radius: 5px;
+  background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand);
+}
+/* The version badge *is* the picker.
+ *
+ * `appearance: base-select` opts into the customizable select — the button and
+ * the popup become styleable elements rather than OS chrome. A browser that has
+ * not implemented it ignores the declaration and every `::picker()` rule with
+ * it, and is left with a working native select that reads the same list. So the
+ * fallback needs no query and no second code path: the control degrades to
+ * plain, never to broken. */
+.picker {
+  border: 0; cursor: pointer; font-family: var(--mono);
+  /* Takes the free space so everything after it sits against the right edge —
+     the job `.brand` used to do, moved one element along so the version sits
+     beside the title instead of being flung to the far side of the bar. Same
+     reason there is no `.nav-spacer`: an auto margin on a real element beats an
+     empty div that also has to be hidden in the mobile layout. */
+  margin-right: auto;
+  appearance: base-select;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.picker:hover { background: color-mix(in srgb, var(--brand) 22%, transparent); }
+.picker:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+.picker::picker-icon {
+  content: '▾'; font-size: 9px; transition: rotate .15s ease;
+}
+.picker:open::picker-icon { rotate: 180deg; }
+
+.picker::picker(select) {
+  appearance: base-select;
+  margin-top: 6px; padding: 4px; min-width: 148px; max-height: 340px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow); overflow-y: auto;
+  /* Dropped rather than animated: a version list is read, not admired, and a
+     transition here delays the one interaction the control exists for. */
+}
+.picker option {
+  padding: 6px 9px; border-radius: 6px; font: 500 12px/1 var(--mono);
+  color: var(--text); cursor: pointer;
+}
+.picker option:hover, .picker option:focus { background: var(--bg-alt); color: var(--text-strong); }
+.picker option:checked { color: var(--brand); font-weight: 700; }
+/* The native checkmark is redundant beside the colour, and it indents every
+   label by a column that only one row uses. */
+.picker option::checkmark { display: none; }
+/* Reading an older version is a state worth noticing, so the banner sits above
+   the content rather than in the header where a badge is easy to skim past. */
+.oldver {
+  margin: 0 0 22px; padding: 10px 14px; border-radius: 8px; font-size: 13px;
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
+}
+.oldver a { font-weight: 600; }
+.search-wrap { position: relative; }
+#search {
+  width: 200px; padding: 7px 10px 7px 30px; font-size: 13px; font-family: inherit;
+  color: var(--text); background: var(--bg-alt);
+  border: 1px solid var(--border); border-radius: 8px; outline: none;
+}
+#search:focus { border-color: var(--brand); width: 260px; }
+.search-icon {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  width: 14px; height: 14px; color: var(--text-mute); pointer-events: none;
+}
+.results {
+  position: absolute; top: calc(100% + 6px); right: 0; width: min(460px, 80vw);
+  max-height: 60vh; overflow-y: auto; overflow-x: hidden; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+  display: none; padding: 6px;
+}
+.results.open { display: block; }
+.results a { display: block; padding: 8px 10px; border-radius: 7px; text-decoration: none; color: var(--text); overflow: hidden; }
+.results a:hover, .results a.sel { background: var(--bg-alt); }
+/* All three are spans, so each needs `display:block` — without it the crumb,
+   title and snippet run together on one line ("ARCHITECTUREArchitecture…"). */
+.results .r-title { display: block; font-weight: 600; color: var(--text-strong); font-size: 14px; line-height: 1.4; }
+.results .r-crumb { display: block; font-size: 11px; color: var(--brand); text-transform: uppercase; letter-spacing: .04em; }
+.results .r-snip { display: block; font-size: 12px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.results .empty { padding: 14px; color: var(--text-mute); font-size: 13px; text-align: center; }
+/* Every icon is an inline SVG sized identically and filled with currentColor.
+   These were text glyphs — "◐" and "⌥" — which sit on different optical
+   baselines, cannot be aligned reliably, and vary by installed font. "⌥" is the
+   Mac option key, which was standing in for a GitHub mark that did not exist. */
+.icon-btn {
+  display: grid; place-items: center; width: 32px; height: 32px; flex: none;
+  background: none; border: 0; border-radius: 7px; cursor: pointer;
+  color: var(--text-mute); padding: 0; line-height: 0;
+}
+.icon-btn svg { display: block; width: 18px; height: 18px; }
+.icon-btn:hover { background: var(--bg-alt); color: var(--text-strong); }
+#menu-btn { display: none; }
+
+/* ---------- layout ---------- */
+.sidebar {
+  position: fixed; top: var(--nav-h); bottom: 0; left: 0; width: var(--sidebar-w);
+  overflow-y: auto; padding: 24px 12px 60px 20px; z-index: 20;
+  background: var(--bg); border-right: 1px solid var(--border);
+}
+.sb-group { margin-bottom: 20px; }
+.sb-title {
+  font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-strong); padding: 0 10px; margin-bottom: 6px;
+}
+.sb-link {
+  display: block; padding: 5px 10px; border-radius: 7px; font-size: 14px;
+  color: var(--text-mute); text-decoration: none;
+}
+.sb-link:hover { color: var(--text-strong); background: var(--bg-alt); }
+.sb-link.active { color: var(--brand); font-weight: 600; background: color-mix(in srgb, var(--brand) 10%, transparent); }
+
+.shell { display: flex; justify-content: center; padding-top: var(--nav-h); }
+main {
+  flex: 1; min-width: 0; max-width: 760px;
+  margin-left: var(--sidebar-w); padding: 36px 32px 96px;
+}
+.aside {
+  position: sticky; top: calc(var(--nav-h) + 36px); align-self: flex-start;
+  /* No padding at the top: a sticky child is pinned relative to the
+     scrollport inset by that padding, so a top pad parks the heading 36px
+     down and lets entries scroll through the gap above it. The space moves
+     onto the heading, which then covers that band itself. */
+  width: var(--aside-w); flex: none; padding: 0 20px 0 8px;
+  /* 80vh, not 80%: a percentage resolves against the containing block, and
+     this one has no definite height — the declaration would be dropped and
+     the panel would grow until the page itself scrolled. The fifth of the
+     viewport it leaves is what keeps the last entries off the bottom edge,
+     which is the job a bottom padding was doing badly: padding sits inside
+     the scroll box, so it only appears once you are already at the end. */
+  max-height: 80vh; overflow-y: auto;
+  /* The fade is a mask on the box, not an overlay inside it: an overlay in a
+     scroll container scrolls away with the content it is meant to be sitting
+     over. Masks are positioned against the border box and stay put. */
+  transition: mask-image .2s linear;
+}
+
+/* Only while there is something below to scroll to — a permanent fade would
+   dim the last entry of a list that fits, which says "more" when there is
+   none. The class is set from the script, since no selector can ask whether an
+   element overflows. */
+.aside.more-below {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 52px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 52px), transparent);
+  /* The panel scrolls itself to follow the reading position, so the nudge is
+     animated for the same reason the page is: a list that jumps gives no sense
+     of which way it moved. Set here rather than inherited, since
+     `scroll-behavior` is not an inherited property and the rule on `html`
+     never reached this box. */
+  scroll-behavior: smooth;
+}
+/* Sticky inside the panel, which is its own scroll box: the list under it
+   can run to sixty entries, and a heading that scrolls away leaves a column
+   of anchors with nothing saying what they are. Opaque, because the entries
+   pass underneath it rather than beside it. */
+.aside-title {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--bg); padding: 36px 0 10px;
+  font-size: 12px; font-weight: 700; color: var(--text-strong);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.aside a {
+  display: block; padding: 3px 0 3px 10px; font-size: 13px; line-height: 1.5;
+  color: var(--text-mute); text-decoration: none; border-left: 2px solid var(--border);
+}
+.aside a:hover { color: var(--text-strong); }
+.aside a.active { color: var(--brand); border-left-color: var(--brand); }
+.aside a.lvl3 { padding-left: 22px; font-size: 12.5px; }
+
+/* ---------- content ---------- */
+.md h1 { font-size: 2.1rem; line-height: 1.25; font-weight: 700; color: var(--text-strong); margin: 0 0 10px; letter-spacing: -.02em; }
+.md h2 {
+  font-size: 1.45rem; font-weight: 650; color: var(--text-strong);
+  margin: 44px 0 14px; padding-top: 22px; border-top: 1px solid var(--border); letter-spacing: -.01em;
+}
+.md h3 { font-size: 1.15rem; font-weight: 650; color: var(--text-strong); margin: 30px 0 10px; }
+.md h4 { font-size: 1rem; font-weight: 650; color: var(--text-strong); margin: 22px 0 8px; }
+.md p { margin: 14px 0; }
+.md a { color: var(--brand); text-decoration: none; font-weight: 500; }
+.md a:hover { text-decoration: underline; }
+.md strong { color: var(--text-strong); font-weight: 650; }
+.md ul, .md ol { padding-left: 24px; margin: 14px 0; }
+.md li { margin: 6px 0; }
+.md li > ul, .md li > ol { margin: 6px 0; }
+.md hr { border: 0; border-top: 1px solid var(--border); margin: 32px 0; }
+.md blockquote {
+  margin: 18px 0; padding: 14px 18px; border-radius: 8px;
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  border-left: 3px solid var(--brand);
+}
+.md blockquote > :first-child { margin-top: 0; }
+.md blockquote > :last-child { margin-bottom: 0; }
+.md code {
+  font-family: var(--mono); font-size: .86em;
+  background: color-mix(in srgb, var(--text-mute) 16%, transparent);
+  padding: .18em .38em; border-radius: 4px; color: var(--text-strong);
+}
+.md pre {
+  margin: 18px 0; padding: 18px 20px; overflow-x: auto;
+  background: var(--bg-code); border: 1px solid var(--border); border-radius: 10px;
+  font-family: var(--mono); font-size: 13.5px; line-height: 1.6;
+}
+.md pre code { background: none; padding: 0; font-size: inherit; color: var(--text); }
+.code-wrap { position: relative; }
+.code-lang {
+  position: absolute; top: 10px; right: 12px; font: 600 10px/1 var(--mono);
+  text-transform: uppercase; letter-spacing: .06em; color: var(--text-mute); pointer-events: none;
+}
+.copy-btn {
+  position: absolute; top: 8px; right: 8px; padding: 4px 8px; font-size: 11px;
+  background: var(--bg); color: var(--text-mute); border: 1px solid var(--border);
+  border-radius: 6px; cursor: pointer; opacity: 0; transition: opacity .15s;
+}
+.code-wrap:hover .copy-btn { opacity: 1; }
+.code-wrap:hover .code-lang { opacity: 0; }
+.copy-btn:hover { color: var(--brand); border-color: var(--brand); }
+.md table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14px; display: block; overflow-x: auto; }
+.md th, .md td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
+.md th { background: var(--bg-alt); font-weight: 650; color: var(--text-strong); }
+.md .anchor { color: var(--text-mute); opacity: 0; margin-left: .4em; font-weight: 400; text-decoration: none; }
+.md h2:hover .anchor, .md h3:hover .anchor, .md h4:hover .anchor { opacity: 1; }
+
+/* syntax */
+.tok-c { color: #8b8b90; font-style: italic; }
+.tok-s { color: #a3782c; }
+.tok-k { color: #b1441f; }
+.tok-n { color: #7a5cc4; }
+.tok-f { color: #2a6fb5; }
+:root[data-theme="dark"] .tok-s { color: #d9b26a; }
+:root[data-theme="dark"] .tok-k { color: #f08b62; }
+:root[data-theme="dark"] .tok-n { color: #c9a2f5; }
+:root[data-theme="dark"] .tok-f { color: #79b8ff; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tok-s { color: #d9b26a; }
+  :root:not([data-theme="light"]) .tok-k { color: #f08b62; }
+  :root:not([data-theme="light"]) .tok-n { color: #c9a2f5; }
+  :root:not([data-theme="light"]) .tok-f { color: #79b8ff; }
+}
+
+.pager { display: flex; gap: 12px; margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--border); }
+.pager a {
+  flex: 1; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px;
+  text-decoration: none; color: var(--text-strong); font-weight: 600; font-size: 14px;
+}
+.pager a:hover { border-color: var(--brand); color: var(--brand); }
+.pager .p-dir { display: block; font-size: 11px; color: var(--text-mute); font-weight: 500; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+.pager .next { text-align: right; }
+.edit-link { margin-top: 30px; font-size: 13.5px; }
+
+.scrim { display: none; position: fixed; inset: var(--nav-h) 0 0; background: rgba(0,0,0,.4); z-index: 19; }
+/* 1100, not 1280: `main` is flex:1 with min-width:0, so it simply narrows to
+   make room. Hiding the contents at exactly 1280 lost it on the single most
+   common laptop width for no layout reason. */
+@media (max-width: 1100px) { .aside { display: none; } }
+@media (max-width: 960px) {
+  #menu-btn { display: grid; }
+  .sidebar { transform: translateX(-100%); transition: transform .2s ease; box-shadow: var(--shadow); }
+  body.menu-open .sidebar { transform: none; }
+  body.menu-open .scrim { display: block; }
+  main { margin-left: 0; padding: 28px 20px 80px; }
+  #search { width: 130px; } #search:focus { width: 170px; }
+}
+/* The nav ran out of room below ~600px — 445px of content in a 388px viewport,
+   which pushed the GitHub link off-screen where it could not be tapped. A
+   narrower field only moves the breakpoint where that happens again, so the
+   field collapses to an icon instead and expands over the nav when tapped. */
+#search-toggle, #search-close { display: none; }
+@media (max-width: 600px) {
+  .nav { padding: 0 12px; gap: 8px; }
+  #search-toggle { display: grid; }
+  .search-wrap { display: none; }
+
+  /* Expanded: the field claims the bar and everything else steps aside, so
+     there is no width left to fight over. */
+  body.search-open .search-wrap { display: block; flex: 1; min-width: 0; }
+  body.search-open #search, body.search-open #search:focus { width: 100%; }
+  body.search-open #menu-btn,
+  body.search-open .brand,
+  body.search-open .picker,
+  body.search-open #theme-btn,
+  body.search-open .gh-link,
+  body.search-open #search-toggle { display: none; }
+  body.search-open #search-close { display: grid; }
+  .results { width: calc(100vw - 24px); right: -40px; }
+}
+
+/* ----------------------------------------------------------------- changelog
+   The releases page. Every entry is an `h2` the markdown renderer produced, so
+   the rules hang off that rather than off markup this page emits specially —
+   there is none, which is what lets the page reuse the renderer, the anchors,
+   the on-page contents and the search index unchanged.
+
+   The date is the emphasised line immediately after a heading. Matched by
+   position because the renderer has no way to label it, and it is the only
+   thing that can be in that position. */
+.changelog h2 {
+  border-top: 1px solid var(--border);
+  padding-top: 28px;
+  margin-top: 40px;
+}
+.changelog h2:first-of-type { border-top: 0; padding-top: 0; margin-top: 24px; }
+.changelog h2 + p em {
+  font: 600 12px/1 var(--mono);
+  font-style: normal;
+  letter-spacing: .02em;
+  color: var(--text-mute);
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 10px;
+  display: inline-block;
+}
+.changelog h2 + p { margin: 0 0 18px; }
+
+/* The point the next batch of releases is fetched at. It has no content — the
+   observer needs something with a position, not something with a look. */
+.cl-more { height: 1px; }

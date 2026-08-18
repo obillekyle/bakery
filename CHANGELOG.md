@@ -145,7 +145,7 @@ pull request, and on the release page.
 
 ## [1.0.1] — 2026-08-10
 
-<sub>diff: [18e65d8...207d9fd](https://github.com/obillekyle/bakery/compare/18e65d8...207d9fd)</sub>
+<sub>diff: [be0b90c...207d9fd](https://github.com/obillekyle/bakery/compare/be0b90c...207d9fd)</sub>
 
 ### Fixes
 
@@ -173,7 +173,7 @@ pull request, and on the release page.
 
 ## [1.0.0] — 2026-08-10
 
-<sub>diff: [5bf1a05...18e65d8](https://github.com/obillekyle/bakery/compare/5bf1a05...18e65d8)</sub>
+<sub>diff: [5bf1a05...be0b90c](https://github.com/obillekyle/bakery/compare/5bf1a05...be0b90c)</sub>
 
 ### Breaking Changes
 

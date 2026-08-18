@@ -1,0 +1,17 @@
+{
+  "name": "Bakery",
+  "description": "A full-stack framework for Bun: file-system routing, server-rendered JSX, a typed ORM with schema sync, and a plugin system.",
+  "icon": "logo.svg",
+  "repo": "https://github.com/obillekyle/bakery",
+  "url": "https://bakery.okyle.dev",
+  "theme": {
+    "light": {
+      "brand": "#a66d00",
+      "brand-soft": "#c98400"
+    },
+    "dark": {
+      "brand": "#ffa800",
+      "brand-soft": "#ffbb3d"
+    }
+  }
+}

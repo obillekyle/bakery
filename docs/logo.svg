@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="819" height="819" viewBox="0 -9 819 819" fill="none" role="img" aria-label="Bakery">
+  <title>Bakery</title>
+  <!--
+    The docs copy. Same drawing as assets/logo.svg, cropped to the mark.
+    
+    The published logo carries space around it on purpose — an avatar gets
+    cropped to a circle and a mark touching the edge loses its outline. A
+    header slot is the opposite case: the box is already small, so that same
+    space renders the mark smaller than the wordmark beside it. Measured, the
+    original left about 50px a side of empty box.
+    
+    Square and centred on the ink, since this file is the favicon as well.
+  -->
+    <desc>A bun wearing a chef's hat.</desc>
+
+  <!--
+    Paths, colours, filters and layer order are the export's own. Two things
+    about the frame are not.
+
+    The export painted a white rect across the whole canvas. On a dark README
+    that is not a background, it is a white plate the mark sits on, with hard
+    corners the page has no way to knock off. Removed; the mark is transparent
+    now and reads on either theme.
+
+    The export also framed tight. Measured off a render with the frame opened up
+    on all sides, the ink runs x 0..818 and y 0..801 against a viewBox of
+    819x802: it touches all four edges exactly, with nothing outside and nothing
+    spare. That is fine inline, and wrong everywhere a logo gets put into a box
+    it does not control, since npm, GitHub and favicons all crop to a square or
+    a circle and would bite into the outline. The viewBox is squared and padded
+    here rather than the artwork being moved, so the geometry and the filter
+    regions, which are in user space and absolute, both stay where they were.
+
+    One thing is added rather than fixed. The cuff was flat while everything
+    around it was lit, so it carries an inner shadow now on the same terms as
+    the other two: 43 right, 13 up, blur 14.1, black at a quarter opacity.
+    Figma states that blur as twice the Gaussian deviation, so 14.1 is a
+    stdDeviation of 7.05, which is the figure the hat above it already used.
+
+    The cuff arrived with its fill and its stroke on one element. Filtering
+    that directly would have shaded the outline too, since the shadow is cut
+    against SourceAlpha and the stroke is part of it. It is split into a
+    filtered fill and a separate stroke over the top, which is how the bun and
+    the hat were already built.
+  -->
+  <g filter="url(#filter0_i_4008_43)">
+  <path d="M419.651 270.658C143.948 263.829 16.7915 480.129 34.5654 596.048C55.1775 730.476 131.725 787.765 426.425 793.679C721.126 799.592 787.124 685.317 805.813 607.136C837.35 475.215 695.353 277.487 419.651 270.658Z" fill="#FFA800"/>
+  </g>
+  <path d="M419.651 270.658C143.948 263.829 16.7915 480.129 34.5654 596.048C55.1775 730.476 131.725 787.765 426.425 793.679C721.126 799.592 787.124 685.317 805.813 607.136C837.35 475.215 695.353 277.487 419.651 270.658Z" stroke="black" stroke-width="16"/>
+  <path d="M302.458 332.987C544.998 427.835 614.78 613.467 653.396 712.38M186.594 712.38C246.891 570.785 322.647 411.033 552.451 332.987" stroke="black" stroke-width="12" stroke-linecap="round"/>
+  <g filter="url(#filter1_i_4008_43)">
+  <path d="M13.4961 187.822C-13.5463 260.226 64.8017 286.918 126.555 262.354C126.555 262.354 140.353 358.983 144.014 361.099C147.674 363.215 152.235 364.822 157.548 365.962C220.273 379.415 387.876 327.602 418.217 276.359C421.48 270.848 423.155 265.344 422.942 259.928C422.729 254.512 384.775 200.413 384.775 200.413C416.134 191.431 476.206 156.919 465.617 90.7329C455.027 24.5465 385.878 7.99998 352.627 8C328.989 9.4183 279.538 25.1139 270.84 76.5502C259.222 61.4219 217.66 32.2053 174.87 40.1477C120.786 50.1863 105.386 79.0325 105.38 119.158C69.3626 122.709 31.3385 140.05 13.4961 187.822Z" fill="white"/>
+  </g>
+  <path d="M168.116 125.495C152.464 120.543 129.367 116.792 105.38 119.158M182.499 212.993C170.428 236.81 149.652 253.167 126.555 262.354M126.555 262.354C64.8017 286.918 -13.5463 260.226 13.4961 187.822C31.3385 140.05 69.3626 122.709 105.38 119.158M126.555 262.354C126.555 262.354 140.353 358.983 144.014 361.099C147.674 363.215 152.235 364.822 157.548 365.962C220.273 379.415 387.876 327.602 418.217 276.359C421.48 270.848 423.155 265.344 422.942 259.928C422.729 254.512 384.775 200.413 384.775 200.413M384.775 200.413C376.265 202.462 351.398 206.275 320.007 205.141M384.775 200.413C416.134 191.431 476.206 156.919 465.617 90.7329C455.027 24.5465 385.878 7.99998 352.627 8C328.989 9.4183 279.538 25.1139 270.84 76.5502M105.38 119.158C105.386 79.0325 120.786 50.1863 174.87 40.1477C217.66 32.2053 259.222 61.4219 270.84 76.5502C277.616 84.4387 286.914 98.7699 291.641 125.495" stroke="black" stroke-width="16" stroke-linecap="round"/>
+  <g filter="url(#filter2_i_4008_43)">
+  <path d="M155.684 385.45C175.781 421.516 206.537 430.887 325.912 390.794C422.069 358.5 436.625 319.522 431.569 287.113C430.872 282.643 424.257 275.143 418.576 276.271C388.235 327.514 220.632 379.327 157.906 365.874C152.051 366.036 151.845 378.562 155.684 385.45Z" fill="#D9D9D9"/>
+  </g>
+  <path d="M155.684 385.45C175.781 421.516 206.537 430.887 325.912 390.794C422.069 358.5 436.625 319.522 431.569 287.113C430.872 282.643 424.257 275.143 418.576 276.271C388.235 327.514 220.632 379.327 157.906 365.874C152.051 366.036 151.845 378.562 155.684 385.45Z" stroke="black" stroke-width="12" stroke-linecap="round"/>
+  <defs>
+  <filter id="filter0_i_4008_43" x="24.9297" y="252.6" width="803.119" height="549.299" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+  <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+  <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+  <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+  <feOffset dx="84" dy="-69"/>
+  <feGaussianBlur stdDeviation="4.95"/>
+  <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+  <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+  <feBlend mode="normal" in2="shape" result="effect1_innerShadow_4008_43"/>
+  </filter>
+  <filter id="filter1_i_4008_43" x="0" y="-12" width="488.955" height="388.12" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+  <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+  <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+  <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+  <feOffset dx="35" dy="-12"/>
+  <feGaussianBlur stdDeviation="7.05"/>
+  <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+  <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+  <feBlend mode="normal" in2="shape" result="effect1_innerShadow_4008_43"/>
+  </filter>
+  <filter id="filter2_i_4008_43" x="111.8" y="235.1" width="364.8" height="235.8" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+  <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+  <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+  <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+  <feOffset dx="43" dy="-13"/>
+  <feGaussianBlur stdDeviation="7.05"/>
+  <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+  <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+  <feBlend mode="normal" in2="shape" result="effect1_innerShadow_4008_43"/>
+  </filter>
+  </defs>
+</svg>
