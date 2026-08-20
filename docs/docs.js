@@ -435,8 +435,50 @@ const CHANGELOG_KEY = 'bakery-docs-changelog'
  */
 const CHANGELOG_FORMAT = 3
 
-/** The newest version, for the cache key. Local file, so this is nearly free. */
+/**
+ * The newest release this browser has ever seen, and the validator that keeps
+ * it current.
+ *
+ * `versions.json` cannot carry a release cut on another branch. The file is
+ * written by the branch that releases and the site is served from one branch —
+ * so a channel shipping thirty alphas leaves the deployed copy insisting the
+ * stable line is all there is, the picker never offers them, and the changelog
+ * cache, keyed on that same file, never notices a reason to refresh.
+ *
+ * The releases API sees every branch's tags at once, and a conditional request
+ * makes asking affordable: GitHub does not count a `304 Not Modified` against
+ * the rate limit, so revalidating with the stored `ETag` is free every time
+ * nothing has changed. The request only costs quota at the moment a release
+ * has actually appeared — once per release, not per visitor.
+ */
+const RELEASES_ETAG = 'bakery-docs-rel-etag'
+const NEWEST_SEEN = 'bakery-docs-newest'
+
+/**
+ * The versions the API reported, stored beside the ETag they came with.
+ *
+ * Stored because of what a `304` means: "what you have is current", where what
+ * we have is this list — not the file. The first build kept the merged list in
+ * session state that the next boot overwrote from `versions.json`, so a warm
+ * reload revalidated, was told nothing changed, and painted the stale file
+ * anyway: the top-up only survived one page load.
+ */
+const RELEASES_SEEN = 'bakery-docs-rel-versions'
+
+/** The file's list and the API's, as the picker should show them. */
+function mergedVersions(fileVersions) {
+  try {
+    const seen = JSON.parse(localStorage.getItem(RELEASES_SEEN) || '[]')
+    return [...new Set([...seen, ...fileVersions])]
+  } catch {
+    return fileVersions
+  }
+}
+
+/** The newest version, for the cache key. Local first, then what the API said. */
 async function newestVersion() {
+  const seen = localStorage.getItem(NEWEST_SEEN)
+  if (seen) return seen
   try {
     const doc = await (await fetch('versions.json')).json()
     return (Array.isArray(doc.versions) && doc.versions[0]) || doc.latest || ''
@@ -520,6 +562,72 @@ async function changelogMarkdown() {
   }
 
   return '# Changelog\n\nNo releases yet.'
+}
+
+/**
+ * Top the version list up from the releases API, when it has actually moved.
+ *
+ * Runs once per page load, after the picker has painted from `versions.json`,
+ * and does nothing visible unless the API knows releases the file does not —
+ * which is exactly the state a channel branch puts the deployed site in. On a
+ * `304` it cost nothing, changed nothing, and the file's answer stands.
+ *
+ * On a `200` three things update from the one response: the picker gains the
+ * missing versions, the changelog cache is rewritten from the same bytes so
+ * that page is fresh without a second request, and the newest release is
+ * remembered as the validator the caches key on.
+ *
+ * Failures change nothing. Offline, blocked, or rate-limited by sixty cold
+ * visitors behind one NAT, the site keeps saying what `versions.json` says —
+ * which is true, just not complete.
+ */
+async function refreshReleases(serving, fileVersions) {
+  try {
+    const headers = { Accept: 'application/vnd.github+json' }
+    // The validator is only sent while the data it validates is still here. A
+    // 304 means "what you stored is current" — with the list missing (evicted,
+    // or stored by a build that kept the ETag alone), that answer pins the
+    // picker to the stale file until the ETag happens to change upstream.
+    const etag = localStorage.getItem(RELEASES_ETAG)
+    if (etag && localStorage.getItem(RELEASES_SEEN)) {
+      headers['If-None-Match'] = etag
+    }
+
+    const res = await fetch(RELEASES_API, { headers })
+    if (res.status === 304 || !res.ok) return
+
+    const list = (await res.json()).filter(r => !r.draft)
+    const fresh = list
+      .map(r => String(r.tag_name || '').replace(/^v/, ''))
+      .filter(Boolean)
+    if (!fresh.length) return
+
+    // The API lists by creation date, newest first, which is the right order
+    // for "what appeared since": a prerelease cut this morning belongs above
+    // the stable from last week whatever semver thinks of it. The file's list
+    // follows, minus what the API already said.
+    localStorage.setItem(RELEASES_SEEN, JSON.stringify(fresh))
+    const merged = mergedVersions(fileVersions)
+
+    const tag = res.headers.get('ETag')
+    if (tag) localStorage.setItem(RELEASES_ETAG, tag)
+    localStorage.setItem(NEWEST_SEEN, merged[0])
+
+    // The same bytes are the changelog, so cache them while they are here —
+    // otherwise the changelog page would spend a second, counted request on
+    // what this one already carried.
+    const md = releasesToMarkdown(list)
+    if (md) {
+      localStorage.setItem(
+        CHANGELOG_KEY,
+        JSON.stringify({ v: merged[0], f: CHANGELOG_FORMAT, md }),
+      )
+    }
+
+    fillPicker(serving || merged[0], merged)
+  } catch {
+    // The file's answer stands.
+  }
 }
 
 /**
@@ -754,11 +862,22 @@ addEventListener('click', event => {
   if (!href.startsWith('?/')) return
 
   event.preventDefault()
-  const before = currentRoute().page
+  // **The ref counts as much as the page.** Comparing pages alone broke the one
+  // link that changes only the version: "read it in the current release" points
+  // at the page being read, minus `?v=`, so the page matched, the fragment was
+  // scrolled to instead of the content being rebuilt, and clicking it did
+  // visibly nothing — the URL lost its version and the screen kept the old ref's
+  // markdown, including the banner offering the link again.
+  const before = routeKey()
   history.pushState(null, '', href)
-  if (currentRoute().page === before) goToAnchor()
+  if (routeKey() === before) goToAnchor()
   else route()
 })
+
+/** What has to match for a click to be a move within the same rendered page. */
+function routeKey() {
+  return JSON.stringify([currentRoute().page, requestedRef()])
+}
 
 addEventListener('popstate', () => route())
 
@@ -810,6 +929,13 @@ async function route() {
   // After the heading is in the DOM, since the first batch appends to it.
   if (isLog) startChangelogFeed(content, split.entries, page, anchor)
   document.title = `${content.querySelector('h1')?.textContent || 'Bakery'} | Bakery`
+
+  // The title is the one link in the static shell rather than in generated
+  // markup, so it is the one `routeHref` never got to build. Left as written it
+  // sends a reader pinned to an old version back to the current release without
+  // saying so — the same silent unpinning the query-string scheme exists to
+  // prevent everywhere else.
+  document.querySelector('.brand')?.setAttribute('href', routeHref('README'))
 
   // on-page contents
   const aside = document.getElementById('aside')
@@ -1235,12 +1361,25 @@ function fillPicker(latest, versions = []) {
     await resolveDefaultRef()
     const serving = DEFAULT_REF ?? versions[0] ?? version
 
+    // Painted with everything already known — the file, topped up with what a
+    // previous visit learned from the API. A reload that revalidates to a 304
+    // does no repaint, so the paint has to start complete.
+    const known = mergedVersions(versions)
     sessionStorage.setItem(CACHE, serving)
-    sessionStorage.setItem(LIST, JSON.stringify(versions))
-    fillPicker(serving, versions)
+    sessionStorage.setItem(LIST, JSON.stringify(known))
+    fillPicker(serving, known)
+
+    // After the file has painted, ask whether it is the whole story — a
+    // release cut on another branch never reaches this branch's copy.
+    refreshReleases(serving, versions)
   } catch {
     // Offline or blocked. The control keeps the cached list, or stays hidden —
-    // no version at all is true, and a guessed one is a lie.
+    // no version at all is true, and a guessed one is a lie. The API top-up
+    // still runs: a missing versions.json is the other state it covers.
+    refreshReleases(
+      sessionStorage.getItem(CACHE) || '',
+      JSON.parse(sessionStorage.getItem(LIST) || '[]'),
+    )
   }
 })()
 

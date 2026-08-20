@@ -26,7 +26,12 @@
   <button type="button" class="icon-btn" id="menu-btn" aria-label="Open navigation" title="Menu">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
   </button>
-  <a class="brand" href="#/"><img src="logo.svg" alt=""> Bakery</a>
+  <!-- `?/`, not `#/`. Routing lives in the query string now, and the click
+       handler only intercepts hrefs starting with `?/` — so a fragment href
+       here was left to the browser, which appended `#/` to whatever query URL
+       the reader was on instead of taking them home. `route()` rewrites this to
+       carry the pinned version; `?/` is the right destination without script. -->
+  <a class="brand" href="?/"><img src="logo.svg" alt=""> Bakery</a>
   <!-- Beside the title, where the version badge used to be, but outside the
        link: a `<select>` inside an `<a>` is interactive content nested in a
        link, which no browser handles the way either element promises. The nav
