@@ -22,7 +22,7 @@
     "db:rollback": "cd apps/example && bun run db:rollback",
     "release": "bunx cutver",
     "test": "bun test ./packages ./tests",
-    "typecheck": "bun run typecheck:core && bun run typecheck:orm && bun run typecheck:cli && bun run typecheck:create && bun run typecheck:plugins && bun run typecheck:app && bun run typecheck:scripts && bun run typecheck:tests",
+    "typecheck": "bun run --parallel \"typecheck:*\"",
     "typecheck:tests": "bunx tsc -p tests/tsconfig.json --noEmit",
     "typecheck:core": "bunx tsc -p packages/core/tsconfig.json --noEmit",
     "typecheck:orm": "bunx tsc -p packages/orm/tsconfig.json --noEmit",
