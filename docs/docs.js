@@ -879,6 +879,51 @@ function routeKey() {
   return JSON.stringify([currentRoute().page, requestedRef()])
 }
 
+/**
+ * This page's own URL, as the one a search engine should keep.
+ *
+ * Built without `?v=` on purpose. A pinned version is a variation of the page
+ * rather than a page of its own, so pointing every `?v=` URL at the current
+ * release is what a canonical is for: it folds the old copies into the live one
+ * instead of competing with it.
+ *
+ * No fragment either — an anchor names a place inside a page, not another page.
+ */
+function canonicalUrl() {
+  const { page } = currentRoute()
+  const path = page === 'README' ? '' : page
+  return `${location.origin}${location.pathname}${path ? `?/${path}` : ''}`
+}
+
+/**
+ * Point the head at whichever page is on screen.
+ *
+ * The document is one file serving every route, so everything in its head that
+ * names a page starts out naming the wrong one. Written from the shell rather
+ * than baked in by the generator, because only the running page knows its own
+ * URL — and Google renders JavaScript before deciding what a page is.
+ */
+function setPageMeta(title) {
+  const set = (selector, attribute, value) => {
+    const el = document.head.querySelector(selector)
+    if (el) el.setAttribute(attribute, value)
+    else if (value) {
+      const made = document.createElement(selector.startsWith('link') ? 'link' : 'meta')
+      if (selector.startsWith('link')) made.rel = 'canonical'
+      else made.setAttribute('property', selector.replace(/^meta\[property="|"\]$/g, ''))
+      made.setAttribute(attribute, value)
+      document.head.appendChild(made)
+    }
+  }
+
+  const href = canonicalUrl()
+  set('link[rel="canonical"]', 'href', href)
+  set('meta[property="og:url"]', 'content', href)
+  set('meta[property="og:title"]', 'content', title)
+  const twitter = document.head.querySelector('meta[name="twitter:title"]')
+  if (twitter) twitter.setAttribute('content', title)
+}
+
 addEventListener('popstate', () => route())
 
 async function route() {
@@ -928,7 +973,10 @@ async function route() {
   content.classList.toggle('changelog', page === 'CHANGELOG')
   // After the heading is in the DOM, since the first batch appends to it.
   if (isLog) startChangelogFeed(content, split.entries, page, anchor)
-  document.title = `${content.querySelector('h1')?.textContent || 'Bakery'} | Bakery`
+  const heading = content.querySelector('h1')?.textContent || 'Bakery'
+  document.title = `${heading} | Bakery`
+  // The head names this page now, not the one the file was generated for.
+  setPageMeta(heading)
 
   // The title is the one link in the static shell rather than in generated
   // markup, so it is the one `routeHref` never got to build. Left as written it
