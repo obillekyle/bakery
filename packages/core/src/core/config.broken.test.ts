@@ -53,10 +53,18 @@ const ORIGINAL_CWD = process.cwd()
 //      the string `"true"` — restoring a flag that now failed a `typeof` check
 //      it had passed before.
 //
-// `setModeFlag` calls init's own setter directly, which reaches the closure
-// while bypassing the proxy — the value goes back exactly as it came out.
+// `setModeFlag` is the single encoder for these flags, so the value goes back
+// in the same form it came out.
+//
+// The capture reads `process.env[flag]` directly. It used to go through the
+// property descriptor's getter, which was correct while the flags were
+// accessors and is now a silent no-op: Bun 1.4 rejects accessor descriptors on
+// `process.env`, so there is no getter, `?.get?.()` yields `undefined`, and
+// `setModeFlag(flag, undefined)` *deletes the flag*. Every `afterEach` here
+// removed `PROD` for the rest of the run — five NMHandler tests and the
+// authorize default failed several files later, none of them near this one.
 function flagRestorer(flag: string) {
-  const original = Object.getOwnPropertyDescriptor(process.env, flag)?.get?.()
+  const original = process.env[flag]
   return () => setModeFlag(flag, original)
 }
 

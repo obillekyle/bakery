@@ -217,7 +217,7 @@ describe('defaultAuthorize', () => {
     // is the PROD gate and not a failed address check.
     expect(isLoopback(local)).toBe(true)
 
-    await withEnvFlag('PROD', true, () => {
+    await withEnvFlag('DEV', false, () => {
       expect(defaultAuthorize(local)).toBe(false)
       expect(
         defaultAuthorize(
@@ -231,7 +231,7 @@ describe('defaultAuthorize', () => {
   test('outside production it is loopback-only', async () => {
     behindProxy()
 
-    await withEnvFlag('PROD', false, () => {
+    await withEnvFlag('DEV', true, () => {
       expect(
         defaultAuthorize(
           req('http://example.com/_admin', { 'x-real-ip': '127.0.0.1' }),
@@ -252,12 +252,12 @@ describe('defaultAuthorize', () => {
     const local = req('http://localhost/_admin', { 'x-real-ip': '127.0.0.1' })
 
     // Same function, same request, opposite answers — which is only possible if
-    // `import.meta.env.PROD` is consulted inside the call. A copy that captured
+    // `import.meta.env.DEV` is consulted inside the call. A copy that captured
     // the flag in a module-level const would return one value both times.
-    const inProd = await withEnvFlag('PROD', true, () =>
+    const inProd = await withEnvFlag('DEV', false, () =>
       defaultAuthorize(local),
     )
-    const outside = await withEnvFlag('PROD', false, () =>
+    const outside = await withEnvFlag('DEV', true, () =>
       defaultAuthorize(local),
     )
 
@@ -265,11 +265,18 @@ describe('defaultAuthorize', () => {
     expect(outside).toBe(true)
   })
 
-  test('an unset PROD denies, rather than falling through to loopback', async () => {
-    // The gate is `PROD !== false`, not `if (PROD)`, and this is why. The mode
-    // flags do not exist until `core/init.ts` has run; a plain truthiness test
-    // reads `undefined` as "not production" and opens the loopback door in a
-    // process that has established nothing at all.
+  test('an unset DEV denies, rather than falling through to loopback', async () => {
+    // The gate tests for the positive development marker (`DEV === '1'`), not
+    // `if (!PROD)`, and this is why. The mode flags do not exist until
+    // `core/init.ts` has run; a spelling that reads `undefined` as "not
+    // production" opens the loopback door in a process that has established
+    // nothing at all.
+    //
+    // It read `PROD !== false` while the flags were booleans. They are
+    // `'1'`/`''` strings since Bun 1.4 stopped allowing accessors on
+    // `process.env`, and `!== false` would be true for every one of them —
+    // including the `''` a development server sets, which would have denied on
+    // loopback in development while still looking like a correct gate.
     //
     // `behindProxy` matters here: it gives `getClientIp` a header to read, so
     // `isLoopback` *would* answer true and the request really would be admitted
@@ -278,7 +285,7 @@ describe('defaultAuthorize', () => {
     const local = req('http://localhost/_admin', { 'x-real-ip': '127.0.0.1' })
     expect(isLoopback(local)).toBe(true)
 
-    await withEnvFlag('PROD', undefined, () => {
+    await withEnvFlag('DEV', undefined, () => {
       expect(defaultAuthorize(local)).toBe(false)
     })
   })

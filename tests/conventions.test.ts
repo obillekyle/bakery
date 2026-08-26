@@ -230,16 +230,28 @@ describe('conventions (CLAUDE.md)', () => {
     // that reads it as a condition, right up until something reads it as a
     // boolean.
     //
-    // `setModeFlag` (`packages/core/src/tests/fixtures.ts`) calls the
-    // descriptor's own setter, which reaches init's closure without passing
-    // through the proxy.
+    // The mechanism changed with Bun 1.4 — which rejects accessor descriptors
+    // on `process.env`, so the flags are `'1'`/`''` strings and `init.ts`
+    // assigns them like anything else — but the hazard did not. Assignment
+    // still coerces, so a boolean `false` still becomes the *truthy* string
+    // `"false"`, and that is exactly what a naive save/restore reintroduces.
     //
-    // `init.ts` itself is exempt: `Object.defineProperties` is how the
-    // accessors get installed, and it is not an assignment. `threads.ts` is
-    // exempt for `THREAD_ID`, which is genuinely a string.
+    // `setModeFlag` (`packages/core/src/tests/fixtures.ts`) is the one encoder:
+    // it maps booleans to `'1'`/`''` and `undefined` to a delete. Route every
+    // write through it rather than spelling the encoding out again, because a
+    // second copy of it is a second chance to write `'true'`.
+    //
+    // `init.ts` is exempt as the owner — it is where the encoding is defined.
+    // `threads.ts` is exempt for `THREAD_ID`, genuinely a string.
+    // `engine.test.ts` is exempt because `@bakery-framework/orm` does not import
+    // core's test fixtures (they are not a published subpath), so it has to
+    // reproduce init's encoding locally to test what `isProductionSync()` does
+    // with the flag set; its `installProdFlag` is that reproduction, and the
+    // literal pair is right there next to the assertion.
     const ALLOWED = new Set([
       'packages/core/src/core/init.ts',
       'packages/cli/src/threads.ts',
+      'packages/orm/src/sync/engine.test.ts',
     ])
     const pattern = new RegExp(
       `process\\.env(?:\\.|\\[['"\`])(?:${MODE_FLAGS})(?:['"\`]\\])?\\s*=[^=]`,

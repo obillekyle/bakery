@@ -83,19 +83,26 @@ export function defaultAuthorize(req: Request): boolean {
   // reading and the one that literally names the condition it means, rather
   // than inferring production from the absence of development.
   //
-  // Hence `!== false` rather than a plain truthiness test, which is the one
-  // place a bare `PROD` gate would be *weaker* than `!DEV`. The flag does not
-  // exist until `core/init.ts` has run, and `if (undefined)` falls straight
-  // through to the loopback check — so an uninitialised process would open the
-  // door that an initialised production one keeps shut. `init.ts` defines
-  // `PROD` as a real boolean (`accessor(!isDev && !hasDevWorkerArg)`), so
-  // "explicitly false" is a statement only a booted development server can
-  // make. Unset is not evidence of development; it is no evidence at all.
+  // Hence a test for the *positive* development marker rather than a truthiness
+  // test on `PROD`, which is the one place a bare `PROD` gate would be weaker
+  // than `!DEV`. The flags do not exist until `core/init.ts` has run, and
+  // `if (undefined)` falls straight through to the loopback check — so an
+  // uninitialised process would open the door an initialised production one
+  // keeps shut. Unset is not evidence of development; it is no evidence at all.
+  //
+  // This read `PROD !== false` while the flags were real booleans. Bun 1.4
+  // rejects accessor descriptors on `process.env`, so they are `'1'`/`''`
+  // strings now (see `core/init.ts`) — and `!== false` is true for *every*
+  // string, including the `''` a development server sets, so the gate would
+  // have denied on loopback in development while still looking correct.
+  // `DEV === '1'` is the same statement in the encoding that survives: only a
+  // booted development server sets it, and production (`''`) and never-booted
+  // (`undefined`) both fail it.
   //
   // `isLoopback` would very likely deny on its own there, having no config or
   // server to read an address from. That is a second line of defence, not this
   // one's excuse: a guard should not depend on another guard's failure mode.
-  if (import.meta.env.PROD !== false) return false
+  if (import.meta.env.DEV !== '1') return false
   return isLoopback(req)
 }
 

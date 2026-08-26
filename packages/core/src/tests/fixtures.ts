@@ -15,9 +15,17 @@ import { ApiHandler } from '../handlers/routes/api'
  * Run `fn` with one `import.meta.env` flag forced to `value`.
  *
  * The mode flags are accessors that `core/init.ts` installs on `process.env`,
- * so they are swapped by descriptor and put back: not assigned to, which throws
- * once init has defined the getter, and not module-mocked, which never unwinds
- * (see the `ip.test.ts` note in CLAUDE.md).
+ * so they are saved and put back by value — not module-mocked, which never
+ * unwinds (see the `ip.test.ts` note in CLAUDE.md).
+ *
+ * The swap used to go through property descriptors, because the flags were
+ * accessors and a plain assignment threw. Bun 1.4 rejects accessor descriptors
+ * on `process.env` entirely, so the flags are `'1'`/`''` strings now and the
+ * save/restore is an ordinary read and write. `setModeFlag` still does the
+ * writing: it is what encodes a boolean `false` as `''` rather than letting it
+ * stringify to the truthy `"false"`, which is the trap this whole helper
+ * family exists for. Restoring by value is safe for the same reason — there is
+ * no longer a closure for a restored getter to capture.
  *
  * Async on purpose, and this is the half that is easy to get wrong. The
  * handlers under test read these flags *after* several awaits, so a synchronous
@@ -31,16 +39,14 @@ export async function withEnvFlag<T>(
   value: unknown,
   fn: () => T | Promise<T>,
 ): Promise<T> {
-  const original = Object.getOwnPropertyDescriptor(process.env, flag)
-  Object.defineProperty(process.env, flag, {
-    get: () => value,
-    configurable: true,
-  })
+  const had = flag in process.env
+  const original = process.env[flag]
+  setModeFlag(flag, value)
 
   try {
     return await fn()
   } finally {
-    if (original) Object.defineProperty(process.env, flag, original)
+    if (had) process.env[flag] = original
     else delete (process.env as any)[flag]
   }
 }
@@ -68,17 +74,23 @@ export async function withEnvFlag<T>(
  * at `core/init`'s closure unchanged.
  */
 export function setModeFlag(flag: string, value: unknown): void {
-  const desc = Object.getOwnPropertyDescriptor(process.env, flag)
-  if (desc?.set) return void desc.set(value)
-
-  // No accessor yet: this process never loaded `core/init`. Install one of the
-  // same shape rather than assigning, which would stringify for the same
-  // reason.
-  Object.defineProperty(process.env, flag, {
-    get: () => value,
-    enumerable: true,
-    configurable: true,
-  })
+  // The flags are `'1'`/`''` strings on `process.env` since Bun 1.4 stopped
+  // accepting accessor descriptors there — see the block in `core/init.ts`.
+  // Encoding a boolean the way init encodes it is what keeps a fixture's
+  // `false` falsy: a plain assignment stores `"false"`, which is truthy, and
+  // that is the bug this helper existed to prevent when the flags were
+  // accessors. The mechanism changed; the hazard did not.
+  // `undefined` means *absent*, not the string "undefined". The distinction is
+  // load-bearing: `utils/http/authorize.ts` separates "explicitly not
+  // production" (`''`) from "this process never booted through init"
+  // (`undefined`) and fails closed only on the second, so a fixture asking for
+  // the never-booted case has to actually remove the key.
+  if (value === undefined) {
+    delete (process.env as Record<string, unknown>)[flag]
+    return
+  }
+  process.env[flag] =
+    typeof value === 'boolean' ? (value ? '1' : '') : (value as string)
 }
 
 export const asDev = <T>(fn: () => T | Promise<T>) =>

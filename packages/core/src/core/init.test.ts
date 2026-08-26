@@ -2,36 +2,33 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import './init'
 
 /**
- * `core/init.ts` defines the mode flags as accessors on `process.env`. They
- * were getter-only, which makes them readonly — and in strict-mode ESM an
- * assignment to a readonly property throws rather than being ignored.
+ * `core/init.ts` puts the mode flags on `process.env` as `'1'`/`''` strings.
  *
- * `threads.ts` assigns these flags before importing the worker: `THREAD_ID`
- * on the single-worker/clamped path (deliberately *not* `THREAD_WORKER`
- * there — a cluster of one must not shrink its caches), and both via Worker
- * env in the multi-worker path. Historically the assignment was wrapped in
- * `Try(...)` while the accessors were getter-only: the TypeError was
- * swallowed, the flag never moved, and `reusePort`, the per-worker
- * statement-cache scaling and the startup banner all quietly kept reading
- * the master's values. Nothing failed loudly; the code path was simply
- * dead, and the `Try(...)` made it look deliberate.
+ * They were booleans behind accessor pairs until Bun 1.4.0, which rejects
+ * accessor descriptors on `process.env` outright — the framework died on
+ * `import` in every entry. The tests here used to assert that mechanism
+ * directly (`typeof descriptor.get === 'function'`), which made them a
+ * restatement of the implementation rather than of anything it guaranteed. They
+ * now assert the guarantees, all of which survived the encoding change.
  *
- * ## Why the restore is this careful
+ * `threads.ts` assigns these before importing the worker: `THREAD_ID` on the
+ * single-worker/clamped path (deliberately *not* `THREAD_WORKER` there — a
+ * cluster of one must not shrink its caches), and both via Worker env in the
+ * multi-worker path. When the flags were getter-only accessors that assignment
+ * threw, the throw was swallowed by a `Try(...)`, and `reusePort`, the
+ * per-worker statement-cache scaling and the startup banner all quietly read
+ * the master's values. Nothing failed loudly; the path was dead and the
+ * `Try(...)` made it look deliberate.
  *
- * These flags are process-global and every later test file in the run reads
- * them, so a leak here is a failure somewhere else. Two ways to leak, both hit
- * on the way to this version:
+ * ## Why the restore is careful
  *
- * - Restoring by assignment does not work. `process.env` coerces the assigned
- *   value to a string, so `DEV`'s boolean `false` comes back as the *truthy*
- *   string `"false"` — which flipped dev-only behaviour for three tests in
- *   `handlers/` and `dashboard/` that this file merely happened to precede.
- * - Restoring the saved property *descriptor* does not work either: its getter
- *   closes over the very variable the setter just overwrote, so putting it back
- *   puts the new value back with it.
- *
- * So only the two flags `threads.ts` actually assigns are ever written, and
- * they are restored by rebuilding an accessor over the original value.
+ * These flags are process-global and every later test file reads them, so a
+ * leak here is a failure somewhere else — it has happened twice. Restoring is
+ * now a plain assignment, which is correct *because* everything is already a
+ * string: the old hazard was that assignment coerced boolean `false` to the
+ * truthy string `"false"`, flipping dev-only behaviour in three tests in
+ * `handlers/` and `dashboard/` that this file merely happened to precede. The
+ * `''` encoding is what removes that trap rather than working around it.
  */
 const FLAGS = [
   'DEV',
@@ -48,26 +45,14 @@ const FLAGS = [
 const WRITTEN = ['THREAD_WORKER', 'THREAD_ID'] as const
 
 const env = process.env as any
-const saved = new Map<string, unknown>()
-
-function restore(flag: string, original: unknown): void {
-  let value = original
-  Object.defineProperty(process.env, flag, {
-    get: () => value,
-    set: (next: unknown) => {
-      value = next
-    },
-    enumerable: true,
-    configurable: true,
-  })
-}
+const saved = new Map<string, string>()
 
 afterEach(() => {
-  for (const [flag, original] of saved) restore(flag, original)
+  for (const [flag, original] of saved) env[flag] = original
   saved.clear()
 })
 
-/** Assign through the real setter, remembering the value to put back. */
+/** Assign, remembering the value to put back. */
 function assign(flag: string, value: string): void {
   if (!saved.has(flag)) saved.set(flag, env[flag])
   env[flag] = value
@@ -82,24 +67,39 @@ describe('core/init mode flags', () => {
     expect(env.THREAD_ID).toBe('3')
   })
 
-  test('every mode flag is an accessor pair, not a bare getter', () => {
-    // The other six are inspected rather than written: a getter-only property
-    // is readonly whichever flag it is, and writing them would leak.
+  test('every mode flag is present and is a string', () => {
+    // Presence is the load-bearing half. `utils/http/authorize.ts` distinguishes
+    // "explicitly not production" (`''`) from "this process never booted through
+    // init" (`undefined`) and fails closed on the latter, so a flag that is
+    // absent rather than empty opens a door.
     for (const flag of FLAGS) {
-      const descriptor = Object.getOwnPropertyDescriptor(process.env, flag)
-      expect(descriptor).toBeDefined()
-      expect(typeof descriptor!.get).toBe('function')
-      expect(typeof descriptor!.set).toBe('function')
+      expect(`${flag} in env`).toBe(`${flag} ${flag in process.env ? 'in' : 'MISSING FROM'} env`)
+      expect(typeof env[flag]).toBe('string')
     }
   })
 
+  test('a false flag is falsy — never the string "false"', () => {
+    // The whole reason for `'1'`/`''` rather than `'true'`/`'false'`. Every
+    // gate in the codebase tests these for truthiness, and `"false"` is a
+    // truthy string: this encoding failing would not throw anywhere, it would
+    // silently invert every `if (import.meta.env.DEV)` in the framework.
+    for (const flag of FLAGS) {
+      expect(`${flag}=${env[flag]}`).not.toBe(`${flag}=false`)
+      expect(`${flag}=${env[flag]}`).not.toBe(`${flag}=true`)
+    }
+
+    // Under `bun test` exactly one of DEV/PROD is on, and the other must read
+    // falsy rather than merely "not '1'".
+    expect(Boolean(env.DEV) === Boolean(env.PROD)).toBe(false)
+  })
+
   test('import.meta.env sees the assignment', () => {
-    // Everything downstream branches on `import.meta.env.*`, which reads these
-    // same properties; a setter that only updated a private copy would be no
-    // better than the throw it replaced.
+    // Everything downstream branches on `import.meta.env.*`, which is the same
+    // object as `process.env` in Bun — verified, and the reason the flags could
+    // not simply move somewhere else when accessors stopped working.
     for (const flag of WRITTEN) assign(flag, '1')
 
-    expect(import.meta.env.THREAD_WORKER).toBe('1' as any)
+    expect(import.meta.env.THREAD_WORKER).toBe('1')
     expect(Boolean(import.meta.env.THREAD_WORKER)).toBe(true)
   })
 
@@ -107,8 +107,8 @@ describe('core/init mode flags', () => {
     // Self-check on the restore above, which is the part that has already gone
     // wrong twice. Runs last; a leak from the tests above shows up here rather
     // than in an unrelated file three packages away.
-    expect(typeof env.DEV).toBe('boolean')
-    expect(typeof env.THREAD_WORKER).toBe('boolean')
+    expect(typeof env.DEV).toBe('string')
+    expect(typeof env.THREAD_WORKER).toBe('string')
     expect(env.MODE).toBe(process.env.MODE)
   })
 })

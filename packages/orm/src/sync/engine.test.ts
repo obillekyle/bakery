@@ -32,45 +32,53 @@ import { buildSyncPlan } from './plan'
 
 // ---------------------------------------------------------------------------
 
-describe('the production guard reads a boolean, not the string "true"', () => {
+describe('the production guard reads NODE_ENV, and only NODE_ENV', () => {
   const original = {
-    NODE_ENV: Object.getOwnPropertyDescriptor(process.env, 'NODE_ENV'),
-    PROD: Object.getOwnPropertyDescriptor(process.env, 'PROD'),
+    NODE_ENV: { had: 'NODE_ENV' in process.env, value: process.env.NODE_ENV },
+    PROD: { had: 'PROD' in process.env, value: process.env.PROD },
   }
 
   /**
    * Restore, and never delete a flag this file did not create.
    *
    * The unconditional `delete` this used to open with was a cross-file leak.
-   * `@bakery-framework/orm` does not import `core/init`, so when this file loads first
-   * the captured `PROD` descriptor is `undefined` — and the restore then
-   * removed the accessor init had installed in the meantime, leaving
-   * `import.meta.env.PROD` undefined for every file that ran afterwards.
-   * `bundleModule` passes that flag straight to `Bun.build`, which rejects a
-   * non-boolean `minify`, so two NMHandler tests failed under full-suite
-   * ordering while passing in isolation.
+   * `@bakery-framework/orm` does not import `core/init`, so when this file loads
+   * first the captured `PROD` is absent — and the restore then removed the flag
+   * init had installed in the meantime, leaving `import.meta.env.PROD`
+   * undefined for every file that ran afterwards. `bundleModule` passes that
+   * flag straight to `Bun.build`, which rejects a non-boolean `minify`, so two
+   * NMHandler tests failed under full-suite ordering while passing in isolation.
+   *
+   * Presence at capture time is what decides, now that the flags are plain
+   * `'1'`/`''` strings rather than accessors (Bun 1.4 rejects accessor
+   * descriptors on `process.env`). The old version told "installed here" from
+   * "owned by init" by looking for a setter, which no longer exists on either.
    */
+  const installedHere = new Set<string>()
+
   function restore(key: 'NODE_ENV' | 'PROD') {
-    const desc = original[key]
-    if (desc) {
-      Object.defineProperty(process.env, key, desc)
+    const { had, value } = original[key]
+    if (had) {
+      process.env[key] = value
       return
     }
-    // Absent when captured. Only remove what this file itself installed —
-    // `installProdFlag` defines a getter with no setter, which is how an
-    // accessor installed here is told apart from one init owns.
-    const current = Object.getOwnPropertyDescriptor(process.env, key)
-    if (current && !current.set)
+    // Absent when this file loaded, so there is nothing to put back — but only
+    // remove it if *this file* is what put it there. `core/init` may have been
+    // imported by another test file in between (orm does not import it), and
+    // deleting the flag init installed leaves `import.meta.env.PROD` undefined
+    // for every file that runs afterwards. That is not hypothetical: it is the
+    // leak this whole helper was written for, and it resurfaced here the moment
+    // the descriptor-based version was replaced.
+    if (installedHere.has(key)) {
       delete (process.env as Record<string, unknown>)[key]
+    }
+    installedHere.delete(key)
   }
 
-  /** Exactly what `core/init.ts` installs: a getter returning a boolean. */
+  /** Exactly what `core/init.ts` installs: `'1'` for true, `''` for false. */
   function installProdFlag(value: boolean) {
-    Object.defineProperty(process.env, 'PROD', {
-      get: () => value,
-      enumerable: true,
-      configurable: true,
-    })
+    installedHere.add('PROD')
+    process.env.PROD = value ? '1' : ''
   }
 
   afterEach(() => {
@@ -80,8 +88,8 @@ describe('the production guard reads a boolean, not the string "true"', () => {
 
   test('the PROD flag alone does not make a sync a deployment', () => {
     // The original code compared `process.env.PROD` against the *string*
-    // 'true' while init.ts installs a getter returning a boolean, so the term
-    // never fired. Deleting it is deliberate, and this pins that: `PROD` means
+    // 'true' while init.ts installed a boolean, so the term never fired.
+    // Deleting it is deliberate, and this pins that: `PROD` means
     // only "--dev is absent", and `db:sync` never passes --dev, so honouring
     // the flag would make every standalone sync count as production and leave
     // the interactive confirm unreachable.

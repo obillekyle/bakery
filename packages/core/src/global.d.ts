@@ -342,13 +342,31 @@ declare global {
   // `ImportMeta.env` with its own incompatible shape, which is TS2687/TS2717 —
   // suppressed, like everything else in a .d.ts, by skipLibCheck.
   interface ImportMetaEnv {
-    readonly DEV: boolean
-    readonly PROD: boolean
-    readonly WORKER: boolean
-    readonly DEV_WORKER: boolean
-    readonly THREAD_WORKER: boolean
+    // `'1'` or `''`, not `true` or `false`. These live on `process.env`, and
+    // Bun 1.4 stopped accepting accessor descriptors there — a boolean is no
+    // longer expressible on that object at all, since data descriptors coerce
+    // too. See the encoding block in `core/init.ts`.
+    //
+    // Typed as the literal pair rather than `string` on purpose: it makes
+    // `import.meta.env.PROD !== false` a *compile* error. That comparison was
+    // real, in the dashboard's fail-closed gate, and under the string encoding
+    // it is true for every value including the `''` a development server sets —
+    // so the gate would have denied on loopback in development while still
+    // reading as correct. A type that only said `string` would not have caught
+    // it either.
+    //
+    // In a **browser** bundle these are real booleans: `compiler.ts` substitutes
+    // `JSON.stringify(!!import.meta.env.DEV)` at build time, so the literal
+    // `true`/`false` is inlined and this declaration is a slight lie there. It
+    // is the harmless direction — both encodings agree on truthiness, which is
+    // all client code tests — and the server is where the mistakes happen.
+    readonly DEV: '1' | ''
+    readonly PROD: '1' | ''
+    readonly WORKER: '1' | ''
+    readonly DEV_WORKER: '1' | ''
+    readonly THREAD_WORKER: '1' | ''
     readonly THREAD_ID: string
-    readonly TEST: boolean
+    readonly TEST: '1' | ''
     readonly MODE: 'production' | 'development' | 'dev-worker' | 'thread-worker'
     // `readonly SERVE_ROOT: string` was declared here. Nothing defines it —
     // not init.ts, not the compiler's `defines` — and nothing reads it, so any

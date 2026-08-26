@@ -66,7 +66,12 @@ export async function serveVueChunk(
         entrypoints: [sourcePath],
         target: 'browser',
         format: 'esm',
-        minify: import.meta.env.PROD,
+        // `Boolean(...)`, not the flag directly: the mode flags are `'1'`/`''` 
+        // strings (`core/init.ts`), and `Bun.build` **rejects** a non-boolean
+        // `minify` rather than coercing it. Core's `compiler.ts` already wrapped
+        // its three; this one did not, and the build would have thrown on every
+        // production SFC chunk.
+        minify: Boolean(import.meta.env.PROD),
         define: BUNDLE_DEFINES,
       })
 
