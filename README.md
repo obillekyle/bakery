@@ -11,9 +11,21 @@
   `<br>`, so a wrapped paragraph breaks mid-sentence and each badge on its own
   source line becomes its own row.
 
-  The asset URLs point at 2.0.0-alpha rather than main, because that is the
-  branch the files are on. They need repointing when the branch merges; until
-  then a main URL is a broken image.
+  MERGE-DAY CHECKLIST. This comment is the durable copy: it is tracked, and it
+  sits next to the thing it describes. The same two items are in MONOREPO.md,
+  which is gitignored and therefore disappears on a branch switch — including
+  the branch switch this checklist exists for. Do not treat that copy as the
+  record.
+
+  1. The asset URLs below point at 2.0.0-alpha rather than main, because that
+     is the only branch the files are on — origin/main has no assets/ directory
+     at all, so a main URL today is four broken images, not a fix. Repoint them
+     when the branch merges: after that the branch ref is the broken one, and it
+     is on the project's front page.
+
+  2. Docs go live at bakery.okyle.dev only once this merges. The generated shell
+     is in the branch, not the deployed ref, so the site is stale until then
+     rather than broken. Nothing to do but know it.
 -->
 
 Filesystem routing, server-rendered JSX and a typed ORM for Bun, with no build step in development.
