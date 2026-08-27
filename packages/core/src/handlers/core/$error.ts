@@ -193,7 +193,16 @@ export class ErrorHandler extends Handler {
         ...this.DEFAULT_ERROR,
         errorCode: error.status,
         errorText: error.statusText,
-        errorBody: `${error.status}: "${error.statusText}"`,
+        // The reason-phrase is optional — `new Response(null, { status })`
+        // leaves it `''`, and the framework's own forbidden-path denial is
+        // exactly that shape — so the quoting is conditional: a synthesized
+        // `403: ""` rendered a literal quoted empty string on the error page.
+        // The bare status, not `''`, because this string is also the default
+        // `onError` log line (`403 at /path`); an empty body would log
+        // ` at /path`.
+        errorBody: error.statusText
+          ? `${error.status}: "${error.statusText}"`
+          : String(error.status),
       }
     }
 

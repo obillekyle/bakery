@@ -4,7 +4,18 @@ import { Try } from '../common/try'
 import { DOMTools, headBodyCache } from './dom'
 import { ETag } from './etag'
 
-function injectBrand(res: Response) {
+/**
+ * Mark `res` as already carrying the head/body injects, so `injectIfHtml` —
+ * and therefore `processResponse`, which every response funnels through —
+ * hands it back untouched.
+ *
+ * Exported for the one caller that means "never", not "already":
+ * `DefaultErrorHandler` brands its production error page so the import map is
+ * not spliced into it. That map names every installed package — an inventory
+ * of the app's module layout — and the page carries no scripts for it (or the
+ * client bundle) to serve anyway.
+ */
+export function injectBrand(res: Response) {
   return Object.defineProperty(res, '__injected__', {
     value: true,
     enumerable: false,

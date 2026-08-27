@@ -55,6 +55,21 @@ describe('ErrorHandler.extractErrorData', () => {
     const data = ErrorHandler.extractErrorData(res)
     expect(data.errorCode).toBe(404)
     expect(data.errorText).toBe('Not Found')
+    expect(data.errorBody).toBe('404: "Not Found"')
+  })
+
+  test('a Response with no reason-phrase gets a bare status, not `: ""`', () => {
+    // `new Response(null, { status })` leaves `statusText` empty — the
+    // framework's own forbidden-path denial in `handleRequest` is exactly this
+    // shape — and the synthesized body used to quote it anyway, so the error
+    // page rendered a literal `403: ""`.
+    const data = ErrorHandler.extractErrorData(
+      new Response(null, { status: 403 }),
+    )
+    expect(data.errorCode).toBe(403)
+    expect(data.errorText).toBe('')
+    expect(data.errorBody).toBe('403')
+    expect(data.errorBody).not.toContain('""')
   })
 
   test('extracts from object with errorCode', () => {

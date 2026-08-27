@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
 import { __resetTestConfig, __setTestConfig, initConfig } from '../core/config'
+import { DefaultErrorHandler } from '../handlers/assets/static'
 import { TSXErrorHandler } from '../handlers/assets/tsx'
+import { ErrorHandler } from '../handlers/core/$error'
 import { HTMLErrorHandler } from '../handlers/routes/html'
+import { processResponse } from '../router'
 import { fs } from '../utils'
 import { asDev, asProd } from './fixtures'
 
@@ -145,5 +148,132 @@ describe('ordinary pages still render', () => {
     )
     expect(text).toContain('PLAIN-OK')
     expect(text).toContain('42')
+  })
+})
+
+/**
+ * The built-in fallback page splits on the same DEV gate `publicBody` uses,
+ * and everything below the split is a disclosure the production page must not
+ * make. The DEV page is a diagnostics page — branded title, `<pre>` body, a
+ * requester/date footer — and `processResponse` injects the import map and
+ * client bundle into it like any page. Outside DEV every one of those told an
+ * anonymous requester something: the import map is an inventory of the app's
+ * installed packages, the footer echoed the requester's IP and a server
+ * timestamp, and the title named the framework. So the production page is the
+ * status line and the public body, and it is branded so `processResponse`
+ * serves it byte-for-byte.
+ */
+describe('DefaultErrorHandler — the production page is plain', () => {
+  const ERROR403 = {
+    errorCode: 403,
+    errorText: 'Forbidden',
+    errorBody: 'denied',
+  }
+
+  // Through the real pipeline: the import map is not something `handle` emits,
+  // it is what `processResponse` splices into every unbranded HTML response —
+  // so the page has to be read after that splice would have happened.
+  const served = async (error: typeof ERROR403) => {
+    const r = new Request('http://localhost/__denied')
+    ;(r as any).startNs = Bun.nanoseconds()
+    const res = await DefaultErrorHandler.handle('/__denied', r, { ...error })
+    const final = await processResponse(res, r)
+    return { status: final?.status, text: await bodyOf(final) }
+  }
+
+  test('no import map and no client bundle, even through processResponse', async () => {
+    const { status, text } = await asProd(() => served(ERROR403))
+    expect(status).toBe(403)
+    expect(text).not.toContain('importmap')
+    expect(text).not.toContain('/_client/')
+  })
+
+  test('no requester IP and no timestamp footer', async () => {
+    // With no live server the IP renders as its 'Unknown' fallback, which is
+    // what the DEV footer shows under test. The date is captured on both
+    // sides of the render so a midnight rollover cannot fake a pass.
+    const before = new Date().toDateString()
+    const { text } = await asProd(() => served(ERROR403))
+    const after = new Date().toDateString()
+    expect(text).not.toContain('Unknown')
+    expect(text).not.toContain(before)
+    expect(text).not.toContain(after)
+    expect(text).not.toContain('<small>')
+    expect(text).not.toContain('<hr')
+  })
+
+  test('no dev chrome — the framework branding goes too', async () => {
+    const { text } = await asProd(() => served(ERROR403))
+    expect(text).not.toContain('Bakery')
+  })
+
+  test('status and text still render', async () => {
+    const { text } = await asProd(() => served(ERROR403))
+    expect(text).toContain('<h1>403 - Forbidden</h1>')
+    expect(text).toContain('denied')
+  })
+
+  test('DEV keeps the diagnostics page', async () => {
+    const before = new Date().toDateString()
+    const { text } = await asDev(() => served(ERROR403))
+    const after = new Date().toDateString()
+    expect(text).toContain('type="importmap"')
+    expect(text).toContain('<small>')
+    expect(text.includes(before) || text.includes(after)).toBe(true)
+    expect(text).toContain('denied')
+  })
+})
+
+/**
+ * A denial authored with no message — `response.error('', 403)`, or the bare
+ * `new Response(null, { status: 403 })` that `handleRequest` itself returns
+ * for a forbidden path — used to render `<h1>403 - </h1>` over a `<pre>` of
+ * `403: ""`. The separator needs text to separate and an empty body renders
+ * as no element, in both modes.
+ */
+describe('DefaultErrorHandler — an empty message renders clean', () => {
+  const EMPTY = { errorCode: 403, errorText: '', errorBody: '' }
+
+  // `await`ed rather than `.then`ed: unlike the page handlers above,
+  // `DefaultErrorHandler.handle` is synchronous and returns the Response
+  // itself.
+  const pageText = async (error: typeof EMPTY) =>
+    bodyOf(
+      await DefaultErrorHandler.handle(
+        '/__denied',
+        new Request('http://localhost/__denied'),
+        { ...error },
+      ),
+    )
+
+  test('no trailing separator in the heading', async () => {
+    const text = await asProd(() => pageText(EMPTY))
+    expect(text).toContain('<h1>403</h1>')
+    expect(text).not.toContain('403 -')
+  })
+
+  test('DEV agrees — the heading rule is not mode-gated', async () => {
+    const text = await asDev(() => pageText(EMPTY))
+    expect(text).toContain('<h1>403</h1>')
+    expect(text).not.toContain('403 -')
+  })
+
+  test('an empty body renders no element and no quoted empty string', async () => {
+    const text = await asProd(() => pageText(EMPTY))
+    expect(text).not.toContain('""')
+    expect(text).not.toContain('<pre>')
+    expect(text).not.toContain('<p>')
+  })
+
+  test('what a bare denial Response actually renders as, end to end', async () => {
+    const data = ErrorHandler.extractErrorData(
+      new Response(null, { status: 403 }),
+    )
+    const text = await asProd(() => pageText(data))
+    expect(text).toContain('<h1>403</h1>')
+    // Both spellings: the page escapes its body, so the artifact reached the
+    // browser as `&quot;&quot;` and only *rendered* as `""`.
+    expect(text).not.toContain('""')
+    expect(text).not.toContain('&quot;&quot;')
   })
 })
