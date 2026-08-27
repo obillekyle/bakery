@@ -1,6 +1,6 @@
 {
   "name": "@bakery-framework/orm",
-  "version": "2.0.0-alpha.11",
+  "version": "2.0.0-alpha.12",
   "description": "Bakery database layer: adapters, query builder, schema sync and backup.",
   "keywords": [
     "bakery",
