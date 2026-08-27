@@ -78,8 +78,18 @@ describe('unique indexes, when there is no primary key', () => {
           slug: { type: 'string', nullable: false },
         } as any,
         indexes: [
-          { name: 'uxWide', type: 'unique', cols: ['tenant', 'slug'] },
-          { name: 'uxAddress', type: 'unique', cols: ['address'] },
+          {
+            name: 'uxWide',
+            type: 'unique',
+            cols: ['tenant', 'slug'],
+            rawCols: ['tenant', 'slug'],
+          },
+          {
+            name: 'uxAddress',
+            type: 'unique',
+            cols: ['address'],
+            rawCols: ['address'],
+          },
         ],
       }),
     )
@@ -93,22 +103,81 @@ describe('unique indexes, when there is no primary key', () => {
       table({
         columns: ['address'],
         constraints: { address: { type: 'string', nullable: true } } as any,
-        indexes: [{ name: 'ux', type: 'unique', cols: ['address'] }],
+        indexes: [
+          {
+            name: 'ux',
+            type: 'unique',
+            cols: ['address'],
+            rawCols: ['address'],
+          },
+        ],
       }),
     )
     expect(identity.mode).toBe('none')
   })
 
   test('a column reporting no nullability at all is treated as unusable', () => {
-    // Fail closed (convention 2): silence is not "NOT NULL".
+    // Fail closed (convention 2): silence is not "NOT NULL". `rawCols` is
+    // supplied so this exercises the nullability clause and not the missing-
+    // rawCols filter in front of it.
     const identity = describeIdentity(
       table({
         columns: ['address'],
         constraints: { address: { type: 'string' } } as any,
+        indexes: [
+          {
+            name: 'ux',
+            type: 'unique',
+            cols: ['address'],
+            rawCols: ['address'],
+          },
+        ],
+      }),
+    )
+    expect(identity.mode).toBe('none')
+  })
+
+  test('an index entry without rawCols is never an identity', () => {
+    // Introspection always fills `rawCols`; an entry without it has no
+    // database spelling to write a predicate against, and guessing one is the
+    // bug this field exists to end. Fail closed.
+    const identity = describeIdentity(
+      table({
+        columns: ['address'],
+        constraints: { address: { type: 'string', nullable: false } } as any,
         indexes: [{ name: 'ux', type: 'unique', cols: ['address'] }],
       }),
     )
     expect(identity.mode).toBe('none')
+  })
+
+  test('camel-colliding columns are refused, never resolved to the wrong one', () => {
+    // `user_id` and `userId` camel-case alike. The retired camel→raw map was
+    // first-wins, so a unique index over `userId` resolved to `user_id` — a
+    // write predicate over the *wrong column*, silently updating rows the
+    // caller never addressed. With the adapter's `rawCols` the indexed column
+    // is named exactly: `userId`, which `isAddressable` then refuses because
+    // `qId` snake-cases identifiers on the way into a statement, so that
+    // spelling cannot survive a write. Read-only is the honest answer; the old
+    // answer was confidently wrong.
+    const identity = describeIdentity(
+      table({
+        name: 'accounts',
+        columns: ['user_id', 'userId'],
+        constraints: { userId: { type: 'integer', nullable: false } } as any,
+        indexes: [
+          {
+            name: 'uxUser',
+            type: 'unique',
+            cols: ['userId'],
+            rawCols: ['userId'],
+          },
+        ],
+      }),
+    )
+    expect(identity.mode).toBe('none')
+    // The discriminating half: whatever else, the first-wins answer is dead.
+    expect(identity.cols).not.toEqual(['user_id'])
   })
 
   test('a non-unique index is never an identity', () => {

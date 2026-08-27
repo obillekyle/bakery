@@ -58,7 +58,12 @@ function createStubDb() {
       // Keyed by index name, `table` and `cols` camel-cased — the shape the
       // adapters actually report.
       return {
-        ix_picked: { type: 'index', table: 'parcels', cols: ['pickedUp'] },
+        ix_picked: {
+          type: 'index',
+          table: 'parcels',
+          cols: ['pickedUp'],
+          rawCols: ['picked_up'],
+        },
       }
     },
     getForeignKeys: async () => {
@@ -266,9 +271,10 @@ describe('no raw SQL and no DDL — structurally, not by configuration', () => {
     // them, so their absence here is the feature missing.
     const res = (await handleSchema()) as any
     expect(res.data.tables[0].indexes).toEqual([
-      // `pickedUp` on the way in, `picked_up` on the way out: `getIndexes()`
-      // camel-cases its column names and the grid speaks raw ones, so showing
-      // the spelling as it arrived would name a column the table does not have.
+      // `pickedUp` in `cols`, `picked_up` in `rawCols`, and the raw spelling
+      // is what reaches the screen: the grid speaks raw names, and the camel
+      // one would name a column the table does not have. The adapter carries
+      // both since the camel→raw rebuild was retired.
       { name: 'ix_picked', type: 'index', cols: ['picked_up'] },
     ])
     expect(res.data.tables[0].isView).toBe(false)

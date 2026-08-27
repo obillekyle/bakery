@@ -378,14 +378,16 @@ getters — so the surface below is the whole job.
 
 | Member | Must be |
 | --- | --- |
-| `getSchema()` | one `TableDetails` per table: name, `rowCount`, columns (`name`, `type`, `notnull`, `pk`) and indexes (`name`, `unique`). `pk` must be `true` for **every** member of a composite primary key — a dialect that reports only the first one silently hands anything deriving a row identity from this a predicate matching every row that shares it |
+| `getSchema(options?)` | one `TableDetails` per table: name, `rowCount`, columns (`name`, `type`, `notnull`, `pk`) and indexes (`name`, `unique`). `pk` must be `true` for **every** member of a composite primary key — a dialect that reports only the first one silently hands anything deriving a row identity from this a predicate matching every row that shares it |
 | `getConstraints()` | per column, the shape the sync differ compares against the declared schema. Disagreeing with `getSchema()` about the same table is the failure mode that has actually happened |
-| `getIndexes()` | declared indexes, keyed camel-case, with implicit ones the engine did not create filtered out or they present as permanent drift |
+| `getIndexes()` | declared indexes, keyed camel-case, with implicit ones the engine did not create filtered out or they present as permanent drift. `rawCols` carries the database's own column spelling aligned with `cols` — `Case.snake` is not the inverse of `Case.camel`, so a consumer that needs the raw name cannot recover it and must be handed it |
 | `protected parseConstraints(col, …)` | one catalog row folded into one `ColumnConstraint`. The extra parameters are dialect-shaped — SQLite passes the `CREATE TABLE` text alongside the row because its catalog does not carry width or enum members |
 
-`rowCount` is a `COUNT(*)` per table, which is a full scan on SQLite and
-Postgres and is paid by every caller even though only a table listing displays
-it. Do not treat it as free.
+`rowCount` is `null` unless the caller passed `{ rowCounts: true }`. The count
+is a `COUNT(*)` per table — a full scan on SQLite and Postgres — and
+`getSchema()` also sits on write paths that only need identity, so the scan is
+opt-in and an untaken count is `null`, never `0`: a number that was not
+measured must not read as an empty table.
 
 **Data access**
 
@@ -421,9 +423,10 @@ The three pattern operators escape `%` and `_` in the value and emit
 `ESCAPE '!'`, so a filter for `50%` finds the literal percent sign rather than
 matching every row. `!` rather than a backslash for a dialect reason: MySQL
 processes backslash escapes inside string literals where SQLite and Postgres do
-not, and the Postgres normaliser applies MySQL's rule to every dialect — so
-`ESCAPE '\'` leaves the literal open, swallows the rest of the statement, and
-the driver reports a syntax error several tokens further on.
+not, so `ESCAPE '\'` would need a per-dialect spelling where `!` is one
+clause for all three. (The Postgres normaliser used to make the backslash
+actively fatal by applying MySQL's rule to every dialect; that is fixed, and
+the choice of `!` stands on the MySQL ground alone.)
 
 **Call `buildFilterSort(opts, validCols)` rather than re-deriving any of it.**
 It is protected and concrete on the base class, all three built-ins use it, and

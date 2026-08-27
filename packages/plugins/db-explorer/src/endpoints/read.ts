@@ -67,7 +67,7 @@ export interface SchemaReport {
 export async function handleSchema(): Promise<JsonResponseData<unknown>> {
   return await Try.return(
     async () => {
-      const tables = await introspect()
+      const tables = await introspect({ rowCounts: true })
       const access = currentAccess()
       const canWrite = currentCanWrite()
 
@@ -82,7 +82,9 @@ export async function handleSchema(): Promise<JsonResponseData<unknown>> {
             : table.identity.reason
           return {
             name: table.name,
-            rowCount: table.rowCount,
+            // The listing asked for counts, so null cannot occur here; the
+            // fallback keeps the payload type honest rather than asserting.
+            rowCount: table.rowCount ?? 0,
             columns: table.columns.map(column => ({
               name: column.name,
               type: column.sqlType,

@@ -282,7 +282,9 @@ export class SQLiteAdapter extends SQLAdapter {
     return new SQLiteAdapter(this.filename, sql as SQL)
   }
 
-  async getSchema(): Promise<SQLAdapter.TableDetails[]> {
+  async getSchema(
+    options?: SQLAdapter.SchemaOptions,
+  ): Promise<SQLAdapter.TableDetails[]> {
     const res = (await this.query(
       'SELECT name FROM sqlite_master' +
         " WHERE type='table' AND name NOT LIKE 'sqlite_%'",
@@ -292,24 +294,25 @@ export class SQLiteAdapter extends SQLAdapter {
     // 20-table schema cost 20 sequential round-trip waves. They share nothing,
     // so the whole fan-out is one wave now.
     //
-    // Worth knowing before this grows: the `COUNT(*)` is a full scan on this
-    // dialect and on Postgres, and it is paid on every caller of `getSchema()`
-    // even though only a schema *listing* displays the number. Making it
-    // optional means `rowCount` has to admit it can be absent, which is a type
-    // change across every consumer — recorded rather than done here.
+    // The `COUNT(*)` is a full scan on this dialect and on Postgres, so it is
+    // opt-in: only a schema *listing* displays the number, and `getSchema()`
+    // also sits on the explorer's write path, where a count nobody shows cost
+    // a scan of every table per write.
     return await Promise.all(
       res.map(async t => {
         const tableName = this.quote(t.name)
 
         const [countRes, cols, idxs] = (await Promise.all([
-          this.query(`SELECT COUNT(*) as count FROM ${tableName}`).get(),
+          options?.rowCounts
+            ? this.query(`SELECT COUNT(*) as count FROM ${tableName}`).get()
+            : null,
           this.query(`PRAGMA table_info(${tableName})`).all(),
           this.query(`PRAGMA index_list(${tableName})`).all(),
-        ])) as [SQLAdapter.CountRow, any[], any[]]
+        ])) as [SQLAdapter.CountRow | null, any[], any[]]
 
         return {
           name: t.name,
-          rowCount: countRes?.count || 0,
+          rowCount: options?.rowCounts ? countRes?.count || 0 : null,
           columns: cols.map(c => ({
             name: c.name,
             type: c.type,
@@ -505,18 +508,22 @@ export class SQLiteAdapter extends SQLAdapter {
     ).all()) as any[]
     return Object.fromEntries(
       await Promise.all(
-        indexes.map(async idx => [
-          Case.camel(idx.name),
-          {
-            type: idx.sql.toUpperCase().includes('UNIQUE') ? 'unique' : 'index',
-            table: Case.camel(idx.tbl_name),
-            cols: (
-              (await this.query(
-                `PRAGMA index_info('${idx.name}')`,
-              ).all()) as any[]
-            ).map(c => Case.camel(c.name)),
-          },
-        ]),
+        indexes.map(async idx => {
+          const raw = (
+            (await this.query(`PRAGMA index_info('${idx.name}')`).all()) as any[]
+          ).map(c => String(c.name))
+          return [
+            Case.camel(idx.name),
+            {
+              type: idx.sql.toUpperCase().includes('UNIQUE')
+                ? 'unique'
+                : 'index',
+              table: Case.camel(idx.tbl_name),
+              cols: raw.map(Case.camel),
+              rawCols: raw,
+            },
+          ]
+        }),
       ),
     )
   }

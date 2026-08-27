@@ -87,9 +87,23 @@ describe('Postgres normalisation', () => {
     expect(normalize("SELECT 'a''b?' , ?", [1])).toBe("SELECT 'a''b?' , $1")
   })
 
-  test('a backslash escape keeps the character it escapes', () => {
-    // Same double-consume, via handleSpecial.
-    expect(normalize("SELECT 'a\\'b'")).toBe("SELECT 'a\\'b'")
+  test('a backslash in a literal is a character, not an escape', () => {
+    // Postgres semantics (`standard_conforming_strings`): the backslash does
+    // not consume what follows, so the quote after it *closes* the literal and
+    // the scanner leaves the string exactly where the server does.
+    //
+    // The `?` after the literal is the discriminating half. Under the old
+    // MySQL-style rule the closing quote was eaten, the scanner never left the
+    // literal, and the placeholder stayed a literal `?` — the server then
+    // reported a syntax error several tokens past the backslash, which is how
+    // `ESCAPE '\'` broke. Byte-identical output alone cannot pin this: the
+    // old and new scanners emit the same characters and disagree only about
+    // where the literal ends, so only a rewrite *after* the backslash tells
+    // them apart.
+    expect(normalize("SELECT '\\' , ?", [1])).toBe("SELECT '\\' , $1")
+    expect(
+      normalize("SELECT a FROM t WHERE a LIKE ? ESCAPE '\\' OFFSET ?", [1, 2]),
+    ).toBe("SELECT a FROM t WHERE a LIKE $1 ESCAPE '\\' OFFSET $2")
   })
 
   test('leaves a ? inside a string literal alone', () => {

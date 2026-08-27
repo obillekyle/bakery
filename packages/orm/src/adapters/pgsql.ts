@@ -60,13 +60,16 @@ export class PGAdapter extends SQLAdapter {
     nextChar: string | undefined,
     state: PGSQLParserState,
   ): string | null {
-    if (char === '\\') {
-      if ((state.inSingleQuote || state.inDoubleQuote) && nextChar) {
-        state.skipNext = true
-        return `\\${nextChar}`
-      }
-      return char
-    }
+    // No backslash branch, deliberately. Postgres with
+    // `standard_conforming_strings` — the server default since 9.1, and what
+    // every connection here runs under — treats a backslash inside a `'…'`
+    // literal as an ordinary character. This scanner used to apply MySQL's
+    // rule instead: `\` consumed the next character, so the `'` closing a
+    // `'\'` literal was eaten, the scanner stayed "inside" a literal the
+    // server had already closed, and every `?` after it was left unrewritten —
+    // which is how `ESCAPE '\'` produced a syntax error several tokens
+    // downstream. The server's parse is the only one that matters; the scanner
+    // now agrees with it by having no opinion about backslashes at all.
     if (char === '`') {
       return !state.inSingleQuote && !state.inDoubleQuote ? '"' : char
     }
@@ -246,7 +249,9 @@ export class PGAdapter extends SQLAdapter {
     return new PGAdapter(sql as SQL)
   }
 
-  async getSchema(): Promise<SQLAdapter.TableDetails[]> {
+  async getSchema(
+    options?: SQLAdapter.SchemaOptions,
+  ): Promise<SQLAdapter.TableDetails[]> {
     const res = (await this.query(
       'SELECT table_name AS name, table_type AS type' +
         ' FROM information_schema.tables' +
@@ -261,7 +266,9 @@ export class PGAdapter extends SQLAdapter {
       res.map(async t => {
         const qName = this.quote(t.name)
         const [countRes, cols, pkCols, idxs] = (await Promise.all([
-          this.query(`SELECT COUNT(*)::int as count FROM ${qName}`).get(),
+          options?.rowCounts
+            ? this.query(`SELECT COUNT(*)::int as count FROM ${qName}`).get()
+            : null,
           this.query(
             'SELECT column_name AS name, data_type AS type,' +
               ' is_nullable AS is_nullable' +
@@ -292,10 +299,10 @@ export class PGAdapter extends SQLAdapter {
               " WHERE schemaname NOT IN ('pg_catalog', 'information_schema')" +
               ' AND tablename = ?',
           ).all(t.name),
-        ])) as [SQLAdapter.CountRow, any[], any[], any[]]
+        ])) as [SQLAdapter.CountRow | null, any[], any[], any[]]
         return {
           name: t.name,
-          rowCount: countRes?.count || 0,
+          rowCount: options?.rowCounts ? countRes?.count || 0 : null,
           columns: cols.map(c => ({
             name: c.name,
             type: c.type,
@@ -473,14 +480,14 @@ export class PGAdapter extends SQLAdapter {
       )
         continue
       const m = r.indexdef.match(/\(([^)]+)\)/)
+      const raw: string[] = m
+        ? m[1].split(',').map((c: string) => c.trim().replace(/"/g, ''))
+        : []
       dbIndexes[Case.camel(r.indexname)] = {
         type: /UNIQUE/i.test(r.indexdef) ? 'unique' : 'index',
         table: Case.camel(r.tablename),
-        cols: m
-          ? m[1]
-              .split(',')
-              .map((c: string) => Case.camel(c.trim().replace(/"/g, '')))
-          : [],
+        cols: raw.map(Case.camel),
+        rawCols: raw,
       }
     }
     return dbIndexes

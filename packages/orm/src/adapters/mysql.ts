@@ -270,7 +270,9 @@ export class MySQLAdapter extends SQLAdapter {
     return new MySQLAdapter(sql as SQL)
   }
 
-  async getSchema(): Promise<SQLAdapter.TableDetails[]> {
+  async getSchema(
+    options?: SQLAdapter.SchemaOptions,
+  ): Promise<SQLAdapter.TableDetails[]> {
     const res = (await this.query(
       'SELECT table_name AS name' +
         ' FROM information_schema.tables' +
@@ -280,7 +282,11 @@ export class MySQLAdapter extends SQLAdapter {
     const tablesWithDetails: SQLAdapter.TableDetails[] = []
     for (const t of res) {
       const [countRes, cols, idxs] = (await Promise.all([
-        this.query(`SELECT COUNT(*) as count FROM ${this.quote(t.name)}`).get(),
+        options?.rowCounts
+          ? this.query(
+              `SELECT COUNT(*) as count FROM ${this.quote(t.name)}`,
+            ).get()
+          : null,
         this.query(
           'SELECT column_name AS name, data_type AS type,' +
             ' is_nullable AS is_nullable, column_key AS column_key' +
@@ -293,13 +299,13 @@ export class MySQLAdapter extends SQLAdapter {
             ' FROM information_schema.statistics' +
             ' WHERE table_name = ? AND table_schema = DATABASE()',
         ).all(t.name),
-      ])) as [SQLAdapter.CountRow, any[], any[]]
+      ])) as [SQLAdapter.CountRow | null, any[], any[]]
       const uniqueIdxs = Array.from(
         new Map(idxs.map(i => [i.name, i.non_unique === 0])).entries(),
       ).map(([name, unique]) => ({ name, unique }))
       tablesWithDetails.push({
         name: t.name,
-        rowCount: countRes?.count || 0,
+        rowCount: options?.rowCounts ? countRes?.count || 0 : null,
         columns: cols.map(c => ({
           name: c.name,
           type: c.type,
@@ -505,6 +511,7 @@ export class MySQLAdapter extends SQLAdapter {
           type: info.non_unique === 0 ? 'unique' : 'index',
           table: Case.camel(info.table),
           cols: info.cols.map(Case.camel),
+          rawCols: info.cols,
         },
       ]),
     )

@@ -743,11 +743,13 @@ describe('MySQL introspection queries', () => {
         type: 'unique',
         table: 'appUsers',
         cols: ['nickName'],
+        rawCols: ['nick_name'],
       },
       idxAppUsersPair: {
         type: 'index',
         table: 'appUsers',
         cols: ['firstName', 'lastName'],
+        rawCols: ['first_name', 'last_name'],
       },
     })
     expect(texts(calls)).toEqual([
@@ -780,7 +782,7 @@ describe('MySQL introspection queries', () => {
       return []
     })
 
-    expect(await db.getSchema()).toEqual([
+    expect(await db.getSchema({ rowCounts: true })).toEqual([
       {
         name: 'app_users',
         rowCount: 3,
@@ -803,6 +805,27 @@ describe('MySQL introspection queries', () => {
       'SELECT column_name AS name, data_type AS type, is_nullable AS is_nullable, column_key AS column_key FROM information_schema.columns WHERE table_name = ? AND table_schema = DATABASE() ORDER BY ordinal_position',
       'SELECT index_name AS name, non_unique AS non_unique FROM information_schema.statistics WHERE table_name = ? AND table_schema = DATABASE()',
     ])
+  })
+
+  test('getSchema without the option issues no COUNT and reports null', async () => {
+    // The count is a full table scan on SQLite and Postgres, and `getSchema()`
+    // sits on the explorer's write path — so it is opt-in, and the honest
+    // assertion is the statement list: a fixture would keep answering a COUNT
+    // nobody should send. `null`, not 0, so a count that was never taken
+    // cannot read as an empty table.
+    const db = new MySQLAdapter()
+    const calls = record(db, sql => {
+      if (sql.includes('information_schema.tables'))
+        return [{ name: 'app_users' }]
+      if (sql.includes('COUNT(*)')) return [{ count: 3 }]
+      if (sql.includes('information_schema.columns'))
+        return [{ name: 'id', type: 'int', is_nullable: 'NO', column_key: 'PRI' }]
+      return []
+    })
+
+    const tables = await db.getSchema()
+    expect(tables[0].rowCount).toBeNull()
+    expect(texts(calls).some(sql => sql.includes('COUNT'))).toBe(false)
   })
 
   test('getData validates sort and filter columns against the real column list', async () => {
@@ -1050,11 +1073,13 @@ describe('Postgres introspection queries', () => {
         type: 'unique',
         table: 'appUsers',
         cols: ['nickName'],
+        rawCols: ['nick_name'],
       },
       idxAppUsersPair: {
         type: 'index',
         table: 'appUsers',
         cols: ['firstName', 'lastName'],
+        rawCols: ['first_name', 'last_name'],
       },
     })
     expect(texts(calls)).toEqual([
@@ -1099,7 +1124,7 @@ describe('Postgres introspection queries', () => {
       return []
     })
 
-    expect(await db.getSchema()).toEqual([
+    expect(await db.getSchema({ rowCounts: true })).toEqual([
       {
         name: 'app_users',
         rowCount: 3,
@@ -1243,11 +1268,13 @@ describe('SQLite: DDL round-trips through introspection', () => {
         type: 'unique',
         table: 'appUsers',
         cols: ['nickName'],
+        rawCols: ['nick_name'],
       },
       idxAppUsersPair: {
         type: 'index',
         table: 'appUsers',
         cols: ['nickName', 'score'],
+        rawCols: ['nick_name', 'score'],
       },
     })
   })
@@ -1259,7 +1286,7 @@ describe('SQLite: DDL round-trips through introspection', () => {
     const names = Object.keys(await db.getIndexes())
     expect(names.some(n => n.toLowerCase().includes('autoindex'))).toBe(false)
     // getSchema does show it — that view is the dashboard's, not the planner's.
-    const schema = await db.getSchema()
+    const schema = await db.getSchema({ rowCounts: true })
     const users = schema.find(t => t.name === 'app_users')
     expect(users?.indexes.map(i => i.name)).toContain(
       'sqlite_autoindex_app_users_1',
@@ -1267,7 +1294,7 @@ describe('SQLite: DDL round-trips through introspection', () => {
   })
 
   test('getSchema reports counts, nullability, pk and uniqueness', async () => {
-    const users = (await db.getSchema()).find(t => t.name === 'app_users')
+    const users = (await db.getSchema({ rowCounts: true })).find(t => t.name === 'app_users')
     expect(users?.rowCount).toBe(2)
     expect(users?.columns).toEqual([
       { name: 'id', type: 'INTEGER', notnull: false, pk: true },
@@ -1293,7 +1320,7 @@ describe('SQLite: DDL round-trips through introspection', () => {
       .query("SELECT name FROM sqlite_master WHERE name = 'sqlite_sequence'")
       .all()) as Array<{ name: string }>
     expect(master.length).toBe(1)
-    expect((await db.getSchema()).map(t => t.name)).not.toContain(
+    expect((await db.getSchema({ rowCounts: true })).map(t => t.name)).not.toContain(
       'sqlite_sequence',
     )
     expect(Object.keys(await db.getConstraints())).not.toContain(
@@ -1354,7 +1381,7 @@ describe('SQLite: DDL round-trips through introspection', () => {
     })
     expect(injected.totalRows).toBe(2)
     // The table is still there, which is the point.
-    expect((await db.getSchema()).map(t => t.name)).toContain('app_users')
+    expect((await db.getSchema({ rowCounts: true })).map(t => t.name)).toContain('app_users')
   })
 })
 
@@ -1388,7 +1415,7 @@ describe('SQLite: mutating DDL applied and read back', () => {
       nullable: true,
       default: 'none',
     })
-    const users = (await db.getSchema()).find(t => t.name === 'app_users')
+    const users = (await db.getSchema({ rowCounts: true })).find(t => t.name === 'app_users')
     expect(users?.columns.map(c => c.name)).toContain('tag_line')
   })
 
@@ -1404,7 +1431,7 @@ describe('SQLite: mutating DDL applied and read back', () => {
     const db = await fresh()
     await db.createIndex('idx_nick', 'app_users', ['nick_name'])
     await db.rename('TABLE', 'app_users', 'people')
-    expect((await db.getSchema()).map(t => t.name)).toEqual(['people'])
+    expect((await db.getSchema({ rowCounts: true })).map(t => t.name)).toEqual(['people'])
     // SQLite rewrites the index's tbl_name for us; introspection must follow.
     expect((await db.getIndexes()).idxNick.table).toBe('people')
   })
@@ -1423,7 +1450,7 @@ describe('SQLite: mutating DDL applied and read back', () => {
     const db = await fresh()
     await db.insert('app_users', [{ nickName: 'ann' }, { nickName: 'bob' }])
     await db.truncate('app_users')
-    const users = (await db.getSchema()).find(t => t.name === 'app_users')
+    const users = (await db.getSchema({ rowCounts: true })).find(t => t.name === 'app_users')
     expect(users?.rowCount).toBe(0)
     expect(users).toBeDefined()
   })
@@ -1431,7 +1458,7 @@ describe('SQLite: mutating DDL applied and read back', () => {
   test('drop TABLE removes it from both introspection surfaces', async () => {
     const db = await fresh()
     await db.drop('TABLE', 'app_users')
-    expect(await db.getSchema()).toEqual([])
+    expect(await db.getSchema({ rowCounts: true })).toEqual([])
     expect(await db.getConstraints()).toEqual({})
   })
 
@@ -1442,7 +1469,7 @@ describe('SQLite: mutating DDL applied and read back', () => {
       `${db.quote('nick_name')} ${db.colDef({ type: 'string' })}`,
     ])
     await db.copyTableData('app_users', 'app_users_new', ['nick_name'])
-    const copied = (await db.getSchema()).find(t => t.name === 'app_users_new')
+    const copied = (await db.getSchema({ rowCounts: true })).find(t => t.name === 'app_users_new')
     expect(copied?.rowCount).toBe(2)
   })
 

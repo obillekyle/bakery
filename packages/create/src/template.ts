@@ -460,7 +460,16 @@ export function templateFiles(
       dev: 'bakery --dev',
       start: 'bakery',
       typecheck: 'tsc --noEmit',
-      ...(orm ? { 'db:sync': 'bun run scripts/db-sync.ts' } : {}),
+      ...(orm
+        ? {
+            'db:sync': 'bun run scripts/db-sync.ts',
+            // The codegen entry point: write the schema *from* the database,
+            // touching no tables. `--migrate` is the sync engine's adoption
+            // flag; naming it here is what makes generation discoverable as a
+            // command rather than folklore about a flag.
+            'db:codegen': 'bun run scripts/db-sync.ts --migrate',
+          }
+        : {}),
     },
     // Sorted, because the key order here is otherwise "whichever plugin was
     // listed first", and a generated file that differs run to run is a diff

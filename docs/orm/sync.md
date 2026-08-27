@@ -62,15 +62,17 @@ one untouched somewhere else. See [Schema](schema.md#where-the-schema-lives).
 ## Flags
 
 ```
-bun run db:sync [--choose=db|ts] [--dry-run] [--force-sync] [--help]
+bun run db:sync [--migrate] [--choose=db|ts] [--dry-run] [--force-sync] [--no-ledger] [--help]
 ```
 
 | Flag | Effect |
 | --- | --- |
 | `--choose=ts` | Apply the schema to the database. The default. |
 | `--choose=db` | The opposite: regenerate the schema file *from* the database. |
+| `--migrate` | Adopt an existing database: write the schema from what is there, record it, change no tables. `db:codegen` names this. |
 | `--dry-run` | Print the planned changes and stop. |
 | `--force-sync` | Skip the confirmation prompt; required for destructive changes in production. |
+| `--no-ledger` | Diff against live introspection, ignoring the recorded schema. |
 | `--help`, `-h` | Usage. |
 
 ## What it detects
@@ -143,10 +145,26 @@ they will not survive the next sync.
 
 ## Generating a schema from the database
 
-`--choose=db` inverts the direction. Instead of applying the schema, it reads
-the database and writes a schema file describing it — the `DBInfo` single-file
-layout, including the `declare module` registration block, since a generated
-schema that does not register itself would leave the ORM untyped.
+Schema generation is the ORM's job, not something an application hand-rolls —
+the generator, the type mapping and the registration block all live in
+`@bakery-framework/orm`, and a scaffolded app gets the command under the name
+that says what it does:
+
+```bash
+bun run db:codegen
+```
+
+That is `db:sync --migrate`: adopt what the database already holds. It writes
+the schema from introspection, records it in the ledger so the next sync has
+nothing to do, and **changes no tables** — the safe verb for a database Bakery
+did not create. Under the `orm/` folder layout the generator owns `tables.ts`
+outright and seeds `views.ts` / `indexes.ts` only when they do not exist, so
+hand-authored declarations are never overwritten by a regeneration.
+
+`--choose=db` is the other direction of an ordinary sync: when the schema file
+and the database disagree, take the database's side and rewrite the file. Same
+generator, different occasion — reach for it when reconciling drift, not when
+adopting.
 
 ```bash
 bun run db:sync --choose=db

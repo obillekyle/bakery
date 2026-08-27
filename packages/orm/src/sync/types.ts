@@ -55,6 +55,22 @@ export interface IndexConstraint {
   type: 'index' | 'unique' | 'foreign'
   table: string
   cols: string[]
+  /**
+   * The column names exactly as the database reported them, aligned with
+   * `cols` by position. Introspection always fills this; a TS-declared index
+   * (`Field.Unique`, `Field.Index`) has no database spelling to carry, which
+   * is why it is optional.
+   *
+   * It exists because `Case.snake` is not the inverse of `Case.camel`
+   * (`SKU_code` → `sKUCode` → `s_k_u_code`), so a consumer that needs the raw
+   * spelling — a statement, a display — cannot recover it from `cols` and had
+   * to rebuild a camel→raw map from the schema's column list. That rebuild was
+   * first-wins over collisions: a table holding both `user_id` and `userId`
+   * files them under one camel key, and an index over the *second* resolved to
+   * the first — a predicate over the wrong column. The adapter knows the real
+   * names at parse time; carrying them costs an array.
+   */
+  rawCols?: string[]
   /** Set only when `type` is 'foreign'. */
   refTable?: string
   refCols?: string[]

@@ -8,6 +8,7 @@
     "dev": "bun --smol run ../../packages/cli/src/index.ts --dev",
     "serve": "bun --smol run ../../packages/cli/src/index.ts",
     "db:sync": "bun --smol run ../../packages/orm/src/sync",
+    "db:codegen": "bun --smol run ../../packages/orm/src/sync --migrate",
     "db:history": "bun --smol run ../../packages/orm/src/sync/history.ts",
     "db:rollback": "bun --smol run ../../packages/orm/src/sync/rollback.ts"
   },

@@ -35,9 +35,20 @@ export namespace SQLAdapter {
   }
   export interface TableDetails {
     name: string
-    rowCount: number
+    /**
+     * `null` unless the caller asked for counts. A `COUNT(*)` is a full scan
+     * on SQLite and Postgres, and `getSchema()` is on the write path — every
+     * explorer write introspects to resolve row identity — so the scan is paid
+     * only where a number is actually displayed. `null`, not `0`: a count that
+     * was never taken must not read as an empty table.
+     */
+    rowCount: number | null
     columns: TableColumnInfo[]
     indexes: TableIndexInfo[]
+  }
+  export interface SchemaOptions {
+    /** Take the per-table `COUNT(*)`. Off by default — see `rowCount`. */
+    rowCounts?: boolean
   }
   export interface TableDataResult {
     rows: any[]
@@ -534,7 +545,9 @@ export abstract class SQLAdapter {
     ).run()
   }
 
-  abstract getSchema(): Promise<SQLAdapter.TableDetails[]>
+  abstract getSchema(
+    options?: SQLAdapter.SchemaOptions,
+  ): Promise<SQLAdapter.TableDetails[]>
 
   /**
    * Foreign keys as the database has them, keyed by the tuple that identifies
@@ -852,20 +865,19 @@ export abstract class SQLAdapter {
   /**
    * The `LIKE` escape character — `!`, and deliberately **not** a backslash.
    *
-   * A backslash is the obvious choice and is unusable here. MySQL processes
-   * backslash escapes inside string literals where SQLite and Postgres do not,
-   * so the clause would need to differ per dialect; and worse, Postgres never
-   * receives what is written. `normalizePostgresSQL` treats `\'` as an escaped
-   * quote — MySQL's rule, applied to every dialect — so `ESCAPE '\'` leaves the
-   * string literal *open*, swallows the rest of the statement, and the driver
-   * reports `syntax error at or near "OFFSET"` from a clause several tokens
-   * later.
+   * A backslash is the obvious choice and is still the wrong one. MySQL
+   * processes backslash escapes inside string literals where SQLite and
+   * Postgres do not, so `ESCAPE '\'` would need a per-dialect spelling — and
+   * the whole point of one escape character is one clause for all three.
    *
-   * That normalizer behaviour is a real defect and is not fixed here: a test
-   * pins it (`a backslash escape keeps the character it escapes`), and changing
-   * it would change every literal the framework emits. Choosing a character
-   * with no meaning to any of the three parsers sidesteps it entirely, and one
-   * spelling for all dialects beats a capability getter per dialect.
+   * The Postgres normalizer used to make this worse: it applied MySQL's rule
+   * to every dialect, so `'\'` swallowed its own closing quote and the driver
+   * reported a syntax error several tokens later. That defect is fixed — the
+   * scanner now has no opinion about backslashes, matching the server — and
+   * `a backslash in a literal is a character, not an escape` pins it. `!` stays
+   * regardless, because MySQL's literal-level escaping is the server's real
+   * behaviour, not a scanner bug, and a character with no meaning to any of the
+   * three parsers needs no capability getter.
    */
   protected readonly likeEscape = '!'
 

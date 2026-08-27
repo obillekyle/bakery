@@ -23,9 +23,15 @@
  *
  * `getConstraints()` camel-cases **both** the table key and every column key
  * (`Case.camel`), while `getSchema()` and `getData()` speak raw database names.
- * The bridge between them is here and only here; `Case.snake` is not the
- * inverse of `Case.camel` (`SKU_code` → `sKUCode` → `s_k_u_code`), so raw names
- * are carried through from `getSchema()` rather than reconstructed.
+ * `Case.snake` is not the inverse of `Case.camel` (`SKU_code` → `sKUCode` →
+ * `s_k_u_code`), so raw names cannot be recovered from camel ones. For columns
+ * they are carried through from `getSchema()`; for index columns the adapters
+ * now carry them too (`rawCols` on `getIndexes()` entries), which retired the
+ * camel→raw map this module used to rebuild. That map was first-wins over
+ * collisions — a table holding both `user_id` and `userId` resolved an index
+ * over the second to the first, a predicate over the wrong column — and the
+ * adapter, which had the real names all along, is the only place that cannot
+ * happen.
  *
  * And `getConstraints()` includes **views**, which carry a `_view` key. A view
  * has no rows of its own to address, so it is always `none`.
@@ -80,8 +86,11 @@ export interface TableIntrospection {
   name: string
   /** `getConstraints()[Case.camel(name)]`, camel-keyed, possibly `_view`. */
   constraints: TableConstraints
-  /** This table's `getIndexes()` entries, with camel-cased column names. */
-  indexes: { name: string; type: string; cols: string[] }[]
+  /**
+   * This table's `getIndexes()` entries: `cols` camel-cased, `rawCols` the
+   * database's own spelling, aligned by position.
+   */
+  indexes: { name: string; type: string; cols: string[]; rawCols?: string[] }[]
   /** Raw database column names, in `getSchema()` order. */
   columns: string[]
 }
@@ -102,19 +111,6 @@ export interface TableIntrospection {
  */
 export function isAddressable(name: string): boolean {
   return Case.snake(name) === name
-}
-
-/** Build the camel-key → raw-name map `getConstraints()` needs to be read through. */
-function rawByCamel(columns: readonly string[]): Map<string, string> {
-  const map = new Map<string, string>()
-  for (const raw of columns) {
-    const camel = Case.camel(raw)
-    // First wins: two raw columns can camel-case alike (`user_id` and `userId`
-    // in the same table), and a later one must not silently take over the
-    // earlier one's constraints.
-    if (!map.has(camel)) map.set(camel, raw)
-  }
-  return map
 }
 
 /**
@@ -147,7 +143,6 @@ export function describeIdentity(table: TableIntrospection): Identity {
     return none('a view has no rows of its own to address')
   }
 
-  const raw = rawByCamel(table.columns)
   const column = (camel: string): ColumnConstraint | undefined =>
     isColumnKey(camel) ? (constraints[camel] as ColumnConstraint) : undefined
 
@@ -175,19 +170,27 @@ export function describeIdentity(table: TableIntrospection): Identity {
     .filter(index => index.type === 'unique')
     .map(index => ({
       name: index.name,
-      cols: index.cols.map(camel => raw.get(camel)),
+      // The adapter's own raw spelling, aligned with `cols` by position — the
+      // camel spelling is kept alongside because the *constraints* are keyed by
+      // it. An entry with no `rawCols` (a TS-declared index reaching here
+      // through some future path) yields `undefined` cells and is filtered out
+      // below rather than guessed at.
+      cols: index.cols.map((camel, i) => ({
+        camel,
+        raw: index.rawCols?.[i],
+      })),
     }))
     .filter(
-      (index): index is { name: string; cols: string[] } =>
+      (index): index is { name: string; cols: { camel: string; raw: string }[] } =>
         index.cols.length > 0 &&
         index.cols.every(
           col =>
-            typeof col === 'string' &&
-            isAddressable(col) &&
+            typeof col.raw === 'string' &&
+            isAddressable(col.raw) &&
             // `nullable === false` explicitly, never `!nullable`. An adapter
             // that reported nothing for a column would otherwise read as NOT
             // NULL, which is the fail-open direction (convention 2).
-            column(Case.camel(col))?.nullable === false,
+            column(col.camel)?.nullable === false,
         ),
     )
     // Narrowest first; ties broken by index name so two equally narrow keys
@@ -197,7 +200,7 @@ export function describeIdentity(table: TableIntrospection): Identity {
     )
 
   const chosen = candidates[0]
-  if (chosen) return { mode: 'unique', cols: chosen.cols }
+  if (chosen) return { mode: 'unique', cols: chosen.cols.map(c => c.raw) }
 
   return none(
     'no primary key and no unique index over NOT NULL columns — ' +
@@ -227,7 +230,8 @@ export interface TableFacts {
   name: string
   camel: string
   isView: boolean
-  rowCount: number
+  /** `null` unless `introspect({ rowCounts: true })` was asked — see below. */
+  rowCount: number | null
   columns: ColumnFacts[]
   /** By raw column name. */
   byName: Map<string, ColumnFacts>
@@ -317,9 +321,16 @@ export function metaOf(
  * own `/api/_db/schema` call already costs, so a write pays what a page load
  * pays.
  */
-export async function introspect(): Promise<Map<string, TableFacts>> {
+export async function introspect(options?: {
+  /**
+   * Take the per-table `COUNT(*)`. The schema listing displays it; nothing
+   * else does, and every write introspects to resolve row identity — so the
+   * default skips a full scan of every table per write.
+   */
+  rowCounts?: boolean
+}): Promise<Map<string, TableFacts>> {
   const [schema, constraints, indexes] = await Promise.all([
-    connection.getSchema(),
+    connection.getSchema({ rowCounts: options?.rowCounts === true }),
     connection.getConstraints(),
     connection.getIndexes(),
   ])
@@ -336,6 +347,7 @@ export async function introspect(): Promise<Map<string, TableFacts>> {
         name,
         type: index.type,
         cols: index.cols,
+        rawCols: index.rawCols,
       }))
 
     const identity = describeIdentity({
@@ -363,15 +375,13 @@ export async function introspect(): Promise<Map<string, TableFacts>> {
       columns.find(c => c.meta.kind === 'string' && !identityCols.has(c.name))
         ?.name ?? null
 
-    // `getIndexes()` camel-cases its column names like `getConstraints()` does.
-    // Translating back through the same map `describeIdentity` uses keeps one
-    // spelling on screen; an unresolvable name is shown as it came rather than
-    // dropped, so a mismatch is visible instead of silently missing a column.
-    const rawColumns = rawByCamel(table.columns.map(c => c.name))
+    // The adapter's raw spelling where it exists, the camel one where it does
+    // not — shown as it came rather than dropped, so a mismatch is visible
+    // instead of silently missing a column.
     const tableIndexFacts = tableIndexes.map(index => ({
       name: index.name,
       type: index.type,
-      cols: index.cols.map(col => rawColumns.get(col) ?? col),
+      cols: index.cols.map((col, i) => index.rawCols?.[i] ?? col),
     }))
 
     byTable.set(table.name, {

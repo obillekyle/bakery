@@ -488,6 +488,7 @@ describe('view bodies across dialects', () => {
         for (const s of [
           'DROP VIEW IF EXISTS vd_active',
           'DROP TABLE IF EXISTS vd_users',
+          'DROP TABLE IF EXISTS vd_bystander',
           'DROP TABLE IF EXISTS __bakery_schema',
         ])
           await alive(db.query(s).run())
@@ -498,15 +499,29 @@ describe('view bodies across dialects', () => {
             )
             .run(),
         )
+        // A table the view never touches, so the database holds more than the
+        // two fixtures on every machine — see the note on `schema` below.
+        await alive(db.query('CREATE TABLE vd_bystander (id INT)').run())
         await alive(db.createView('vd_active', BODY))
 
         const { buildSyncPlan } = await import('./sync/plan')
         const { writeLedger } = await import('./sync/ledger')
         const live: any = await alive(db.getConstraints())
-        const tk = Object.keys(live).find(k => /vdUsers|vd_users/i.test(k))!
         const vk = Object.keys(live).find(k => /vdActive|vd_active/i.test(k))!
+        // Declare everything introspection reports, not just this test's own
+        // fixtures. The ledger is trusted only while it describes the *whole*
+        // database (`shapesMatch` compares every table name), so a schema that
+        // omits any table the database holds reads as drift and the plan falls
+        // back to introspection — correct in production, where an undeclared
+        // table means someone changed the database behind Bakery's back, and
+        // fatal to what this test measures. It happened: fixtures leaked into
+        // bakery_test by another file's killed run failed only the Postgres
+        // case of this test on one machine, presenting as a dialect bug.
+        // `vd_bystander` keeps that state reproduced deliberately — narrowing
+        // this back to the two fixtures fails on every machine, clean database
+        // or not, as `source: 'introspection'` in the second plan.
         const schema: any = {
-          [tk]: live[tk],
+          ...live,
           [vk]: { ...live[vk], _view: BODY },
         }
 
@@ -533,6 +548,7 @@ describe('view bodies across dialects', () => {
         for (const s of [
           'DROP VIEW IF EXISTS vd_active',
           'DROP TABLE IF EXISTS vd_users',
+          'DROP TABLE IF EXISTS vd_bystander',
           'DROP TABLE IF EXISTS __bakery_schema',
         ])
           await alive(db.query(s).run())
