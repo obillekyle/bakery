@@ -117,6 +117,22 @@ describe('static files over the wire — range advertisement', () => {
     expect(res.headers.get('accept-ranges')).toBe('bytes')
   })
 
+  test('a multipart range degrades to a 200 that still advertises', async () => {
+    // Bun does not do multipart: the whole file comes back as a 200 and Bun
+    // appends no Accept-Ranges of its own. The advertisement skip used to
+    // treat "GET with any Range" as "Bun will answer", so this exact response
+    // — to the one client that just proved it wants ranges — claimed nothing.
+    // Found by a downstream smoke test against the published alpha. The comma
+    // is the entire multipart grammar, so the carve-out cannot drift from
+    // Bun's parse; a *malformed* single range stays silent on purpose.
+    const res = await fetch(`${base}/video.mp4`, {
+      headers: { Range: 'bytes=0-1,10-11' },
+    })
+    expect(res.status).toBe(200)
+    expect((await res.arrayBuffer()).byteLength).toBe(MEDIA_SIZE)
+    expect(res.headers.get('accept-ranges')).toBe('bytes')
+  })
+
   test("the framework's own headers survive Bun's slicing", async () => {
     const full = await fetch(`${base}/video.mp4`)
     const part = await fetch(`${base}/video.mp4`, {

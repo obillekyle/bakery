@@ -243,17 +243,32 @@ export namespace ETag {
     // in-memory Blob or a `sendText` string body ignores Range entirely
     // (served whole, 200), which is why `.name` gates the claim.
     //
-    // Skipped when Bun's own range path is about to answer (a GET carrying
-    // `Range`): that path appends its own `Accept-Ranges: bytes` to the
-    // 206/416, and setting it here too emitted `bytes, bytes`. The trade,
-    // measured on Bun 1.4.0: a GET whose Range is malformed or multipart is
-    // served whole with no advertisement from either side — acceptable,
-    // since a client that already sent `Range` is not the one this probe
-    // header exists for. HEAD ignores `Range` and gets the header even when
-    // one is present.
+    // Skipped when Bun's own range path is about to answer (a GET carrying a
+    // single-range `Range`): that path appends its own `Accept-Ranges: bytes`
+    // to the 206/416, and setting it here too emitted `bytes, bytes`.
+    //
+    // A **multipart** range (`bytes=0-1,10-11`) is carved back out of the
+    // skip: Bun does not do multipart — it serves the whole file as a 200 and
+    // appends nothing — so the skip left that response advertising nothing at
+    // all, which reads as "ranges not supported" to the one client that just
+    // demonstrated it wants them. Found by a downstream smoke test. The comma
+    // is the entire multipart grammar, so this cannot drift from Bun's own
+    // parse the way a real Range parser here could; RFC-legal multipart gets
+    // the 200-with-advertisement it deserves. What stays excluded-and-silent
+    // is a *malformed* single range (`Range: potato`) — also served whole by
+    // Bun, but that requester sent garbage, and mirroring Bun's full validity
+    // judgment here is exactly the second-parser drift this comment refuses.
+    // HEAD ignores `Range` and gets the header even when one is present.
+    const rangeValue = req?.headers.get('range')
     if (
       resolvedFile.name &&
-      !(req && req.method === 'GET' && req.headers.has('range'))
+      !(
+        req &&
+        req.method === 'GET' &&
+        rangeValue !== null &&
+        rangeValue !== undefined &&
+        !rangeValue.includes(',')
+      )
     ) {
       headers['Accept-Ranges'] = 'bytes'
     }
