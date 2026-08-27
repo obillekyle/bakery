@@ -231,6 +231,33 @@ export namespace ETag {
       if (conditionalRes) return conditionalRes
     }
 
+    // Range handling itself lives in Bun.serve, not here: any Response whose
+    // body is a *path-backed* BunFile is sliced by the runtime — 206 with
+    // Content-Range on a satisfiable single range, 416 past EOF — including
+    // the negotiated compressed variants above (the range then addresses the
+    // encoded bytes, which is what RFC 9110 says a range means). What the
+    // runtime does not do is advertise: a plain 200 or a HEAD said nothing,
+    // so players that probe HEAD for `Accept-Ranges` before attempting seeks
+    // never tried. Advertised here because this is the one funnel every
+    // file-serving handler's BunFile passes through, and only here — an
+    // in-memory Blob or a `sendText` string body ignores Range entirely
+    // (served whole, 200), which is why `.name` gates the claim.
+    //
+    // Skipped when Bun's own range path is about to answer (a GET carrying
+    // `Range`): that path appends its own `Accept-Ranges: bytes` to the
+    // 206/416, and setting it here too emitted `bytes, bytes`. The trade,
+    // measured on Bun 1.4.0: a GET whose Range is malformed or multipart is
+    // served whole with no advertisement from either side — acceptable,
+    // since a client that already sent `Range` is not the one this probe
+    // header exists for. HEAD ignores `Range` and gets the header even when
+    // one is present.
+    if (
+      resolvedFile.name &&
+      !(req && req.method === 'GET' && req.headers.has('range'))
+    ) {
+      headers['Accept-Ranges'] = 'bytes'
+    }
+
     return new Response(resolvedFile, { headers })
   }
 
