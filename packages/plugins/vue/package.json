@@ -46,6 +46,6 @@
     "@bakery-framework/core": "workspace:^"
   },
   "engines": {
-    "bun": ">=1.3.14"
+    "bun": ">=1.4.0"
   }
 }

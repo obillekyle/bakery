@@ -481,7 +481,7 @@ export function templateFiles(
     // alternative is core taking a dependency, and having none is a property
     // worth more than this convenience.
     devDependencies: {
-      'bun-types': '^1.3.14',
+      'bun-types': '^1.4.0',
       // **`^5`, not `^7`, and the reason is `vue-tsc`.** TypeScript 7 is the
       // native port and does not ship `typescript/lib/tsc`, which `vue-tsc`
       // requires to patch — so a Vue app that installs TS 7 gets

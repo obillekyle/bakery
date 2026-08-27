@@ -13,14 +13,34 @@ concurrency:
 
 jobs:
   check:
-    name: test + typecheck
-    runs-on: ubuntu-latest
+    # Floor and latest, because they have diverged and the divergence has
+    # already bitten: Bun 1.4.0 rejects accessor descriptors on process.env,
+    # and a suite pinned to anything older stayed green while every entry into
+    # the framework died on import under current Bun. The floor entry keeps the
+    # engines claim honest; latest catches the next removal early.
+    #
+    # The Windows entry exists for the same reason from the other side. Two
+    # defects in two days were Windows-only and invisible here — a glob escape
+    # that treats  as a path separator, and the accessor removal was *found*
+    # on Windows first — so one job runs the suite where those live. No
+    # database services: service containers are Linux-only, so the live
+    # adapter tests skip there exactly as they do on a dev machine without
+    # servers, and the adapters job below stays the authority on those.
+    name: test + typecheck (bun ${{ matrix.bun }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, bun: 1.4.0 }
+          - { os: ubuntu-latest, bun: latest }
+          - { os: windows-latest, bun: latest }
     steps:
       - uses: actions/checkout@v4
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: ${{ matrix.bun }}
 
       - run: bun install --frozen-lockfile
 
@@ -70,7 +90,11 @@ jobs:
           --health-retries=20
 
     env:
-      MYSQL_TEST_URL: mysql://root:bakery@127.0.0.1:3306/bakery_test
+      # ?sslmode=require is load-bearing on Bun 1.4: it refuses RSA public-key
+      # retrieval over an insecure connection, which MySQL 8's default
+      # caching_sha2_password needs, and the failure presents as "Connection
+      # closed" — indistinguishable from the container being down.
+      MYSQL_TEST_URL: mysql://root:bakery@127.0.0.1:3306/bakery_test?sslmode=require
       PGSQL_TEST_URL: postgres://postgres:bakery@127.0.0.1:5432/bakery_test
 
     steps:
