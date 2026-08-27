@@ -120,6 +120,33 @@ is not part of the template.
 Only the prologue is scanned, so a `<meta charset>` inside a `<template>` is
 left alone.
 
+## Client-rendered only
+
+The response described above is the whole story: the HTML for a `.vue` route
+is the shell — an empty `<div id="app">` (or the static [skeleton](#skeletons)
+markup, when the page declares one), the inlined server data, and the script
+links. The component's rendered output is never in it. Templates are compiled
+to render functions on the server, but those functions *execute* only in the
+browser; view-source on any Vue route shows the div and the scripts, not the
+markup the component produces.
+
+This is the one place `.vue` routes are not interchangeable with the `.tsx`
+pages they sit alongside. A JSX page runs on the server and responds with its
+rendered HTML ([Routing → Page handlers](../guides/routing.md#page-handlers));
+an SFC route responds with a mount point. Consequences worth planning around:
+
+- **No SEO or preview content in the initial HTML.** A crawler or link
+  unfurler that does not execute JavaScript sees the `<title>`, the skeleton
+  if any, and an empty div. Content that must be in the payload itself — a
+  landing page, anything shared by link — belongs on a `.tsx` page.
+- **First paint requires the client boot.** The Vue runtime and the page's
+  root module must download and `mount('#app')` before anything renders; a
+  `<template skeleton>` block is the placeholder for that gap.
+- **Server data is inlined; markup is not.** A `<script server>` block runs
+  per request and its exports ship in the HTML — no second round trip for
+  data — but they arrive as JSON for the component to render in the browser,
+  not as rendered output.
+
 ## Layouts
 
 A `layout.vue` file wraps every page in its directory and below; the nearest
@@ -193,10 +220,18 @@ a relative one resolves against the current URL, which moves.
 `admin/[...slug].vue` beside `admin/faculty/[id].vue`, the URL
 `/admin/faculty/7` belongs to `[id].vue` on the server — so the client router
 yields it to a real navigation instead of soft-swapping the catch-all's view
-over it. The shell's route stamp carries what the siblings claim (a directory
-claims its subtree; a `[param]` sibling claims every single-segment path),
-computed fresh per page load, so adding a sibling route in dev takes effect on
-the next reload.
+over it. The shell's route stamp carries what the sibling *routes* claim (a
+directory claims its subtree when a `.vue` route exists somewhere under it; a
+`[param].vue` sibling claims every single-segment path), computed fresh per
+page load, so adding a sibling route in dev takes effect on the next reload.
+
+The stamp names routes only, and only on catch-all pages — it is serialized
+into HTML every visitor can read, so non-route siblings (`notes.txt`, a stray
+script) are never enumerated into it. The trade: the client router cannot know
+about plain files living under the base, which the server serves by the
+real-file rule above. Give a link to one — say `/wiki/files/spec.pdf` — a
+`download` or `target` attribute; the click interceptor always leaves those
+alone.
 
 ## Skeletons
 
@@ -405,9 +440,8 @@ the injected block carries a comment for exactly that reason.)
 
 ## Limitations
 
-- **No SSR.** The shell ships an empty `#app`; first paint waits for the module
-  and the Vue runtime. Server data is inlined into the HTML, so there is no
-  second round trip for data, but there is no server-rendered markup.
+- **No SSR.** The served HTML is a mount point, not markup — see
+  [Client-rendered only](#client-rendered-only).
 - **A page cannot have both a plain `<script>` and a server block that exports
   anything** — the injected block would be a second plain `<script>`, which the
   SFC parser rejects as a duplicate. Use `<script setup>`.

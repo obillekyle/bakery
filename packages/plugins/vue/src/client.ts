@@ -31,9 +31,11 @@ type StampedRoute = {
   /** The catch-all's param name (`slug` in `[...slug!]`). */
   param: string | null
   /**
-   * First path segments the catch-all's *siblings* claim — `faculty` when
-   * `faculty/[id].vue` sits beside the catch-all. Those URLs belong to more
-   * specific routes, so they get real navigations, not soft ones.
+   * First path segments the catch-all's sibling *routes* claim — `faculty`
+   * when `faculty/[id].vue` sits beside the catch-all. Those URLs belong to
+   * more specific routes, so they get real navigations, not soft ones. Route
+   * names only, and only on catch-all pages: the stamp is readable by every
+   * visitor, so it must never be a directory listing.
    */
   claimed?: string[]
   /** True when a `[param]` sibling claims every single-segment path. */

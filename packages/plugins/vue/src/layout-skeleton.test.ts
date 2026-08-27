@@ -435,3 +435,73 @@ describe('defineLayout yields to more specific routes', () => {
     ;(globalThis as any).__vue_route = undefined
   })
 })
+
+/**
+ * The stamp is serialized into the HTML of every served page, so each name in
+ * it is published to any visitor. A smoke test of the published alpha read
+ * `sample.bin`, `script.ts` and `index.tsx` out of a page's
+ * `__vue_route.claimed` — every sibling stem, route or not, was enumerated
+ * into the response: a directory listing of `src/`, in production. The stamp
+ * carries route claims only, measured against the handler's own extension
+ * table; a directory claims only when a route file exists somewhere under it.
+ */
+describe('the stamp names routes, not the directory', () => {
+  beforeAll(async () => {
+    await write('depot/[...slug].vue', PAGE)
+    await write('depot/prices.vue', PAGE)
+    await write('depot/sample.bin', 'not a route')
+    await write('depot/script.ts', 'export default {}')
+    await write('depot/index.tsx', 'export default () => null')
+    await write('depot/[note].txt', 'a dynamic-shaped name, not a route')
+    await write('depot/assets/logo.svg', '<svg xmlns="http://www.w3.org/2000/svg" />')
+    await write('depot/parts/deep/panel.vue', PAGE)
+  })
+
+  test('non-route siblings never reach the claims', async () => {
+    const { claimedBeside } = await import('./handler')
+    const stamp = claimedBeside(`${ROOT}/depot/[...slug].vue`)
+
+    // Routes claim: the sibling page in both spellings, and the directory
+    // holding a page below it — however deep.
+    expect(stamp.claimed).toContain('prices')
+    expect(stamp.claimed).toContain('prices.vue')
+    expect(stamp.claimed).toContain('parts')
+
+    // Non-routes do not, under either spelling.
+    expect(stamp.claimed).not.toContain('sample.bin')
+    expect(stamp.claimed).not.toContain('sample')
+    expect(stamp.claimed).not.toContain('script.ts')
+    expect(stamp.claimed).not.toContain('script')
+    expect(stamp.claimed).not.toContain('index.tsx')
+    expect(stamp.claimed).not.toContain('index')
+    // A directory of assets holds no route, so its name is nobody's business.
+    expect(stamp.claimed).not.toContain('assets')
+    // A dynamic-shaped name only counts with a routed extension.
+    expect(stamp.claimedSingle).toBe(false)
+  })
+
+  test('the served HTML carries route claims and nothing else', async () => {
+    const parsed = await parse('depot/[...slug].vue')
+    const { claimedBeside } = await import('./handler')
+    const res = await VueHandler.handleHtml(
+      'st-4',
+      {},
+      '/depot/[...slug].vue',
+      undefined,
+      parsed,
+      {
+        catchAll: true,
+        base: '/depot',
+        param: 'slug',
+        ...claimedBeside(`${ROOT}/depot/[...slug].vue`),
+      },
+    )
+    const html = await (res as Response).text()
+
+    expect(html).toContain('"claimed"')
+    expect(html).toContain('prices')
+    expect(html).not.toContain('sample.bin')
+    expect(html).not.toContain('script.ts')
+    expect(html).not.toContain('index.tsx')
+  })
+})

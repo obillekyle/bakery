@@ -113,7 +113,36 @@ function findLayoutRoute(filePath: string, meta: VueMeta): string | null {
 }
 
 /**
- * What the catch-all's siblings claim, for the `defineLayout()` stamp.
+ * Does `dir` hold a file this handler routes, at any depth? A sibling
+ * directory claims its first segment only when it does — the claim exists for
+ * `faculty/[id].vue`-shaped subtrees, and a directory of assets or helpers
+ * routes nowhere more specific than the catch-all, so stamping its name would
+ * disclose it for no navigational gain. Files at each level are checked
+ * before any subdirectory is entered, so the common shallow layout answers
+ * without recursing. `Dirent.isDirectory()` is false for symlinks, which is
+ * what keeps the walk from cycling.
+ */
+function containsRouteFile(dir: string, exts: string[]): boolean {
+  let entries: import('node:fs').Dirent[]
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch {
+    // Unreadable: treated as holding no routes — same reasoning as the catch
+    // in claimedBeside below.
+    return false
+  }
+
+  const dirs: string[] = []
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue
+    if (entry.isDirectory()) dirs.push(`${dir}/${entry.name}`)
+    else if (exts.some(ext => entry.name.endsWith(ext))) return true
+  }
+  return dirs.some(sub => containsRouteFile(sub, exts))
+}
+
+/**
+ * What the catch-all's sibling *routes* claim, for the `defineLayout()` stamp.
  *
  * A catch-all owns only *what nothing else claims*: with
  * `admin/[...slug].vue` beside `admin/faculty/[id].vue`, the URL
@@ -128,6 +157,22 @@ function findLayoutRoute(filePath: string, meta: VueMeta): string | null {
  * path, which is what `claimedSingle` carries. `layout.vue` claims nothing (it
  * is not routable), and the catch-all file itself is the page being served.
  *
+ * Only entries the handler's own extension table routes are claims. The stamp
+ * is serialized into the HTML of every served page, so each name in it is
+ * published to any visitor — and this function used to list *every* sibling
+ * stem, which put non-route file names (`sample.bin`, `script.ts`,
+ * `index.tsx`) from the source directory into production responses: a
+ * directory listing of `src/`, observed in a smoke test of the published
+ * alpha. A file sibling therefore counts only with a routed extension, and a
+ * directory sibling only when a route file exists somewhere under it.
+ *
+ * The boundary that filter accepts: a *non-route* file under the base is
+ * served by core's real-file-beats-catch-all rule (`findDynamicRoute`), and
+ * the stamp no longer names it, so a plain anchor to one soft-navigates into
+ * the catch-all's view. An anchor carrying `target` or `download` is never
+ * intercepted — that is the spelling for linking a raw file out of a
+ * catch-all's subtree, and what `docs/plugins/vue.md` prescribes.
+ *
  * Computed per page request, so files added or removed in dev are seen on the
  * next load without cache ceremony.
  */
@@ -140,6 +185,9 @@ export function claimedBeside(catchAllFile: string): {
 
   const dir = fs.resolve(catchAllFile).replace(/\/[^/]*$/, '')
   const self = fs.resolve(catchAllFile).slice(dir.length + 1)
+  // The handler's own table (`['vue']`), read at call time so the two cannot
+  // drift apart.
+  const exts = VueHandler.config.ext.map(ext => `.${ext}`)
 
   let entries: import('node:fs').Dirent[]
   try {
@@ -157,6 +205,12 @@ export function claimedBeside(catchAllFile: string): {
     if (name.startsWith('.')) continue
 
     if (RX_CATCHALL.test(name) || RX_OPT_CATCHALL.test(name)) continue
+
+    const isRoute = entry.isDirectory()
+      ? containsRouteFile(`${dir}/${name}`, exts)
+      : exts.some(ext => name.endsWith(ext))
+    if (!isRoute) continue
+
     if (RX_DYNAMIC.test(name)) {
       claimedSingle = true
       continue
@@ -460,7 +514,13 @@ export class VueHandler extends DynamicHandler {
     routePath: string,
     serverParams: any,
     parsed: ParsedCacheEntry,
-    route?: { catchAll: boolean; base: string; param: string | null },
+    route?: {
+      catchAll: boolean
+      base: string
+      param: string | null
+      claimed?: string[]
+      claimedSingle?: boolean
+    },
   ) {
     const { hasCss, serverScript } = parsed
     const hasServerData =
@@ -724,6 +784,7 @@ async function sharedHandler(
   // `base` is the URL prefix the page owns: the file's directory. For
   // `wiki/[...page!].vue` that is `/wiki`; for a root-level catch-all it is
   // the empty string, which `defineLayout` treats as "everything".
+  const catchAll = Boolean(info.catchAll)
   return VueHandler.handleHtml(
     id,
     finalParams,
@@ -731,10 +792,13 @@ async function sharedHandler(
     serverParams,
     parsed,
     {
-      catchAll: Boolean(info.catchAll),
+      catchAll,
       base: routePath.slice(0, routePath.lastIndexOf('/')),
       param: info.params.length ? info.params[info.params.length - 1] : null,
-      ...claimedBeside(diskFile.name ?? ''),
+      // Catch-all pages only: `defineLayout()` refuses every other page, so
+      // on those the claims would be sibling names published in the HTML with
+      // no reader. Skipping the stamp also skips the directory scan.
+      ...(catchAll ? claimedBeside(diskFile.name ?? '') : null),
     },
   )
 }
