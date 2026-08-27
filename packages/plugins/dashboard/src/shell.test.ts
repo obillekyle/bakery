@@ -8,27 +8,42 @@ import Dashboard from './shell'
 
 /**
  * The console's Database entry is a way *out* of the console — the explorer owns
- * row editing now. Whether it is a link or a tab depends on whether anything is
- * actually serving `/_db`, which the shell asks behaviourally rather than by
- * importing db-explorer: a plugin-to-plugin import is a package-graph edge and
- * `tests/conventions.test.ts` allows exactly one (dashboard → analytics).
+ * row editing now. Whether it is a link or a tab depends on whether anything
+ * declares the `/_db` namespace (`Handler.namespace`), which the shell reads
+ * from the registry rather than by importing db-explorer: a plugin-to-plugin
+ * import is a package-graph edge and `tests/conventions.test.ts` allows
+ * exactly one (dashboard → analytics).
+ *
+ * These fixtures used to *behave* like the handlers they stand for — the shell
+ * probed `canHandle('/_db')` against a control path — and now they *declare*,
+ * because that is what the shell reads. The cases keep their old names on
+ * purpose: each one pins the same question as before, asked of the declaration
+ * instead of the behaviour.
  */
 
 class ExplorerLike {
+  static namespace = '/_db'
   static canHandle(path: string) {
     return path === '/_db' || path.startsWith('/_db/')
   }
 }
 
-/** The priority-0 fallback, which claims every path. This is the trap. */
+/**
+ * The priority-0 fallback: claims every path behaviourally and declares no
+ * namespace — which is precisely why the declaration mechanism exists. Under
+ * the old probe this needed a control path to exclude; now it is excluded by
+ * saying nothing.
+ */
 class CatchAll {
+  static namespace = null
   static canHandle() {
     return true
   }
 }
 
-/** A handler that reads the request, so a path-only call throws. */
+/** A handler that reads the request; its declaration is null like most. */
 class NeedsRequest {
+  static namespace = null
   static canHandle(_path: string, req: Request) {
     return req.headers.get('x-thing') === '1'
   }
@@ -71,13 +86,13 @@ describe('the Database nav entry', () => {
   })
 
   /**
-   * The whole reason the probe uses a control path.
+   * The case the old probe needed a control path for.
    *
    * `StaticHandler.canHandle()` returns `true` unconditionally — it is the
-   * priority-0 fallback and claims everything — so "does some handler claim
-   * `/_db`" is always yes, and a naive check would render the link on every
-   * install whether or not the explorer exists. A handler that claims `/_db`
-   * *and declines a path nobody serves* is claiming a namespace.
+   * priority-0 fallback and claims everything — so any *behavioural* "does
+   * something claim `/_db`" is always yes. Under the declaration it is
+   * excluded by declaring nothing, and this pins that a registered catch-all
+   * still does not put the link in the nav.
    */
   test('a catch-all handler does not count as an explorer', () => {
     register(CatchAll, 0)
@@ -88,8 +103,9 @@ describe('the Database nav entry', () => {
   })
 
   test('a handler that needs the request is skipped, not fatal', () => {
-    // `canHandle` signatures vary; calling one with a path alone can throw.
-    // That means "not the handler we are looking for", not an error page.
+    // Under the probe this guarded against `canHandle` *throwing* on a
+    // path-only call. The declaration is a property read and cannot throw, so
+    // what is left to pin is that such a handler simply does not count.
     register(NeedsRequest)
     expect(() => render()).not.toThrow()
     expect(render()).not.toContain('<a class="tab-btn" href="/_db"')

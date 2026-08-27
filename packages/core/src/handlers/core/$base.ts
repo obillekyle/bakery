@@ -253,6 +253,23 @@ export class Handler {
    */
   static servesFiles = true
 
+  /**
+   * The URL prefix this handler owns as a complete user-facing surface —
+   * `'/_dashboard'`, `'/_db'` — or `null` for the ordinary case of a handler
+   * that answers by extension or content rather than by prefix.
+   *
+   * This exists so one surface can ask whether another is mounted without
+   * probing it. The dashboard used to detect the explorer by calling every
+   * registered handler's `canHandle('/_db')` with a control path to exclude
+   * the priority-0 catch-all — it worked, and the `as any` it needed was the
+   * tell that the registry could not say what a handler serves. A declaration
+   * is that answer. It is deliberately *not* consulted by routing: `canHandle`
+   * stays the authority on requests, so a stale or missing namespace can
+   * misdescribe a handler to the dashboard nav but can never misroute a
+   * request.
+   */
+  static namespace: string | null = null
+
   protected constructor() {}
 
   static get cache(): HandlerCache<string, Route.Info> {

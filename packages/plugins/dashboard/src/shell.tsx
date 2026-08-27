@@ -1,6 +1,5 @@
 import { getFrameworkVersion } from '@bakery-framework/core'
 import { Bakery } from '@bakery-framework/core/core/bakery'
-import { Try } from '@bakery-framework/core/utils/common'
 import { renderDatabaseBrowser } from './components/DBBrowser'
 import { renderLogsPanel } from './components/LogsPanel'
 import { renderSessionsPanel } from './components/SessionsPanel'
@@ -14,36 +13,25 @@ import { renderTopPagesPanel } from './components/TopPagesPanel'
  * lines of panel client code.
  */
 /**
- * A path nothing should claim, used as the control below.
- */
-const NOT_A_ROUTE = '/__bakery_probe_no_handler_serves_this__'
-
-/**
  * Is anything serving `/_db`?
  *
- * Asked **behaviourally**, never by importing db-explorer: a plugin-to-plugin
- * import is a package-graph edge, and `tests/conventions.test.ts` allows
- * exactly one of those (this package → analytics). It is also the better
- * question — the console wants to know whether that path leads somewhere, not
- * which package put it there, so an application serving its own explorer at
- * `/_db` gets the link too.
+ * Asked of the registry's *declarations*, never by importing db-explorer: a
+ * plugin-to-plugin import is a package-graph edge, and
+ * `tests/conventions.test.ts` allows exactly one of those (this package →
+ * analytics). `Handler.namespace` is the declaration — any handler that owns
+ * `/_db` as a surface gets the link, including an application serving its own
+ * explorer there.
  *
- * **The control probe is what makes this work.** `StaticHandler.canHandle()`
- * returns `true` unconditionally — it is the priority-0 fallback and claims
- * every path — so "does some handler claim `/_db`" is always yes. A handler
- * that claims `/_db` *and declines a path nobody serves* is claiming a
- * namespace rather than catching everything.
- *
- * `canHandle` signatures vary across handlers and some read the request, so a
- * throw here means "not the one we are looking for" rather than an error.
+ * This replaces a behavioural probe that called every handler's
+ * `canHandle('/_db')` with a control path to exclude the priority-0 catch-all.
+ * The probe worked and its `as any` was the tell: the registry could not say
+ * what a handler serves, so the question had to be asked by experiment. Now it
+ * can — `list()` is typed `typeof Handler[]`, so this reads with no cast, and
+ * a second plugin wanting a console entry declares a namespace rather than
+ * copying a probe.
  */
 function explorerIsMounted(): boolean {
-  for (const handler of Bakery.handlers.fetch.list()) {
-    const claims = (path: string) =>
-      Try.return(() => (handler as any).canHandle?.(path) === true, false)
-    if (claims('/_db') && !claims(NOT_A_ROUTE)) return true
-  }
-  return false
+  return Bakery.handlers.fetch.list().some(h => h.namespace === '/_db')
 }
 
 interface NavEntry {

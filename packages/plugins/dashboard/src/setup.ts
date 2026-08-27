@@ -57,6 +57,8 @@ function isDashboardPath(path: string): boolean {
 }
 
 export class DashboardHandler extends Handler {
+  static override namespace = '/_dashboard'
+
   static canHandle(path: string) {
     // Deliberately narrow. This handler outranks every content handler, so
     // anything it claims can never reach the route mount below — assets must

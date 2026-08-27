@@ -104,6 +104,8 @@ export const explorerRoutes = {
 const dispatchExplorerRoute = routeTable(explorerRoutes)
 
 export class DbExplorerHandler extends Handler {
+  static override namespace = '/_db'
+
   static canHandle(path: string) {
     return (
       path === '/_db' ||
