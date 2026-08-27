@@ -263,10 +263,16 @@ a high priority intercepts paths *before* the mount is consulted. Keep
 ## Contributing a tsconfig project
 
 On every dev boot the framework writes a TypeScript project per concern into
-`.cache/tsconfig/` and adds a `references` entry for each to the app's root
-`tsconfig.json`
+`.cache/tsconfig/`
 ([packages/core/src/compiler/tsconfig-sync.ts](../../packages/core/src/compiler/tsconfig-sync.ts)).
-Core always writes two:
+Each project is standalone, made to be invoked directly against the one concern
+it covers — `vue-tsc -p .cache/tsconfig/vue.json` for SFCs,
+`tsc -p .cache/tsconfig/client.json` to hold browser code to browser rules.
+Nothing wires them into the app's own `tsconfig.json`: they used to be added
+as `references`, and because they are `noEmit` and never built, that made
+`tsc -p .` fail in any app that had booted once (TS6305 for every file both
+projects claim, TS6306/TS6310 for the reference shape itself). Core always
+writes two:
 
 | Project | Extends | Covers |
 | --- | --- | --- |
@@ -323,10 +329,12 @@ Four things are easy to get wrong here, and each was:
   `client`, or another plugin's project — silently winning would present as "my
   types stopped working" three plugins later.
 
-The root config is **merged**, not replaced: only `references` belongs to the
-generator. That matters more than it sounds — see
+The app's root config is not the generator's to write: it is created only when
+missing (Bun's runtime reads the JSX options from it), and the one edit made to
+an existing one is removing the `references` a previous release wrote. Every
+key you wrote survives. That restraint is scar tissue twice over — see
 [Troubleshooting](../reference/troubleshooting.md#tsconfigjson-keeps-getting-rewritten)
-for what happened when it was not.
+for both incidents.
 
 ## Reserved namespaces
 

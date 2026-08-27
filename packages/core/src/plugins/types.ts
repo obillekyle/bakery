@@ -6,11 +6,13 @@ export type ValidResponses = Handler.Response
 /**
  * A TypeScript project a plugin contributes to the app.
  *
- * Written to `.cache/tsconfig/<name>.json` on every dev boot and referenced
- * from the app's root `tsconfig.json`, so the editor typechecks each file under
- * the project that owns it. Regenerated rather than committed: it is derived
- * from the plugin list and the app's config, and `.cache/` is the disposable
- * half of the two runtime directories.
+ * Written to `.cache/tsconfig/<name>.json` on every dev boot, as a standalone
+ * project invoked directly (`vue-tsc -p .cache/tsconfig/vue.json`). It is
+ * deliberately *not* referenced from the app's root `tsconfig.json` — a
+ * `references` entry to an unbuilt `noEmit` project makes `tsc -p <app>` fail
+ * (TS6305/6306/6310; see `compiler/tsconfig-sync.ts`). Regenerated rather
+ * than committed: it is derived from the plugin list and the app's config, and
+ * `.cache/` is the disposable half of the two runtime directories.
  */
 export interface PluginTsProject {
   /** File name under `.cache/tsconfig/`, and the project's identity. */

@@ -134,35 +134,45 @@ Two separate syncs touch it on every dev boot
   merged, so hand-written aliases there are removed; put them in a base config
   the app's `tsconfig.json` extends. `compilerOptions.baseUrl` is deleted
   unconditionally.
-- `syncTSConfigProjects` writes `.cache/tsconfig/{server,client,…}.json` and adds
-  a `references` array pointing at them. **It only sets `references`** — every
-  other key you wrote is preserved.
+- `syncTSConfigProjects` writes `.cache/tsconfig/{server,client,…}.json`. It
+  adds nothing to the root config; the one edit it can make is a repair — if an
+  earlier release wired the generated projects in as `references`, those
+  entries are removed (once, with a `Removed generated references` line).
+  References you wrote yourself, and every other key, are preserved.
 
-That last sentence is a fix, not a description of how it always was. It used to
+The repair exists because those references broke `tsc -p .` in any app that had
+booted once: the generated projects are `noEmit` and never built, so
+TypeScript reports TS6306/TS6310 for each referenced project and TS6305 for
+every file both projects claim. If your CI typecheck fails that way, boot the
+dev server once (or delete the `references` array) and it stays fixed.
+
+An older sibling of that bug is worth recognising by symptom: the sync used to
 replace the root with a references-only stub, which removed the `jsx`,
 `jsxFactory` and `jsxFragmentFactory` options — and **Bun's runtime reads those
-from the root `tsconfig.json` and does not follow `references`.** Every `.tsx`
-page then transpiled against the automatic JSX runtime. The symptom is not a 500:
-the page answers **200** with a JSON body like
-`{"type":"html","props":{…},"_owner":null,"_store":{}}`, because the handler
-received a React element tree where it expects a rendered string.
-
-If you see that, your root config lost its JSX options — restore the three and
-the page renders again.
+from the root `tsconfig.json`**. Every `.tsx` page then transpiled against the
+automatic JSX runtime. The symptom is not a 500: the page answers **200** with
+a JSON body like `{"type":"html","props":{…},"_owner":null,"_store":{}}`,
+because the handler received a React element tree where it expects a rendered
+string. If you see that, your root config lost its JSX options — restore the
+three and the page renders again.
 
 Comments and trailing commas are fine — the file is read with a JSONC parser.
 Failures are logged as `TSConfig sync error: …` and never abort the boot.
 
-### My editor flags `Bun.*` in a browser file, or an `importMap` alias in a server file
+### Checking browser code against browser rules
 
-Working as intended. `.cache/tsconfig/server.json` carries `bun-types`;
-`client.json` does not, so `Bun.hash()` in a file bound for the browser is a type
-error rather than a runtime one. And `importMap` aliases only reach `client.json`,
-because an import map is resolved *by the browser* — an alias that typechecked in
-server code would be an import the server cannot satisfy.
+The per-concern split lives in the generated projects, invoked directly:
+`.cache/tsconfig/server.json` carries `bun-types`; `client.json` does not, so
+`bunx tsc -p .cache/tsconfig/client.json` makes `Bun.hash()` in a file bound
+for the browser a type error rather than a runtime one. `importMap` aliases
+only reach `client.json`, because an import map is resolved *by the browser* —
+an alias that typechecked in server code would be an import the server cannot
+satisfy. The projects are standalone by design: your own `tsconfig.json` does
+not reference them, because a `references` entry to an unbuilt `noEmit`
+project is exactly what `tsc -p .` rejects (see the section above).
 
 A plugin can contribute a project of its own; `@bakery-framework/plugin-vue` owns
-`.cache/tsconfig/vue.json`. See
+`.cache/tsconfig/vue.json`, which is what `vue-tsc` runs against. See
 [the plugin API](../plugins/plugin-api.md#contributing-a-tsconfig-project).
 
 ## Routing

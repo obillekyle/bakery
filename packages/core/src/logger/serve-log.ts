@@ -27,6 +27,12 @@ const serveMsgs = {
     'I Synced %ytsconfig.json%* paths with %yserver.config.ts%*!',
   TSCONFIG_PROJECTS_WRITTEN:
     'I Wrote %y{count}%* tsconfig project(s) to %y.cache/tsconfig/%*',
+  // One-time repair. Previous releases wired the generated projects into the
+  // app's tsconfig.json as `references`, which broke `tsc -p <app>`
+  // (TS6305/6306/6310). Named so the rewrite of a tracked file comes with a
+  // line saying why it happened.
+  TSCONFIG_REFERENCES_REMOVED:
+    'I Removed generated %yreferences%* from %ytsconfig.json%* — the %y.cache/tsconfig/%* projects are standalone, and referencing them broke %ytsc -p%*',
   // A plugin asking for a project name that is taken. Named rather than
   // silent: the symptom otherwise is one plugin's types quietly not applying,
   // discovered much later and blamed on the wrong thing.

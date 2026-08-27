@@ -1,4 +1,4 @@
 {
-  "$comment": "The CLI gate. Inherits everything from tsconfig.json EXCEPT references — extends never carries those — because the dev boot writes references to generated editor-support projects whose includes overlap this project, and tsc -p then demands their declaration outputs (TS6305). Editor DX keeps the references; the gate checks sources. The generator overlap is tracked in MONOREPO.md.",
+  "$comment": "The CLI gate. Inherits everything from tsconfig.json EXCEPT references — extends never carries those. That indirection existed because the dev boot used to write references to the generated .cache/tsconfig projects, and tsc -p then failed on them (TS6305 per overlapping file, TS6306/TS6310 for the unbuilt noEmit reference shape). The generator no longer produces that collision — it writes no references and strips ones it wrote before, so tsc -p apps/example is clean on its own. Kept as the gate's entry point anyway: it is immune by construction to references any stale boot leaves behind, which is exactly the class of failure it caught.",
   "extends": "./tsconfig.json"
 }

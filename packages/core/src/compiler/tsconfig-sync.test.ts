@@ -8,8 +8,9 @@ import {
 import { fs } from '../utils/fs'
 import {
   coreProjects,
+  defaultRootConfig,
   fromProjectDir,
-  mergeRootConfig,
+  stripGeneratedReferences,
   syncTSConfigPaths,
   writeProjects,
 } from './tsconfig-sync'
@@ -131,24 +132,66 @@ describe('importMap paths are scoped to the client project', () => {
 })
 
 /**
- * The root tsconfig is merged, never replaced.
+ * The root tsconfig gains no `references`, and loses the ones a previous
+ * release wrote.
  *
- * This shipped the other way and broke every `.tsx` page in any app that ran a
- * dev boot. The root was overwritten with a references-only stub on the
- * reasoning that the generated projects carry the JSX options — true for `tsc`,
- * false for **Bun's runtime**, which reads `compilerOptions.jsx*` from the root
- * and does not follow `references`.
+ * The generator used to add `references` pointing at the generated projects,
+ * and that broke `tsc -p <app>` for every consumer who had booted once.
+ * Measured on TypeScript 6.0.3, and none of it depends on include overlap:
  *
- * Measured on a scratch app before the fix: `GET /` answered **200** with
- * `{"type":"html","props":{…},"_owner":null,"_store":{}}` — the automatic JSX
- * runtime's element tree, JSON-encoded because the handler got an object where
- * it expects a `SafeHtml` string. No throw, no log, no 500. After the fix, the
- * same request returns `<h1>Hello</h1>`.
+ * - TS6306 ("must have setting composite") and TS6310 ("may not disable
+ *   emit") fire for every referenced unbuilt `noEmit` project whenever the
+ *   referencing program has input files — a referenced project with a
+ *   disjoint include fails identically, and so does one matching zero files.
+ * - TS6305 ("output file has not been built from source file") fires once per
+ *   root file the referenced project also claims — `src/**`,
+ *   `server.config.ts`, every `.tsx` page.
+ *
+ * So no include shape fixes it and no reference shape survives `tsc -p`; the
+ * fix is that the generator writes no references at all and strips the ones
+ * earlier releases left in tracked tsconfigs.
  */
-describe('mergeRootConfig', () => {
-  const refs = [{ path: './.cache/tsconfig/server.json' }]
+describe('stripGeneratedReferences', () => {
+  const OURS = [
+    { path: './.cache/tsconfig/server.json' },
+    { path: './.cache/tsconfig/client.json' },
+  ]
 
-  test('keeps every key the developer wrote', () => {
+  test('removes exactly the entries the generator wrote', () => {
+    const repaired = stripGeneratedReferences({
+      include: ['src/**/*.ts'],
+      references: [...OURS, { path: '../shared' }],
+    })
+
+    // The developer's own project reference survives; ours do not.
+    expect(repaired?.references).toEqual([{ path: '../shared' }])
+    expect(repaired?.include).toEqual(['src/**/*.ts'])
+  })
+
+  test('every spelling of the generated path is recognised', () => {
+    for (const path of [
+      './.cache/tsconfig/server.json',
+      '.cache/tsconfig/server.json',
+      '.\\.cache\\tsconfig\\vue.json',
+    ]) {
+      const repaired = stripGeneratedReferences({ references: [{ path }] })
+      // Repaired (not null), and the key is gone because we wrote every entry.
+      expect(repaired).not.toBeNull()
+      expect(repaired && 'references' in repaired).toBe(false)
+    }
+  })
+
+  test('returns null when there is nothing to repair', () => {
+    // No write happens on null, so a clean root never dirties git on boot.
+    expect(stripGeneratedReferences({ include: ['src/**/*.ts'] })).toBeNull()
+    expect(
+      stripGeneratedReferences({ references: [{ path: '../shared' }] }),
+    ).toBeNull()
+    // A malformed key is the developer's to deal with, not ours to rewrite.
+    expect(stripGeneratedReferences({ references: 'nonsense' })).toBeNull()
+  })
+
+  test('keeps every other key the developer wrote', () => {
     const written = {
       $comment: 'Keep the three jsx* options.',
       extends: '@bakery-framework/core/tsconfig.server.json',
@@ -160,38 +203,74 @@ describe('mergeRootConfig', () => {
       include: ['src/**/*.tsx'],
     }
 
-    const merged = mergeRootConfig(written, refs)
+    const repaired = stripGeneratedReferences({
+      ...written,
+      references: OURS,
+    })
 
     for (const [key, value] of Object.entries(written)) {
-      expect(merged[key]).toEqual(value)
+      expect(repaired?.[key]).toEqual(value)
     }
-    expect(merged.references).toEqual(refs)
+    // The jsx options in particular: Bun's runtime reads them from the root
+    // and nowhere else, which is the lesson the replace-not-merge bug taught.
+    expect((repaired?.compilerOptions as any).jsxFactory).toBe('createElement')
+    // And no files: [] — that would turn the root into a solution config.
+    expect(repaired?.files).toBeUndefined()
   })
+})
 
-  test('the jsx options survive, because Bun reads them from here', () => {
-    // The single assertion the shipped version failed.
-    const merged = mergeRootConfig(
-      { compilerOptions: { jsxFactory: 'createElement' } },
-      refs,
-    )
-    expect((merged.compilerOptions as any).jsxFactory).toBe('createElement')
+/**
+ * An app with no root config still gets one that works at runtime — Bun reads
+ * `compilerOptions.jsx*` from the root `tsconfig.json` and does not follow
+ * `extends` into a package specifier, so the file must carry the options
+ * inline. What it must NOT carry any more is `references`.
+ */
+describe('defaultRootConfig', () => {
+  test('carries the runtime JSX options and no references', () => {
+    const config = defaultRootConfig() as any
+    expect(config.compilerOptions.jsx).toBe('react')
+    expect(config.compilerOptions.jsxFactory).toBe('createElement')
+    expect(config.compilerOptions.jsxFragmentFactory).toBe('Fragment')
+    expect('references' in config).toBe(false)
   })
+})
 
-  test('does not introduce files: [] — that would make it a solution config', () => {
-    // `files: []` plus `references` tells tsc to compile nothing itself. Harmless
-    // for tsc, and it was paired with dropping compilerOptions, which was not.
-    const merged = mergeRootConfig({ include: ['src/**/*.ts'] }, refs)
-    expect(merged.files).toBeUndefined()
-    expect(merged.include).toEqual(['src/**/*.ts'])
+/**
+ * The generator writes no `references` — asserted on the source the way the
+ * `importMapPaths` gate is, because every pure-function test above would still
+ * pass if `syncTSConfigProjects` grew the old wiring back.
+ */
+describe('the generator never wires the projects into the root config', () => {
+  test('the reference-building line stays gone, the repair stays called', async () => {
+    const source = await Bun.file(
+      fs.resolve(import.meta.dir, 'tsconfig-sync.ts'),
+    ).text()
+    // The exact construction the old generator used.
+    expect(source).not.toContain('path: `./.cache/tsconfig/')
+    expect(source).toContain('stripGeneratedReferences(current)')
   })
+})
 
-  test('an app with no root config gets one that works at runtime', () => {
-    const merged = mergeRootConfig(null, refs) as any
-    expect(merged.compilerOptions.jsx).toBe('react')
-    expect(merged.compilerOptions.jsxFactory).toBe('createElement')
-    expect(merged.compilerOptions.jsxFragmentFactory).toBe('Fragment')
-    expect(merged.references).toEqual(refs)
-  })
+/**
+ * The shipped apps carry the repaired shape. This is the assertion that bites
+ * at the artifact level: it fails against any tree where a boot re-added the
+ * references — which is exactly the file a consumer's `tsc -p .` reads, and
+ * how `bunx tsc -p apps/example` came to fail with ten TS6305s plus a
+ * TS6306/TS6310 pair per referenced project.
+ */
+describe('shipped app tsconfigs reference no generated projects', () => {
+  for (const rel of [
+    'apps/example/tsconfig.json',
+    'apps/starter/tsconfig.json',
+  ]) {
+    test(rel, async () => {
+      const abs = fs.resolve(import.meta.dir, '../../../..', rel)
+      const config = (await Bun.file(abs).json()) as Record<string, unknown>
+      // null means "nothing to repair" — the committed file is already the
+      // shape the generator now maintains.
+      expect(stripGeneratedReferences(config)).toBeNull()
+    })
+  }
 })
 
 /**

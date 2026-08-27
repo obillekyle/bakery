@@ -61,6 +61,13 @@ const PROJECT_DIR = fs.resolve(APP_DIR, '.cache/tsconfig')
  * Before this existed, one config covered everything and `Bun.hash()` in a
  * client file typechecked clean and failed in the browser.
  *
+ * The includes overlap the app's own tsconfig, and that is fine *because
+ * nothing references these projects*: each is a standalone projection of one
+ * concern, pointed at directly (`tsc -p .cache/tsconfig/client.json`), and
+ * subtracting the app's include would gut them into projects that check
+ * nothing. What must never come back is the `references` wiring that composed
+ * them with the app project — see {@link syncTSConfigProjects}.
+ *
  * Globs are app-relative here and rewritten to be relative to the generated
  * file, which sits two levels down.
  */
@@ -322,22 +329,81 @@ function mapPaths(paths: MapOf<string[]>): MapOf<string[]> {
 }
 
 /**
- * The app's root tsconfig with `references` set, and nothing else touched.
- *
- * Pure, and exported, so the merge can be tested without a function that writes
- * to `process.cwd()`. The property that matters is negative — *no key the
- * developer wrote is lost* — which is the kind of thing a shape assertion on the
- * source cannot check.
+ * A `references` entry the generator wrote in a previous release, as opposed
+ * to one the developer owns. Ours always pointed into `.cache/tsconfig/`, and
+ * nothing else has a reason to: `.cache/` is the disposable runtime directory,
+ * and every project inside it is regenerated on boot.
  */
-export function mergeRootConfig(
-  current: Record<string, unknown> | null,
-  references: { path: string }[],
-): Record<string, unknown> {
-  // Spread first so `references` is the only key this owns.
-  if (current) return { ...current, references }
+const RE_GENERATED_REF = /^(\.[\\/])?\.cache[\\/]tsconfig[\\/]/
 
-  // No root config at all. The generated projects do not help Bun's runtime, so
-  // the one this writes has to carry the JSX options itself.
+function isGeneratedReference(entry: unknown): boolean {
+  if (typeof entry !== 'object' || entry === null) return false
+  const path = (entry as { path?: unknown }).path
+  return typeof path === 'string' && RE_GENERATED_REF.test(path)
+}
+
+/**
+ * The root config with the generator's own `references` removed, or `null`
+ * when there is nothing to repair.
+ *
+ * Until 2026-08-27 `syncTSConfigProjects` *added* those references, wiring the
+ * generated projects into the app's project graph. That glue is what broke
+ * `tsc -p <app>` for every consumer who had booted once. Measured directly
+ * (TypeScript 6.0.3):
+ *
+ * - `tsc -p` verifies every referenced project whenever the referencing
+ *   program has input files of its own: a reference to a non-composite
+ *   project is TS6306 and to a `noEmit` one TS6310 — **even when the
+ *   referenced project's include is disjoint from the root's, and even when
+ *   it matches zero files**. No include shape survives.
+ * - Each root file a referenced project also claims is redirected to that
+ *   project's declaration output, which `noEmit` guarantees was never built:
+ *   TS6305, once per overlapping file — `src/**`, `server.config.ts`, every
+ *   `.tsx` page.
+ *
+ * The generated projects extend `noEmit` bases and rely on
+ * `allowImportingTsExtensions`, so they are unbuildable by design. Making them
+ * `composite` instead would trade the errors above for a `tsc -b` build-order
+ * requirement no consumer runs — and TS6305 would still fire for any root file
+ * importing into one while unbuilt. The only reference shape `tsc -p`
+ * tolerates from a root that has files of its own is no reference at all, so
+ * the projects stand alone now and this strips what previous releases wrote.
+ *
+ * Everything the developer owns is preserved: only entries into
+ * `.cache/tsconfig/` are removed, a real project reference (say `../shared`)
+ * stays, and the `references` key itself survives unless the generator wrote
+ * every entry in it.
+ *
+ * Pure, and exported, so the repair can be tested without a function that
+ * writes to `process.cwd()`. The property that matters is negative — *no key
+ * the developer wrote is lost* — which a shape assertion on the source cannot
+ * check.
+ */
+export function stripGeneratedReferences(
+  current: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const refs = current.references
+  if (!Array.isArray(refs)) return null
+
+  const kept = refs.filter(entry => !isGeneratedReference(entry))
+  if (kept.length === refs.length) return null
+
+  const repaired = { ...current }
+  if (kept.length) repaired.references = kept
+  else delete repaired.references
+  return repaired
+}
+
+/**
+ * The root config written when the app has none at all.
+ *
+ * The generated projects do not help Bun's runtime — it reads
+ * `compilerOptions.jsx*` from the root `tsconfig.json` and follows `extends`
+ * only into a relative path, never a package specifier — so the file this
+ * writes has to carry the JSX options itself, inline, exactly as the
+ * scaffolder spells them.
+ */
+export function defaultRootConfig(): Record<string, unknown> {
   return {
     extends: '@bakery-framework/core/tsconfig.server.json',
     compilerOptions: {
@@ -345,58 +411,63 @@ export function mergeRootConfig(
       jsxFactory: 'createElement',
       jsxFragmentFactory: 'Fragment',
     },
-    references,
   }
 }
 
 /**
- * Generate the project configs and add `references` to the app's root tsconfig.
+ * Generate the project configs, and keep the app's root tsconfig viable —
+ * created with the runtime JSX options when the app has none, and stripped of
+ * the `references` a previous release wrote into it.
  *
  * Separate from `syncTSConfigPaths` because an app can reasonably want one and
  * not the other: the paths sync has existed for a long time and rewrites a file
  * people keep in git, while this owns a directory nobody edits.
  *
- * **It used to replace the root config with a references-only stub, and that
- * silently broke every `.tsx` page in the app.** The reasoning was tidy — the
- * generated projects carry the JSX options, so the root does not need them — and
- * it was wrong about *who reads the root*. `tsc` follows `references`; **Bun's
- * runtime does not.** Bun reads `compilerOptions.jsx*` from the root
- * `tsconfig.json` and nothing else, so a references-only root means pages get
- * transpiled against the automatic JSX runtime instead of Bakery's
- * `createElement`.
+ * **The generated projects are standalone on purpose; the root config does not
+ * reference them.** They exist for direct invocation against the one concern
+ * each covers: `vue-tsc -p .cache/tsconfig/vue.json` is the only way an SFC
+ * typechecks at all, `tsc -p .cache/tsconfig/client.json` proves browser code
+ * clean of `Bun.*`, and a plugin's project carries its own ambients the same
+ * way. Their `include` deliberately overlaps the app's own project — they are
+ * alternate projections of the same files, used *instead of* the root for
+ * their slice, never composed with it. Wiring them in as `references` broke
+ * `tsc -p <app>` for any consumer who had booted once (TS6305/6306/6310 — the
+ * measurements are on {@link stripGeneratedReferences}), and what the wiring
+ * bought was less than it looked: tsserver routes a file to the project whose
+ * `include` claims it, so for everything a scaffolded root claims — `src/**`,
+ * `server.config.ts`, `orm/**` — the reference walk never ran anyway.
  *
- * The symptom is worse than the 500 that mistake usually produces. Measured on a
- * scratch app: `GET /` answered **200** with
- * `{"type":"html","props":{…},"_owner":null,"_store":{}}` — a React element tree,
- * JSON-encoded, because the handler received an object where it expects a
- * `SafeHtml` string. Nothing logs, nothing throws, the status is fine.
- *
- * So the root is now *merged*, not replaced: every key the developer wrote stays,
- * and only `references` is ours. That also settles the contradiction with the
- * scaffolder, which writes those JSX options under a comment saying to keep them
- * — and with the three documentation pages that repeat it.
+ * Two earlier lessons still bind the root-config half. It used to be
+ * *replaced* with a references-only stub, which silently broke every `.tsx`
+ * page: Bun's runtime reads `compilerOptions.jsx*` from the root and does not
+ * follow `references`, so pages transpiled against the automatic JSX runtime
+ * and `GET /` answered 200 with a JSON-encoded React element tree. Hence
+ * {@link defaultRootConfig} when no root exists, and surgical repair — never
+ * wholesale rewrite — when one does. And a boot that dirties git every time
+ * trains people to ignore the diff, so an already-clean root is not rewritten.
  */
 export async function syncTSConfigProjects(): Promise<void> {
   try {
     const written = await writeProjects(buildPaths())
 
-    const references = written.map(name => ({
-      path: `./.cache/tsconfig/${name}.json`,
-    }))
-
     const current = fs.exists(APP_CONFIG_PATH)
       ? parseJSONC(await Bun.file(APP_CONFIG_PATH).text())
       : null
 
-    // Only rewrite when the reference set actually changed. The root config is
-    // committed, and a dev boot that dirties git every time trains people to
-    // ignore the diff.
-    if (current && Bun.deepEquals(current.references, references)) return
+    if (!current) {
+      await Bun.write(
+        APP_CONFIG_PATH,
+        `${JSON.stringify(defaultRootConfig(), null, 2)}\n`,
+      )
+      serveLog.TSCONFIG_PROJECTS_WRITTEN({ count: String(written.length) })
+      return
+    }
 
-    const root = mergeRootConfig(current, references)
+    const repaired = stripGeneratedReferences(current)
+    if (!repaired) return
 
-    await Bun.write(APP_CONFIG_PATH, `${JSON.stringify(root, null, 2)}\n`)
-    serveLog.TSCONFIG_PROJECTS_WRITTEN({ count: String(written.length) })
+    await Bun.write(APP_CONFIG_PATH, `${JSON.stringify(repaired, null, 2)}\n`)
+    serveLog.TSCONFIG_REFERENCES_REMOVED()
   } catch (err: any) {
     serveLog.UNHANDLED_ERR({
       error: `TSConfig project sync error: ${errorMsg(err)}`,
