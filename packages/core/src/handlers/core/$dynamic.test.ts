@@ -9,6 +9,7 @@ import {
 import { fs } from '../../utils'
 import { type Route, RouteData } from './$base'
 import { DynamicHandler } from './$dynamic'
+import { DynamicErrorHandler } from './$error'
 
 const ROUTE_DIR = fs.resolve(process.cwd(), '.cache/__dynamic-test__')
 const ECHO = `${ROUTE_DIR}/echo.ts` as fs.AbsolutePath
@@ -354,5 +355,81 @@ describe('findDynamicRoute — catch-alls yield to compiled sources', () => {
   test('still answers a path no handler can serve as a file', () => {
     const hit = SourceYieldHandler.findDynamicRoute('/site/reports/monthly')
     expect(hit).not.toBeNull()
+  })
+})
+
+/**
+ * An error page is a file an application put there by name. Asking the
+ * ordinary resolver for it let the dynamic matcher answer, and a catch-all
+ * answers everything.
+ *
+ * Two things went wrong at once, which is why this lives next to the routing
+ * tests rather than with the error-rendering ones. The served page was the
+ * catch-all rather than the error page — an app with a root `[...slug].tsx`
+ * rendered its wildcard for every 500 — and the walk up the path prefixes ran
+ * a full dynamic resolution per segment, which is where most of the cost of a
+ * 404 came from.
+ */
+describe('error pages resolve statically, never through a catch-all', () => {
+  const ERR_ROOT = fs.resolve(ROUTE_DIR, 'errpages')
+
+  class ErrPages extends DynamicErrorHandler {
+    static get config() {
+      return {
+        ext: ['tsx'],
+        dir: Bakery.serveRoot,
+        include: ['**/error.tsx', '**/error-*.tsx'],
+      }
+    }
+  }
+
+  beforeAll(async () => {
+    // A catch-all at the root and nothing else. Every error-page probe this
+    // handler makes — /error-404, /error, and the same pair per prefix — is a
+    // path the catch-all matches.
+    await Bun.write(`${ERR_ROOT}/[...slug].tsx`, 'export default () => null\n')
+    __setTestConfig({ root: ERR_ROOT } as any)
+  })
+
+  afterAll(() => {
+    __resetTestConfig()
+    ErrPages.cache.clear()
+    ErrPages.dynamicCache.clear()
+  })
+
+  test('a root catch-all does not become the error page', async () => {
+    ErrPages.cache.clear()
+    ErrPages.dynamicCache.clear()
+
+    const info = await ErrPages.resolveRoute('/deep/missing/page')
+    expect(info?.path ?? null).toBeNull()
+  })
+
+  test('a real error page is still found', async () => {
+    ErrPages.cache.clear()
+    ErrPages.dynamicCache.clear()
+    await Bun.write(`${ERR_ROOT}/error.tsx`, 'export default () => null\n')
+
+    const info = await ErrPages.resolveRoute('/deep/missing/page')
+    expect(info?.path).toBe('error.tsx')
+
+    await rm(`${ERR_ROOT}/error.tsx`, { force: true })
+  })
+
+  test('the code-specific page wins over the default one', async () => {
+    ErrPages.cache.clear()
+    ErrPages.dynamicCache.clear()
+    await Bun.write(`${ERR_ROOT}/error.tsx`, 'export default () => null\n')
+    await Bun.write(`${ERR_ROOT}/error-404.tsx`, 'export default () => null\n')
+
+    const info = await ErrPages.resolveRoute('/nope', {
+      errorCode: 404,
+      errorText: 'Not Found',
+      errorBody: '',
+    } as any)
+    expect(info?.path).toBe('error-404.tsx')
+
+    await rm(`${ERR_ROOT}/error.tsx`, { force: true })
+    await rm(`${ERR_ROOT}/error-404.tsx`, { force: true })
   })
 })

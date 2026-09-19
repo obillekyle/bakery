@@ -19,7 +19,7 @@ import { DB } from '@bakery-framework/orm/orm'
 import { overLimit } from '../policy'
 import { isRollbackSignal, previewRollback } from '../preview'
 import { type FieldError, validateInsertRow } from '../validate'
-import { beginWrite, invalid } from './common'
+import { beginWrite, invalid, refuse } from './common'
 
 export type OnBadRow = 'stop' | 'skip'
 
@@ -83,7 +83,7 @@ export async function handleImport(
       if (isRollbackSignal(error)) {
         return response.json.success(error.message, error.report, error.status)
       }
-      return response.json.error(400, error?.message ?? 'Import failed')
+      return refuse('import', error)
     },
   )
 }

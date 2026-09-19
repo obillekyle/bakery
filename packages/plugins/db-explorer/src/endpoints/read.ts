@@ -15,6 +15,7 @@ import { connection } from '@bakery-framework/orm/connection'
 import { currentAccess, currentCanWrite } from '../access'
 import { type Identity, introspect } from '../identity'
 import { parseFilters } from '../shared/filters'
+import { refuse } from './common'
 
 export interface SchemaColumn {
   name: string
@@ -170,6 +171,6 @@ export async function handleTableData(
       })
       return response.json.success('success', data)
     },
-    (error: any) => response.json.error(400, error.message),
+    error => refuse('table-data', error),
   )
 }

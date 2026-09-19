@@ -279,9 +279,12 @@ export class DynamicErrorHandler extends DynamicHandler {
 
       const defsPage = `${prefix}/error`
       const codePage = `${prefix}/error-${errors.errorCode}`
+      // `resolveStaticRoute`, never `resolveRoute`: an error page is a file by
+      // name, and letting the dynamic matcher answer meant a root catch-all
+      // claimed every one of them. See the note on that method.
       const routeInfo =
-        (await super.resolveRoute(codePage)) ||
-        (await super.resolveRoute(defsPage))
+        (await super.resolveStaticRoute(codePage)) ||
+        (await super.resolveStaticRoute(defsPage))
       if (routeInfo) return routeInfo
     }
 

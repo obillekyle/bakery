@@ -137,6 +137,7 @@ const pluginMsgs = {
   UNHANDLED_ERR: 'E Unhandled Plugin Error: %r{error}%*',
   ANALYTICS_STORE_ERR: 'E Analytics store init failed: %r{error}%*',
   DASHBOARD_BUNDLE_ERR: 'E Failed to bundle %ydashboard.js%*: %r{error}%*',
+  EXPLORER_QUERY_ERR: 'E Explorer %y{op}%* failed: %r{error}%*',
 } as const
 
 export const pluginLog = messageLogger(new Logger('plugins'), pluginMsgs)

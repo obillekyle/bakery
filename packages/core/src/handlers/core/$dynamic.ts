@@ -233,21 +233,59 @@ export class DynamicHandler extends Handler {
    */
   static resolveRoute(path: string): Promise<Route.Info | null>
   static async resolveRoute(path: string) {
-    const info = await this.resolveRouteFile(path)
-    if (!info) return null
+    return this.checkBlocked(await this.resolveRouteFile(path))
+  }
 
+  /**
+   * Resolve `path` to a **literal file only** — never a dynamic or catch-all
+   * match.
+   *
+   * For the error handlers, which look up `error` and `error-<code>` pages by
+   * name. Asking the ordinary resolver for those was wrong twice over.
+   *
+   * **It served the wrong page.** `resolveRoute` falls through to dynamic
+   * matching, so an app with a root `[...slug].tsx` had every error page
+   * claimed by the catch-all, and `/blog/[id].tsx` answered a 404 under
+   * `/blog` by rendering a post with `id = 'error'`. An error page is a file
+   * an application put there on purpose; nothing about it should be pattern
+   * matched.
+   *
+   * **And it was most of the cost of a 404.** `DynamicErrorHandler` walks the
+   * path prefixes, so a miss ran two full resolutions per segment — each one a
+   * glob scan plus an `isForbidden` tree-walk, and each one guaranteed to fail
+   * for an app with no error pages. That is why a 404 cost ten to thirty times
+   * a served page and grew with depth: 64 segments measured at over ten
+   * seconds. Static-only makes each probe one glob and no dynamic scan.
+   */
+  protected static resolveStaticRoute(path: string): Promise<Route.Info | null>
+  protected static async resolveStaticRoute(path: string) {
+    return this.checkBlocked(await this.resolveRouteFile(path, true))
+  }
+
+  /**
+   * The deny-list check both resolvers end in.
+   *
+   * Extracted rather than repeated: it is the clause that stops a resolved
+   * *file* from being served when the request path alone looked innocent (see
+   * `resolveRouteFile`'s note), and two copies is two places for it to be
+   * dropped from.
+   */
+  private static checkBlocked(info: Route.Info | null) {
+    if (!info) return null
     if (
       this.servesFiles &&
       matchBlockedCached(Bakery.config.blocked, `/${info.path}`)
     ) {
       return null
     }
-
     return info
   }
 
-  protected static resolveRouteFile(path: string): Promise<Route.Info | null>
-  protected static async resolveRouteFile(path: string) {
+  protected static resolveRouteFile(
+    path: string,
+    staticOnly?: boolean,
+  ): Promise<Route.Info | null>
+  protected static async resolveRouteFile(path: string, staticOnly = false) {
     const cached = this.getCachedRoute(path)
     if (cached) return cached
 
@@ -268,6 +306,11 @@ export class DynamicHandler extends Handler {
     if (staticInfo) {
       return this.cacheStaticRoute(path, staticInfo)
     }
+
+    // A literal file was all that was asked for. The dynamic passes below are
+    // not merely skipped as an optimization — for an error page they would be
+    // wrong, and `resolveStaticRoute` says why.
+    if (staticOnly) return null
 
     // `findDynamicRoute` already required `valid` and `!isForbidden` against
     // `Bakery.serveRoot` before returning, so wrapping it in

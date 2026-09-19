@@ -254,6 +254,27 @@ describe('no raw SQL and no DDL — structurally, not by configuration', () => {
     expect(calls.length).toBe(before)
   })
 
+  test('a failed query refuses without quoting the database', async () => {
+    // Every read endpoint used to answer with `error.message` verbatim, so a
+    // malformed page number came back as the driver's "datatype mismatch" and
+    // a Postgres parse error would have quoted the statement. A caller holding
+    // only `read` is not owed the query text, and it tells a client nothing it
+    // can act on. The message goes to the server log instead.
+    const stub = { ...stubDb, getData: async () => { throw new Error('SQLITE_MISMATCH: datatype mismatch') } }
+    __setTestDb(stub as any)
+
+    const res = (await handleTableData(
+      new URL('http://localhost/api/_db/table-data?tableName=parcels&page=abc'),
+    )) as any
+
+    __setTestDb(stubDb as any)
+
+    expect(res.status).toBe(400)
+    expect(String(res.message)).not.toContain('datatype mismatch')
+    expect(String(res.message)).not.toContain('SQLITE_')
+    expect(String(res.message)).toBe('table-data failed')
+  })
+
   test('handleSchema answers through the envelope, with the caller’s posture', async () => {
     const res = (await handleSchema()) as any
     expect(res.status).toBe(200)

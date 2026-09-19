@@ -15,7 +15,7 @@ import { connection } from '@bakery-framework/orm/connection'
 import { qId } from '@bakery-framework/orm/schema-util'
 import { type Identity, introspect, type TableFacts } from '../identity'
 import { overLimit } from '../policy'
-import { findTable, readBody } from './common'
+import { findTable, readBody, refuse } from './common'
 
 export async function handleGraph(): Promise<JsonResponseData<unknown>> {
   return await Try.return(
@@ -143,6 +143,6 @@ export async function handleLookup(
 
       return response.json.success('success', { rows: results })
     },
-    (error: any) => response.json.error(400, error?.message ?? 'Lookup failed'),
+    error => refuse('lookup', error),
   )
 }

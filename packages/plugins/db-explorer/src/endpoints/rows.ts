@@ -32,7 +32,7 @@ import {
   validateKey,
   validatePartial,
 } from '../validate'
-import { beginWrite, type Envelope, invalid } from './common'
+import { beginWrite, type Envelope, invalid, refuse } from './common'
 
 /**
  * A conflict, as the caller sees it: which edit, which row, and what the row
@@ -107,7 +107,10 @@ function fromRollback(error: any): Envelope {
       ? response.json.error(error.status, error.message, error.report)
       : response.json.success(error.message, error.report, error.status)
   }
-  return response.json.error(400, error?.message ?? 'The write failed')
+  // A rollback signal carries a message this plugin wrote, so it is safe to
+  // pass on. Anything else reaching here is the driver's, and the driver's
+  // text is not the caller's business — see `refuse`.
+  return refuse('write', error)
 }
 
 // ---------------------------------------------------------------- POST /rows
@@ -167,7 +170,7 @@ export async function handleInsertRows(
         rows: written,
       })
     },
-    (error: any) => response.json.error(400, error?.message ?? 'Insert failed'),
+    error => refuse('insert', error),
   )
 }
 

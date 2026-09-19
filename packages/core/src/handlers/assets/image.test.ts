@@ -86,6 +86,70 @@ describe('ImageHandler', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
+  test('canHandle answers a long non-matching path in linear time', () => {
+    // The denial of service this regex used to be. Two greedy groups that could
+    // each match `/` meant every separator doubled the splits the engine had to
+    // try, and a *failing* match is the one that tries them all — so an
+    // unauthenticated request for a path that is not an image stalled the whole
+    // event loop. Measured before the fix: 1030 characters took 512 ms, and
+    // `canHandle` runs on every route-cache miss.
+    //
+    // The bound is deliberately loose. The fixed regex answers this in about
+    // 0.006 ms, so 50 ms is four orders of magnitude of headroom against a
+    // timing flake, while still being ten times *under* what the old one cost.
+    const path = `/${'a/'.repeat(512)}x.txt`
+    const started = Bun.nanoseconds()
+    const claimed = ImageHandler.canHandle(path)
+    const ms = (Bun.nanoseconds() - started) / 1e6
+
+    expect(claimed).toBe(false)
+    expect(`${ms < 50} (${ms.toFixed(2)}ms)`).toBe(`true (${ms.toFixed(2)}ms)`)
+  })
+
+  test('the bounded regex claims exactly what the unbounded one did', () => {
+    // Bounding the filename group is only safe if it changed no answer. The
+    // original, kept here as the oracle it is — not as a second implementation
+    // anything calls.
+    const unbounded = /(.*)\/(.*)(;(\d+))?\.(png|jpg|jpeg|webp|gif|bmp)$/i
+    const corpus = [
+      '/x.png',
+      '/a/b/c.png',
+      '/a/b;800.png',
+      '/a/b;800.jpeg',
+      '/x.PNG',
+      '/.png',
+      '/a/.png',
+      '/a/b.gif',
+      '/a/b.bmp',
+      '/deep/a/b/c/d.webp',
+      'x.png',
+      'a/b.png',
+      '/x.txt',
+      '/x.png/c',
+      '/x.pngx',
+      '/x.png.txt',
+      '/',
+      '',
+      '/a/',
+      '/a//b.png',
+      '/a/b;.png',
+      '/a/b;12;34.png',
+      '/styles/global.css',
+      '/api/hello',
+      '/wiki/a/b/c',
+      '/favicon.ico',
+      '/;800.png',
+      '/a b.png',
+      '/a.b.c.png',
+      '/UPPER/PATH.GIF',
+    ]
+
+    const disagreed = corpus.filter(
+      path => ImageHandler.canHandle(path) !== unbounded.test(path),
+    )
+    expect(disagreed).toEqual([])
+  })
+
   test('canHandle claims image extensions only', () => {
     expect(ImageHandler.canHandle('/pics/photo.png')).toBe(true)
     expect(ImageHandler.canHandle('/pics/photo;128.webp')).toBe(true)

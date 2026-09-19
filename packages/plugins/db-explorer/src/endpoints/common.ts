@@ -15,6 +15,7 @@
  * are about the request's own shape rather than about who is asking.
  */
 
+import { errorMsg, pluginLog } from '@bakery-framework/core/logger'
 import { Case, Try } from '@bakery-framework/core/utils'
 import type { JsonResponseData } from '@bakery-framework/core/utils/common'
 import { response } from '@bakery-framework/core/utils/http'
@@ -119,4 +120,22 @@ export async function beginWrite(req: Request): Promise<WriteStart> {
   }
 
   return { ok: true, table, body }
+}
+
+/**
+ * Refuse a request without telling the caller what the database said.
+ *
+ * Every read endpoint used to answer `400` with `error.message` verbatim, so a
+ * malformed `page` came back as SQLite's "datatype mismatch" and a bad lookup
+ * key as a JavaScript `TypeError` naming an internal expression. Postgres is
+ * worse: its parse errors quote the statement. A caller holding only `read`
+ * cannot be handed the query text, and none of it helps a client that has
+ * already been told its request was invalid.
+ *
+ * The message still exists — it goes to the server log with the operation that
+ * produced it, which is where an operator can act on it.
+ */
+export function refuse(op: string, error: unknown, status = 400): Envelope {
+  pluginLog.EXPLORER_QUERY_ERR({ op, error: errorMsg(error) })
+  return response.json.error(status, `${op} failed`)
 }
