@@ -1,7 +1,6 @@
 import {
   formatUptime,
   getWebSocketUrl,
-  SegmentedProgress,
   setEmpty,
   setText,
 } from './utils'
@@ -179,7 +178,7 @@ function setConnectionStatus(online: boolean) {
     dot.style.background = '#10b981'
     dot.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.4)'
     text.innerText = 'Online (DEV)'
-    text.style.color = 'var(--text-main)'
+    text.style.color = 'var(--text)'
   } else {
     dot.style.background = '#ef4444'
     dot.style.boxShadow = '0 0 10px rgba(239, 68, 68, 0.4)'
@@ -188,7 +187,6 @@ function setConnectionStatus(online: boolean) {
   }
 }
 export let activePagesFilter = '1d'
-export let activeTopPagesProgressBars: SegmentedProgress[] = []
 
 export function changePagesFilter(newFilter: string) {
   activePagesFilter = newFilter
@@ -924,34 +922,26 @@ function updateTopPagesList(topPages: any[]) {
   )
   if (!topPagesListContainer) return
 
-  activeTopPagesProgressBars.forEach(bar => {
-    bar.destroy()
-  })
-  activeTopPagesProgressBars = []
-
   if (topPages.length === 0) {
     setEmpty(topPagesListContainer, 'No page hits recorded for this period.')
     return
   }
 
-  const maxHits = Math.max(...topPages.map((p: any) => p.hits), 1)
   let html = `
     <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-      <div style="display: grid; grid-template-columns: 1fr auto; font-weight: 600; font-size: 0.8rem; color: var(--text-muted); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+      <div style="display: grid; grid-template-columns: 1fr auto; font-weight: 600; font-size: 0.8rem; color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
         <span>Page Path</span>
         <span style="text-align: right; min-width: 80px;">Hits</span>
       </div>
   `
 
   topPages.forEach((p: any) => {
-    const percent = Math.round((p.hits / maxHits) * 100)
     html += `
       <div style="display: grid; grid-template-columns: 1fr auto; align-items: center; font-size: 0.85rem; padding: 0.25rem 0;">
         <div style="display: flex; flex-direction: column; gap: 0.4rem; overflow: hidden; padding-right: 1rem;">
-          <span style="font-family: var(--font-mono); color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${escapeHTML(p.page)}</span>
-          <div class="segmented-progress-bar-pages" data-percent="${percent}"></div>
+          <span style="font-family: var(--mono); color: var(--text); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${escapeHTML(p.page)}</span>
         </div>
-        <span style="text-align: right; font-weight: 600; font-family: var(--font-mono); color: var(--text-main); min-width: 80px;">${p.hits.toLocaleString()}</span>
+        <span style="text-align: right; font-weight: 600; font-family: var(--mono); color: var(--text); min-width: 80px;">${p.hits.toLocaleString()}</span>
       </div>
     `
   })
@@ -959,12 +949,6 @@ function updateTopPagesList(topPages: any[]) {
   html += '</div>'
   topPagesListContainer.innerHTML = html
 
-  topPagesListContainer
-    .querySelectorAll('.segmented-progress-bar-pages')
-    .forEach((el: any) => {
-      const pct = parseFloat(el.getAttribute('data-percent') || '0')
-      activeTopPagesProgressBars.push(new SegmentedProgress(el, pct))
-    })
 }
 
 export function processStatsData(s: any, excludeHistory: boolean) {

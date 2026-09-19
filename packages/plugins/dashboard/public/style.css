@@ -10,7 +10,6 @@
  * dependency on every page load, and this one is often reachable only from a
  * private network anyway.
  */
-
 :root {
   --accent: #f6821f;
   --accent-hover: #e2740e;
@@ -44,7 +43,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+:root {
     --bg: #0f1115;
     --surface: #171a1f;
     --surface-alt: #1c2027;
@@ -60,11 +59,9 @@
     --shadow-pop: 0 10px 28px rgba(0, 0, 0, 0.55);
   }
 }
-
 * {
   box-sizing: border-box;
 }
-
 html,
 body {
   margin: 0;
@@ -76,7 +73,6 @@ body {
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
-
 a {
   color: var(--info);
   text-decoration: none;
@@ -86,7 +82,6 @@ a:hover {
 }
 
 /* --------------------------------------------------------------- layout -- */
-
 .console {
   display: grid;
   grid-template-columns: var(--rail-w) 1fr;
@@ -94,7 +89,6 @@ a:hover {
   grid-template-areas: "rail bar" "rail main";
   min-height: 100vh;
 }
-
 .rail {
   grid-area: rail;
   background: var(--surface);
@@ -106,7 +100,6 @@ a:hover {
   height: 100vh;
   overflow-y: auto;
 }
-
 .rail-brand {
   display: flex;
   align-items: center;
@@ -116,7 +109,6 @@ a:hover {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-
 .rail-mark {
   width: 22px;
   height: 22px;
@@ -129,17 +121,14 @@ a:hover {
   font-size: 12px;
   flex-shrink: 0;
 }
-
 .rail-name {
   font-weight: 600;
   font-size: 13.5px;
   letter-spacing: -0.01em;
 }
-
 .rail-group {
   padding: 14px 10px 4px;
 }
-
 .rail-group-label {
   font-size: 10.5px;
   font-weight: 600;
@@ -148,7 +137,6 @@ a:hover {
   color: var(--text-faint);
   padding: 0 8px 6px;
 }
-
 .tab-btn {
   display: flex;
   align-items: center;
@@ -166,12 +154,10 @@ a:hover {
   cursor: pointer;
   position: relative;
 }
-
 .tab-btn:hover {
   background: var(--surface-alt);
   color: var(--text);
 }
-
 .tab-btn.active {
   background: var(--accent-soft);
   color: var(--text);
@@ -188,13 +174,11 @@ a.tab-btn {
   text-decoration: none;
   box-sizing: border-box;
 }
-
 .nav-external {
   margin-left: auto;
   font-size: 11px;
   opacity: 0.55;
 }
-
 .tab-btn.active::before {
   content: "";
   position: absolute;
@@ -205,7 +189,6 @@ a.tab-btn {
   border-radius: 0 3px 3px 0;
   background: var(--accent);
 }
-
 .nav-dot {
   width: 6px;
   height: 6px;
@@ -214,12 +197,10 @@ a.tab-btn {
   opacity: 0.45;
   flex-shrink: 0;
 }
-
 .tab-btn.active .nav-dot {
   opacity: 1;
   color: var(--accent);
 }
-
 .rail-foot {
   margin-top: auto;
   padding: 12px 16px;
@@ -232,7 +213,6 @@ a.tab-btn {
 }
 
 /* ------------------------------------------------------------------ bar -- */
-
 .bar {
   grid-area: bar;
   background: var(--surface);
@@ -246,7 +226,6 @@ a.tab-btn {
   top: 0;
   z-index: 20;
 }
-
 .crumbs {
   display: flex;
   align-items: center;
@@ -255,7 +234,6 @@ a.tab-btn {
   color: var(--text-muted);
   min-width: 0;
 }
-
 .crumbs strong {
   color: var(--text);
   font-weight: 600;
@@ -263,13 +241,11 @@ a.tab-btn {
 .crumbs .sep {
   color: var(--text-faint);
 }
-
 .bar-actions {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-
 .status-indicator {
   display: inline-flex;
   align-items: center;
@@ -282,7 +258,6 @@ a.tab-btn {
   background: var(--surface-alt);
   white-space: nowrap;
 }
-
 .status-dot {
   width: 7px;
   height: 7px;
@@ -291,24 +266,12 @@ a.tab-btn {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent);
 }
 
-.status-dot.offline {
-  background: var(--danger);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
-}
-
-.status-dot.warn {
-  background: var(--warn);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 18%, transparent);
-}
-
 /* -------------------------------------------------------------- content -- */
-
 main {
   grid-area: main;
   padding: 20px 22px 40px;
   min-width: 0;
 }
-
 .panel {
   display: none;
 }
@@ -318,16 +281,15 @@ main {
 }
 
 @keyframes rise {
-  from {
+from {
     opacity: 0;
     transform: translateY(3px);
   }
-  to {
+to {
     opacity: 1;
     transform: none;
   }
 }
-
 .section-header,
 .title {
   font-size: 17px;
@@ -335,8 +297,6 @@ main {
   letter-spacing: -0.01em;
   margin: 0 0 3px;
 }
-
-.subtitle,
 .text-secondary {
   color: var(--text-muted);
   font-size: 13px;
@@ -344,19 +304,15 @@ main {
 }
 
 /* ---------------------------------------------------------------- cards -- */
-
 .card,
 .browser-card,
 .chart-card,
-.editor-card,
-.top-pages-card,
-.modal-card {
+.top-pages-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
-
 .card {
   padding: 14px 16px;
   display: flex;
@@ -391,7 +347,6 @@ main {
   text-transform: uppercase;
   color: var(--text-muted);
 }
-
 .card-value {
   font-size: 25px;
   font-weight: 600;
@@ -399,31 +354,26 @@ main {
   font-variant-numeric: tabular-nums;
   line-height: 1.15;
 }
-
 .card-sub {
   display: block;
   font-size: 12px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
-
 .grid-stats {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
-
 .grid-charts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 12px;
 }
-
 .chart-card,
 .top-pages-card,
-.browser-card,
-.editor-card {
+.browser-card {
   padding: 16px;
   margin-bottom: 14px;
 }
@@ -472,7 +422,6 @@ main {
 .chart-card {
   position: relative;
 }
-
 .chart-tooltip {
   position: absolute;
   z-index: 5;
@@ -490,7 +439,6 @@ main {
   opacity: 0;
   transition: opacity 90ms ease-out;
 }
-
 .chart-tooltip.visible {
   opacity: 1;
 }
@@ -504,11 +452,9 @@ main {
 .chart-tooltip[data-placement='above'] {
   transform: translate(-50%, calc(-100% - 10px));
 }
-
 .chart-tooltip[data-placement='below'] {
   transform: translate(-50%, 10px);
 }
-
 .chart-stats {
   display: flex;
   gap: 18px;
@@ -518,9 +464,7 @@ main {
 }
 
 /* -------------------------------------------------------------- buttons -- */
-
 .btn,
-.login-btn,
 .timescale-btn,
 .pages-filter-btn {
   display: inline-flex;
@@ -538,32 +482,25 @@ main {
   cursor: pointer;
   white-space: nowrap;
 }
-
 .btn:hover,
 .timescale-btn:hover,
 .pages-filter-btn:hover {
   background: var(--surface-alt);
   border-color: var(--text-faint);
 }
-
-.btn-primary,
-.login-btn {
+.btn-primary {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
   font-weight: 600;
 }
-
-.btn-primary:hover,
-.login-btn:hover {
+.btn-primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
-
 .btn-secondary {
   background: var(--surface);
 }
-
 .btn-danger {
   background: var(--danger);
   border-color: var(--danger);
@@ -573,28 +510,23 @@ main {
 .btn-danger:hover {
   filter: brightness(0.93);
 }
-
 .btn:disabled,
 .btn[disabled] {
   opacity: 0.5;
   cursor: not-allowed;
 }
-
 .timescale-selector,
 .actions-row,
 .actions-group,
 .page-nav,
 .session-browser-controls,
-.label-row,
 .session-browser-title-row,
-.session-browser-pagination,
-.db-mobile-toggle {
+.session-browser-pagination {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
-
 .timescale-btn.active,
 .pages-filter-btn.active {
   background: var(--accent-soft);
@@ -604,13 +536,9 @@ main {
 }
 
 /* --------------------------------------------------------------- inputs -- */
-
-.input-field,
-.filter-input,
 .filter-select,
 .search-input,
 .session-search-input,
-.sidebar-search,
 select,
 input[type="text"],
 input[type="password"],
@@ -625,9 +553,6 @@ textarea {
   font: inherit;
   font-size: 13px;
 }
-
-.input-field:focus,
-.filter-input:focus,
 .search-input:focus,
 select:focus,
 input:focus,
@@ -636,26 +561,17 @@ textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin-bottom: 12px;
-}
 .label {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
 }
 /* --------------------------------------------------------------- tables -- */
-
 table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
-
 th {
   text-align: left;
   font-size: 10.5px;
@@ -670,61 +586,32 @@ th {
   top: 0;
   white-space: nowrap;
 }
-
 td {
   padding: 7px 10px;
   border-bottom: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
   vertical-align: top;
 }
-
 tbody tr:hover {
   background: var(--surface-alt);
 }
 tbody tr:last-child td {
   border-bottom: 0;
 }
-
 .table-info,
 .rows-meta,
-.results-meta,
-.db-rows-meta,
-.page-info,
 .session-rows-meta,
 .session-page-info,
-.db-page-info,
 .session-browser-subtitle {
   font-size: 12px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
-
 .session-grid {
   overflow: auto;
 }
 
 /* -------------------------------------------------------- misc widgets -- */
-
-.badge,
-.console-mode-badge,
-.logo-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 7px;
-  border-radius: 100px;
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.badge.compact {
-  padding: 1px 6px;
-  font-size: 10.5px;
-}
 
 .log-console,
 .logs-console {
@@ -740,44 +627,8 @@ tbody tr:last-child td {
   white-space: pre-wrap;
   word-break: break-word;
 }
-
-.table-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.table-list li {
-  padding: 6px 9px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 13px;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  align-items: center;
-}
-
-.table-list li:hover {
-  background: var(--surface-alt);
-}
-.table-list li.active {
-  background: var(--accent-soft);
-  font-weight: 600;
-}
-
-.sidebar {
-  width: 210px;
-  flex-shrink: 0;
-  border-right: 1px solid var(--border);
-  padding-right: 12px;
-  margin-right: 14px;
-}
-
 .browser-header,
-.session-browser-header,
-.sql-terminal-header,
-.modal-header {
+.session-browser-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -788,41 +639,6 @@ tbody tr:last-child td {
 
 /* --------------------------------------------------------------- modals -- */
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 17, 21, 0.5);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  z-index: 100;
-}
-
-.modal-overlay.active {
-  display: flex;
-}
-
-.modal-card {
-  width: min(600px, 100%);
-  max-height: 86vh;
-  overflow: auto;
-  padding: 18px;
-  box-shadow: var(--shadow-pop);
-}
-
-.modal-close {
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 20px;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.modal-close:hover {
-  color: var(--text);
-}
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -836,13 +652,9 @@ tbody tr:last-child td {
 }
 
 /* ------------------------------------------------------------ dropdowns -- */
-
-.export-dropdown-wrapper,
 .profile-dropdown-wrapper {
   position: relative;
 }
-
-.export-menu,
 .profile-menu {
   position: absolute;
   right: 0;
@@ -856,13 +668,9 @@ tbody tr:last-child td {
   display: none;
   z-index: 60;
 }
-
-.export-menu.active,
 .profile-menu.active {
   display: block;
 }
-
-.export-menu button,
 .profile-menu button,
 .profile-menu a {
   display: flex;
@@ -879,25 +687,20 @@ tbody tr:last-child td {
   text-align: left;
   cursor: pointer;
 }
-
-.export-menu button:hover,
 .profile-menu button:hover,
 .profile-menu a:hover {
   background: var(--surface-alt);
   text-decoration: none;
 }
-
 .profile-header-info {
   padding: 7px 9px 8px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 4px;
 }
-
 .profile-admin-name {
   font-weight: 600;
   font-size: 13px;
 }
-
 .profile-trigger-btn {
   display: flex;
   align-items: center;
@@ -909,11 +712,9 @@ tbody tr:last-child td {
   cursor: pointer;
   color: var(--text);
 }
-
 .profile-trigger-btn:hover {
   background: var(--surface-alt);
 }
-
 .profile-avatar {
   width: 24px;
   height: 24px;
@@ -928,27 +729,17 @@ tbody tr:last-child td {
 
 /* ---------------------------------------------------------------- login -- */
 
-.login-container {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: var(--bg);
-}
-
 /* ----------------------------------------------------------- responsive -- */
-
 .rail-toggle {
   display: none;
 }
 
 @media (max-width: 900px) {
-  .console {
+.console {
     grid-template-columns: 1fr;
     grid-template-areas: "bar" "main";
   }
-
-  .rail {
+.rail {
     position: fixed;
     inset: 0 auto 0 0;
     width: var(--rail-w);
@@ -956,24 +747,92 @@ tbody tr:last-child td {
     transition: transform 0.18s ease;
     z-index: 90;
   }
-
-  .rail.open {
+.rail.open {
     transform: none;
     box-shadow: var(--shadow-pop);
   }
-  .rail-toggle {
+.rail-toggle {
     display: inline-flex;
   }
-
-  .sidebar {
-    width: 100%;
-    border-right: 0;
-    margin: 0 0 12px;
-    padding: 0 0 12px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  main {
+main {
     padding: 16px 14px 32px;
   }
+}
+
+/* ------------------------------------------------------- session cards -- */
+
+/*
+ * These eight rules were missing rather than dead: the classes are set by
+ * `client/parts/sessions.ts`, `logs.ts`, `stats.ts` and `SessionsPanel.tsx`
+ * and the sheet had nothing for any of them. A session card was therefore an
+ * unstyled `div` - the id ran under the Revoke button, and one session was not
+ * separable from the next.
+ *
+ * Written from existing tokens rather than new ones. `.card` is the pattern
+ * being followed and nothing here introduces a value the sheet did not already
+ * have.
+ */
+.session-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.session-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+/*
+ * A session id is long, opaque and not meant to be read word by word, so it
+ * gets the monospace face and is allowed to shrink rather than push the
+ * Revoke button off the row.
+ */
+.session-id {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-bar.compact {
+  font-size: 12px;
+}
+
+.results-empty {
+  padding: 18px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Pause is a state, not an error: the button says so while logs are held. */
+.btn-success {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+/*
+ * Analytics off. The numbers on screen are the last ones recorded, so they are
+ * dimmed and softened rather than hidden - blanking them would lose the only
+ * reading there is.
+ */
+.blurred-stats {
+  filter: blur(3px);
+  opacity: 0.5;
+  pointer-events: none;
 }

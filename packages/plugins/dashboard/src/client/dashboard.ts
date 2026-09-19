@@ -1,10 +1,8 @@
-import { refreshShimmerCache } from './parts/effects'
 import { clearLogs, initLogsWebSocket, toggleLogsPlay } from './parts/logs'
 import {
   changeSessionPageSize,
   loadSessions,
   nextSessionPage,
-  openSessionKeyEditor,
   prevSessionPage,
   queueSessionSearch,
   revokeSession,
@@ -18,7 +16,6 @@ import {
   loadStats,
   resetAnalytics,
 } from './parts/stats'
-import { SegmentedProgress } from './parts/utils'
 
 declare const match: any
 
@@ -58,8 +55,6 @@ function switchTab(tabId: string) {
     logs: initLogsWebSocket,
     'top-pages': () => loadStats(true),
   })
-
-  refreshShimmerCache()
 }
 
 window.addEventListener('click', e => {
@@ -76,7 +71,6 @@ window.addEventListener('click', e => {
 })
 
 const w = window as any
-w.SegmentedProgress = SegmentedProgress
 w.switchTab = switchTab
 w.resetAnalytics = resetAnalytics
 w.changePagesFilter = changePagesFilter
@@ -90,7 +84,6 @@ w.prevSessionPage = prevSessionPage
 w.nextSessionPage = nextSessionPage
 w.changeSessionPageSize = changeSessionPageSize
 w.sessionKeyAction = sessionKeyAction
-w.openSessionKeyEditor = openSessionKeyEditor
 
 w.initLogsWebSocket = initLogsWebSocket
 w.toggleLogsPlay = toggleLogsPlay

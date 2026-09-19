@@ -31,7 +31,7 @@ export function setText(id: string, value: string) {
  * stats panels build markup the same way from data they did not write.
  */
 export function emptyBox(message: string, isError = false): string {
-  const style = isError ? ' style="color: var(--accent-red);"' : ''
+  const style = isError ? ' style="color: var(--danger);"' : ''
   return `<div class="results-empty"${style}><span>${escapeHTML(message)}</span></div>`
 }
 
@@ -84,67 +84,20 @@ export function setPager(
   if (nextBtn) nextBtn.disabled = page >= totalPages
 }
 
-export class SegmentedProgress {
-  private container: HTMLElement
-  private percent: number
-  private barWidth: number
-  private barGap: number
-  private resizeObserver: ResizeObserver | null = null
-
-  constructor(
-    container: HTMLElement,
-    percent: number,
-    barWidth = 4,
-    barGap = 6,
-  ) {
-    this.container = container
-    this.percent = percent
-    this.barWidth = barWidth
-    this.barGap = barGap
-    this.init()
-  }
-
-  private init() {
-    this.container.classList.add('segmented-progress-container')
-    if (this.barGap !== 6) {
-      this.container.style.gap = `${this.barGap}px`
-    }
-
-    if (typeof ResizeObserver !== 'undefined') {
-      this.resizeObserver = new ResizeObserver(() => this.draw())
-      this.resizeObserver.observe(this.container)
-    }
-
-    this.draw()
-  }
-
-  public destroy() {
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect()
-    }
-  }
-
-  public draw() {
-    const containerWidth = this.container.clientWidth
-    if (containerWidth === 0) return
-
-    const count = Math.floor(
-      (containerWidth + this.barGap) / (this.barWidth + this.barGap),
-    )
-    const activeCount = Math.round((this.percent / 100) * count)
-
-    let html = ''
-    for (let i = 0; i < count; i++) {
-      const className = i < activeCount ? 'active' : 'inactive'
-      let styleAttr = ''
-      if (this.barWidth !== 4) {
-        styleAttr = ` style="width: ${this.barWidth}px;"`
-      }
-      html += `<div class="segmented-bar-segment ${className}"${styleAttr}></div>`
-    }
-    this.container.innerHTML = html
-  }
-}
+/*
+ * `SegmentedProgress` was here, and nothing it drew was ever visible.
+ *
+ * It filled a `.segmented-progress-container` with one `div` per 10px of
+ * width and watched the container with a `ResizeObserver`. Neither that
+ * class nor `.segmented-bar-segment` has a rule in the sheet - grep it - so
+ * the container is a bare block with no height and the segments are bare
+ * blocks with no width. Measured against a running console on the Traffic
+ * panel: 10 containers, 98 children each, every one of them 0px tall.
+ *
+ * So it cost 980 nodes and 10 `ResizeObserver`s per render of that panel,
+ * redrawn on every resize, to show nothing. The list it sat under - path and
+ * hit count - works and stays.
+ */
 
 export function getWebSocketUrl(path: string) {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'

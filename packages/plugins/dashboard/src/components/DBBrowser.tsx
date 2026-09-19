@@ -24,7 +24,6 @@ export function renderDatabaseBrowser() {
         <div class="browser-header">
           <div class="table-info">
             <h2>
-              <iconify-icon icon="lucide:database"></iconify-icon>
               <span>Database</span>
             </h2>
           </div>
@@ -43,7 +42,6 @@ export function renderDatabaseBrowser() {
           </p>
           <div class="modal-actions">
             <a class="btn btn-primary" href="/_db">
-              <iconify-icon icon="lucide:external-link"></iconify-icon>
               <span>Open Database Explorer</span>
             </a>
           </div>

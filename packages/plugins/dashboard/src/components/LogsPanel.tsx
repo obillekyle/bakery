@@ -10,14 +10,12 @@ export function renderLogsPanel() {
               class="btn btn-secondary"
               onclick="toggleLogsPlay()"
               id="btn-logs-play">
-              <iconify-icon icon="lucide:pause"></iconify-icon>
               <span>Pause</span>
             </button>
             <button
               type="button"
               class="btn btn-secondary btn-danger"
               onclick="clearLogs()">
-              <iconify-icon icon="lucide:trash-2"></iconify-icon>
               <span>Clear Logs</span>
             </button>
             <label>

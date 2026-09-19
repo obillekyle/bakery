@@ -77,36 +77,21 @@ function renderKVRows(
   visible.forEach(([k, v]) => {
     const row = document.createElement('div')
     row.style.cssText =
-      'display:flex;align-items:center;gap:0.5rem;background:rgba(255,255,255,0.04);border:1px solid var(--border-color);border-radius:0.375rem;padding:0.3rem 0.6rem;'
+      'display:flex;align-items:center;gap:0.5rem;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:0.375rem;padding:0.3rem 0.6rem;'
 
     const keyEl = document.createElement('span')
     keyEl.style.cssText =
-      'font-size:0.8rem;font-weight:600;color:var(--text-secondary);min-width:120px;font-family:monospace;'
+      'font-size:0.8rem;font-weight:600;color:var(--text-muted);min-width:120px;font-family:monospace;'
     keyEl.innerText = k
 
     const valEl = document.createElement('span')
     valEl.style.cssText =
-      'font-size:0.8rem;color:var(--text-primary);flex:1;font-family:monospace;word-break:break-all;'
+      'font-size:0.8rem;color:var(--text);flex:1;font-family:monospace;word-break:break-all;'
     valEl.innerText = is.object(v) ? JSON.stringify(v) : String(v)
-
-    const editBtn = document.createElement('button')
-    editBtn.style.cssText =
-      'background:none;border:none;cursor:pointer;color:var(--text-secondary);font-size:0.85rem;padding:0.1rem 0.25rem;border-radius:0.25rem;transition:color 0.15s;'
-    editBtn.title = 'Edit value'
-    editBtn.innerHTML = icon(ICON_EDIT, '0.95rem')
-    editBtn.onmouseenter = () => (editBtn.style.color = 'var(--text-primary)')
-    editBtn.onmouseleave = () => (editBtn.style.color = 'var(--text-secondary)')
-    editBtn.onclick = () =>
-      openSessionKeyEditor(
-        sId,
-        k,
-        String(is.object(v) ? JSON.stringify(v) : v),
-        () => loadSessions(),
-      )
 
     const delBtn = document.createElement('button')
     delBtn.style.cssText =
-      'background:none;border:none;cursor:pointer;color:var(--accent-red);font-size:0.85rem;padding:0.1rem 0.25rem;border-radius:0.25rem;opacity:0.7;transition:opacity 0.15s;'
+      'background:none;border:none;cursor:pointer;color:var(--danger);font-size:0.85rem;padding:0.1rem 0.25rem;border-radius:0.25rem;opacity:0.7;transition:opacity 0.15s;'
     delBtn.title = 'Delete key'
     delBtn.innerHTML = icon(ICON_DELETE, '0.95rem')
     delBtn.onmouseenter = () => (delBtn.style.opacity = '1')
@@ -118,7 +103,6 @@ function renderKVRows(
 
     row.appendChild(keyEl)
     row.appendChild(valEl)
-    row.appendChild(editBtn)
     row.appendChild(delBtn)
     kvSection.appendChild(row)
   })
@@ -126,12 +110,12 @@ function renderKVRows(
   if (entries.length > SHOW_LIMIT) {
     const toggle = document.createElement('button')
     toggle.style.cssText =
-      'font-size:0.75rem;color:var(--text-secondary);background:none;border:none;cursor:pointer;text-align:left;padding:0.1rem 0;margin-top:0.1rem;transition:color 0.15s;'
+      'font-size:0.75rem;color:var(--text-muted);background:none;border:none;cursor:pointer;text-align:left;padding:0.1rem 0;margin-top:0.1rem;transition:color 0.15s;'
     toggle.innerText = showAll
       ? `▲ Show fewer`
       : `▼ Show all ${entries.length} keys`
-    toggle.onmouseenter = () => (toggle.style.color = 'var(--text-primary)')
-    toggle.onmouseleave = () => (toggle.style.color = 'var(--text-secondary)')
+    toggle.onmouseenter = () => (toggle.style.color = 'var(--text)')
+    toggle.onmouseleave = () => (toggle.style.color = 'var(--text-muted)')
     toggle.onclick = () => renderKVRows(kvSection, entries, sId, !showAll)
     kvSection.appendChild(toggle)
   }
@@ -139,21 +123,11 @@ function renderKVRows(
   if (entries.length === 0) {
     const empty = document.createElement('span')
     empty.style.cssText =
-      'font-size:0.8rem;color:var(--text-secondary);font-style:italic;'
+      'font-size:0.8rem;color:var(--text-muted);font-style:italic;'
     empty.innerText = 'No data stored in this session.'
     kvSection.appendChild(empty)
   }
 
-  const addRow = document.createElement('div')
-  addRow.style.cssText = 'margin-top:0.35rem;'
-  const addBtn = document.createElement('button')
-  addBtn.className = 'btn btn-secondary'
-  addBtn.style.cssText = 'font-size:0.75rem;padding:0.25rem 0.65rem;'
-  addBtn.innerText = '+ Add Key'
-  addBtn.onclick = () =>
-    openSessionKeyEditor(sId, '', '', () => loadSessions(), true)
-  addRow.appendChild(addBtn)
-  kvSection.appendChild(addRow)
 }
 
 function renderSessionCard(s: any): HTMLElement {
@@ -179,10 +153,10 @@ function renderSessionCard(s: any): HTMLElement {
   const expiresAt = new Date((s.accessedAt || Date.now()) + ttl)
   const info = document.createElement('div')
   info.style.cssText =
-    'font-size:0.8rem;color:var(--text-secondary);display:flex;gap:1.5rem;margin-bottom:0.5rem;'
+    'font-size:0.8rem;color:var(--text-muted);display:flex;gap:1.5rem;margin-bottom:0.5rem;'
   info.innerHTML = `
-    <span>Last Accessed: <strong style="color:var(--text-primary)">${accessedAt.toLocaleTimeString()}</strong></span>
-    <span>Expires: <strong style="color:var(--text-primary)">${expiresAt.toLocaleString()}</strong></span>
+    <span>Last Accessed: <strong style="color:var(--text)">${accessedAt.toLocaleTimeString()}</strong></span>
+    <span>Expires: <strong style="color:var(--text)">${expiresAt.toLocaleString()}</strong></span>
   `
 
   const kvSection = document.createElement('div')
@@ -278,92 +252,21 @@ export async function sessionKeyAction(
   }
 }
 
-export function openSessionKeyEditor(
-  sessionId: string,
-  key: string,
-  currentValue: string,
-  onDone: () => void,
-  isNew = false,
-) {
-  document.getElementById('session-key-editor-overlay')?.remove()
-
-  const overlay = document.createElement('div')
-  overlay.id = 'session-key-editor-overlay'
-  overlay.className = 'modal-overlay'
-  overlay.style.zIndex = '200'
-
-  const card = document.createElement('div')
-  card.className = 'modal-card'
-  card.style.maxWidth = '420px'
-
-  // Session keys are written by application code, so their names can carry
-  // whatever that code derived them from. Both the heading and the prefilled
-  // input reach innerHTML unescaped before this — a stored payload in a
-  // session key ran as the dashboard operator the moment they opened it.
-  const safeKey = escapeHTML(String(key))
-  card.innerHTML = `
-    <div class="modal-header">
-      <h3>${isNew ? 'Add Session Key' : `Edit Key: <code style="font-size:0.85em;font-weight:400;">${safeKey}</code>`}</h3>
-      <button class="modal-close" id="skey-close">×</button>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:0.75rem;">
-      ${
-        isNew
-          ? `
-        <div class="form-group">
-          <label class="label">Key</label>
-          <input class="input-field" id="skey-key-input" type="text" placeholder="e.g. userId" value="${safeKey}" />
-        </div>
-      `
-          : ''
-      }
-      <div class="form-group">
-        <label class="label">Value <span style="font-size:0.7rem;color:var(--text-secondary);">(string)</span></label>
-        <input class="input-field" id="skey-val-input" type="text" placeholder="value" value="${escapeHTML(currentValue)}" />
-      </div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" id="skey-cancel">Cancel</button>
-      <button class="btn" id="skey-save">Save</button>
-    </div>
-  `
-
-  overlay.appendChild(card)
-  document.body.appendChild(overlay)
-
-  const close = () => overlay.remove()
-  document.getElementById('skey-close')!.onclick = close
-  document.getElementById('skey-cancel')!.onclick = close
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay) close()
-  })
-
-  document.getElementById('skey-save')!.onclick = async () => {
-    const finalKey = isNew
-      ? (
-          document.getElementById('skey-key-input') as HTMLInputElement
-        )?.value?.trim()
-      : key
-    const val =
-      (document.getElementById('skey-val-input') as HTMLInputElement)?.value ??
-      ''
-    if (!finalKey) {
-      alert('Key cannot be empty.')
-      return
-    }
-    await sessionKeyAction(sessionId, finalKey, val)
-    close()
-    onDone()
-  }
-
-  setTimeout(() => {
-    const el = document.getElementById(
-      isNew ? 'skey-key-input' : 'skey-val-input',
-    ) as HTMLInputElement | null
-    el?.focus()
-    el?.select()
-  }, 50)
-}
+/*
+ * `openSessionKeyEditor` was here, and it could not be opened.
+ *
+ * It built its overlay with `className = 'modal-overlay'`, and the sheet
+ * gives that rule `display: none` - only `.modal-overlay.active` is
+ * `display: flex`, and nothing in this package ever added `active`. Checked
+ * against a running console: clicking Edit created the element, computed
+ * `display: none`, rendered 0x0. So the editor has never opened, and the
+ * two buttons that called it did nothing at all.
+ *
+ * Restoring it would mean deciding what a session-key editor should be,
+ * which is a design question rather than a missing class name, and 2.0.0 is
+ * not the release to answer it in. What is left on this panel is what works:
+ * listing sessions, revoking one, and deleting a key.
+ */
 
 export async function revokeSession(sessionId: string) {
   if (!confirm('Are you sure you want to revoke this session?')) return

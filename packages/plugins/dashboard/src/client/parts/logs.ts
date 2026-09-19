@@ -6,8 +6,7 @@ export let logsPaused = false
 /**
  * The console keeps the most recent rows only. It previously appended
  * without ever removing, so a long-lived dashboard tab on a chatty server
- * grew the DOM without bound — and every append also triggered a shimmer
- * cache refresh, so the per-line cost climbed with the backlog.
+ * grew the DOM without bound.
  */
 const MAX_LOG_ROWS = 500
 
@@ -53,7 +52,7 @@ function renderLogEntry(cEl: HTMLElement, parsed: any) {
   // client_log frames from any connected client, so both are untrusted —
   // `payload` was already escaped by colorizeHtml, these were not.
   logRow.innerHTML = `
-    <span style="color: var(--text-secondary); margin-right: 0.5rem;">[${escapeHTML(String(timestamp))}]</span>
+    <span style="color: var(--text-muted); margin-right: 0.5rem;">[${escapeHTML(String(timestamp))}]</span>
     <span style="color: ${levelColor}; font-weight: bold; margin-right: 0.5rem;">[${escapeHTML(String(level))}]</span>
     <span style="color: #60a5fa; font-weight: 500; margin-right: 0.5rem;">${escapeHTML(String(by))}:</span>
     <span style="color: #f1f5f9; white-space: pre-wrap;">${colorizeHtml(payload)}</span>
@@ -75,14 +74,14 @@ export function initLogsWebSocket() {
   const consoleEl = document.getElementById('logs-console')
   if (!consoleEl) return
   consoleEl.innerHTML =
-    '<div style="color: var(--text-secondary);">Connecting to server log stream...</div>'
+    '<div style="color: var(--text-muted);">Connecting to server log stream...</div>'
 
   try {
     logsWs = new WebSocket(getWebSocketUrl('/_livereload'))
 
     logsWs.onopen = () => {
       consoleEl.innerHTML =
-        '<div style="color: var(--accent-green); display: flex; align-items: center; gap: 0.25rem;"><iconify-icon icon="lucide:check-circle-2" style="font-size: 1.1rem;"></iconify-icon><span>Connected to logs pipeline. Listening for events...</span></div>'
+        '<div style="color: var(--ok); display: flex; align-items: center; gap: 0.25rem;"><span>Connected to logs pipeline. Listening for events...</span></div>'
       logsWs?.send(JSON.stringify({ type: 'subscribe_logger' }))
     }
 
@@ -103,13 +102,13 @@ export function initLogsWebSocket() {
       const logRow = document.createElement('div')
       logRow.style.color = '#f59e0b'
       logRow.innerHTML =
-        '<span style="display: flex; align-items: center; gap: 0.25rem;"><iconify-icon icon="lucide:alert-triangle" style="font-size: 1rem;"></iconify-icon><span>Logs pipeline disconnected. Reconnecting in 3s...</span></span>'
+        '<span style="display: flex; align-items: center; gap: 0.25rem;"><span>Logs pipeline disconnected. Reconnecting in 3s...</span></span>'
       consoleEl.appendChild(logRow)
       setTimeout(initLogsWebSocket, 3000)
     }
   } catch (_err) {
     consoleEl.innerHTML =
-      '<div style="color: var(--accent-red);">Failed to establish log stream connection.</div>'
+      '<div style="color: var(--danger);">Failed to establish log stream connection.</div>'
   }
 }
 
@@ -118,8 +117,8 @@ export function toggleLogsPlay() {
   const btn = document.getElementById('btn-logs-play')
   if (btn) {
     btn.innerHTML = logsPaused
-      ? '<iconify-icon icon="lucide:play" style="font-size: 1.1rem;"></iconify-icon><span>Resume</span>'
-      : '<iconify-icon icon="lucide:pause" style="font-size: 1.1rem;"></iconify-icon><span>Pause</span>'
+      ? '<span>Resume</span>'
+      : '<span>Pause</span>'
     btn.classList.toggle('btn-success', logsPaused)
   }
 }
@@ -128,5 +127,5 @@ export function clearLogs() {
   const consoleEl = document.getElementById('logs-console')
   if (consoleEl)
     consoleEl.innerHTML =
-      '<div style="color: var(--text-secondary);">Console cleared.</div>'
+      '<div style="color: var(--text-muted);">Console cleared.</div>'
 }

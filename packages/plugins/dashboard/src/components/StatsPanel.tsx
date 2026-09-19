@@ -54,7 +54,6 @@ export function renderStatsPanel() {
 
       <div class="section-header">
         <h2>
-          <iconify-icon icon="lucide:area-chart"></iconify-icon>
           <span>Performance History</span>
         </h2>
         <div class="timescale-selector">

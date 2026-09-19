@@ -13,7 +13,6 @@ export function renderSessionsPanel() {
             type="button"
             class="btn btn-secondary"
             onclick="loadSessions()">
-            <iconify-icon icon="lucide:refresh-cw"></iconify-icon>
             <span>Refresh Sessions</span>
           </button>
         </div>
@@ -62,7 +61,6 @@ export function renderSessionsPanel() {
               id="session-page-prev"
               class="btn btn-secondary"
               onclick="prevSessionPage()">
-              <iconify-icon icon="lucide:chevron-left"></iconify-icon>
               <span>Prev</span>
             </button>
             <span id="session-page-info">Page 1 of 1</span>
@@ -72,7 +70,6 @@ export function renderSessionsPanel() {
               class="btn btn-secondary"
               onclick="nextSessionPage()">
               <span>Next</span>
-              <iconify-icon icon="lucide:chevron-right"></iconify-icon>
             </button>
           </div>
           <div class="rows-meta">
