@@ -133,6 +133,12 @@ export class TieredCache<K extends string | number, V> {
         () => this.flushToDisk(),
         this.opts.flushInterval,
       )
+      // A flush timer must not be the reason a process cannot exit. Every
+      // cache here is module-level, so importing `session.ts` — or anything
+      // reaching it — left an interval holding the loop open forever: a script
+      // or a test that imported core printed its answer and then hung. The CLI
+      // never noticed because it calls `process.exit` on every path.
+      this.flushTimer.unref?.()
     }
 
     registerCache(this)

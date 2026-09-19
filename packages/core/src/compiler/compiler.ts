@@ -80,7 +80,13 @@ function nextVirtualId(): string {
 }
 
 function preprocessImports(source: string, filePath: fs.AbsolutePath): string {
-  const fileDir = fs.resolve(filePath)
+  // The file's **directory**, not the file. A relative import resolves against
+  // the directory containing the importer, and resolving against the path
+  // itself produced `…/src/entry.ts/a.css` — which exists nowhere, so every
+  // `import './x.css'` from a compiled module registered a virtual asset that
+  // could only 404. It has been wrong since before the workspace split, with
+  // no test and neither app using the feature.
+  const fileDir = fs.dirname(filePath)
 
   const matches = [...source.matchAll(RX_IMPORT)]
 

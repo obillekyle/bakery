@@ -102,6 +102,19 @@ export class Session<
     return Session.cache.count
   }
 
+  /**
+   * Attach the session cookie to a response built outside the pipeline.
+   *
+   * **Takes the `Request`, and that is not incidental.** `getCookie` reads the
+   * session through `hasDeferredValue(req, 'session')`, which looks for a
+   * symbol the router installs — so the value has to come from the real
+   * request. There used to be an instance form, `session.bind(res)`, that
+   * called this with `{ session: this }`: a fake carrying no symbol, so the
+   * check failed, `getCookie` returned an empty string, and the cookie was
+   * never appended. It was a documented method that could not work, and it is
+   * gone rather than repaired — the session alone does not know whether the
+   * request it belongs to issued a cookie this turn.
+   */
   public static bind(req: Request, response?: Response) {
     if (!response) return response
 
@@ -423,10 +436,6 @@ export class Session<
     return this
   }
 
-  public bind(response?: Response) {
-    return Session.bind({ session: this } as any, response)
-  }
-
   public destroy(): void {
     Session.delete(this.id)
   }
@@ -547,6 +556,15 @@ const sessionPruneTimer = setInterval(
   },
   1000 * 60 * 15, // prune every 15 minutes
 )
+
+// Unref'd, like the two flush timers in `cache/`. A 15-minute prune is not a
+// reason a process cannot exit, and this one is module-level: importing
+// `session.ts` — which `core/index` does — held the event loop open for the
+// life of any process that touched core. The CLI never saw it because every
+// one of its paths ends in `process.exit`; a script, an embedder or a bare
+// `bun -e` that imported the barrel printed its answer and then hung.
+// `onShutdown` still clears it, which is what matters for an orderly stop.
+sessionPruneTimer.unref?.()
 
 Bakery.onShutdown(() => {
   clearInterval(sessionPruneTimer)

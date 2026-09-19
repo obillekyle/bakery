@@ -262,7 +262,12 @@ database.
 
 ## Sessions outside a request
 
-`Session.bind(req, res)` and `session.bind(res)` attach the cookie manually
-(`session.ts`, `:272-274`). You need this only when you construct a
-`Response` outside the normal pipeline; ordinary handlers get the cookie from
-`processResponse` automatically.
+`Session.bind(req, res)` attaches the cookie manually. You need it only when
+you construct a `Response` outside the normal pipeline; ordinary handlers get
+the cookie from `processResponse` automatically.
+
+It takes the request rather than the session because the cookie is read
+through a symbol the router installs on the request. An instance form,
+`session.bind(res)`, was documented here until 2.0 and never worked: it
+constructed a stand-in object carrying no such symbol, so the lookup failed
+and the cookie was silently not appended. Use the static form.

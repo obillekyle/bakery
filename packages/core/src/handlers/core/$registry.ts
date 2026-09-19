@@ -1,4 +1,5 @@
 import { LRUCache } from '../../cache/lru'
+import { hostKey } from '../../core/bakery'
 import type { Handler } from './$base'
 
 /**
@@ -126,8 +127,17 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
   // must not run twice. That constraint is what the branching encodes.
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: cache-path + side-effect-sensitive probe loop
   async resolve(path: string, req?: Request, ...rest: any[]) {
-    const host = req?.__hostname || ''
-    const pathId = `${this.id}:${host}:${path}`
+    // The **resolved** host, not the header. `__hostname` is whatever arrived
+    // in `Host`, and `routeCache` is one bounded LRU shared by every tenant, so
+    // a client varying that header minted an entry per spelling and walked the
+    // real hosts' entries out of the cache for as long as it kept asking. The
+    // file cache carried the same bug and was fixed; this one kept it.
+    //
+    // `hostKey` resolves through the multi-host config the way every other
+    // per-tenant key does, so an unknown or unconfigured host collapses to a
+    // single entry instead of one per spelling. The shape is unchanged when
+    // there is no host: `hostKey` returns the bare path.
+    const pathId = `${this.id}:${hostKey(path)}`
     const cached: any = HandlerMap.routeCache.get(pathId)
 
     // Only tracked once there is a cache hit to skip past. Middleware has

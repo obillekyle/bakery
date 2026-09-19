@@ -228,16 +228,17 @@ export default HTMLBody<{ id: string }>((req, body) => (
 ))
 ```
 
-A catch-all page declares its param the same way — the value is the joined
-rest of the path:
+A catch-all page declares its param the same way, except that the value is the
+rest of the path **as an array** — `['guides', 'routing']` for
+`/wiki/guides/routing`, and `[]` for the bare directory a `[...name!]` claims:
 
 ```tsx
 import { createElement, HTMLBody } from '@bakery-framework/core'
 
 // src/wiki/[...page].tsx — one file for /wiki/<anything>, however deep
-export default HTMLBody<{ page: string }>((req, body) => (
+export default HTMLBody<{ page: string[] }>((req, body) => (
   <main>
-    <h1>{body.page.split('/').join(' › ')}</h1>
+    <h1>{body.page.join(' › ')}</h1>
   </main>
 ))
 ```
