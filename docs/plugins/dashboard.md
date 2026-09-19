@@ -269,8 +269,16 @@ With neither configured the guard allows loopback in development and denies
 everything in production, so an unconfigured console works on your machine and
 is closed on a server.
 
-The Sessions and Logs panels use `/api/_dashboard/*` and go through the same
-predicate. The Database entry fetches nothing at all: with the explorer mounted
+The Sessions panel uses `/api/_dashboard/*` and goes through the same
+predicate. The Logs panel holds a WebSocket open on `/_dashboard/logs`, behind
+that same door, and every line the server logs is pushed down it.
+
+That socket is the console's own. It used to ride on `/_livereload`, which the
+dev watcher owns and which is registered only in development — so the panel
+worked on a dev server and answered 400 on every production one. The
+live-reload socket is still the watcher's, and in development it also forwards
+your app pages' own `console` output into the same stream, which is why those
+lines appear here too. The Database entry fetches nothing at all: with the explorer mounted
 it is a link to `/_db`, and without it a panel saying where the editor went.
 
 ## Production checklist

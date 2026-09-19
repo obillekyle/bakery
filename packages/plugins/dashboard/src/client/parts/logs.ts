@@ -77,12 +77,19 @@ export function initLogsWebSocket() {
     '<div style="color: var(--text-muted);">Connecting to server log stream...</div>'
 
   try {
-    logsWs = new WebSocket(getWebSocketUrl('/_livereload'))
+    // `/_dashboard/logs`, not `/_livereload`. The live-reload socket is
+    // registered only under `DEV`, so this panel answered 400 on every
+    // production server and sat on "Connecting..." for ever. The console has
+    // its own socket now, behind the console's own door.
+    logsWs = new WebSocket(getWebSocketUrl('/_dashboard/logs'))
 
     logsWs.onopen = () => {
       consoleEl.innerHTML =
         '<div style="color: var(--ok); display: flex; align-items: center; gap: 0.25rem;"><span>Connected to logs pipeline. Listening for events...</span></div>'
-      logsWs?.send(JSON.stringify({ type: 'subscribe_logger' }))
+      // No `subscribe_logger` frame: membership is the handler's `open`, so
+      // there is nothing to ask for. That message was `LiveReloadHandler`'s
+      // protocol, and it is what an app page still sends to forward its own
+      // console in development.
     }
 
     logsWs.onmessage = event => {

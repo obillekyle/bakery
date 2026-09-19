@@ -31,6 +31,7 @@ import {
   handleGetSessions,
   handleUpdateSession,
 } from './endpoints/sessions'
+import { DashboardLogsHandler } from './endpoints/logs-socket'
 import { pluginPath } from './paths'
 import renderDashboardShell from './shell'
 
@@ -128,6 +129,12 @@ export function setupDashboard(
   // The stylesheet is served by the normal static pipeline from this
   // plugin's own directory — no bespoke asset route, no hand-rolled caching.
   mountRoutes('/_dashboard', pluginPath('../public'))
+
+  // The console's log stream, and it is registered in every mode. The Logs
+  // panel used to ride on `/_livereload`, which exists only under `DEV` — so
+  // the panel worked on the machine it was written on and answered 400
+  // everywhere else. See `endpoints/logs-socket.ts`.
+  Bakery.handlers.websocket.set(DashboardLogsHandler)
 
   Bakery.handlers.fetch.set(DashboardHandler, 120)
 }
