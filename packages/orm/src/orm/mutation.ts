@@ -7,7 +7,7 @@ import type {
   AppDBOptionals as DBOptionals,
   AppDBSchema as DBSchema,
 } from '../schema-registry'
-import { evalOperands, qId } from '../schema-util'
+import { evalOperands, nullComparison, qId } from '../schema-util'
 import { DB } from './query'
 
 export namespace Mutation {
@@ -475,8 +475,12 @@ export namespace Mutation {
         if (c.operator === '') {
           parts.push(i === 0 ? left : `${c.connector} ${left}`)
         } else {
-          const right = evalOperands(c.right, params, c.isRightColumn)
-          const clauseStr = `${left} ${c.operator} ${right}`
+          // `nullComparison` before `evalOperands`, and the order is the point:
+          // a null that becomes `IS NULL` must not also bind a parameter.
+          const nullOp = nullComparison(c.operator, c.right, c.isRightColumn)
+          const clauseStr = nullOp
+            ? `${left} ${nullOp}`
+            : `${left} ${c.operator} ${evalOperands(c.right, params, c.isRightColumn)}`
           parts.push(i === 0 ? clauseStr : `${c.connector} ${clauseStr}`)
         }
       }
@@ -630,8 +634,12 @@ export namespace Mutation {
         if (c.operator === '') {
           parts.push(i === 0 ? left : `${c.connector} ${left}`)
         } else {
-          const right = evalOperands(c.right, params, c.isRightColumn)
-          const clauseStr = `${left} ${c.operator} ${right}`
+          // `nullComparison` before `evalOperands`, and the order is the point:
+          // a null that becomes `IS NULL` must not also bind a parameter.
+          const nullOp = nullComparison(c.operator, c.right, c.isRightColumn)
+          const clauseStr = nullOp
+            ? `${left} ${nullOp}`
+            : `${left} ${c.operator} ${evalOperands(c.right, params, c.isRightColumn)}`
           parts.push(i === 0 ? clauseStr : `${c.connector} ${clauseStr}`)
         }
       }

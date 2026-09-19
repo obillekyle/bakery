@@ -465,3 +465,35 @@ export function old(
     _transform: transform,
   })
 }
+
+/**
+ * The SQL spelling of a comparison against an explicit `null`, or `null` when
+ * the comparison is an ordinary one.
+ *
+ * A bound NULL can never satisfy `=` or `<>`: three-valued logic makes both
+ * UNKNOWN for every row, so `where(col, null)` matched nothing while reporting
+ * success. On a `SELECT` that is an empty result; on a `DELETE` or an
+ * `UPDATE` it is a write that silently does nothing and answers zero changes,
+ * which a caller cannot tell from a genuine conflict.
+ *
+ * **This lives here, not in a `WHERE` builder, because there are three of
+ * them.** `formatClause` in `orm/query.ts` and the two `evalWhere` copies in
+ * `orm/mutation.ts` each compile a clause, and the copies have now diverged
+ * twice: once over the one-argument `where(DB.raw\`…\`)` form, which the
+ * comment in `DeleteExecutable.evalWhere` records, and once over this rule,
+ * which reached the builder and neither mutation path. Both were silent. One
+ * function three callers share cannot drift a third time.
+ *
+ * A column reference on the right is a different comparison and is left alone.
+ */
+export function nullComparison(
+  operator: string,
+  right: unknown,
+  isRightColumn?: boolean,
+): string | null {
+  if (right !== null || isRightColumn) return null
+  const op = operator.toUpperCase()
+  if (op === '=') return 'IS NULL'
+  if (op === '!=' || op === '<>') return 'IS NOT NULL'
+  return null
+}

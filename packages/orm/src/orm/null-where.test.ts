@@ -96,3 +96,74 @@ describe('null in a where clause compiles to IS NULL', () => {
     expect(withCourier.map((r: any) => r.id).sort()).toEqual([2, 4])
   })
 })
+
+/**
+ * The same rule, on the two paths that never had it.
+ *
+ * `null-where` reached `formatClause` in query.ts and stopped there, and the
+ * tests above only ever asked a `SELECT`. `orm/mutation.ts` compiles its own
+ * WHERE twice — once for `UpdateExecutable`, once for `DeleteExecutable` — and
+ * both emitted `= ?` with a bound NULL, which matches no row in three-valued
+ * logic. So an update changed nothing and a delete removed nothing, each
+ * reporting zero changes, which a caller cannot tell from a conflict.
+ *
+ * Asserted by executing, not by reading the SQL: the text is the mechanism and
+ * the surviving rows are the claim.
+ */
+describe('null in a mutation where clause', () => {
+  test('UPDATE ... WHERE col = null writes the NULL rows', async () => {
+    const before = await DB.table('parcels')
+      .where('courier', null)
+      .select({ id: 'parcels.id' })
+    expect(before.map((r: any) => r.id).sort()).toEqual([1, 3])
+
+    const res = await DB.Update.table('parcels')
+      .set({ courier: 'assigned' })
+      .where('courier', null)
+      .run()
+
+    expect((res as any).changes).toBe(2)
+
+    const after = await DB.table('parcels')
+      .where('courier', null)
+      .select({ id: 'parcels.id' })
+    expect(after).toEqual([])
+
+    // Put them back for the delete test below, which shares the fixture.
+    await DB.Update.table('parcels')
+      .set({ courier: null })
+      .where('courier', 'assigned')
+      .run()
+  })
+
+  test('the emitted SQL binds nothing for the null', () => {
+    const { sql, params } = DB.Update.table('parcels')
+      .set({ courier: 'x' })
+      .where('courier', null)
+      .parse()
+
+    // Scoped to the WHERE. The SET clause binds `courier = ?` legitimately —
+    // that is the value being written — so asserting over the whole statement
+    // tests the wrong half.
+    const where = sql.slice(sql.indexOf(' WHERE '))
+    expect(where).toContain('IS NULL')
+    expect(where).not.toContain('?')
+    // Only the SET value binds; the null contributed no parameter.
+    expect(params).toEqual(['x'])
+  })
+
+  test('DELETE ... WHERE col = null removes the NULL rows', async () => {
+    const res = await DB.Delete.from('parcels').where('courier', null).run()
+    expect((res as any).changes).toBe(2)
+
+    const left = await DB.table('parcels').select({ id: 'parcels.id' })
+    expect(left.map((r: any) => r.id).sort()).toEqual([2, 4])
+  })
+
+  test('neq(null) spells IS NOT NULL on a mutation too', () => {
+    const { sql } = DB.Delete.from('parcels')
+      .where('courier', DB.neq(null))
+      .parse()
+    expect(sql).toContain('IS NOT NULL')
+  })
+})

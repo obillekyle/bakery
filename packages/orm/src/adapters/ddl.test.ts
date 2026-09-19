@@ -1340,6 +1340,35 @@ describe('SQLite: DDL round-trips through introspection', () => {
    * already bound theirs; SQLite now uses the `pragma_table_info` table-valued
    * function so the name binds too.
    */
+  test('introspection binds every name it did not write itself', async () => {
+    // `hasCol` was converted; two sites were not, and they are the ones that
+    // run over *every* table and index the database reports rather than over a
+    // name this codebase chose. `getConstraints` built
+    // `PRAGMA table_info('${table.name}')` and `getIndexes` built
+    // `PRAGMA index_info('${idx.name}')`, so an apostrophe anywhere in the
+    // schema closed the literal and took the rest of the statement with it.
+    const [rec, calls] = sqliteRecorder(sql => {
+      if (sql.includes('sqlite_master') && sql.includes("type='index'"))
+        return [{ name: "idx_o'brien", tbl_name: 'app_users', sql: 'CREATE INDEX x' }]
+      if (sql.includes('sqlite_master'))
+        return [{ name: "o'brien", type: 'table', sql: 'CREATE TABLE x' }]
+      return []
+    })
+
+    await rec.getConstraints()
+    await rec.getIndexes()
+
+    const pragmas = calls.filter(c => /pragma_\w+\(\?\)/.test(c.sql))
+    expect(pragmas.length).toBeGreaterThanOrEqual(2)
+
+    // The names travel as parameters, so no statement quotes one.
+    for (const call of calls) {
+      expect(call.sql).not.toContain("o'brien")
+    }
+    expect(pragmas.some(c => c.params.includes("o'brien"))).toBe(true)
+    expect(pragmas.some(c => c.params.includes("idx_o'brien"))).toBe(true)
+  })
+
   test('hasCol binds the table name instead of interpolating it', async () => {
     const [rec, calls] = sqliteRecorder(() => [])
     await rec.hasCol('app_users', 'nick_name')

@@ -469,9 +469,13 @@ export class SQLiteAdapter extends SQLAdapter {
       const tName = Case.camel(table.name)
       dbConstraints[tName] = {} as SyncTypes.TableConstraints
 
+      // Bound, not interpolated — the same conversion `hasCol` above
+      // records. This one survived it: `getConstraints` runs over every table
+      // the database reports, so a name carrying an apostrophe closed the
+      // literal and the rest of the statement went with it.
       const cols = (await this.query(
-        `PRAGMA table_info('${table.name}')`,
-      ).all()) as any[]
+        'SELECT * FROM pragma_table_info(?)',
+      ).all(table.name)) as any[]
 
       if (table.type === 'view') {
         const match = table.sql.match(/AS\s+(.*)/is)
@@ -509,8 +513,12 @@ export class SQLiteAdapter extends SQLAdapter {
     return Object.fromEntries(
       await Promise.all(
         indexes.map(async idx => {
+          // Bound for the same reason as `getConstraints` above: an index
+          // name comes from `sqlite_master`, not from this codebase.
           const raw = (
-            (await this.query(`PRAGMA index_info('${idx.name}')`).all()) as any[]
+            (await this.query('SELECT * FROM pragma_index_info(?)').all(
+              idx.name,
+            )) as any[]
           ).map(c => String(c.name))
           return [
             Case.camel(idx.name),
