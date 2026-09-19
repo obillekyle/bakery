@@ -11,7 +11,6 @@ export {
   history30d,
   pageHitsLog,
   pageHitsMap,
-  recordDbHit,
   recordErrorPageHit,
   recordRouteHit,
 } from './core'

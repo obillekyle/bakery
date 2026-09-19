@@ -41,6 +41,12 @@ connected stats sockets.
 
 `recordRouteHit` classifies each path ([`analytics/src/core.ts`](../../packages/plugins/analytics/src/core.ts)):
 
+- the plugin's **own** three paths are not counted at all — `/_analytics/ping`,
+  `/api/_analytics/stats` and `/api/_analytics/reset`. The sampling loop fetches
+  the ping through the real server once a second to time a round trip, so
+  counting it gave an idle server a permanent floor of one route hit and one
+  unique request per second. The match is exact, so `/_analytics/pingback`
+  belongs to the application and is counted;
 - paths starting `/api/` count as **API hits**;
 - paths starting `/_`, and anything with a static-asset extension, are
   **excluded** from page hits entirely — this is `isAssetPath`, and it is why
@@ -48,9 +54,9 @@ connected stats sockets.
 - everything else is a **page hit**, appended to a hit log and a per-path
   counter.
 
-`recordDbHit` and `recordErrorPageHit` are exported for callers that want to
-contribute, and `connectedLoggers` is re-exported from core — the live-reload
-handler owns that registry, so it cannot live in a plugin.
+`recordErrorPageHit` is exported for callers that want to contribute, and
+`connectedLoggers` is re-exported from core — the live-reload handler owns that
+registry, so it cannot live in a plugin.
 
 ### Aggregation and retention
 
@@ -151,16 +157,22 @@ The collected state is exported, so an application can read it in-process
 without going through the guarded endpoints:
 
 ```ts
-import { history1m, pageHitsMap, recordDbHit } from '@bakery-framework/plugin-analytics'
+import { history1m, pageHitsMap } from '@bakery-framework/plugin-analytics'
 
 export function summary() {
-  recordDbHit()
   return {
     lastSample: history1m[history1m.length - 1],
     distinctPaths: pageHitsMap.size,
   }
 }
 ```
+
+`recordDbHit` used to be exported here and was removed in 2.0.0, along with
+the DB Hits chart it fed. Nothing ever called it: the ORM cannot import a
+plugin, so there was no path from a query to the counter, and the chart read
+zero in every deployment it ever shipped in. An application that wants to
+count its own database work should keep its own counter and expose it on its
+own route.
 
 `computeStats(timescale, excludeHistory, pagesFilter)` from
 `@bakery-framework/plugin-analytics/endpoints/stats` builds the same payload the HTTP

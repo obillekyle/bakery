@@ -66,7 +66,6 @@ export function computeStats(
     apiHits: latestHistory.apiHits || 0,
     pageHits: latestHistory.pageHits || 0,
     uniqueRequests: latestHistory.uniqueRequests,
-    dbHits: latestHistory.dbHits,
     errorPageHits: latestHistory.errorPageHits,
     ping: latestHistory.ping,
     topPages: topPagesFiltered,

@@ -29,7 +29,6 @@ type TempAccumulator = {
   apiHits: number
   pageHits: number
   uniqueRequests: number
-  dbHits: number
   errorPageHits: number
   ping: number
 }
@@ -44,7 +43,6 @@ function createAccumulator(): TempAccumulator {
     apiHits: 0,
     pageHits: 0,
     uniqueRequests: 0,
-    dbHits: 0,
     errorPageHits: 0,
     ping: 0,
   }
@@ -59,7 +57,6 @@ let routeHitsThisSecond = 0
 let apiHitsThisSecond = 0
 let pageHitsThisSecond = 0
 const uniqueRequestsThisSecond = new Set<string>()
-let dbHitsThisSecond = 0
 let errorPageHitsThisSecond = 0
 
 /**
@@ -104,9 +101,17 @@ export function ensurePageHitsLogPruner() {
     try {
       prunePageHitsLog(Date.now())
     } catch (_e) {
-      // swallow errors; pruner is best-effort
+      // Best-effort: a pruning failure must not take down the telemetry that
+      // is only observing the server.
     }
   }, 60_000)
+  // Started by the *first page hit*, so any process that serves one ordinary
+  // request holds the event loop open for ever without it - a script that
+  // imports the plugin and finishes its work never exits. Same class as the
+  // three core timers unref'd for A15; this one lives in a plugin and was
+  // outside what that pass looked at. Optional-called because a test may
+  // install a fake timer that has no `unref`.
+  _pageHitsLogPruneTimer.unref?.()
 }
 
 export function stopPageHitsLogPruner() {
@@ -125,7 +130,6 @@ function accumulate(temp: TempAccumulator, s: AnalyticsSnapshot) {
   temp.apiHits += s.apiHits || 0
   temp.pageHits += s.pageHits || 0
   temp.uniqueRequests += s.uniqueRequests || 0
-  temp.dbHits += s.dbHits || 0
   temp.errorPageHits += s.errorPageHits || 0
   temp.ping += s.ping || 0
 }
@@ -144,7 +148,6 @@ function finalizeAggregation(
     apiHits: temp.apiHits,
     pageHits: temp.pageHits,
     uniqueRequests: temp.uniqueRequests,
-    dbHits: temp.dbHits,
     errorPageHits: temp.errorPageHits,
     ping: Math.round(temp.ping / count),
   }
@@ -165,7 +168,6 @@ function loadAccumulator(target: TempAccumulator, loaded: any) {
       target.apiHits += s.apiHits || 0
       target.pageHits += s.pageHits || 0
       target.uniqueRequests += s.uniqueRequests || 0
-      target.dbHits += s.dbHits || 0
       target.errorPageHits += s.errorPageHits || 0
       target.ping += s.ping || 0
     }
@@ -182,7 +184,32 @@ export function isAssetPath(path: string): boolean {
   )
 }
 
+/**
+ * The analytics loop's own request does not count as traffic.
+ *
+ * `runAnalyticsTick` fetches `/_analytics/ping` through the real server once a
+ * second so it can time a round trip, and that request reaches `onRoute` like
+ * any other. The result was a permanent floor of one route hit and one unique
+ * request per second on an idle server - every chart reading 1 instead of 0,
+ * and a day's `uniqueRequests` carrying 86,400 of the loop's own pings.
+ *
+ * Exact matches, not a prefix, for the same reason `isAnalyticsPath` in
+ * `setup.ts` uses exact matches: `/_analytics/pingback` would belong to the
+ * application. The two `/api/_analytics/*` endpoints are the console asking
+ * for its own data, which is equally not application traffic.
+ */
+const SELF_PATHS = new Set([
+  '/_analytics/ping',
+  '/api/_analytics/stats',
+  '/api/_analytics/reset',
+])
+
+export function isSelfPath(path: string): boolean {
+  return SELF_PATHS.has(path)
+}
+
 export function recordRouteHit(method: string, path: string, search = '') {
+  if (SELF_PATHS.has(path)) return
   routeHitsThisSecond += 1
   if (path.startsWith('/api/')) {
     apiHitsThisSecond += 1
@@ -193,10 +220,6 @@ export function recordRouteHit(method: string, path: string, search = '') {
     pageHitsMap.set(path, (pageHitsMap.get(path) || 0) + 1)
   }
   uniqueRequestsThisSecond.add(`${method} ${path}${search}`)
-}
-
-export function recordDbHit() {
-  dbHitsThisSecond += 1
 }
 
 export function recordErrorPageHit() {
@@ -216,7 +239,6 @@ export function pushAnalyticsSnapshot(snapshot: {
     apiHits: apiHitsThisSecond,
     pageHits: pageHitsThisSecond,
     uniqueRequests: uniqueRequestsThisSecond.size,
-    dbHits: dbHitsThisSecond,
     errorPageHits: errorPageHitsThisSecond,
   }
 
@@ -249,7 +271,6 @@ export function pushAnalyticsSnapshot(snapshot: {
   apiHitsThisSecond = 0
   pageHitsThisSecond = 0
   uniqueRequestsThisSecond.clear()
-  dbHitsThisSecond = 0
   errorPageHitsThisSecond = 0
 }
 
@@ -260,7 +281,6 @@ export function getLatestAnalyticsSnapshot() {
       apiHits: 0,
       pageHits: 0,
       uniqueRequests: 0,
-      dbHits: 0,
       errorPageHits: 0,
       ping: 0,
     }
@@ -354,7 +374,6 @@ export function getFilledHistoryForTimescale(
           apiHits: null,
           pageHits: null,
           uniqueRequests: null,
-          dbHits: null,
           errorPageHits: null,
           ping: null,
         })
@@ -366,6 +385,34 @@ export function getFilledHistoryForTimescale(
 
   if (filled.length > limit) return filled.slice(-limit)
   return filled
+}
+
+/**
+ * The write half of `loadTemps`, which had no write half.
+ *
+ * `setup.ts` checked `data.temp1h` on boot and `loadTemps` knew how to restore
+ * all four buckets, but nothing ever put them in the persisted snapshot - so
+ * the check was always false and every restart began aggregating from zero. A
+ * bucket only finalises at its full count (60 samples for 1h, 1800 for 1d), so
+ * the visible symptom was the 1h chart staying empty for up to an hour after
+ * every boot, and the longer windows correspondingly longer.
+ *
+ * Plain objects rather than the accumulators themselves: this is serialised to
+ * JSON in the `core` row, and handing out the live objects would let a caller
+ * mutate the running aggregation.
+ */
+export function snapshotTemps(): {
+  temp1h: TempAccumulator
+  temp1d: TempAccumulator
+  temp7d: TempAccumulator
+  temp30d: TempAccumulator
+} {
+  return {
+    temp1h: { ...temp1h },
+    temp1d: { ...temp1d },
+    temp7d: { ...temp7d },
+    temp30d: { ...temp30d },
+  }
 }
 
 export function loadTemps(loaded: any) {

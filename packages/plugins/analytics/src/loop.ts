@@ -6,7 +6,7 @@ import * as core from './core'
 import { computeStats } from './endpoints/stats'
 import { connectedAnalyticsClients } from './endpoints/websocket'
 import { analyticsLog } from './log'
-import { saveAnalyticsData } from './storage-sqlite'
+import { flushPageHits, saveAnalyticsData } from './storage-sqlite'
 
 const SAVE_THROTTLE_MS = 60000
 
@@ -53,18 +53,68 @@ async function runAnalyticsTick(server: any) {
     ping: pingVal,
   })
 
+  // Hits go to disk every tick; the prune and the history snapshot stay on the
+  // throttle. The two were one call, and the insert was blamed for a stall the
+  // prune was doing: a minute of hits at 1,000 req/s inserts in 89-115 ms
+  // while the prune beside it cost 376 ms. Per tick the insert is 1-4 ms, so
+  // the large batch leaves the request thread and the expensive half runs a
+  // sixtieth as often.
+  //
   // Awaited, not floated: a rejected flush used to escape this tick entirely
   // and land nowhere.
+  const [flushErr] = await Try.catch(flushPageHits())
+  if (flushErr) analyticsLog.SAVE_ERR({ error: errorMsg(flushErr) })
+
   await throttleSave()
 
+  broadcastStats()
+}
+
+/**
+ * One `computeStats` per distinct subscription, not per client.
+ *
+ * Every connected console got its own call each second, and two consoles
+ * watching the same window asked the same question twice. They rarely differ:
+ * the timescale and the pages filter both default to the same values and a
+ * console only changes them when somebody clicks. Grouping by those two keys
+ * makes the common case one call however many consoles are open.
+ *
+ * Worth the grouping rather than a single global call, because the answer
+ * genuinely depends on both: a client watching `1h` must not be sent a `1m`
+ * payload. Measured at 1.10 ms a call with a 2,000-path tally, so this is a
+ * millisecond a second at five consoles rather than five - real, and smaller
+ * than the 10 ms a call the backlog recorded.
+ *
+ * The serialised frame is reused too. `JSON.stringify` of a stats payload is
+ * not free, and it was run once per client over an identical object.
+ *
+ * `compute` is a test seam (convention 9): counting the calls is the only
+ * way to assert the grouping, and two equal strings are indistinguishable
+ * from one computed twice.
+ */
+export function broadcastStats(compute = computeStats) {
+  if (connectedAnalyticsClients.size === 0) return
+
+  const byWindow = new Map<string, string>()
   for (const ws of connectedAnalyticsClients) {
     const opts = ws.data?.data
-    if (opts) {
-      const stats = computeStats(opts.timescale, true, opts.pagesFilter)
-      ws.send(
-        JSON.stringify({ status: 200, excludeHistory: true, data: stats }),
-      )
+    if (!opts) continue
+
+    const timescale = opts.timescale
+    const pagesFilter = opts.pagesFilter
+    // Separated by a delimiter neither value can contain. A timescale is one
+    // of `1m|1h|1d|7d|30d` and a filter the same shape, so joining them with a
+    // space would in fact be safe today; a form that cannot collide costs
+    // nothing and does not depend on that staying true.
+    const key = JSON.stringify([timescale, pagesFilter])
+
+    let frame = byWindow.get(key)
+    if (frame === undefined) {
+      const stats = compute(timescale, true, pagesFilter)
+      frame = JSON.stringify({ status: 200, excludeHistory: true, data: stats })
+      byWindow.set(key, frame)
     }
+    ws.send(frame)
   }
 }
 

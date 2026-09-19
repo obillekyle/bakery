@@ -124,18 +124,6 @@ export const METRICS: Metric[] = [
     history: [],
   },
   {
-    key: 'dbHits',
-    canvas: 'canvas-db-hits',
-    card: 'chart-db-hits',
-    sub: 'Database query executions',
-    field: 'dbHits',
-    unit: '',
-    stroke: '#a78bfa',
-    fill: 'rgba(167, 139, 250, 0.25)',
-    zero: true,
-    history: [],
-  },
-  {
     key: 'errorPageHits',
     canvas: 'canvas-error-page-hits',
     card: 'chart-error-page-hits',

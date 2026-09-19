@@ -222,24 +222,6 @@ export function renderStatsPanel() {
             </span>
           </div>
         </div>
-        <div class="chart-card glass-effect" id="chart-db-hits">
-          <span class="card-title">DB Hits History</span>
-          <span class="card-sub">
-            Database query executions (last 1 min, 1s resolution)
-          </span>
-          <canvas id="canvas-db-hits" class="big-chart"></canvas>
-          <div class="chart-stats">
-            <span>
-              MIN: <strong id="dbHits-min">-</strong>
-            </span>
-            <span>
-              MAX: <strong id="dbHits-max">-</strong>
-            </span>
-            <span>
-              AVG: <strong id="dbHits-avg">-</strong>
-            </span>
-          </div>
-        </div>
         <div class="chart-card glass-effect" id="chart-error-page-hits">
           <span class="card-title">Error Page Hits History</span>
           <span class="card-sub">

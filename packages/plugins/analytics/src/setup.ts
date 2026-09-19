@@ -31,7 +31,6 @@ export const history7d = core.history7d
 export const history30d = core.history30d
 
 export const recordRouteHit = core.recordRouteHit
-export const recordDbHit = core.recordDbHit
 export const recordErrorPageHit = core.recordErrorPageHit
 export const pushAnalyticsSnapshot = core.pushAnalyticsSnapshot
 export const getLatestAnalyticsSnapshot = core.getLatestAnalyticsSnapshot
