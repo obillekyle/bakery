@@ -276,7 +276,7 @@ export default function Home() {
 
 JSX children are escaped unless they came from `createElement` itself
 (`core/jsx.ts`), so interpolating user data is safe by default. Use `raw()`
-from `@bakery-framework/core/core/jsx` to opt a string out.
+from `@bakery-framework/core` to opt a string out.
 
 ### Sibling `.ts` and `.css` files are auto-injected
 

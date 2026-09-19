@@ -8,7 +8,7 @@ import { getConfig, NOOP } from './config'
 // `./bakery`, which re-exports `hostStore` from exactly here — so naming it
 // adds no module edge, only a name.
 import { getFrameworkVersion } from './context'
-import { createElement, Fragment, html } from './jsx'
+import { createElement, Fragment, html, raw } from './jsx'
 
 export const defineConfig = <T extends AppConfig>(config: T): T => config
 export const definePlugin = _definePlugin
@@ -67,6 +67,18 @@ export {
   encodeSSE,
   Fragment,
   getConfig,
+  /**
+   * Opt a string out of JSX escaping.
+   *
+   * Here because it had nowhere else to be. `createElement` escapes children
+   * unless they came from itself, so `raw` is the documented way to
+   * interpolate markup an application already trusts — and it was reachable
+   * only through a `./jsx` subpath that existed to alias one file. The
+   * routing guide pointed at `@bakery-framework/core/core/jsx`, which the
+   * export map never named at all, so the documented import could not resolve
+   * for a consumer either way.
+   */
+  raw,
   /**
    * The version of `@bakery-framework/core` itself, read from its own manifest.
    *
