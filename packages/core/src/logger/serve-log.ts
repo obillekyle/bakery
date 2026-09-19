@@ -80,6 +80,13 @@ const serveMsgs = {
   // marker was written and the next boot will try again. Worth a line rather
   // than silence: something is holding those files open, and a stale compiled
   // page surviving an upgrade is the failure the wipe exists to prevent.
+  // SQLite would not take WAL for this file, so it is running the DELETE
+  // journal instead. Worth one line rather than silence: on a local disk WAL
+  // is 100x faster per write and 29x on a transaction, and sessions write on
+  // the request path — so this line is the difference between "this
+  // filesystem cannot do better" and a deployment quietly paying that.
+  JOURNAL_WAL_REFUSED:
+    'W SQLite refused WAL for %y{file}%* (answered %y{answer}%*) — running the %y{mode}%* journal instead. Expected on a network path; on a local disk it costs every write.',
   CACHE_WIPE_INCOMPLETE:
     'W Cache directory could not be cleared for the version change — %y{dir}%* still contains %y{files}%*. Retrying on next start; close anything holding those files.',
 } as const

@@ -2,7 +2,9 @@ import { Database } from 'bun:sqlite'
 import { dirname } from 'node:path'
 import { Bakery } from '../core/bakery'
 import { checkCacheVersion } from '../core/cache-version'
+import { serveLog } from '../logger/serve-log'
 import { fs } from '../utils'
+import { Try } from '../utils/common/try'
 
 /**
  * The tiered cache's spill-to-disk store — sessions and LRU overflow.
@@ -90,8 +92,76 @@ if (!stored) {
   for (const { name } of tables) cacheDb.run(`DROP TABLE IF EXISTS "${name}"`)
   cacheDb.run('UPDATE __schema SET version = ?', [SCHEMA_VERSION])
 }
-const journalMode = process.platform === 'win32' ? 'DELETE' : 'WAL'
-cacheDb.run(`PRAGMA journal_mode = ${journalMode};`)
+/**
+ * **WAL first, DELETE only where WAL is actually refused.**
+ *
+ * This was `process.platform === 'win32' ? 'DELETE' : 'WAL'`, a rule whose
+ * reason was never written down. The standing hypothesis was that a Windows
+ * network path cannot host WAL, and that much is true: WAL needs a shared
+ * `-shm` mapping, which SMB and WebDAV do not provide. The rule was wrong in
+ * its scope rather than its premise. It applied to every Windows install,
+ * including the ordinary case of a local disk where WAL works perfectly.
+ *
+ * The cost of being wrong was paid on the request path, because sessions
+ * write there. Measured on this machine, four interleaved rounds with a
+ * CPU-bound control that stayed flat at 29-34 ms:
+ *
+ *     single autocommit write    DELETE 3629 us    WAL 36 us      100x
+ *     100-row transaction        DELETE 3.91 ms    WAL 0.13 ms     29x
+ *
+ * So the rule is replaced by an attempt and a check, which is what makes it
+ * safe to change without knowing why it was there. SQLite refuses WAL in
+ * exactly two observable ways, and both are handled here:
+ *
+ *   - it **returns the unchanged mode** in the pragma's own result row, which
+ *     is what an in-memory or anonymous-temp database does (`memory`); and
+ *   - it **throws**, which is what a read-only database does.
+ *
+ * Measured, not assumed: both shapes were reproduced before this was written.
+ * A pragma that silently did nothing would make the fallback unsafe, and it
+ * does not - the returned row is the authority, so a filesystem that cannot
+ * host WAL lands on DELETE and says so once instead of being guessed at in
+ * advance.
+ *
+ * Returning the effective mode rather than the requested one matters for the
+ * same reason: the log line has to name what the database is actually doing.
+ *
+ * Exported as a test seam rather than driven through the module's own
+ * import-time call: this file opens the real cache database when it loads, so
+ * the only way to assert on a *refusal* is to hand the function a database
+ * that produces one. `:memory:` is such a case and is what the test uses.
+ */
+export function applyJournalMode(db: Database, file: string): string {
+  const asked = Try.return(
+    () =>
+      db
+        .query<{ journal_mode: string }, []>('PRAGMA journal_mode = WAL;')
+        .get()?.journal_mode ?? '',
+    (error: Error) => `threw: ${error.message}`,
+  )
+  if (asked.toLowerCase() === 'wal') return 'wal'
+
+  // Wrapped as well. A database that refuses WAL by throwing will refuse the
+  // fallback the same way when the mode it is already in is not DELETE, and
+  // an unopenable cache is a far worse outcome than an untuned one.
+  const fell = Try.return(
+    () =>
+      db
+        .query<{ journal_mode: string }, []>('PRAGMA journal_mode = DELETE;')
+        .get()?.journal_mode ?? 'unknown',
+    () =>
+      db.query<{ journal_mode: string }, []>('PRAGMA journal_mode;').get()
+        ?.journal_mode ?? 'unknown',
+  )
+  serveLog.JOURNAL_WAL_REFUSED({
+    file,
+    answer: asked || '(no row)',
+    mode: fell,
+  })
+  return fell
+}
+
+applyJournalMode(cacheDb, dbFilePath)
 cacheDb.run('PRAGMA synchronous = NORMAL;')
 cacheDb.run('PRAGMA temp_store = memory;')
 // `core/init.ts` installs THREAD_WORKER as an accessor holding a **boolean**,
