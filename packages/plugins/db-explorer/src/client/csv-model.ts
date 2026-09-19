@@ -345,10 +345,54 @@ export interface BuildResult {
  * walks over fifty thousand rows is the difference between a responsive dialog
  * and a frozen tab.
  */
+/**
+ * The last build, so a change that cannot alter it does not redo it.
+ *
+ * One slot, so it is bounded by construction (convention 6). Compared by
+ * **reference**, not by value: every update goes through a spread
+ * (`{ ...model, onBadRow }`), so an untouched field keeps its identity and a
+ * touched one does not. Comparing by value would mean walking the whole file
+ * to decide whether to walk the whole file.
+ *
+ * The key is exactly what this function reads - `headers`, `rows`, `assign`,
+ * `emptyToNull` and the columns - and deliberately not `onBadRow`, `ragged`,
+ * `delimiter` or `hasHeader`. Those change what the *import* does, never what
+ * the records are, and the bad-row policy is a dropdown in the same footer
+ * that displays this result. Picking one made the footer coerce every row of
+ * the file to arrive at the count it already had on screen.
+ *
+ * Measured on 50,000 rows of four columns: 153-250 ms per change, on the main
+ * thread, for a number that did not move.
+ */
+let lastBuild: {
+  headers: unknown
+  rows: unknown
+  assign: unknown
+  emptyToNull: unknown
+  columns: unknown
+  result: BuildResult
+} | null = null
+
+/** Test seam (convention 9): one test's file must not answer for another's. */
+export function __resetBuildRecords(): void {
+  lastBuild = null
+}
+
 export function buildRecords(
   model: ImportModel,
   columns: readonly SchemaColumn[],
 ): BuildResult {
+  if (
+    lastBuild !== null &&
+    lastBuild.headers === model.headers &&
+    lastBuild.rows === model.rows &&
+    lastBuild.assign === model.assign &&
+    lastBuild.emptyToNull === model.emptyToNull &&
+    lastBuild.columns === columns
+  ) {
+    return lastBuild.result
+  }
+
   const feeds = feedsOf(model, columns)
   const records: Record<string, unknown>[] = []
   const failures: RowFailure[] = []
@@ -369,7 +413,16 @@ export function buildRecords(
     records.push(record)
   })
 
-  return { records, failures }
+  const result = { records, failures }
+  lastBuild = {
+    headers: model.headers,
+    rows: model.rows,
+    assign: model.assign,
+    emptyToNull: model.emptyToNull,
+    columns,
+    result,
+  }
+  return result
 }
 
 /** RFC 4180 quoting: only when the field needs it, and `"` doubles. */

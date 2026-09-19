@@ -73,7 +73,33 @@ export namespace SQLAdapter {
   export interface TableDataOptions extends FilterSortOptions {
     page: number
     pageSize: number
+    /**
+     * A total the caller already has, so the `COUNT(*)` can be skipped.
+     *
+     * **The count is almost the whole cost of a page.** Measured on a
+     * 200,000-row SQLite table with a page size of 50, reading page 101:
+     *
+     *     count, no filter    11.7 ms      rows, no filter    0.4 ms
+     *     count, filtered     51.3 ms      rows, filtered     1.6 ms
+     *
+     * 97% of the work either way. The rows come off an index and stop at the
+     * page; the count has to visit every row that matches, and a filtered
+     * count visits them a second time after the rows query already did.
+     *
+     * Opt-in and caller-asserted, because it trades a guarantee for that.
+     * Passing a total says "I counted, with exactly these filters" - an
+     * adapter cannot check it, and a wrong one shows a wrong row count and a
+     * wrong page count. It never affects which rows come back, so the
+     * failure mode is a stale readout rather than wrong data. Paging through
+     * a table while another writer inserts is exactly when it goes stale, and
+     * exactly when re-counting on every page is least worth it.
+     *
+     * Ignored unless it is a non-negative finite number, so a bad value
+     * degrades to the count rather than to a negative page total.
+     */
+    knownTotal?: number
   }
+
   export interface NameRow {
     name: string
   }
@@ -301,6 +327,47 @@ export abstract class SQLAdapter {
    */
   get maxQueryParams(): number {
     return DEFAULT_MAX_QUERY_PARAMS
+  }
+
+  /**
+   * Whether a caller-supplied total can be used in place of a `COUNT(*)`.
+   *
+   * One rule in one place, because all three adapters answer it and a dialect
+   * that disagreed would be a bug rather than a capability. A static on the
+   * class rather than a function in the namespace: the namespace is declared
+   * above the class it merges with, so it can hold types and not values.
+   */
+  static usableTotal(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0
+  }
+
+  /**
+   * A cheap value that changes whenever the schema changes, or `null`.
+   *
+   * The capability is expressed by the return, not by a boolean beside it: a
+   * dialect that cannot answer this cheaply returns `null` and its callers
+   * fall back to asking the schema directly. That is the default here, so a
+   * new adapter is correct without implementing anything.
+   *
+   * **It must not move for ordinary DML.** A value that changed on every
+   * `INSERT` would still be *correct* as a cache key and useless as one,
+   * invalidating on the busiest thing a database does. SQLite's
+   * `PRAGMA schema_version` has exactly the right semantics, verified rather
+   * than assumed: it advances on `CREATE TABLE`, on `ALTER TABLE ... ADD
+   * COLUMN` and on `DROP TABLE`, and stays put across an `INSERT`.
+   *
+   * A method rather than one of the capability *getters* above because it
+   * costs a round trip. Those describe the dialect and are answered from
+   * nothing; this one asks the server.
+   *
+   * Postgres and MySQL return `null`. Neither exposes a single counter for
+   * this - Postgres has no schema-level equivalent of `schema_version`, and
+   * MySQL's `information_schema` would have to be aggregated, which is the
+   * expense being avoided. Adding one later is a per-adapter override and
+   * needs no change here or in any caller.
+   */
+  async schemaFingerprint(): Promise<string | null> {
+    return null
   }
 
   constructor(

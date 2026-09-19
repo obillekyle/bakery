@@ -332,10 +332,15 @@ export class MySQLAdapter extends SQLAdapter {
       new Set(cols.map(c => c.name)),
     )
     const tName = this.quote(tableName)
-    const countRes = (await this.query(
-      `SELECT COUNT(*) as count FROM ${tName}${whereSql}`,
-    ).get(...whereParams)) as SQLAdapter.CountRow
-    const totalRows = countRes?.count || 0
+    // See `TableDataOptions.knownTotal`: the count is almost the whole cost
+    // of a page, and a caller that has already counted can say so.
+    const reuse = SQLAdapter.usableTotal(options.knownTotal)
+    const countRes = reuse
+      ? null
+      : ((await this.query(
+          `SELECT COUNT(*) as count FROM ${tName}${whereSql}`,
+        ).get(...whereParams)) as SQLAdapter.CountRow)
+    const totalRows = reuse ? options.knownTotal! : countRes?.count || 0
     const rows = await this.query(
       `SELECT * FROM ${tName}${whereSql}${orderSql} LIMIT ? OFFSET ?`,
     ).all(

@@ -22,8 +22,28 @@ import {
 import { append, box, button, downloadText, el } from './dom'
 import type { SchemaColumn, SchemaTable } from './meta'
 
-/** One request per chunk. Well under `policy.ts`'s 50,000 row ceiling. */
-const CHUNK = 500
+/**
+ * One request per chunk. Well under `policy.ts`'s 50,000 row ceiling.
+ *
+ * Raised from 500, which made a full-size file 100 requests. Measured end to
+ * end on 20,000 rows through the real endpoint, three rounds against a
+ * CPU-bound control flat at 26-29 ms: **108 ms at 500 against 89 ms at 5,000**,
+ * an 18% saving and 0.53 ms of fixed per-request cost removed 36 times over.
+ *
+ * The reason on record for raising it was that each request re-introspected
+ * the schema, and that is no longer true - `introspect()` is cached against
+ * `schemaFingerprint()` now, so the second request onwards pays 10 us rather
+ * than 8.28 ms. What is left is HTTP, authorisation and a transaction per
+ * request, which is what the 18% is.
+ *
+ * **The cost is cancel granularity**, and it is worth stating plainly.
+ * `cancelled` is checked between chunks, so a chunk in flight always
+ * completes: cancelling used to leave at most 500 further rows inserted and
+ * now leaves at most 5,000. Progress also advances ten times less often. Both
+ * follow from the chunk size rather than from anything that could be tuned
+ * separately, since a chunk is one request and one transaction.
+ */
+const CHUNK = 5000
 
 export interface CommitContext {
   table: SchemaTable
