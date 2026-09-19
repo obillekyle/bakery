@@ -147,7 +147,7 @@ async function handleDashboardView() {
 }
 
 /**
- * A bare `import` left in the bundle, or `null`.
+ * Why the bundle cannot run in a `<script>`, or `null`.
  *
  * `bundleModule` marks every *installed* package external, so a bare specifier
  * survives into the output and resolves through the page's import map. That is
@@ -156,19 +156,35 @@ async function handleDashboardView() {
  * apply to one, and a top-level `import` is a syntax error — so the *entire*
  * bundle fails to execute and the console does nothing at all.
  *
- * It is worth a check rather than a convention because of how it failed.
- * `Bun.build` reported success, the file was served with a 200 and the right
- * length, typecheck passed, and 2,376 tests passed — because nothing
- * *requested the page*. That is the same gap CLAUDE.md already records for
- * `apps/starter`: a process that boots is not a page that works.
+ * **This asks the engine instead of matching a pattern, and the first version
+ * of it matched a pattern and was wrong.** It anchored on `^import`. In
+ * development the bundle is not minified and the import starts a line, so it
+ * looked right. Production minifies, the import lands mid-line, and the check
+ * that existed to catch exactly this missed it — measured by reintroducing the
+ * bug and watching a production server answer 200 with the import present.
  *
- * Matched on a line starting with `import`, which is what an ESM bundle emits
- * for an external. A dynamic `import(...)` inside a function body is fine and
- * does not start a line.
+ * Against seven shapes, the anchored regex was wrong on three: a minified bare
+ * import, a side-effect-only `import"./x.css"`, and a top-level `await`. A
+ * widened regex got the first two and still missed the third. `new Function`
+ * is wrong on none of them, because it is not approximating the question — a
+ * function body rejects a top-level `import` and a top-level `await` for the
+ * same reasons a classic script does. It also costs less than the widened
+ * regex: 13.0 us against 26.4 on a 24 KB bundle, and 12.0 for the broken one.
+ *
+ * It parses without executing, and only on the build path — the cached branch
+ * returns the file and never reaches here.
+ *
+ * One known difference, and it is in the safe direction: a function body
+ * permits a top-level `return`, which a script does not. `Bun.build` does not
+ * emit one, and a false pass is a missed report rather than a broken page.
  */
-export function bareImportIn(bundle: string): string | null {
-  const match = bundle.match(/^import\s[^\n]*?from\s*['"]([^'"]+)['"]/m)
-  return match ? match[1]! : null
+export function whyUnrunnable(bundle: string): string | null {
+  try {
+    new Function(bundle)
+    return null
+  } catch (error) {
+    return (error as Error).message
+  }
 }
 
 /**
@@ -212,15 +228,15 @@ export async function handleJsAsset() {
     )
   }
 
-  // See `bareImportIn`. A build that "succeeded" and cannot run is worse than
+  // See `whyUnrunnable`. A build that "succeeded" and cannot run is worse than
   // one that failed, because it is silent.
-  const bare = bareImportIn(bundleResult.content as string)
-  if (bare) {
+  const unrunnable = whyUnrunnable(bundleResult.content as string)
+  if (unrunnable) {
     pluginLog.DASHBOARD_BUNDLE_ERR({
-      error: `dashboard.js kept a bare import of "${bare}". It is served as a classic script, so an import map cannot resolve it and the whole bundle fails to parse. The console client must not import across a package boundary.`,
+      error: `dashboard.js cannot run as a classic script: ${unrunnable}. The usual cause is an import across a package boundary, which the bundler leaves as a bare specifier for the import map — and an import map does not apply to a classic script.`,
     })
     return response.error(
-      `dashboard.js kept a bare import of "${bare}"`,
+      `dashboard.js cannot run as a classic script: ${unrunnable}`,
       500,
     )
   }

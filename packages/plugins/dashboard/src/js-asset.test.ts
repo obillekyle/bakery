@@ -82,21 +82,37 @@ describe('a bundle that cannot execute is refused, not served', () => {
 
     // The cached path serves the file as-is; the guard sits on the build path,
     // so this asserts the detector itself against the shape that broke.
-    const { bareImportIn } = await import('./setup')
-    expect(bareImportIn('import { x } from "@some/package";')).toBe(
-      '@some/package',
-    )
-    expect(bareImportIn("import a from 'vue'\nconsole.log(a)")).toBe('vue')
+    const { whyUnrunnable } = await import('./setup')
+    expect(whyUnrunnable('import { x } from "@some/package";')).not.toBeNull()
+    expect(whyUnrunnable("import a from 'vue'\nconsole.log(a)")).not.toBeNull()
   })
 
-  test('a dynamic import inside a function is not a bare import', async () => {
-    // `import(...)` is how a bundle lazily loads, and it does not start a
-    // line. Flagging it would refuse every bundle that has one.
-    const { bareImportIn } = await import('./setup')
-    expect(bareImportIn('async function f() { await import("./x") }')).toBe(
-      null,
-    )
-    expect(bareImportIn('const s = "import x from y"')).toBe(null)
-    expect(bareImportIn('function g(){}\nwindow.g = g\n')).toBe(null)
+  test('it catches the minified shape, which the first version did not', async () => {
+    // The whole reason this is a parse rather than a pattern. Production
+    // minifies the bundle, so the import lands mid-line - and the original
+    // check anchored on `^import`, matched in development, and missed the only
+    // build where the bug is fatal.
+    const { whyUnrunnable } = await import('./setup')
+    const minified =
+      'var x=1;function f(){return 2}import{a as b}from"@scope/pkg";window.z=f;'
+    expect(whyUnrunnable(minified)).not.toBeNull()
+
+    // A side-effect import has no `from` clause at all, which a `from`-shaped
+    // pattern also missed.
+    expect(whyUnrunnable('var a=1;import"./styles.css";var b=2;')).not.toBeNull()
+
+    // And a top-level await is equally unrunnable in a classic script, which
+    // no import-shaped check would ever have looked for.
+    expect(whyUnrunnable('const x = await fetch("/a");window.x=x;')).not.toBeNull()
+  })
+
+  test('what a bundle legitimately contains is not flagged', async () => {
+    // `import(...)` is how a bundle lazily loads, and a string that reads like
+    // an import is data. Flagging either would refuse every bundle with one.
+    const { whyUnrunnable } = await import('./setup')
+    expect(whyUnrunnable('async function f() { await import("./x") }')).toBeNull()
+    expect(whyUnrunnable('const s = "import x from y"')).toBeNull()
+    expect(whyUnrunnable('const t = `import {a} from "b"`')).toBeNull()
+    expect(whyUnrunnable('function g(){}\nwindow.g = g\n')).toBeNull()
   })
 })

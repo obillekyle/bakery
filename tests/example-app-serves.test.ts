@@ -109,3 +109,97 @@ describe('the example app serves what it ships', () => {
     }
   }, 30_000)
 })
+
+/**
+ * The console, requested rather than assumed, in **production**.
+ *
+ * This server boots without `--dev`, which is the whole point. Three separate
+ * defects shipped in two days that were invisible to every other gate because
+ * a development server takes a different branch:
+ *
+ *   - the client bundle kept a bare `import` of another package, so the whole
+ *     script failed to parse and nothing on the page ran. Development returns
+ *     the bundle as a *string*, which is a different code path entirely;
+ *   - the cached bundle was wrapped in a `Response`, losing its ETag and
+ *     Cache-Control, so the console re-downloaded 22 KB on every load.
+ *     Development never takes the cached branch at all;
+ *   - the Logs panel connected to `/_livereload`, which is registered only
+ *     under `DEV`, so it answered 400 and the panel never received a line.
+ *
+ * The suite was green for all three. The typecheck was green for all three. CI
+ * was green for all three. Each was found by opening the page by hand.
+ */
+describe('the console works in production', () => {
+  test('its client bundle parses, which means no bare import survived', async () => {
+    const res = await fetch(`${BASE}/_dashboard/dashboard.js`)
+    const body = await res.text()
+    expect(res.status).toBe(200)
+
+    // `bundleModule` marks installed packages external, so a cross-package
+    // specifier survives as a top-level `import`. That is correct for the
+    // `/_nm/` bundles, which load as modules — and fatal here, because this is
+    // served as a classic `<script>` where an import map does not apply and a
+    // top-level `import` is a syntax error that takes the entire file down.
+    const bare = body.match(/^import\s[^\n]*?from\s*['"]([^'"]+)['"]/m)
+    expect(bare?.[1] ?? null).toBe(null)
+  }, 30_000)
+
+  test('the cached bundle keeps its ETag and answers a conditional request', async () => {
+    // The *second* request is the one that matters: the first returns the
+    // freshly written file and the second takes the cached branch, which is
+    // where the ETag was being lost.
+    await fetch(`${BASE}/_dashboard/dashboard.js`).then(r => r.arrayBuffer())
+
+    const res = await fetch(`${BASE}/_dashboard/dashboard.js`)
+    await res.arrayBuffer()
+    const etag = res.headers.get('ETag')
+    expect(etag).not.toBeNull()
+    expect(res.headers.get('Cache-Control')).not.toBeNull()
+
+    const conditional = await fetch(`${BASE}/_dashboard/dashboard.js`, {
+      headers: { 'If-None-Match': etag! },
+    })
+    await conditional.arrayBuffer()
+    expect(conditional.status).toBe(304)
+  }, 30_000)
+
+  test('the log socket accepts an upgrade and delivers a server line', async () => {
+    const ws = new WebSocket(`ws://127.0.0.1:${PORT}/_dashboard/logs`)
+
+    const outcome = await new Promise<string>(resolve => {
+      const timer = setTimeout(() => resolve('nothing arrived'), 10_000)
+      ws.onopen = () => {
+        // Something the server is guaranteed to log. A 404 is a warn line.
+        void fetch(`${BASE}/definitely-not-a-route-${Date.now()}`)
+          .then(r => r.arrayBuffer())
+          .catch(() => {})
+      }
+      ws.onmessage = event => {
+        try {
+          if (JSON.parse(String(event.data)).type === 'server_log') {
+            clearTimeout(timer)
+            resolve('server_log')
+          }
+        } catch {
+          // A frame that is not JSON is not the one being waited for, and the
+          // timeout above is what ends this either way.
+        }
+      }
+      ws.onerror = () => {
+        clearTimeout(timer)
+        resolve('upgrade refused')
+      }
+      ws.onclose = event => {
+        clearTimeout(timer)
+        resolve(`closed ${event.code}`)
+      }
+    })
+
+    try {
+      ws.close()
+    } catch {
+      // Already closed by the branch that resolved above.
+    }
+    expect(outcome).toBe('server_log')
+  }, 40_000)
+})
