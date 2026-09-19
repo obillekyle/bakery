@@ -88,9 +88,16 @@ function presentedKey(req: Request): string | null {
   if (SAFE_METHODS.has(req.method)) return presented
 
   // `readCredential` prefers header, then Bearer, then the query — so if
-  // neither header is present, the value it returned came from the URL.
-  const fromHeader =
-    req.headers.has(`x-${DB_KEY}`) || req.headers.has('authorization')
+  // neither header carried a value, what it returned came from the URL.
+  //
+  // **The value, not `has()`.** An empty header is *present*, so
+  // `x-db-key: ''` alongside `?db-key=SECRET` read as "a header was used" and
+  // let a URL credential through on a write — the one case this function
+  // exists to refuse. `readCredential` skips a falsy header and falls to the
+  // query, so the two checks disagreed about which form had been presented.
+  const fromHeader = Boolean(
+    req.headers.get(`x-${DB_KEY}`) || req.headers.get('authorization'),
+  )
   return fromHeader ? presented : null
 }
 
@@ -185,4 +192,33 @@ export function currentAccess(): Access | false {
 /** Whether the *current* request may write. The check every write endpoint makes. */
 export function currentCanWrite(): boolean {
   return canWrite(currentAccess())
+}
+
+/**
+ * Refuse a `users` map that names a level the explorer does not have.
+ *
+ * `access` is typed `Access`, and a JavaScript caller or a value read from the
+ * environment is not bound by that. An unknown level — `'admin'` is the one
+ * that gets written — passed straight through `higher`, reached the client as
+ * the caller's own level in `/api/_db/schema`, and then failed `canWrite`,
+ * which compares against `'write'` exactly. So it failed *closed*, which is
+ * the right direction and an unhelpful way to say "your configuration has a
+ * typo": the operator sees "no access" on a map they believe grants write.
+ *
+ * Thrown at registration rather than logged, because this is a configuration
+ * error in code the application controls, it cannot become correct later, and
+ * the alternative is a server that runs while quietly refusing the people it
+ * was set up to admit.
+ */
+export function assertValidUsers(users: ExplorerUsers | undefined): void {
+  if (!users) return
+  for (const [name, user] of Object.entries(users)) {
+    if (user.access !== 'read' && user.access !== 'write') {
+      throw new Error(
+        `dbExplorerPlugin: users.${name}.access is ${JSON.stringify(
+          user.access,
+        )}; it must be 'read' or 'write'`,
+      )
+    }
+  }
 }

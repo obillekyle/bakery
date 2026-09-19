@@ -254,6 +254,39 @@ describe('no raw SQL and no DDL — structurally, not by configuration', () => {
     expect(calls.length).toBe(before)
   })
 
+  test('the read side is bounded like every write is', async () => {
+    // `policy.ts` bounds every write and nothing bounded the reads, so a
+    // caller holding only `read` could ask for the whole table in one
+    // response: `pageSize=1000000` assembled 50,000 rows and 5.25 MB,
+    // `pageSize=-1` returned everything with a negative page count, and
+    // `page=0` silently served page 1.
+    const seen: any[] = []
+    const stub = {
+      ...stubDb,
+      getData: async (_t: string, o: any) => {
+        seen.push(o)
+        return { rows: [], totalRows: 0, page: o.page, pageSize: o.pageSize }
+      },
+    }
+    __setTestDb(stub as any)
+
+    const ask = (qs: string) =>
+      handleTableData(
+        new URL(`http://localhost/api/_db/table-data?tableName=parcels&${qs}`),
+      )
+
+    await ask('pageSize=1000000')
+    await ask('pageSize=-1')
+    await ask('page=0')
+    await ask('page=abc')
+    await ask('pageSize=25&page=3')
+
+    __setTestDb(stubDb as any)
+
+    expect(seen.map(o => o.pageSize)).toEqual([500, 1, 50, 50, 25])
+    expect(seen.map(o => o.page)).toEqual([1, 1, 1, 1, 3])
+  })
+
   test('a failed query refuses without quoting the database', async () => {
     // Every read endpoint used to answer with `error.message` verbatim, so a
     // malformed page number came back as the driver's "datatype mismatch" and

@@ -163,8 +163,8 @@ export async function handleTableData(
   return await Try.return(
     async () => {
       const data = await connection.getData(tableName, {
-        page: Number.parseInt(url.searchParams.get('page') || '1', 10),
-        pageSize: Number.parseInt(url.searchParams.get('pageSize') || '50', 10),
+        page: readBounded(url, 'page', 1, 1, Number.MAX_SAFE_INTEGER),
+        pageSize: readBounded(url, 'pageSize', 50, 1, MAX_PAGE_SIZE),
         sortBy: url.searchParams.get('sortBy'),
         sortOrder: url.searchParams.get('sortOrder') || 'ASC',
         filters: filters.filters,
@@ -173,4 +173,33 @@ export async function handleTableData(
     },
     error => refuse('table-data', error),
   )
+}
+
+/** The largest page the read endpoint will assemble. */
+const MAX_PAGE_SIZE = 500
+
+/**
+ * A positive integer from the query string, clamped.
+ *
+ * The read side was the only unbounded surface left: every write goes through
+ * `policy.ts`, and this took `page` and `pageSize` as whatever
+ * `Number.parseInt` returned. `pageSize=1000000` assembled 50,000 rows and
+ * 5.25 MB in one response, `pageSize=-1` returned the whole table with a
+ * negative `totalPages`, and `page=0` silently served page 1. None needs a
+ * credential beyond `read`.
+ *
+ * `NaN` falls back rather than clamping: `page=abc` is a malformed request,
+ * and answering it with page 1 is friendlier than a 400 for a value that
+ * changes nothing about what the caller may see.
+ */
+function readBounded(
+  url: URL,
+  name: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const raw = Number.parseInt(url.searchParams.get(name) || '', 10)
+  if (!Number.isFinite(raw)) return fallback
+  return Math.min(max, Math.max(min, raw))
 }

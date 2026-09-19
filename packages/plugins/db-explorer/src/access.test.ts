@@ -4,6 +4,7 @@ import {
   type AccessFn,
   accessFromPredicate,
   accessFromUsers,
+  assertValidUsers,
   canWrite,
   resolveAccess,
 } from './access'
@@ -203,5 +204,76 @@ describe('canWrite', () => {
     expect(canWrite('write')).toBe(true)
     expect(canWrite('read')).toBe(false)
     expect(canWrite(false)).toBe(false)
+  })
+})
+
+/**
+ * A configured level the explorer does not have.
+ *
+ * `access` is typed, and neither a JavaScript caller nor a value read from the
+ * environment is bound by that. An unknown level failed *closed* — `canWrite`
+ * compares against `'write'` exactly — but it reached the client as the
+ * caller's own level first, so the operator saw "no access" on a map they
+ * believed granted write, with nothing naming the typo.
+ */
+describe('a users map is validated where it is configured', () => {
+  test('an unknown access level is refused at registration', () => {
+    expect(() =>
+      assertValidUsers({ ops: { credential: 'k', access: 'admin' as any } }),
+    ).toThrow(/users\.ops\.access/)
+  })
+
+  test('the two real levels pass, and an absent map is fine', () => {
+    expect(() =>
+      assertValidUsers({
+        a: { credential: 'k', access: 'read' },
+        b: { credential: 'j', access: 'write' },
+      }),
+    ).not.toThrow()
+    expect(() => assertValidUsers(undefined)).not.toThrow()
+  })
+})
+
+/**
+ * An empty header is a present header.
+ *
+ * `presentedKey` asked `headers.has()` while `readCredential` skips a *falsy*
+ * header and falls through to the query string, so the two disagreed about
+ * which form had been presented: `x-db-key: ''` alongside `?db-key=…` read as
+ * "a header was used" and let a URL credential authorize a write. That is the
+ * one case the function exists to refuse.
+ */
+describe('a URL credential never authorizes a write', () => {
+  const users = { ops: { credential: 'SECRET', access: 'write' as const } }
+
+  const post = (headers: Record<string, string>, query = '') =>
+    new Request(`http://localhost/api/_db/rows${query}`, {
+      method: 'POST',
+      headers,
+    })
+
+  test('an empty x-db-key does not launder the query credential', () => {
+    expect(
+      accessFromUsers(post({ 'x-db-key': '' }, '?db-key=SECRET'), users),
+    ).toBe(false)
+  })
+
+  test('an empty authorization header does not either', () => {
+    expect(
+      accessFromUsers(post({ authorization: '' }, '?db-key=SECRET'), users),
+    ).toBe(false)
+  })
+
+  test('the query alone is still refused on a write', () => {
+    expect(accessFromUsers(post({}, '?db-key=SECRET'), users)).toBe(false)
+  })
+
+  test('a real header still admits', () => {
+    expect(accessFromUsers(post({ 'x-db-key': 'SECRET' }), users)).toBe('write')
+  })
+
+  test('and the query form still works on a safe method', () => {
+    const get = new Request('http://localhost/api/_db/schema?db-key=SECRET')
+    expect(accessFromUsers(get, users)).toBe('write')
   })
 })

@@ -213,7 +213,7 @@ function offerDeleteUndo(
     notify(`${deleted} rows deleted`)
     return
   }
-  const row = rows[0]!
+  const row = restorableRow(rows[0]!, ctx.columns)
   const restore = async () => {
     await run(async () => {
       await insertRows({ table: ctx.table.name, rows: [row] })
@@ -354,4 +354,28 @@ async function run<T>(call: () => Promise<T>): Promise<T | null> {
     notify(messageOf(error), 'error')
     return null
   }
+}
+
+/**
+ * A deleted row, reduced to the columns the table actually has.
+ *
+ * `selectedRows()` hands over the row as `getData` returned it, and two of the
+ * three dialects add a key that is not a column: SQLite selects `rowid` and
+ * Postgres `ctid::text AS rowid`, while MySQL selects `*` and so never showed
+ * this. `validateInsertRow` refuses unknown columns by design, so restoring
+ * the row verbatim came back `400 rowid: unknown_column` — the undo offered
+ * after a delete silently did not undo, on two dialects out of three.
+ *
+ * Exported for the test. There is no DOM here and the bug lived in a callback
+ * a click builds, so the only way to pin it is to name the transformation.
+ */
+export function restorableRow(
+  source: Record<string, unknown>,
+  columns: { name: string }[],
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {}
+  for (const column of columns) {
+    if (column.name in source) row[column.name] = source[column.name]
+  }
+  return row
 }

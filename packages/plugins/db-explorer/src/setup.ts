@@ -6,7 +6,7 @@ import type { PluginRouteTable } from '@bakery-framework/core/plugins'
 import { routeTable } from '@bakery-framework/core/plugins'
 import { fs } from '@bakery-framework/core/utils'
 import { response } from '@bakery-framework/core/utils/http'
-import { type AccessConfig, accessStore, resolveAccess } from './access'
+import { accessStore, assertValidUsers, resolveAccess, type AccessConfig } from './access'
 import { handleGraph, handleLookup } from './endpoints/graph'
 import { handleImport } from './endpoints/import'
 import { handleSchema, handleTableData } from './endpoints/read'
@@ -139,6 +139,10 @@ export class DbExplorerHandler extends Handler {
 }
 
 export function setupExplorer(options: AccessConfig = {}) {
+  // Before anything is registered: a bad level cannot become good later, and a
+  // server that boots while refusing the users it was configured with is worse
+  // than one that refuses to boot.
+  assertValidUsers(options.users)
   config = options
   // Above the content handlers, below nothing that matters: the /_db and
   // /api/_db namespaces are reserved for framework routes (convention 10),
