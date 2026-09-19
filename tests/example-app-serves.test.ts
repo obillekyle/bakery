@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import {
+  type AppServer,
+  bootApp,
+  discoverRoutes,
+  serverErrors,
+} from './support/serve-app'
 
 /**
  * Every page the example app ships is requested, and none of them may 500.
@@ -19,91 +24,38 @@ import { join, resolve } from 'node:path'
  * cannot see it because the page's `body` is typed by what the page itself
  * declares, and that declaration was the thing that was wrong.
  *
- * **The assertion is "nothing 5xx", not "everything 200".** A route this walk
- * maps badly — `Layout.tsx` is a component, not a page — answers 404, and a
- * 404 is a correct answer to a request for something that is not there. To
- * stop the whole thing passing by 404ing uniformly, a handful of routes known
- * to exist are asserted at 200 as well.
+ * **The assertion is "nothing 5xx", not "everything 200".** A route the walk in
+ * `support/serve-app.ts` maps badly — `Layout.tsx` is a component, not a page —
+ * answers 404, and a 404 is a correct answer to a request for something that is
+ * not there. To stop the whole thing passing by 404ing uniformly, a handful of
+ * routes known to exist are asserted at 200 as well.
  */
 
 const APP = resolve(import.meta.dir, '../apps/example')
-const CLI = resolve(import.meta.dir, '../packages/cli/src/index.ts')
 // Not 3000: that port belongs to something else on the maintainer's machine.
 const PORT = 4600
-const BASE = `http://127.0.0.1:${PORT}`
 
-let server: ReturnType<typeof Bun.spawn> | null = null
-
-/** Route files, mapped to a URL by the documented rules. */
-function discoverRoutes(dir: string, prefix = ''): string[] {
-  const out: string[] = []
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry)
-    if (statSync(full).isDirectory()) {
-      out.push(...discoverRoutes(full, `${prefix}/${entry}`))
-      continue
-    }
-    const m = entry.match(/^(.*)\.(tsx|jsx|ts|css)$/)
-    if (!m) continue
-    const [, stem, ext] = m as unknown as [string, string, string]
-
-    if (ext === 'css') {
-      out.push(`${prefix}/${entry}`)
-      continue
-    }
-    if (stem === 'index') out.push(prefix || '/')
-    else if (stem.startsWith('[...')) out.push(`${prefix}/deep/nested/path`)
-    else if (stem.startsWith('[')) out.push(`${prefix}/42`)
-    else out.push(`${prefix}/${stem}`)
-  }
-  return out
-}
+let server: AppServer | null = null
 
 beforeAll(async () => {
-  server = Bun.spawn(['bun', CLI], {
-    cwd: APP,
-    env: { ...process.env, PORT: String(PORT) },
-    stdout: 'ignore',
-    stderr: 'ignore',
-  })
-
-  const deadline = Date.now() + 60_000
-  for (;;) {
-    if (Date.now() > deadline) throw new Error('the example app never answered')
-    try {
-      await fetch(`${BASE}/`)
-      return
-    } catch {
-      // Not listening yet. A connection refusal here is the ordinary state
-      // during boot, which is why it is the one swallowed exception in this
-      // file.
-      await Bun.sleep(250)
-    }
-  }
+  server = await bootApp(APP, PORT)
 }, 90_000)
 
 afterAll(() => {
-  server?.kill()
+  server?.stop()
 })
 
 describe('the example app serves what it ships', () => {
   test('no route answers 5xx', async () => {
     const routes = discoverRoutes(join(APP, 'src'))
     expect(routes.length).toBeGreaterThan(5)
-
-    const failures: string[] = []
-    for (const route of routes) {
-      const res = await fetch(BASE + route)
-      await res.arrayBuffer()
-      if (res.status >= 500) failures.push(`${route} -> ${res.status}`)
-    }
-    expect(failures).toEqual([])
+    expect(await serverErrors(server!.base, routes)).toEqual([])
   }, 60_000)
 
   test('the pages that should render, do', async () => {
     // Without this the test above passes on an app that 404s uniformly.
     for (const route of ['/', '/jsx', '/wiki/a/b/c', '/api/hello']) {
-      const res = await fetch(BASE + route)
+      const res = await fetch(server!.base + route)
       await res.arrayBuffer()
       expect(`${route} -> ${res.status}`).toBe(`${route} -> 200`)
     }
@@ -130,33 +82,49 @@ describe('the example app serves what it ships', () => {
  * was green for all three. Each was found by opening the page by hand.
  */
 describe('the console works in production', () => {
-  test('its client bundle parses, which means no bare import survived', async () => {
-    const res = await fetch(`${BASE}/_dashboard/dashboard.js`)
+  test('its client bundle parses as a classic script', async () => {
+    const res = await fetch(`${server!.base}/_dashboard/dashboard.js`)
     const body = await res.text()
     expect(res.status).toBe(200)
+    expect(body.length).toBeGreaterThan(0)
 
-    // `bundleModule` marks installed packages external, so a cross-package
-    // specifier survives as a top-level `import`. That is correct for the
-    // `/_nm/` bundles, which load as modules — and fatal here, because this is
-    // served as a classic `<script>` where an import map does not apply and a
-    // top-level `import` is a syntax error that takes the entire file down.
-    const bare = body.match(/^import\s[^\n]*?from\s*['"]([^'"]+)['"]/m)
-    expect(bare?.[1] ?? null).toBe(null)
+    // Parsed, not pattern-matched, and the difference is measurable. This
+    // asserted a `^import`-anchored regex until 2026-09-20; production
+    // *minifies*, so the surviving import lands mid-line and the check missed
+    // it in the only build where the bug is fatal. Measured against seven
+    // bundle shapes, the regex was wrong on three. A parse is wrong on none,
+    // needs no maintenance as the bundler changes, and also catches a
+    // top-level await, which no import-shaped pattern would look for.
+    //
+    // `new Function` compiles without executing: a classic <script> is parsed
+    // in exactly this grammar, where a top-level `import` is a syntax error
+    // that takes the whole file down. The same check runs as a unit test in
+    // `plugins/dashboard/src/js-asset.test.ts`; this is the end-to-end half,
+    // over the bytes the server actually sent.
+    let parseError: string | null = null
+    try {
+      new Function(body)
+    } catch (error) {
+      parseError = (error as Error).message
+    }
+    expect(parseError).toBeNull()
   }, 30_000)
 
   test('the cached bundle keeps its ETag and answers a conditional request', async () => {
     // The *second* request is the one that matters: the first returns the
     // freshly written file and the second takes the cached branch, which is
     // where the ETag was being lost.
-    await fetch(`${BASE}/_dashboard/dashboard.js`).then(r => r.arrayBuffer())
+    await fetch(`${server!.base}/_dashboard/dashboard.js`).then(r =>
+      r.arrayBuffer(),
+    )
 
-    const res = await fetch(`${BASE}/_dashboard/dashboard.js`)
+    const res = await fetch(`${server!.base}/_dashboard/dashboard.js`)
     await res.arrayBuffer()
     const etag = res.headers.get('ETag')
     expect(etag).not.toBeNull()
     expect(res.headers.get('Cache-Control')).not.toBeNull()
 
-    const conditional = await fetch(`${BASE}/_dashboard/dashboard.js`, {
+    const conditional = await fetch(`${server!.base}/_dashboard/dashboard.js`, {
       headers: { 'If-None-Match': etag! },
     })
     await conditional.arrayBuffer()
@@ -170,7 +138,7 @@ describe('the console works in production', () => {
       const timer = setTimeout(() => resolve('nothing arrived'), 10_000)
       ws.onopen = () => {
         // Something the server is guaranteed to log. A 404 is a warn line.
-        void fetch(`${BASE}/definitely-not-a-route-${Date.now()}`)
+        void fetch(`${server!.base}/definitely-not-a-route-${Date.now()}`)
           .then(r => r.arrayBuffer())
           .catch(() => {})
       }
