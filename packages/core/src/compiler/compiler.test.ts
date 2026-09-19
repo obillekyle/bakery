@@ -157,20 +157,55 @@ describe('bundleModule repairs a sideEffects tree-shake', () => {
   test('a sideEffects:false barrel is served with its code, not as a husk', async () => {
     const entry = await writePackage('shaken-pkg', false)
 
-    // The premise: Bun really does produce the husk for this input. If it ever
-    // stops, this test must fail rather than quietly assert nothing.
+    // **Bun fixed this in 1.4.1, and the assertion that used to live here is
+    // what told us.** It read
+    //
+    //     expect(isEmptyExportList(await raw.outputs[0].text())).toBe(true)
+    //
+    // with a note saying that if Bun ever stopped producing the husk, this
+    // test must fail rather than quietly assert nothing. On 2026-09-19 it
+    // failed, on `bun latest`, on both CI platforms — and re-running the last
+    // green commit unchanged against the same Bun failed identically, which is
+    // what proved it was the runtime rather than the branch. 1.4.1's notes name
+    // it: "an entry that only re-exports emitted `export { a }` with no
+    // declaration".
+    //
+    // So the premise is a *branch* now rather than an assertion. It is not
+    // simply deleted, because `engines.bun` is `>=1.4.0` and CI pins a 1.4.0
+    // job: the husk still appears there, and `bundleReExportShim` is still the
+    // only thing that makes those installs work. The repair becomes deletable
+    // when that floor moves above 1.4.0, not before.
+    //
+    // What is asserted in both regimes is the thing that actually matters:
+    // `bundleModule` hands back the code either way.
     const raw = await Bun.build({
       entrypoints: [entry],
       target: 'browser',
       format: 'esm',
     })
     expect(raw.success).toBe(true)
-    expect(isEmptyExportList(await raw.outputs[0].text())).toBe(true)
+    const shaken = isEmptyExportList(await raw.outputs[0].text())
 
     const result = await bundleModule(entry)
     expect(result.success).toBe(true)
     expect(result.content).toContain('42')
     expect(isEmptyExportList(result.content ?? '')).toBe(false)
+
+    if (shaken) {
+      // The old regime: Bun emptied it and the repair filled it back in. The
+      // two assertions above are then a statement about `bundleReExportShim`.
+      expect(result.content).not.toBe(await raw.outputs[0].text())
+    }
+  })
+
+  test('the detector still recognises the husk Bun used to emit', () => {
+    // The repair is dormant on a fixed Bun, so this keeps the half that
+    // decides whether to run it honest. The literal is the shape 1.4.0
+    // produced for the fixture above: an export list with nothing behind it.
+    expect(isEmptyExportList('export {\n  shippingTotal\n};\n')).toBe(true)
+    expect(
+      isEmptyExportList('var shippingTotal = 42;\nexport {\n  shippingTotal\n};\n'),
+    ).toBe(false)
   })
 
   test('the same package without the flag was never broken', async () => {
