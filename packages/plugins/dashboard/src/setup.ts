@@ -140,6 +140,31 @@ async function handleDashboardView() {
 }
 
 /**
+ * A bare `import` left in the bundle, or `null`.
+ *
+ * `bundleModule` marks every *installed* package external, so a bare specifier
+ * survives into the output and resolves through the page's import map. That is
+ * correct for the `/_nm/` bundles, which are loaded as modules. It is fatal
+ * here: this file is served as a classic `<script>`, an import map does not
+ * apply to one, and a top-level `import` is a syntax error — so the *entire*
+ * bundle fails to execute and the console does nothing at all.
+ *
+ * It is worth a check rather than a convention because of how it failed.
+ * `Bun.build` reported success, the file was served with a 200 and the right
+ * length, typecheck passed, and 2,376 tests passed — because nothing
+ * *requested the page*. That is the same gap CLAUDE.md already records for
+ * `apps/starter`: a process that boots is not a page that works.
+ *
+ * Matched on a line starting with `import`, which is what an ESM bundle emits
+ * for an external. A dynamic `import(...)` inside a function body is fine and
+ * does not start a line.
+ */
+export function bareImportIn(bundle: string): string | null {
+  const match = bundle.match(/^import\s[^\n]*?from\s*['"]([^'"]+)['"]/m)
+  return match ? match[1]! : null
+}
+
+/**
  * Test seams (convention 9). The cached branch is **production-only** -
  * `isDevWorker` skips it, and in development the bundle is returned as a
  * string, which `response.type` does give an ETag. That is why the defect was
@@ -176,6 +201,19 @@ export async function handleJsAsset() {
     })
     return response.error(
       `Failed to bundle dashboard.js: ${bundleResult.errors?.join('\n')}`,
+      500,
+    )
+  }
+
+  // See `bareImportIn`. A build that "succeeded" and cannot run is worse than
+  // one that failed, because it is silent.
+  const bare = bareImportIn(bundleResult.content as string)
+  if (bare) {
+    pluginLog.DASHBOARD_BUNDLE_ERR({
+      error: `dashboard.js kept a bare import of "${bare}". It is served as a classic script, so an import map cannot resolve it and the whole bundle fails to parse. The console client must not import across a package boundary.`,
+    })
+    return response.error(
+      `dashboard.js kept a bare import of "${bare}"`,
       500,
     )
   }

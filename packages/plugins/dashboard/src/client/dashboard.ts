@@ -8,8 +8,8 @@ import {
   revokeSession,
   sessionKeyAction,
 } from './parts/sessions'
+import { bindSparklineTooltips } from './parts/sparkline-tooltip'
 import {
-  bindSparklineTooltips,
   changePagesFilter,
   changeTimescale,
   initAnalyticsWebSocket,

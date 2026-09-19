@@ -61,3 +61,42 @@ describe('the cached dashboard bundle', () => {
     expect(await (answer as Blob).text()).not.toBe('')
   }, 30_000)
 })
+
+describe('a bundle that cannot execute is refused, not served', () => {
+  test('a bare import is caught before the browser sees it', async () => {
+    // The failure this exists for: `bundleModule` marks installed packages
+    // external, so a cross-package specifier survives as a top-level `import`.
+    // That is correct for the `/_nm/` bundles, which load as modules. Served
+    // as a classic script it is a syntax error, and the *whole* bundle fails
+    // to execute — which is how the console went silently dead while
+    // `Bun.build` reported success, the file was served 200 at the right
+    // length, typecheck passed and the suite passed.
+    const dir = mkdtempSync(`${tmpdir()}/dashjs-`)
+    dirs.push(dir)
+    const file = `${dir}/_dashboard.js`
+    writeFileSync(
+      file,
+      'import { x } from "@some/package";\nwindow.y = x;\n',
+    )
+    __setCachedDashboardJs(file)
+
+    // The cached path serves the file as-is; the guard sits on the build path,
+    // so this asserts the detector itself against the shape that broke.
+    const { bareImportIn } = await import('./setup')
+    expect(bareImportIn('import { x } from "@some/package";')).toBe(
+      '@some/package',
+    )
+    expect(bareImportIn("import a from 'vue'\nconsole.log(a)")).toBe('vue')
+  })
+
+  test('a dynamic import inside a function is not a bare import', async () => {
+    // `import(...)` is how a bundle lazily loads, and it does not start a
+    // line. Flagging it would refuse every bundle that has one.
+    const { bareImportIn } = await import('./setup')
+    expect(bareImportIn('async function f() { await import("./x") }')).toBe(
+      null,
+    )
+    expect(bareImportIn('const s = "import x from y"')).toBe(null)
+    expect(bareImportIn('function g(){}\nwindow.g = g\n')).toBe(null)
+  })
+})

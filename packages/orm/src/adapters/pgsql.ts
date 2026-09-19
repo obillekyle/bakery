@@ -57,7 +57,11 @@ export class PGAdapter extends SQLAdapter {
 
   private static handleSpecial(
     char: string,
-    nextChar: string | undefined,
+    // Underscored because it is deliberately unread: the branch that would
+    // have used it is the backslash branch, and the comment below is why
+    // there is not one. Kept in the signature so the shape matches
+    // `handleSpecial` in the other two adapters.
+    _nextChar: string | undefined,
     state: PGSQLParserState,
   ): string | null {
     // No backslash branch, deliberately. Postgres with

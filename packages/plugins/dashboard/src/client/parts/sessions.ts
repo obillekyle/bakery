@@ -1,6 +1,5 @@
 import {
   ICON_DELETE,
-  ICON_EDIT,
   icon,
   postJson,
   setEmpty,
