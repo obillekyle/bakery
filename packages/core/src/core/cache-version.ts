@@ -29,6 +29,41 @@ export function checkCacheVersion(): Promise<void> {
   return done
 }
 
+/** Every field that decides whether a compiled artifact is still valid. */
+export interface CacheMarker {
+  mode: string
+  version: string
+  framework: string
+  runtime: string
+}
+
+/**
+ * Whether a marker describes a cache the current process can still use.
+ *
+ * Exported and called rather than restated, which is the point. The tests
+ * beside this file used to write the comparison out a second time and assert
+ * on their own copy - so they passed whichever fields the real code compared,
+ * and would have gone on passing if one were dropped. Adding `runtime` is what
+ * made that visible: three tests agreed the marker "carries all three fields"
+ * while the code had four.
+ *
+ * A missing field reads as stale, which is the intended upgrade path. A marker
+ * written before a field existed describes a cache built under conditions
+ * nobody recorded, and one wipe is cheaper than guessing.
+ */
+export function isCacheStale(
+  prev: Partial<CacheMarker> | null | undefined,
+  current: CacheMarker,
+): boolean {
+  if (!prev) return true
+  return (
+    prev.mode !== current.mode ||
+    prev.version !== current.version ||
+    prev.framework !== current.framework ||
+    prev.runtime !== current.runtime
+  )
+}
+
 /** Test seam: forget that the check ran, so a fixture can exercise it again. */
 export function __resetCacheVersionCheck(): void {
   done = null
@@ -55,17 +90,32 @@ async function run(): Promise<void> {
     // framework version, with nothing to invalidate it.
     version: getAppVersion(),
     framework: getFrameworkVersion(),
+    // **And the runtime, for exactly the same reason one level down.**
+    //
+    // This directory holds *compiled and bundled output* - `html/`, `static/`,
+    // `ts_cache/`, the console bundle. Bun's transpiler and bundler produce it,
+    // so a Bun upgrade changes what a correct entry looks like, and nothing
+    // here used to notice.
+    //
+    // Not hypothetical, and found the day it happened. Bun 1.4.1 reworked the
+    // bundler's barrel optimisation across ten commits: 1.4.0 emptied a
+    // `sideEffects: false` re-export entry to `export { a };` with no
+    // declaration, which is the husk `compiler.ts` carries a repair for. So a
+    // cache written by 1.4.0 can hold a husk that the running 1.4.2 would
+    // never have produced, and would have served it for the life of the
+    // install. 1.4.1 is worse in a quieter way: a bundle it built can rename a
+    // `let` onto a function parameter's name and compute **wrong values**
+    // while loading perfectly (oven-sh/bun#41354).
+    //
+    // `Bun.version` rather than `Bun.revision`: a canary build of the same
+    // version is a real distinction, but invalidating on every canary would
+    // wipe the cache of anyone tracking one, and the failure this prevents is
+    // a released bundler change.
+    runtime: Bun.version,
   }
 
   const [err, prev] = await Try.catch(() => Bun.file(markerPath).json())
-  const stale =
-    err ||
-    !prev ||
-    prev.mode !== current.mode ||
-    prev.version !== current.version ||
-    prev.framework !== current.framework
-
-  if (!stale) return
+  if (!err && !isCacheStale(prev, current)) return
 
   const survivors = await wipe(cacheDir)
   if (!fs.exists(cacheDir)) await fs.mkdir(cacheDir)

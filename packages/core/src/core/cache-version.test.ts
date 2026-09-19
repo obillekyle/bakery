@@ -8,7 +8,11 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { __wipeCacheDir } from './cache-version'
+import {
+  __wipeCacheDir,
+  type CacheMarker,
+  isCacheStale,
+} from './cache-version'
 import { getAppVersion, getFrameworkVersion } from './context'
 
 /**
@@ -68,47 +72,61 @@ describe('cache invalidation reads two versions', () => {
 })
 
 /**
- * The marker file's shape. `checkCacheVersion` compares three fields and writes
- * the same three; a marker written before `framework` existed mismatches and
- * wipes once, which is the intended upgrade path.
+ * The marker file's shape, asserted through the real predicate.
+ *
+ * These used to restate the comparison and assert on their own copy, which
+ * meant they passed whichever fields `checkCacheVersion` actually compared and
+ * would have gone on passing if one were dropped. Adding `runtime` made that
+ * visible: three tests agreed the marker "carries all three fields" while the
+ * code had four. They call `isCacheStale` now, so the two cannot drift.
  */
-describe('the cache marker carries all three fields', () => {
-  test('a pre-fix marker mismatches and would trigger a wipe', () => {
-    const current = {
-      mode: 'development',
-      version: '4.0.0',
-      framework: '4.0.0',
-    }
-    // What a marker written before this change looks like.
-    const legacy: Record<string, unknown> = {
-      mode: 'development',
-      version: '4.0.0',
-    }
-    const stale =
-      legacy.mode !== current.mode ||
-      legacy.version !== current.version ||
-      legacy.framework !== current.framework
-    expect(stale).toBe(true)
+describe('the cache marker decides staleness', () => {
+  const current: CacheMarker = {
+    mode: 'production',
+    version: '1.2.3',
+    framework: '4.0.0',
+    runtime: '1.4.2',
+  }
+
+  test('an identical marker leaves the cache alone', () => {
+    expect(isCacheStale({ ...current }, current)).toBe(false)
   })
 
-  test('a framework bump alone is enough to invalidate', () => {
-    const prev = { mode: 'production', version: '1.2.3', framework: '4.0.0' }
-    const next = { mode: 'production', version: '1.2.3', framework: '4.1.0' }
-    const stale =
-      prev.mode !== next.mode ||
-      prev.version !== next.version ||
-      prev.framework !== next.framework
-    expect(stale).toBe(true)
+  test('any one field moving is enough to invalidate', () => {
+    for (const key of Object.keys(current) as (keyof CacheMarker)[]) {
+      expect(isCacheStale({ ...current, [key]: 'different' }, current)).toBe(
+        true,
+      )
+    }
   })
 
-  test('and an unchanged pair leaves the cache alone', () => {
-    const prev = { mode: 'production', version: '1.2.3', framework: '4.0.0' }
-    const next = { mode: 'production', version: '1.2.3', framework: '4.0.0' }
-    const stale =
-      prev.mode !== next.mode ||
-      prev.version !== next.version ||
-      prev.framework !== next.framework
-    expect(stale).toBe(false)
+  test('any one field missing is enough to invalidate', () => {
+    // The upgrade path for a marker written before a field existed: it
+    // describes a cache built under conditions nobody recorded, so it wipes
+    // once rather than being guessed at.
+    for (const key of Object.keys(current) as (keyof CacheMarker)[]) {
+      const legacy = { ...current }
+      delete legacy[key]
+      expect(isCacheStale(legacy, current)).toBe(true)
+    }
+  })
+
+  test('no marker at all is stale', () => {
+    expect(isCacheStale(null, current)).toBe(true)
+    expect(isCacheStale(undefined, current)).toBe(true)
+  })
+
+  test('the runtime is one of the fields, and a Bun upgrade invalidates', () => {
+    // The reason it is there. This directory holds compiled and bundled
+    // output, and Bun's bundler is what produces it — so a Bun upgrade
+    // changes what a correct entry looks like.
+    //
+    // Found the day it happened: Bun 1.4.1 reworked the bundler's barrel
+    // optimisation, and 1.4.0 emptied a `sideEffects: false` re-export entry
+    // to an export list with no declaration. A cache written by 1.4.0 can hold
+    // that husk, and a 1.4.2 process would have bundled it correctly.
+    expect(isCacheStale({ ...current, runtime: '1.4.0' }, current)).toBe(true)
+    expect(Object.keys(current)).toContain('runtime')
   })
 })
 
