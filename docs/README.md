@@ -256,6 +256,7 @@ and the right status.
 
 | | |
 | --- | --- |
+| [Upgrading to 2.0](getting-started/upgrading-to-2.md) | Ten breaking changes, and what to write instead |
 | [Installation](getting-started/installation.md) | Flags, existing projects, working on the framework |
 | [Your first app](getting-started/first-app.md) | Every file, explained |
 | [Project structure](getting-started/project-structure.md) | What each directory means |

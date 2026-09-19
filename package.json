@@ -21,7 +21,7 @@
     "db:history": "cd apps/example && bun run db:history",
     "db:rollback": "cd apps/example && bun run db:rollback",
     "release": "bunx cutver",
-    "test": "bun test ./packages ./tests",
+    "test": "bun test --preload ./packages/orm/src/tests/sweep-preload.ts ./packages ./tests",
     "typecheck": "bun run --parallel \"typecheck:*\"",
     "typecheck:tests": "bunx tsc -p tests/tsconfig.json --noEmit",
     "typecheck:core": "bunx tsc -p packages/core/tsconfig.json --noEmit",

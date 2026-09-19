@@ -22,7 +22,12 @@ export type TemplateFile = {
 }
 
 /** The plugins `--plugins` accepts, in the order they are registered. */
-export const PLUGIN_IDS = ['vue', 'analytics', 'dashboard'] as const
+export const PLUGIN_IDS = [
+  'vue',
+  'analytics',
+  'dashboard',
+  'db-explorer',
+] as const
 export type PluginId = (typeof PLUGIN_IDS)[number]
 
 export type TemplateOptions = {
@@ -65,7 +70,31 @@ const PLUGINS: Record<
     // because it is a local demo; a generated app is not.
     call: 'dashboardPlugin()',
   },
+  'db-explorer': {
+    pkg: '@bakery-framework/plugin-db-explorer',
+    import: 'dbExplorerPlugin',
+    // Same rule as the dashboard and for a stronger reason: this one edits
+    // rows. With no `users` and no `authorize` the explorer allows loopback in
+    // development and denies in production, so a generated app is never born
+    // able to write to its database from a browser on the internet.
+    //
+    // It does not share the dashboard's door. Access here is a *level* per
+    // caller rather than a yes, which is why configuring one grants nothing in
+    // the other — see `docs/plugins/db-explorer.md`.
+    call: 'dbExplorerPlugin()',
+  },
 }
+
+/**
+ * Plugins that cannot work without the ORM.
+ *
+ * `db-explorer` browses and edits whatever the ORM is connected to, so
+ * scaffolding it without `orm/` produces an app whose headline feature has
+ * nothing to show. The scaffolder turns the ORM on rather than refusing: the
+ * two are asked for separately and a generated app that boots is better than
+ * a prompt that argues.
+ */
+export const PLUGINS_NEEDING_ORM: readonly PluginId[] = ['db-explorer']
 
 /**
  * The version range the generated `package.json` asks for.
@@ -353,6 +382,11 @@ function readme(name: string, orm: boolean, plugins: PluginId[]): string {
       (plugins.includes('dashboard')
         ? '\n\nThe dashboard is loopback-only in development and denied in production ' +
           'until you give it an `authorize` predicate.'
+        : '') +
+      (plugins.includes('db-explorer')
+        ? '\n\nThe database explorer is served at `/_db` and follows the same rule, ' +
+          'with its own access model: a level per caller rather than a yes. ' +
+          'Configuring the dashboard grants nothing there.'
         : '') +
       (plugins.includes('vue')
         ? '\n\n`vue` and `@vue/compiler-sfc` are direct dependencies rather than ' +

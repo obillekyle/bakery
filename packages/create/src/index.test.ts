@@ -20,7 +20,9 @@ import {
 import {
   dependencyRange,
   isValidAppName,
+  PLUGIN_IDS,
   type PluginId,
+  PLUGINS_NEEDING_ORM,
   templateFiles,
 } from './template'
 
@@ -742,5 +744,87 @@ describe('renderMultiselect', () => {
     expect(frame).toContain('SFCs')
     // One line per choice, plus the question.
     expect(frame.trimEnd().split('\n')).toHaveLength(3)
+  })
+})
+
+describe('the database explorer scaffolds', () => {
+  /** The generated tree as a lookup, so a test can name the file it means. */
+  function generated(options: { orm: boolean; plugins: PluginId[] }) {
+    const out: Record<string, string> = {}
+    for (const file of templateFiles('notes-app', '^3.0.0', options)) {
+      out[file.path] = file.contents
+    }
+    return out
+  }
+
+  test('its plugin is imported and registered', () => {
+    const files = generated({ orm: true, plugins: ['db-explorer'] })
+    const config = files['server.config.ts']!
+    expect(config).toContain(
+      "import dbExplorerPlugin from '@bakery-framework/plugin-db-explorer'",
+    )
+    expect(config).toContain('dbExplorerPlugin()')
+  })
+
+  test('it is registered with no access configured, like the dashboard', () => {
+    // A generated app must never be born able to write to its database from a
+    // browser on the internet. With no `users` and no predicate the explorer
+    // allows loopback in development and denies in production.
+    const files = generated({ orm: true, plugins: ['db-explorer'] })
+    expect(files['server.config.ts']!).not.toContain('dbExplorerPlugin({')
+  })
+
+  test('the package is a dependency of the generated app', () => {
+    const files = generated({ orm: true, plugins: ['db-explorer'] })
+    const manifest = JSON.parse(files['package.json']!)
+    expect(manifest.dependencies).toHaveProperty(
+      '@bakery-framework/plugin-db-explorer',
+    )
+  })
+
+  test('the README says how its door differs from the dashboard', () => {
+    // The two are easy to confuse and configuring one grants nothing in the
+    // other, which is the sentence worth having in a generated README.
+    const files = generated({ orm: true, plugins: ['db-explorer'] })
+    expect(files['README.md']!).toContain('/_db')
+    expect(files['README.md']!).toContain('level per caller')
+  })
+
+  test('`--plugins db-explorer` is accepted', () => {
+    // `--help` lists `PLUGIN_IDS` and `parseArgs` validates against it, so an
+    // id missing from that list is an id the CLI refuses.
+    expect(PLUGIN_IDS).toContain('db-explorer')
+  })
+
+  test('choosing it turns the ORM on', async () => {
+    // It browses and edits whatever the ORM is connected to, so without
+    // `orm/` its panel has nothing to show. The two are asked for separately,
+    // and a generated app that boots beats a prompt that argues.
+    expect(PLUGINS_NEEDING_ORM).toContain('db-explorer')
+
+    const chosen = await resolveChoices({
+      dir: 'x',
+      name: 'notes-app',
+      install: false,
+      orm: false,
+      plugins: ['db-explorer'],
+      yes: true,
+    })
+
+    expect(chosen).not.toBeNull()
+    expect(chosen!.orm).toBe(true)
+  })
+
+  test('choosing another plugin leaves the ORM answer alone', async () => {
+    const chosen = await resolveChoices({
+      dir: 'x',
+      name: 'notes-app',
+      install: false,
+      orm: false,
+      plugins: ['analytics'],
+      yes: true,
+    })
+
+    expect(chosen!.orm).toBe(false)
   })
 })

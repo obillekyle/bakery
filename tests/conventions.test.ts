@@ -165,6 +165,11 @@ describe('conventions (CLAUDE.md)', () => {
       // program output. Both files use the logger for everything else they say.
       'packages/orm/src/sync/history.ts',
       'packages/orm/src/sync/rollback.ts',
+      // A `bun test --preload`, so it is not server code at all — it runs
+      // before any test file and never ships. `console` is also the only
+      // channel it has: the logger is not configured that early, and what it
+      // prints is a fact about a *previous* run that somebody should see.
+      'packages/orm/src/tests/sweep-preload.ts',
     ])
 
     const serverCode = packageSources.filter(

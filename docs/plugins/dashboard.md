@@ -252,26 +252,26 @@ The Logs panel is therefore **development-only in practice**:
 `LiveReloadHandler` refuses to handle `/_livereload` unless both `DEV` and
 `DEV_WORKER` are set, so in production nothing ever joins the registry.
 
-## Known issue: the Overview panel cannot load
+## How the Overview panel gets its data
 
 The stats panel talks to the analytics plugin over `/_analytics_ws` and
-`/api/_analytics/reset`, by **hardcoded URL** — the package dependency was
-removed but the coupling moved into strings, invisible to both the dependency
-graph and the typechecker
-([`dashboard/src/client/parts/stats.ts,644`](../../packages/plugins/dashboard/src/client/parts/stats.ts)).
+`/api/_analytics/reset`, and the dependency is real rather than implied:
+`@bakery-framework/plugin-analytics` is a `workspace:^` dependency of this
+package, `setup.ts` calls `setupAnalytics` and forwards the door, and
+`isAnalyticsAuthorized` is what guards the console itself.
 
-Two things follow:
+That means one door, not two. Whatever admits you to the console admits you to
+the data it renders — configure `credential` or `authorize` once, on either
+plugin, and both surfaces honour it. See
+[Analytics → Authorization](analytics.md#authorization).
 
-- Install the dashboard **without** `@bakery-framework/plugin-analytics` and those calls
-  404 silently. The panel stays empty; nothing reports why.
-- Install it **with** analytics but set no analytics credential and those
-  calls are refused — the analytics endpoints are closed until
-  `analyticsPlugin({ credential })` arms them. See
-  [Analytics → Authorization](analytics.md#authorization).
+With neither configured the guard allows loopback in development and denies
+everything in production, so an unconfigured console works on your machine and
+is closed on a server.
 
-The Sessions and Logs panels are unaffected — they use `/api/_dashboard/*`,
-which is gated by the `authorize` predicate and works. The Database entry
-fetches nothing at all, in either of its shapes.
+The Sessions and Logs panels use `/api/_dashboard/*` and go through the same
+predicate. The Database entry fetches nothing at all: with the explorer mounted
+it is a link to `/_db`, and without it a panel saying where the editor went.
 
 ## Production checklist
 

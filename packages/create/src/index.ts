@@ -7,6 +7,7 @@ import {
   dependencyRange,
   isValidAppName,
   PLUGIN_IDS,
+  PLUGINS_NEEDING_ORM,
   type PluginId,
   type TemplateFile,
   templateFiles,
@@ -227,10 +228,20 @@ export async function resolveChoices(
         { id: 'vue', label: 'vue', hint: 'single-file components' },
         { id: 'analytics', label: 'analytics', hint: 'request metrics' },
         { id: 'dashboard', label: 'dashboard', hint: 'admin console' },
+        { id: 'db-explorer', label: 'db-explorer', hint: 'browse and edit rows' },
       ])
       if (chosen === null) return null
       plugins = PLUGIN_IDS.filter(id => chosen.includes(id))
     }
+  }
+
+  // The explorer browses and edits whatever the ORM is connected to, so
+  // scaffolding it without `orm/` produces an app whose headline feature has
+  // nothing to show. Turned on rather than refused: the two are asked for
+  // separately, and a generated app that boots is better than a prompt that
+  // argues with the answer it was just given.
+  if (!orm && plugins.some(id => PLUGINS_NEEDING_ORM.includes(id))) {
+    orm = true
   }
 
   return { orm, plugins }
