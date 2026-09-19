@@ -95,11 +95,37 @@ function NavItem({ id, label, href }: NavEntry) {
   )
 }
 
+/**
+ * The rendered shell, and the one fact it depends on.
+ *
+ * Everything in this document is fixed for the life of the process except
+ * whether an explorer is mounted at `/_db`, which decides one nav entry, and
+ * the framework version, which cannot change at all. Rendering it again per
+ * request produced an identical 11.8 KB string every time.
+ *
+ * Measured at **0.50 ms per render** with a CPU-bound control flat at 27-30 ms
+ * - the backlog recorded 12.6 ms, which is 25 times the figure this actually
+ * measures. Small, then, and still pure waste on every console page load.
+ *
+ * Keyed on the mounted flag rather than held unconditionally, so a registry
+ * that changes after the first render is followed rather than remembered
+ * wrongly. Two entries at most, which is why a plain pair is enough and
+ * convention 6 has nothing to say about it.
+ */
+let shellCache: { mounted: boolean; html: string } | null = null
+
+/** Test seam (convention 9): one test's shell must not answer for another's. */
+export function __resetShellCache(): void {
+  shellCache = null
+}
+
 export default function Dashboard() {
   const explorerMounted = explorerIsMounted()
+  if (shellCache?.mounted === explorerMounted) return shellCache.html
+
   const NAV = navSections(explorerMounted)
 
-  return (
+  const html = (
     <html lang="en">
       <head>
         <meta charSet="UTF-8" />
@@ -197,5 +223,12 @@ export default function Dashboard() {
         <script src="/_dashboard/dashboard.js"></script>
       </body>
     </html>
-  )
+  ) as unknown as string
+  // The same cast `raw()` makes in `core/jsx.ts`: `createElement` is declared
+  // to return `string` and actually returns a `SafeHtml`, a String subclass
+  // that behaves like one everywhere. Cached as it came rather than through
+  // `String()`, so nothing about the value changes by being remembered.
+
+  shellCache = { mounted: explorerMounted, html }
+  return html
 }

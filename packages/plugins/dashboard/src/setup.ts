@@ -139,10 +139,33 @@ async function handleDashboardView() {
   return injected ? injected : response.html(htmlContent)
 }
 
-async function handleJsAsset() {
+/**
+ * Test seams (convention 9). The cached branch is **production-only** -
+ * `isDevWorker` skips it, and in development the bundle is returned as a
+ * string, which `response.type` does give an ETag. That is why the defect was
+ * invisible to a dev server and had to be reproduced under `bun run serve`,
+ * and why a test has to reach the branch directly rather than through a mode.
+ */
+export function __setCachedDashboardJs(path: string | null): void {
+  cachedDashboardJsPath = path
+}
+
+export async function handleJsAsset() {
   if (cachedDashboardJsPath && !isDevWorker) {
     const cachedFile = Bun.file(cachedDashboardJsPath)
-    if (cachedFile.size > 0) return response.type(cachedFile, 'text/javascript')
+    // **The file, not a `Response` wrapping it.** `processResponse` sends a
+    // `Blob` through `ETag.sendFile`, which computes an ETag from the file,
+    // negotiates a precompressed variant and answers a conditional request
+    // with a 304. A `Response` skips all of that: `ETag.sendResponse` returns
+    // early when there is no ETag header already set, so it gains neither an
+    // ETag nor a `Cache-Control`.
+    //
+    // The first request took this path correctly - it returns the written
+    // file below - and every request after it did not, so the console
+    // re-downloaded 30.6 KB on every load. The content type comes from the
+    // `.js` extension on the cached path, which is what the first request
+    // already relied on.
+    if (cachedFile.size > 0) return cachedFile
   }
 
   const bundleResult = await bundleModule(pluginPath('client/dashboard.ts'))

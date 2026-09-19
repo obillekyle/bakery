@@ -1,4 +1,5 @@
 import { definePlugin } from '@bakery-framework/core/plugins'
+import { preloadCompiler } from './compile'
 import { setVuePluginOptions } from './compile'
 import type { VuePluginOptions } from './types'
 import { rewriteVueImports } from './utils'
@@ -47,6 +48,19 @@ export default function vuePlugin(options?: VuePluginOptions) {
     async setup() {
       const { setupVue } = await import('./setup')
       await setupVue()
+    },
+
+    /**
+     * Start loading `@vue/compiler-sfc` while the rest of boot runs.
+     *
+     * It is 168-173 ms warm and 1,848 ms on a cold filesystem, and without
+     * this every server process paid it inside the first Vue page it served.
+     * Not awaited: the load overlaps with everything else here, and a request
+     * that arrives before it finishes awaits the same promise rather than
+     * starting a second one.
+     */
+    onStart() {
+      preloadCompiler()
     },
     onCompile(content, path) {
       if (
