@@ -228,6 +228,34 @@ export const DEFAULT_STREAM_CHUNK = 500
  * offset pagination has, and exactly what `seek()` exists to avoid. What it
  * does buy is the thing people reach for streaming to get: memory bounded by
  * the chunk instead of by the result.
+ *
+ * **What it costs, and why it is not one number.** The statement is
+ * re-executed per chunk, so the total is the chunk count times whatever one
+ * window costs — and what one window costs depends entirely on whether the
+ * ordering can be served from an index. If it cannot, every chunk sorts the
+ * whole result and throws away the offset, which is quadratic in the chunk
+ * count. Measured on 100,000 rows, a chunk size of 500, so 200 statements:
+ *
+ *     sqlite    ORDER BY the primary key     all 180 ms   iterate    593 ms     3x
+ *     sqlite    ORDER BY an unindexed column all 275 ms   iterate 35,687 ms   130x
+ *     postgres  ORDER BY the primary key     all  83 ms   iterate  1,590 ms    19x
+ *     postgres  ORDER BY an unindexed column all 126 ms   iterate 12,767 ms   101x
+ *
+ * Thirty-five seconds to walk what `all()` returns in 275 ms. The backlog
+ * recorded a flat "393x", which is the right neighbourhood for the unindexed
+ * case and says nothing about the case a caller can fix: **order by something
+ * indexed and the cost collapses by 40x.**
+ *
+ * The two dialects differ for different reasons. Postgres pays a network round
+ * trip per chunk, which is why its indexed case is 19x where SQLite's is 3x.
+ * SQLite pays nothing for the trip and everything for the sort, which is why
+ * its unindexed case is the worst of the four.
+ *
+ * So: reach for this when the result does not fit in memory, not when it is
+ * merely large. If it fits, `all()` is between 3 and 130 times faster. If it
+ * does not, index the column you order by, and prefer `seek()` where the shape
+ * allows it — that is keyset pagination and it has neither the cost nor the
+ * skipped-row hazard described above.
  */
 export function pagedIterate(
   all: SQLAdapter.Executor['all'],
@@ -1310,6 +1338,19 @@ export class DatabaseStatement {
   values(...params: any[]) {
     return this.connection.execute.values(this.sql, params)
   }
+  /**
+   * Walk the result a chunk at a time, holding only the chunk.
+   *
+   * **Not a cursor, and not cheap.** Bun cannot stream, so this pages: the
+   * statement becomes a derived table and is re-executed once per 500 rows.
+   * On 100,000 rows that is 200 statements, and the total depends on whether
+   * the ordering is indexed — 3x `all()` on SQLite ordered by a primary key,
+   * **130x** ordered by a column with no index (35.7 seconds against 275 ms).
+   * The full table and the reasoning are on {@link pagedIterate}.
+   *
+   * Use it when the result does not fit in memory. When it does, `all()` is
+   * faster by between 3 and 130 times.
+   */
   iterate(...params: any[]) {
     return this.connection.execute.iterate(this.sql, params)
   }

@@ -490,6 +490,27 @@ export namespace DB {
       ])
     }
 
+    /**
+     * Walk the result a chunk at a time, holding only the chunk.
+     *
+     * **The name promises a cursor and the implementation is paging**, because
+     * Bun cannot stream: the statement becomes a derived table and is
+     * re-executed once per 500 rows. Two consequences, and the second is the
+     * one that surprises people.
+     *
+     * Chunk boundaries are only stable under a total order, so a row inserted
+     * or deleted mid-walk can be seen twice or missed. `seek()` is keyset
+     * pagination and has neither problem.
+     *
+     * And it is slow in proportion to how badly the ordering indexes.
+     * Measured on 100,000 rows: 3x `all()` on SQLite ordered by a primary key,
+     * **130x** ordered by a column with no index — 35.7 seconds against
+     * 275 ms. Postgres pays a round trip per chunk instead and lands at 19x
+     * and 101x. The table is on `pagedIterate` in `adapters/base.ts`.
+     *
+     * Worth it when the result does not fit in memory. Not worth it merely
+     * because the result is large.
+     */
     async *iterable(): AsyncIterable<P> {
       const { sql, params } = this.parse()
       for await (const row of getActiveDb()

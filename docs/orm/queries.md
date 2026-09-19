@@ -495,7 +495,7 @@ rows at a time:
 SELECT * FROM (<your SELECT>) AS bakery_stream LIMIT ? OFFSET ?
 ```
 
-Two consequences worth knowing before you use it:
+Three consequences worth knowing before you use it:
 
 - **Memory is bounded by the chunk, not by the result.** That is the reason to
   reach for it, and it holds.
@@ -505,6 +505,27 @@ Two consequences worth knowing before you use it:
   `ORDER BY` on a unique column, as above. If the table is being written to
   concurrently and you cannot tolerate a skip, [`seek()`](#cursor-paging-with-seek)
   is the construct that does not have this property.
+- **It is slower than `.all()`, and how much slower is up to you.** Every chunk
+  is a statement, so the cost is the chunk count times what one window costs —
+  and that depends on whether the database can serve your `ORDER BY` from an
+  index. If it cannot, each window sorts the whole result and discards the
+  offset. Measured on 100,000 rows at the default chunk size of 500, so 200
+  statements:
+
+  | database | ordering | `.all()` | `.iterable()` |
+  | --- | --- | --- | --- |
+  | SQLite | primary key | 180 ms | 593 ms |
+  | SQLite | unindexed column | 275 ms | 35,687 ms |
+  | Postgres | primary key | 83 ms | 1,590 ms |
+  | Postgres | unindexed column | 126 ms | 12,767 ms |
+
+  Thirty-five seconds against 275 milliseconds, for the same rows. Ordering by
+  something indexed is worth 40x here, and it is the one thing in that table
+  you control. Postgres is slower than SQLite on the indexed row for a
+  different reason: it pays a network round trip per chunk.
+
+So reach for `.iterable()` when the result does not fit in memory, not when it
+is merely large. If it fits, `.all()` is between 3 and 130 times faster.
 
 ## Reusing a builder
 
