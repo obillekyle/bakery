@@ -1,3 +1,4 @@
+import { timescaleFacts } from '@bakery-framework/plugin-analytics/timescale'
 import {
   formatUptime,
   getWebSocketUrl,
@@ -208,19 +209,16 @@ export async function resetAnalytics() {
   }
 }
 
+/**
+ * How much time one chart point covers.
+ *
+ * Read from the analytics plugin's table rather than restated here. This was a
+ * switch with five literals in it, and `getTimescaleLimit` below was a second
+ * switch byte-identical to one in `analytics/src/core.ts` — four copies of the
+ * same facts across two packages, agreeing by luck.
+ */
 function getTimescaleIntervalMs(timescale: string): number {
-  switch (timescale) {
-    case '30d':
-      return 86400000
-    case '7d':
-      return 21600000
-    case '1d':
-      return 1800000
-    case '1h':
-      return 60000
-    default:
-      return 1000
-  }
+  return timescaleFacts(timescale).bucketMs
 }
 
 interface Tracker {
@@ -762,19 +760,9 @@ export function bindSparklineTooltips() {
   })
 }
 
+/** How many points a timescale is drawn as. See `getTimescaleIntervalMs`. */
 function getTimescaleLimit(timescale: string): number {
-  switch (timescale) {
-    case '30d':
-      return 30
-    case '7d':
-      return 28
-    case '1d':
-      return 48
-    case '1h':
-      return 60
-    default:
-      return 60
-  }
+  return timescaleFacts(timescale).points
 }
 
 export function drawAllSparklines() {

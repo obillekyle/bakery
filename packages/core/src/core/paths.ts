@@ -16,7 +16,9 @@ import { FileSystem as fs } from '../utils/fs'
  * Use `frameworkPath()` for files the framework ships. Use `Bakery.root` (cwd)
  * for anything the application owns.
  */
-export const frameworkRoot: string = fs.resolve(import.meta.dir, '..')
+/** File-local: `core/paths.ts` is not a published subpath and nothing
+ * outside this file read it. `frameworkPath()` below is the way in. */
+const frameworkRoot: string = fs.resolve(import.meta.dir, '..')
 
 /** Resolve a path against the framework's own root. */
 export function frameworkPath(...segments: string[]): string {

@@ -3,12 +3,36 @@ import { COUNTER_SLOTS, SharedMemoryPool } from './shared-pool'
 
 describe('SharedMemoryPool', () => {
   test('constructs with default size', () => {
-    const pool = new SharedMemoryPool(1024 * 1024)
+    const pool = new SharedMemoryPool()
     expect(pool.buffer).toBeInstanceOf(SharedArrayBuffer)
     expect(pool.header).toBeInstanceOf(Int32Array)
     expect(pool.counters).toBeInstanceOf(Int32Array)
     expect(pool.rateLimits).toBeInstanceOf(Int32Array)
-    expect(pool.dataPool).toBeInstanceOf(Uint8Array)
+  })
+
+  test('the default allocation is the layout, not a megabyte', () => {
+    // It was `1024 * 1024`, of which 9,280 bytes were the header, the counters
+    // and the rate-limit slots. The rest was a `dataPool` region whose only
+    // reader anywhere was the assertion that used to sit in the test above.
+    const pool = new SharedMemoryPool()
+    expect(pool.buffer.byteLength).toBe(9280)
+    expect(pool.buffer.byteLength).toBeLessThan(1024 * 1024)
+  })
+
+  test('a larger size is still honoured', () => {
+    // `threads.ts` shares one buffer across workers and `bind` reads the size
+    // out of the header, so a master that asks for more still works.
+    const pool = new SharedMemoryPool(64 * 1024)
+    expect(pool.buffer.byteLength).toBe(64 * 1024)
+    expect(Atomics.load(pool.header, 1)).toBe(64 * 1024)
+
+    const adopted = new SharedMemoryPool(pool.buffer)
+    expect(adopted.buffer.byteLength).toBe(64 * 1024)
+  })
+
+  test('a size below the layout is raised to it', () => {
+    const pool = new SharedMemoryPool(16)
+    expect(pool.buffer.byteLength).toBe(9280)
   })
 
   test('constructs from existing SharedArrayBuffer', () => {

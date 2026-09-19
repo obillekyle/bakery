@@ -144,7 +144,12 @@ export async function request(
   return data
 }
 
-export function formatHTML(html: string, indentWidth: number = 2): string {
+/**
+ * File-local. It was exported and nothing imported it — `client/utils.ts` is
+ * not a published subpath, so the `export` widened nothing a consumer could
+ * reach and only made the name look like part of a surface.
+ */
+function formatHTML(html: string, indentWidth: number = 2): string {
   if (!html) return ''
 
   const cleanHtml = html

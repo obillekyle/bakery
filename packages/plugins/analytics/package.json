@@ -27,6 +27,7 @@
     ".": "./src/index.ts",
     "./setup": "./src/setup.ts",
     "./stats": "./src/endpoints/stats.ts",
+    "./timescale": "./src/timescale.ts",
     "./package.json": "./package.json"
   },
   "files": [

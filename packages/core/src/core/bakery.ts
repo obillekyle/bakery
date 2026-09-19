@@ -69,7 +69,10 @@ export const Bakery: globalThis.Bakery = {
   get version() {
     return getAppVersion()
   },
-  sharedPool: new SharedMemoryPool(1024 * 1024),
+  // No size: the pool's own layout is the default now. It used to be asked for
+  // a megabyte, of which 9,280 bytes were the layout and the rest a region
+  // nothing read. See the constructor in `utils/shared-pool.ts`.
+  sharedPool: new SharedMemoryPool(),
   // Defined in `core/context.ts`, which is low enough that a module needing a
   // path does not have to import `Bakery` to get one — reaching them through
   // here is what closed the logger cycle. These stay the reading surface for

@@ -34,8 +34,10 @@
   ],
   "dependencies": {
     "@bakery-framework/core": "workspace:^",
-    "@bakery-framework/orm": "workspace:^",
     "@bakery-framework/plugin-analytics": "workspace:^"
+  },
+  "devDependencies": {
+    "@bakery-framework/orm": "workspace:^"
   },
   "engines": {
     "bun": ">=1.4.0"

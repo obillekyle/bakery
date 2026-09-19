@@ -1,3 +1,4 @@
+import { TIMESCALES, timescaleFacts } from './timescale'
 import type { AnalyticsSnapshot } from './types'
 
 export const RETENTION_MS = 30 * 24 * 3600 * 1000
@@ -245,24 +246,28 @@ export function pushAnalyticsSnapshot(snapshot: {
   history1m.push(fullSnapshot)
   if (history1m.length > 60) history1m.shift()
 
+  // The bucket sizes were four literals here — 60, 1800, 21600, 86400 — and
+  // they are the same numbers the point limits and the chart intervals were
+  // built from in three other places. `samples` derives from the window and
+  // the point count, so a timescale that changes shape changes all of them.
   accumulate(temp1h, fullSnapshot)
   accumulate(temp1d, fullSnapshot)
   accumulate(temp7d, fullSnapshot)
   accumulate(temp30d, fullSnapshot)
 
-  if (temp1h.count >= 60) {
+  if (temp1h.count >= TIMESCALES['1h'].samples) {
     history1h.push(finalizeAggregation(temp1h, fullSnapshot.timestamp))
     if (history1h.length > 60) history1h.shift()
   }
-  if (temp1d.count >= 1800) {
+  if (temp1d.count >= TIMESCALES['1d'].samples) {
     history1d.push(finalizeAggregation(temp1d, fullSnapshot.timestamp))
     if (history1d.length > 48) history1d.shift()
   }
-  if (temp7d.count >= 21600) {
+  if (temp7d.count >= TIMESCALES['7d'].samples) {
     history7d.push(finalizeAggregation(temp7d, fullSnapshot.timestamp))
     if (history7d.length > 28) history7d.shift()
   }
-  if (temp30d.count >= 86400) {
+  if (temp30d.count >= TIMESCALES['30d'].samples) {
     history30d.push(finalizeAggregation(temp30d, fullSnapshot.timestamp))
     if (history30d.length > 30) history30d.shift()
   }
@@ -287,19 +292,9 @@ export function getLatestAnalyticsSnapshot() {
   )
 }
 
+/** One of the five copies of the timescale table; see `timescale.ts`. */
 export function getHistoryLimitForTimescale(timescale: string): number {
-  switch (timescale) {
-    case '30d':
-      return 30
-    case '7d':
-      return 28
-    case '1d':
-      return 48
-    case '1h':
-      return 60
-    default:
-      return 60
-  }
+  return timescaleFacts(timescale).points
 }
 
 export function getHistoryForTimescale(timescale: string): AnalyticsSnapshot[] {

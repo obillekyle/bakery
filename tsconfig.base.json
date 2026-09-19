@@ -38,6 +38,9 @@
       "@bakery-framework/plugin-analytics/stats": [
         "./packages/plugins/analytics/src/endpoints/stats.ts"
       ],
+      "@bakery-framework/plugin-analytics/timescale": [
+        "./packages/plugins/analytics/src/timescale.ts"
+      ],
       "@bakery-framework/plugin-dashboard": [
         "./packages/plugins/dashboard/src/index.ts"
       ],
