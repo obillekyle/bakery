@@ -205,6 +205,23 @@ export async function compileTemplateBlock(
     e instanceof Error ? e.message : String(e),
   )
 
+  // `export function render` becomes a local `function render`, which
+  // `assembleComponent` then hangs off `__sfc__.render`.
+  //
+  // **This must stay above `compileText`, and the anchor is why.** The
+  // template compiler emits multi-line source with the export at a line
+  // start, so `^` matches. `compileText` minifies to a single line where the
+  // export lands after the `import{…}from"vue";` prologue, and `^` cannot
+  // reach it there. Measured over four render shapes: correct on all four
+  // before minification, wrong on the one real shape after. Swapping these
+  // two lines therefore breaks silently — the bundle still builds, still
+  // serves 200, and ships a module with a stray `export` in the middle of it.
+  //
+  // A regex is the wrong tool for this and no spelling fixes it. An
+  // anchor-free `\bexport\s+(?=function\b)` handles the minified shape and
+  // then eats the words out of a string literal that contains them. The
+  // trade was measured rather than argued; the ordering is the cheaper
+  // guarantee, so it is the one written down.
   let code = result.code
   code = code.replace(/^export\s+/m, '')
   code = await compileText(code)
@@ -233,8 +250,20 @@ export function assembleComponent(options: AssembleComponentOptions): string {
   )
 
   if (renderCode) {
-    const renderFn = renderCode.replace(/^export\s+/m, '')
-    output += `\n${renderFn}\n${COMPONENT_VAR}.render = render;`
+    // No export strip here, deliberately. `compileTemplateBlock` has already
+    // removed it, above minification where the removal works, and repeating
+    // it on this input is a no-op that *reads* as a backstop.
+    //
+    // The line that used to sit here was `/^export\s+/m` over
+    // already-minified code. Measured against four render shapes it fired on
+    // three and missed the fourth, and the fourth is the only one this
+    // function is ever handed: minified, with the export sitting after the
+    // import prologue where `^` cannot see it. A guard that cannot fire on
+    // its own input is worse than none, because the next reader counts on it.
+    //
+    // Three lines above is what the right spelling looks like when the input
+    // may be minified: `\b` and no anchor.
+    output += `\n${renderCode}\n${COMPONENT_VAR}.render = render;`
   }
 
   if (scopeId) {
