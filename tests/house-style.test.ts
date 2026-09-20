@@ -18,8 +18,17 @@ import { describe, expect, test } from 'bun:test'
 
 const ROOT = `${import.meta.dir}/..`
 
-const EM = '—'
-const EN = '–'
+/**
+ * Built from code points, not written literally, because this file is
+ * scanned by its own check.
+ *
+ * Writing them as characters passed every local run and failed on the first
+ * CI run, which reads as a platform difference and is not one: `git ls-files`
+ * does not list an untracked file, so the gate could not see itself until the
+ * commit that added it. Any pattern added below has the same hazard.
+ */
+const EM = String.fromCharCode(0x2014)
+const EN = String.fromCharCode(0x2013)
 
 function tracked(): string[] {
   const out = Bun.spawnSync(['git', 'ls-files'], { cwd: ROOT })
