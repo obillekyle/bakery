@@ -41,18 +41,28 @@ const BINARY = /\.(png|jpg|jpeg|gif|ico|woff2?|svg|lock|db|pdf)$/
 /**
  * Exceptions, by name and with a reason, so adding one is a deliberate edit.
  *
- * Empty on purpose. The pass that introduced this file cleared the tree, and
- * an empty list is the honest starting state: the next entry should have to
- * argue for itself in review rather than slipping in under an existing one.
+ * Empty, and it stays that way by removing the thing that needed an
+ * exception rather than by granting one. `CHANGELOG.md` was the only
+ * candidate: cutver rewrote it whole on every release from the commit
+ * bodies, which the house rule exempts on purpose, so each release put 37 em
+ * dashes back into a tracked file and this gate then refused to publish.
+ *
+ * It failed in the worst available place. `publish.yml` re-runs the suite
+ * against the *tag's* tree, which is the release commit, which is the only
+ * commit carrying a freshly generated changelog: green on every branch push
+ * and red at the irreversible step, with `v2.0.0-alpha.18` and
+ * `v2.0.0-rc.0` both tagged and neither on npm. The file is deleted and
+ * `changelog.file` is off in cutver.yml; the GitHub release pages, which is
+ * where people actually read this, still get the summarised body.
  */
-const DASH_ALLOWED: Record<string, string> = {}
+const GENERATED: Record<string, string> = {}
 
 describe('no em dash or en dash reaches anything published', () => {
   test('every tracked text file is clean', async () => {
     const offenders: string[] = []
     for (const file of tracked()) {
       if (BINARY.test(file)) continue
-      if (file in DASH_ALLOWED) continue
+      if (file in GENERATED) continue
       let text: string
       try {
         text = await Bun.file(`${ROOT}/${file}`).text()
@@ -114,6 +124,7 @@ describe('published prose is American English', () => {
     const offenders: string[] = []
     for (const file of tracked()) {
       if (!file.endsWith('.md')) continue
+      if (file in GENERATED) continue
       const text = markdownProse(await Bun.file(`${ROOT}/${file}`).text())
       for (const m of text.matchAll(BRITISH)) {
         offenders.push(`${file}  ${m[0]}`)

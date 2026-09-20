@@ -619,7 +619,15 @@ describe('conventions (CLAUDE.md)', () => {
  * version than the packages it contains is the first thing that goes stale, and
  * it is what cutver bumps alongside them.
  *
- * See CHANGELOG.md for the policy and what it trades away.
+ * What it trades away, stated here rather than pointed at: some no-op
+ * releases, a package bumped because its siblings moved and not because
+ * anything in it changed. What it buys is a single answer to "which plugin
+ * works with core 4.2?" without a compatibility matrix.
+ *
+ * That sentence used to read "see CHANGELOG.md for the policy". The file is
+ * gone as of 2026-09-20 and the pointer went with it, which is the ordinary
+ * fate of a cross-reference: the thing it points at moves and the pointer
+ * does not.
  */
 describe('release versions', () => {
   const MANIFESTS = [

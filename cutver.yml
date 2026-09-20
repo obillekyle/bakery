@@ -49,6 +49,27 @@ channels:
 # stable release's span reaches back to the previous *stable* tag rather than
 # dropping the commits in between.
 changelog:
+  # **The file is off. The release pages are not.**
+  #
+  # Regenerating CHANGELOG.md rewrote it whole on every release, from the
+  # commit bodies, and a commit body is deliberately exempt from the house
+  # copy rules: it is written for whoever opens the file next, not as
+  # published prose. So every release reintroduced 37 em dashes and a spread
+  # of British spellings into a tracked file, and `tests/house-style.test.ts`
+  # then refused the release.
+  #
+  # That failed in the worst available place. `publish.yml` re-runs the suite
+  # against the *tag's* tree, which is the release commit, which is the only
+  # commit carrying a freshly generated changelog: green on every branch push
+  # and red at the irreversible step. `v2.0.0-alpha.18` and `v2.0.0-rc.0` were
+  # both tagged and neither reached npm.
+  #
+  # Exempting the file from the gate was the other option and is worse: it
+  # keeps a generated artifact in the tree that no rule applies to, to hold
+  # content GitHub already renders better. The release pages below still get
+  # the summarised body, which is the copy people actually land on.
+  file: false
+
   keep: 10
 
   # The GitHub release body, rewritten to read like something a person wrote.
