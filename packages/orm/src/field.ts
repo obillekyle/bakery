@@ -236,9 +236,18 @@ export const Field = {
    * the declared type verbatim and reads it back, so one schema round-trips on
    * all three.
    *
-   * `length` is not part of the column diff, so **widening a Varchar does not
-   * migrate on its own**; see `ColumnConstraint.length` for why that is
-   * deliberate rather than missing.
+   * **`length` *is* part of the column diff** (`sync/diff.ts`), so adopting
+   * `Varchar` on an existing table rebuilds it once. That is deliberate and
+   * it converges: all three dialects report a VARCHAR width back exactly, so
+   * after one rebuild the two agree and the table stays synced. A column that
+   * reports no width really is unsized, and a schema that declares no width
+   * asks for nothing.
+   *
+   * This comment claimed the opposite until 2026-09-20, and it is the comment
+   * a schema author reads when deciding whether the change is safe. Measured
+   * on a real app: switching 12 tables' text columns to `Varchar` moved
+   * `db:sync` from "perfectly synced" to a 12-table rebuild, and the second
+   * sync was clean.
    */
   Varchar: <D extends string | null | undefined = undefined>(
     length: number,
@@ -500,9 +509,15 @@ export const Field = {
    * an app that behaves differently depending on where it runs, which is worse
    * than either choice made consistently.
    *
-   * The members are **not part of the column diff**. See
-   * `ColumnConstraint._enum`. Adding or removing one does not migrate on its
-   * own; the table has to be rebuilt for the CHECK to change.
+   * **The members join the column diff when the current state came from the
+   * ledger**, so changing them migrates rather than silently doing nothing.
+   * Under introspection they stay out of it, because all three dialects
+   * report a CHECK back in a different shape and Postgres re-renders it
+   * entirely: three parsers, three chances to rebuild the table on every sync
+   * forever. `sync/diff.ts` has the measured shapes.
+   *
+   * So adopting `Enum` on an existing ledger-tracked table rebuilds it once.
+   * This comment said the members were never diffed until 2026-09-20.
    */
   Enum: <
     const V extends EnumSource,
