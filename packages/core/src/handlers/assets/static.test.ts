@@ -17,12 +17,12 @@ beforeAll(async () => {
 
 /**
  * `DefaultErrorHandler` is the fallback for every path with no more specific
- * error handler, and `errorBody` for a thrown error is the stack — put there
+ * error handler, and `errorBody` for a thrown error is the stack. Put there
  * by `extractErrorData` for the server log. Rendering it verbatim handed any
  * client source paths and query text in PROD; the body must go through the
  * same `publicBody` gate the rest of the error surface uses.
  */
-describe('DefaultErrorHandler — errorBody is redacted like every other error surface', () => {
+describe('DefaultErrorHandler: errorBody is redacted like every other error surface', () => {
   const STACKY = {
     errorCode: 500,
     errorText: 'Internal Server Error',
@@ -62,7 +62,7 @@ describe('DefaultErrorHandler — errorBody is redacted like every other error s
   })
 })
 
-describe('StaticHandler.handle — blocked globs', () => {
+describe('StaticHandler.handle: blocked globs', () => {
   afterAll(() => {
     __resetTestConfig()
   })
@@ -86,7 +86,7 @@ describe('StaticHandler.handle — blocked globs', () => {
         hostname: 'localhost',
         // What the router would have recorded: `true` for a path the globs
         // do NOT match, `false` for one they do. Within a request the
-        // recorded verdict is authoritative — that is what makes the
+        // recorded verdict is authoritative: that is what makes the
         // handler-side re-check a map hit instead of a second glob match.
         blockedPaths: new Map([
           ['/other.txt', true],
@@ -99,7 +99,7 @@ describe('StaticHandler.handle — blocked globs', () => {
         expect((denied as Response).status).toBe(403)
 
         const passed = await StaticHandler.handle('/decoy.txt')
-        // Not refused by the memo — it falls through to resolution, where the
+        // Not refused by the memo: it falls through to resolution, where the
         // file genuinely does not exist.
         expect((passed as Response).status).toBe(404)
       })
@@ -111,10 +111,10 @@ describe('StaticHandler.handle — blocked globs', () => {
 
 /**
  * `getStatic` used to answer "is there a servable file here" with up to three
- * stats per candidate (`fs.exists`, then `fs.isDir` — itself `exists` plus a
+ * stats per candidate (`fs.exists`, then `fs.isDir`: itself `exists` plus a
  * stat). It now uses one; these pin that the answers did not move.
  */
-describe('getStatic — resolution semantics survive the single-stat rewrite', () => {
+describe('getStatic: resolution semantics survive the single-stat rewrite', () => {
   const dir = fs.resolve(import.meta.dir, '__fixtures__', 'getstatic')
 
   beforeAll(async () => {

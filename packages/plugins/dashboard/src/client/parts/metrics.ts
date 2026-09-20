@@ -3,7 +3,7 @@
  * shown.
  *
  * Split out of `stats.ts`, which was 999 lines holding four separate jobs: this
- * catalogue, the canvas drawing, the tooltip DOM, and the live feed that drives
+ * catalog, the canvas drawing, the tooltip DOM, and the live feed that drives
  * all three. Nothing here touches a canvas or a socket, which is what makes it
  * the piece the other three can each depend on without depending on each other.
  */
@@ -12,9 +12,9 @@ import { setText } from './utils'
 
 /**
  * One row per sparkline. The nine metrics were previously written out
- * longhand at seven separate sites — the history arrays, the tracker record,
+ * longhand at seven separate sites: the history arrays, the tracker record,
  * the tooltip configs, `drawAllSparklines`, the two incremental update paths,
- * the full-history path and `changeTimescale` — so adding or renaming one
+ * the full-history path and `changeTimescale`, so adding or renaming one
  * meant seven coordinated edits, and the two update paths had already drifted
  * apart in how they coerce missing values.
  *
@@ -160,8 +160,8 @@ export function readLive(m: Metric, s: any): number {
 /**
  * Which window the charts are showing.
  *
- * Here rather than in `stats.ts` because two modules read it — the live feed
- * and the tooltip's age labels — and only one writes it. An `export let`
+ * Here rather than in `stats.ts` because two modules read it (the live feed
+ * and the tooltip's age labels), and only one writes it. An `export let`
  * cannot be assigned from outside the module that declares it, so the write
  * goes through `setActiveTimescale` and every reader still sees the live
  * binding.
@@ -177,7 +177,7 @@ export function setActiveTimescale(next: string): void {
  *
  * **This is a second copy of `analytics/src/timescale.ts`, and it has to be.**
  * That module is the one source for the server, and importing it here compiles
- * — `tsconfig` paths resolve it — but does not *run*: this file is bundled for
+ * (`tsconfig` paths resolve it), but does not *run*: this file is bundled for
  * the browser and served as a classic `<script>`, so a cross-package specifier
  * survives as a bare `import` that the page cannot execute. It took the whole
  * console down silently, because `Bun.build` reports success and nothing

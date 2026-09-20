@@ -125,7 +125,7 @@ describe('introspection is cached against the schema fingerprint', () => {
   test('an adapter with no such method at all still works', async () => {
     // Not a hypothetical: every stub in this package's own suite is this
     // shape, and calling the method unconditionally turned a missing
-    // optimisation into a failed request.
+    // optimization into a failed request.
     const { adapter, calls } = stubAdapter()
     __setTestDb(adapter)
 

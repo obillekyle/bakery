@@ -2,9 +2,8 @@
  * Circular-safe JSON helpers.
  *
  * Three copies of this logic existed: the client `$fmt` formatter, the
- * livereload log serializer, and ad-hoc replacers on the server. They drifted —
- * the `$fmt` one shipped with a one-parameter replacer that made every object
- * render as `""` — so the kernel lives here once and callers layer their own
+ * livereload log serializer, and ad-hoc replacers on the server. They drifted ( * the `$fmt` one shipped with a one-parameter replacer that made every object
+ * render as `""`), so the kernel lives here once and callers layer their own
  * extras on top.
  */
 

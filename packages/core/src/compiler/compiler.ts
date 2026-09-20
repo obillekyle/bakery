@@ -20,13 +20,13 @@ const RX_IMPORT =
  * evaluation.
  *
  * This used to be a top-level `await` reading `<cwd>/package.json`, which put a
- * filesystem read on the boot path of every process that loads this module —
+ * filesystem read on the boot path of every process that loads this module,
  * and `handlers/assets/ts.ts` imports it, so that is every worker and every dev
  * restart. The value it produces is needed only when something actually
  * compiles; a production process serving out of a warm compile cache never
  * needs it at all.
  *
- * Memoised as a promise, not a value, so two concurrent first compiles share
+ * Memoized as a promise, not a value, so two concurrent first compiles share
  * one read instead of racing to do it twice.
  */
 let definesPromise: Promise<MapOf<string>> | null = null
@@ -37,8 +37,7 @@ async function buildDefines(): Promise<MapOf<string>> {
     const file = await Bun.file(`${process.cwd()}/package.json`).json()
     if (file?.version) bakeryVersion = file.version
   } catch {
-    // No package.json in cwd, or it is unreadable. The version is cosmetic —
-    // it lands in a banner and a build define — so the default above stands.
+    // No package.json in cwd, or it is unreadable. The version is cosmetic (    // it lands in a banner and a build define), so the default above stands.
   }
 
   return {
@@ -82,7 +81,7 @@ function nextVirtualId(): string {
 function preprocessImports(source: string, filePath: fs.AbsolutePath): string {
   // The file's **directory**, not the file. A relative import resolves against
   // the directory containing the importer, and resolving against the path
-  // itself produced `…/src/entry.ts/a.css` — which exists nowhere, so every
+  // itself produced `…/src/entry.ts/a.css`, which exists nowhere, so every
   // `import './x.css'` from a compiled module registered a virtual asset that
   // could only 404. It has been wrong since before the workspace split, with
   // no test and neither app using the feature.
@@ -97,7 +96,7 @@ function preprocessImports(source: string, filePath: fs.AbsolutePath): string {
 
     // The key is the bare id, never the `/_virtual/` URL. Storing the full URL
     // meant getKey() returned an already-prefixed value that got prefixed again
-    // on the next compile — which both threw a StringCache collision and left
+    // on the next compile, which both threw a StringCache collision and left
     // VirtualAssetHandler (which looks up by bare id) unable to resolve it.
     const id =
       Strings.getKey(assetPath) || `${Date.now()}_${nextVirtualId()}.${ext}`
@@ -119,15 +118,15 @@ function preprocessImports(source: string, filePath: fs.AbsolutePath): string {
  * Compile `source`, naming `path` so a failure can say where it happened.
  *
  * The two branches are not symmetric on purpose. Without a path there is no
- * file to name and no caller that can render a 500 — the Vue plugin compiles
- * fragments of an SFC it has already parsed — so a failure logs and hands the
+ * file to name and no caller that can render a 500 (the Vue plugin compiles
+ * fragments of an SFC it has already parsed), so a failure logs and hands the
  * source back. With a path the failure is a served request, and the answer is
  * `null`: `TSHandler` turns that into the 500 it has always had a branch for.
  *
  * It used to be neither. The transpiler was wrapped only on the pathless
  * branch, so a syntax error in a `.ts` asset threw straight past `compile()`,
- * past `TSHandler` — leaving its `'Compilation Failed'` arm permanently
- * unreachable — and into the worker's catch-all, which printed
+ * past `TSHandler` (leaving its `'Compilation Failed'` arm permanently
+ * unreachable), and into the worker's catch-all, which printed
  * `Unhandled Server Error: <message>` with no file and no line while the client
  * got `An unexpected error occurred.` A total blackout for a one-character typo.
  */
@@ -155,8 +154,7 @@ export async function compileText(source: string, path?: fs.AbsolutePath) {
 
   if (failed) {
     // `errorWithPosition`, not `errorMsg`: the thrown `BuildMessage` has no
-    // stack, so `errorMsg` degrades to the bare message and the line number —
-    // the only thing that makes this actionable — is dropped. The file comes
+    // stack, so `errorMsg` degrades to the bare message and the line number (    // the only thing that makes this actionable) is dropped. The file comes
     // from `{file}`; the diagnostic's own `position.file` is `input.ts`,
     // because `transform()` was handed a string.
     compLog.COMPILE_FAIL({ file: path, error: errorWithPosition(failed) })
@@ -171,7 +169,7 @@ export async function compileText(source: string, path?: fs.AbsolutePath) {
   // relative directory imports went second, once `ts.test.ts` pinned that the
   // handler already resolves `/lib`, `/lib.js` and their nested forms to the
   // directory's index server-side. Resolution belongs to the import map and
-  // the handlers — the compiler only transpiles.
+  // the handlers: the compiler only transpiles.
   return await PluginHooks.onCompile(transformed!, path)
 }
 
@@ -196,7 +194,7 @@ type CompileResult = {
  * `export default …` and nothing else.
  *
  * Not all CJS: `exports.greet = …` is statically analysable and Bun emits a real
- * named export for it. It is the whole-object form — `module.exports = { … }` —
+ * named export for it. It is the whole-object form: `module.exports = { … }`,
  * whose members cannot be known without running the module, and that is the one
  * that breaks.
  *
@@ -214,7 +212,7 @@ type CompileResult = {
 /**
  * Bun's CJS wrapper, in a spelling minification cannot destroy.
  *
- * The obvious check — `content.includes('__commonJS')` — held in dev and
+ * The obvious check: `content.includes('__commonJS')`: held in dev and
  * silently never matched in PROD, where minification renames the helper to a
  * single letter. The consequence was the worst kind of split: named imports
  * of CJS packages worked all through development and broke only in the
@@ -226,7 +224,7 @@ const RX_CJS_WRAPPER = /\{\s*exports\s*:\s*\{\s*\}\s*\}/
 /**
  * A `module.exports = { … }` assignment, whatever the module variable is
  * called after minification (`n.exports={…}`). The helper's own
- * `mod.exports);` never matches — no `= {` follows it.
+ * `mod.exports);` never matches: no `= {` follows it.
  */
 const RX_MODULE_EXPORTS = /[A-Za-z_$][\w$]*\.exports\s*=\s*\{/g
 
@@ -247,7 +245,7 @@ export function isCjsDefaultOnly(content: string): boolean {
  * A bundle consisting of nothing but a non-empty `export { … }` list.
  *
  * Such a file names bindings that were never declared, so every one of them is
- * a `ReferenceError` the moment the browser evaluates it — and `Bun.build`
+ * a `ReferenceError` the moment the browser evaluates it, and `Bun.build`
  * reports it as **`success: true` with zero diagnostics**.
  *
  * The cause is `sideEffects`, and it is not specific to one package. When the
@@ -266,11 +264,11 @@ export function isCjsDefaultOnly(content: string): boolean {
  * `["./dist/attach-styles.js", "./dist/assets/*.css.js"]`, so its barrel
  * bundles to 3,549 bytes of pure export list and throws `AggregateError: 189
  * errors` on import. Most modern libraries set `sideEffects: false`, so any
- * re-export barrel among them is a candidate — this is a wide class, not a
+ * re-export barrel among them is a candidate. This is a wide class, not a
  * single broken package.
  *
- * `bundleReExportShim` repairs it; this only recognises it. `export {}` on its
- * own is a legal empty module and is not flagged — the list has to name
+ * `bundleReExportShim` repairs it; this only recognizes it. `export {}` on its
+ * own is a legal empty module and is not flagged: the list has to name
  * something for the file to be self-contradictory.
  */
 export function isEmptyExportList(content: string): boolean {
@@ -286,8 +284,8 @@ export function isEmptyExportList(content: string): boolean {
  *
  * The `sideEffects` drop described on {@link isEmptyExportList} keys on the
  * *entry* being inside the offending package. Re-exporting the very same file
- * from a module that is not — the shim lands in `.cache/`, which is never
- * inside `node_modules` — leaves the tree-shaker with an entry it has no
+ * from a module that is not: the shim lands in `.cache/`, which is never
+ * inside `node_modules`: leaves the tree-shaker with an entry it has no
  * manifest for, and the imports survive. Measured on `@vue-material/core`:
  * 3,549 bytes of husk becomes a 428,470-byte bundle with all 189 exports.
  *
@@ -296,16 +294,16 @@ export function isEmptyExportList(content: string): boolean {
  * than a no-op. So: try with it, fall back to without.
  *
  * **Every installed package is `external`, and that is load-bearing rather than
- * an optimisation.** Left to itself the shim inlines the whole reachable tree —
+ * an optimization.** Left to itself the shim inlines the whole reachable tree:
  * `@vue-material/core` came out at 428KB with `vue` baked in, and `vue` is a
  * *peer* dependency the app resolves for itself. Two Vue runtimes in one page
  * is not a size problem, it is broken reactivity and a duplicated component
- * registry. Externalised, each dependency stays a bare specifier that the
+ * registry. Externalized, each dependency stays a bare specifier that the
  * import map sends to its own `/_nm/<dep>`, so there is exactly one copy of
  * each; the same bundle drops to 260KB.
  *
- * Externalising *installed packages* specifically, rather than Bun's
- * `packages: 'external'`, because that switch also externalises `node:*` —
+ * Externalizing *installed packages* specifically, rather than Bun's
+ * `packages: 'external'`, because that switch also externalizes `node:*`,
  * turning a builtin Bun would otherwise polyfill for the browser into a bare
  * import nothing can resolve.
  */
@@ -330,7 +328,7 @@ async function bundleReExportShim(
     if (writeErr) return null
 
     // Wrapped, because naming a `default` the package does not export is a
-    // *throw* from `Bun.build`, not a `success: false` — and that throw is the
+    // *throw* from `Bun.build`, not a `success: false`, and that throw is the
     // expected outcome of the first attempt for any package without one.
     const [buildErr, build] = await Try.catch(() =>
       Bun.build({
@@ -362,7 +360,7 @@ const RESERVED_EXPORT_NAMES = new Set(['default', '__esModule'])
  * How long the export probe may take before it is killed.
  *
  * Generous, because it pays a process start and a module evaluation, and it runs
- * once per package — the result is cached with the bundle. Short enough that a
+ * once per package: the result is cached with the bundle. Short enough that a
  * package which hangs on import costs a pause rather than a wedged server.
  */
 const CJS_PROBE_TIMEOUT_MS = 5_000
@@ -427,7 +425,7 @@ function objectLiteralKeys(src: string, open: number): string[] | null {
 
     if (c === ':') {
       take(i)
-      // `{ a: expr, b }` — the value is skipped wholesale so a comma inside it
+      // `{ a: expr, b }`. The value is skipped wholesale so a comma inside it
       // cannot be mistaken for the next key.
       i = endOfValue(src, i + 1)
       if (src[i] !== ',') return keys
@@ -441,25 +439,25 @@ function objectLiteralKeys(src: string, open: number): string[] | null {
 /**
  * Export names read out of the **bundled** output, without running anything.
  *
- * This is the job `cjs-module-lexer` does for Node and Vite: recognise a small
+ * This is the job `cjs-module-lexer` does for Node and Vite: recognize a small
  * set of known-safe `module.exports` shapes and answer nothing for the rest. It
- * is deliberately one shape here — `module.exports = { … }`, the object literal
- * — because that is the only form that reaches this code path at all. Bun
+ * is deliberately one shape here: `module.exports = { … }`, the object literal
+ *, because that is the only form that reaches this code path at all. Bun
  * already emits real named exports for `exports.name = …`, so a package written
  * that way never gets here.
  *
  * Reading the *bundle* rather than the source matters. Bun has already
- * normalised the module into a `__commonJS((exports, module) => { … })` wrapper,
+ * normalized the module into a `__commonJS((exports, module) => { … })` wrapper,
  * so there is a single known shape to look inside. The string-literal hazard
  * that made the old import rewriter corrupt user code is reduced, not
- * eliminated — a string containing `module.exports = {` would still fool this —
+ * eliminated: a string containing `module.exports = {` would still fool this,
  * which is why a failed or empty reading falls through to the probe instead of
  * being trusted as "no exports".
  */
 export function staticCjsExportNames(bundled: string): string[] {
   // `RX_MODULE_EXPORTS`, not the literal `module.exports = {`: minification
   // renames the module variable and drops the spaces (`n.exports={`), and the
-  // literal spelling made this reader dev-only — the probe silently took over
+  // literal spelling made this reader dev-only, the probe silently took over
   // every PROD bundle.
   const matches = [...bundled.matchAll(RX_MODULE_EXPORTS)]
   if (matches.length === 0) return []
@@ -489,12 +487,12 @@ export function staticCjsExportNames(bundled: string): string[] {
  * The fallback for whatever `staticCjsExportNames` cannot see. Something has to
  * run the module, and the question is only *where*: it used to be here, which
  * meant an arbitrary `node_modules` package executing inside the server process
- * — in production as well as dev — free to start a timer, open a socket, or
+ * (in production as well as dev) free to start a timer, open a socket, or
  * mutate a global that then outlives the request that caused it.
  *
  * A child process does not make execution safe, and nothing can: a module-scope
  * write to the filesystem still happens. What it buys is containment of
- * everything *in-process* — crashes, hangs, globals, listeners — and a package
+ * everything *in-process* (crashes, hangs, globals, listeners), and a package
  * that hangs on import is killed by the timeout rather than wedging a bundle.
  */
 async function cjsExportNames(path: string): Promise<string[]> {
@@ -517,7 +515,7 @@ async function cjsExportNames(path: string): Promise<string[]> {
     proc.kill()
 
     // **The exit code is deliberately not consulted.** A package that leaves a
-    // timer or a listener running — which plenty do at module scope — has
+    // timer or a listener running (which plenty do at module scope) has
     // already printed its answer and then simply fails to exit, so the probe
     // kills it and the exit code reports the kill. Requiring a clean exit threw
     // away a correct result and fell back to default-only, which is the very
@@ -545,8 +543,8 @@ async function cjsExportNames(path: string): Promise<string[]> {
  *     export const greet = __cjs.greet
  *
  * That shim is what gets bundled, so the browser gets a module that really does
- * provide `greet`. A package that throws on import — one touching `window` at
- * module scope, say — yields no names, and the caller keeps the plain bundle it
+ * provide `greet`. A package that throws on import (one touching `window` at
+ * module scope, say) yields no names, and the caller keeps the plain bundle it
  * already has.
  *
  * Non-identifier keys are skipped rather than mangled: `module.exports['a-b']`
@@ -611,14 +609,14 @@ export async function bundleModule(
     //
     // That is reachable from outside this repo. `PROD` is an accessor on
     // `process.env`, and Bun's `process.env` proxy stringifies on write, so an
-    // embedder that assigns the flag at all — even `process.env.PROD = true` —
+    // embedder that assigns the flag at all, even `process.env.PROD = true`:
     // leaves a string behind. The suite's own instance of this is fixed at the
     // source (see `setModeFlag` in `src/tests/fixtures.ts`); this guards the
     // writes we do not own.
     minify: Boolean(import.meta.env.PROD),
     define: await getDefines(),
     // Installed packages stay bare imports and resolve through the import map
-    // — which covers every one of them by construction (`initImportMap`). The
+    //, which covers every one of them by construction (`initImportMap`). The
     // alternative was measured on `@vue-material/core`: each `/_nm/` bundle
     // inlined its own copy of `vue`, and two Vue instances in one page is
     // broken reactivity, not a size problem. A ref created by one Vue is
@@ -631,7 +629,7 @@ export async function bundleModule(
     const content = await build.outputs[0].text()
 
     // A bundle that cannot possibly work is not a success, whatever `build`
-    // says — see `isEmptyExportList`. Repairable in the common case, so try
+    // says. See `isEmptyExportList`. Repairable in the common case, so try
     // that before refusing.
     if (isEmptyExportList(content)) {
       const repaired = await bundleReExportShim(path, await getDefines())
@@ -645,7 +643,7 @@ export async function bundleModule(
     }
 
     // Only for the shape that breaks, and only after the cheap build has proved
-    // it is that shape — so nothing is imported speculatively.
+    // it is that shape, so nothing is imported speculatively.
     if (isCjsDefaultOnly(content)) {
       const interop = await bundleCjsWithNamedExports(
         path,

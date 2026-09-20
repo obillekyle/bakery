@@ -3,8 +3,8 @@
  * ZONE.
  *
  * `frictionFor` is **pure and tested**; the dialog below is the DOM half. The
- * split matters because the ladder is policy — the thresholds are the answer to
- * "how bad is this if it was a mis-click" — and policy that lives inside a
+ * split matters because the ladder is policy (the thresholds are the answer to
+ * "how bad is this if it was a mis-click"), and policy that lives inside a
  * click handler cannot be asserted.
  *
  * **The count fed to this must come from a `dryRun`, never from the page.** A
@@ -20,12 +20,12 @@ export type Friction = 'immediate' | 'confirm' | 'typed' | 'refuse'
 /**
  * How much ceremony `count` rows deserve.
  *
- * - **≤ 1** — immediate, with an undo. One row is recoverable and a dialog per
+ * - **≤ 1**: immediate, with an undo. One row is recoverable and a dialog per
  *   row makes the tool unusable for the thing it is for.
- * - **2–100** — a dialog naming the count and what changes.
- * - **101–10 000** — the same, plus typing the table name. At this size the
+ * - **2 to 100**: a dialog naming the count and what changes.
+ * - **101 to 10 000**: the same, plus typing the table name. At this size the
  *   user is doing something deliberate and should have to prove it.
- * - **> 10 000** — refused. Not a dialog: there is no phrasing of "are you
+ * - **> 10 000**, refused. Not a dialog: there is no phrasing of "are you
  *   sure" that makes a ten-thousand-row unreviewed write a good idea, and the
  *   honest answer is to narrow it with a filter.
  */
@@ -56,7 +56,7 @@ export interface DangerOutcome {
  * Ask, at the level `frictionFor` decided.
  *
  * Returns rather than throws, and returns `{ok: false}` for a dismissal and for
- * a refusal alike — the caller does one check. The refusal carries its reason
+ * a refusal alike. The caller does one check. The refusal carries its reason
  * so the message names the ceiling instead of failing silently.
  */
 export async function confirmDanger(
@@ -69,7 +69,7 @@ export async function confirmDanger(
       ok: false,
       refusal:
         `${request.count} rows is past the ${(10_000).toLocaleString()} row ` +
-        'ceiling for one action — narrow it with a filter',
+        'ceiling for one action: narrow it with a filter',
     }
   }
   const ok = await openDialog(request, level === 'typed')
@@ -81,7 +81,7 @@ export async function confirmDanger(
  *
  * For the questions that are not about blast radius. Discarding one row of
  * unsaved typing deserves a prompt even though `frictionFor(1)` is `immediate`
- * — the ladder is about how much damage a mis-click does to the *database*,
+ *: the ladder is about how much damage a mis-click does to the *database*,
  * and this one is about work the user has done and the database has not seen.
  */
 export async function confirmChoice(request: DangerRequest): Promise<boolean> {
@@ -93,8 +93,7 @@ export async function confirmChoice(request: DangerRequest): Promise<boolean> {
  *
  * The native element rather than a hand-rolled overlay: it traps focus, closes
  * on Escape, and is inert to the page behind it without a single line of
- * script. Resolved through a `close` listener so a dismissal by any route —
- * Escape, the backdrop, the button — lands in one place.
+ * script. Resolved through a `close` listener so a dismissal by any route ( * Escape, the backdrop, the button) lands in one place.
  */
 function openDialog(request: DangerRequest, typed: boolean): Promise<boolean> {
   const dialog = el('dialog', { class: 'danger' })
@@ -141,7 +140,7 @@ function openDialog(request: DangerRequest, typed: boolean): Promise<boolean> {
 
   // `settle` is narrowed to `(value: boolean) => void` rather than used as the
   // executor's own `resolve`, whose parameter is `boolean | PromiseLike<boolean>`
-  // — calling that reads as an unhandled promise to the floating-promise rule.
+  //. Calling that reads as an unhandled promise to the floating-promise rule.
   let settle: (value: boolean) => void = () => {}
   const answered = new Promise<boolean>(resolve => {
     settle = resolve

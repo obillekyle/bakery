@@ -5,7 +5,7 @@ import { __setCachedDashboardJs, handleJsAsset } from './setup'
 
 /**
  * `dashboard.js` is served from a file cached on the first request, and every
- * request after that wrapped it in a `Response` — which `ETag.sendResponse`
+ * request after that wrapped it in a `Response`, which `ETag.sendResponse`
  * leaves alone, because it returns early when no ETag header is already set.
  * So the console re-downloaded the whole bundle on every load: 22,370 bytes,
  * measured against a production server.
@@ -68,7 +68,7 @@ describe('a bundle that cannot execute is refused, not served', () => {
     // external, so a cross-package specifier survives as a top-level `import`.
     // That is correct for the `/_nm/` bundles, which load as modules. Served
     // as a classic script it is a syntax error, and the *whole* bundle fails
-    // to execute — which is how the console went silently dead while
+    // to execute, which is how the console went silently dead while
     // `Bun.build` reported success, the file was served 200 at the right
     // length, typecheck passed and the suite passed.
     const dir = mkdtempSync(`${tmpdir()}/dashjs-`)

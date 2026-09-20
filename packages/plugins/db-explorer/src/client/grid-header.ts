@@ -2,7 +2,7 @@
  * The grid's header row: the select-all box and the sortable column headings.
  *
  * Split out of `grid.ts` when that file passed six hundred lines. It is a clean
- * seam because the header depends on nothing the grid mutates — it is built
+ * seam because the header depends on nothing the grid mutates: it is built
  * once from the columns and the current sort, and never repainted. Cursor,
  * editor and selection state all live on the other side of it.
  */
@@ -30,7 +30,7 @@ export function buildHead(ctx: HeaderContext): HTMLTableSectionElement {
 
 /**
  * The leading column exists on every table, editable or not: it carries the row
- * panel's opener, which a read-only table needs just as much — a forty-column
+ * panel's opener, which a read-only table needs just as much. A forty-column
  * row is unreadable in a grid whether or not it can be changed. The select-all
  * checkbox joins it only when there is something to select *for*.
  */

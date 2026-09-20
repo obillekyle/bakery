@@ -7,11 +7,11 @@ import { fs } from '../utils'
 import { Try } from '../utils/common/try'
 
 /**
- * The tiered cache's spill-to-disk store — sessions and LRU overflow.
+ * The tiered cache's spill-to-disk store: sessions and LRU overflow.
  *
- * Under `Bakery.dataDir`, beside `server.db`. Rows here are *rebuildable* — a
+ * Under `Bakery.dataDir`, beside `server.db`. Rows here are *rebuildable*: a
  * session is a cookie plus whatever the app hung off it, and the LRU tier
- * refills from source on the next miss — but rebuildable is not the same as
+ * refills from source on the next miss, but rebuildable is not the same as
  * disposable-on-a-schedule, which is what living in `cacheDir` amounted to.
  * See the reversal below.
  *
@@ -19,7 +19,7 @@ import { Try } from '../utils/common/try'
  * this paragraph is the reversal.**
  *
  * The file lived under `Bakery.cacheDir`, so `checkCacheVersion` deleted it on
- * every version bump and every dev<->prod switch — logging every user out. The
+ * every version bump and every dev<->prod switch: logging every user out. The
  * argument for that was sound: a cache format written by an older framework
  * must never be read by a newer one, and the version wipe is what guarantees
  * it.
@@ -28,7 +28,7 @@ import { Try } from '../utils/common/try'
  * releases were cut by hand and rare; releases are now computed from commit
  * messages and published automatically, so a patch ships whenever a `fix:`
  * lands. Logging out every user of every app on every patch is a far worse
- * trade than it was, and it was never the *goal* — only the consequence of
+ * trade than it was, and it was never the *goal*: only the consequence of
  * keying durability on a version number that had nothing to do with the stored
  * format.
  *
@@ -37,7 +37,7 @@ import { Try } from '../utils/common/try'
  * a schema mismatch drops the tables, a framework bump does not.
  *
  * Two consequences worth knowing. An app with no ORM now creates a `bakery/`
- * directory where it previously created none — it is storing durable data, so
+ * directory where it previously created none: it is storing durable data, so
  * that is honest, but it means "no `bakery/` directory" is no longer evidence
  * that `initDB` never ran. And the LRU spill tier shares this file, so overflow
  * entries also survive; they are still rebuildable, just no longer discarded on
@@ -45,7 +45,7 @@ import { Try } from '../utils/common/try'
  *
  * **The `await` below is what makes that true, and it must stay here.** This
  * module opens the database at *import* time, so running the check anywhere
- * else — it used to run from `initConfig()` — leaves the process holding a
+ * else (it used to run from `initConfig()`) leaves the process holding a
  * handle inside the directory the wipe is about to delete. On Windows that
  * delete fails with `EBUSY`, node's recursive walk stops at the locked entry,
  * and whatever it had not reached yet survives. Awaiting here orders the two by
@@ -70,8 +70,8 @@ export const cacheDb = new Database(dbFilePath, { create: true })
 /**
  * Drop everything if the stored schema version is not this one.
  *
- * The safety property the cache wipe provided — a newer framework never reads
- * an older format — is preserved exactly, just keyed on the thing that actually
+ * The safety property the cache wipe provided (a newer framework never reads
+ * an older format) is preserved exactly, just keyed on the thing that actually
  * governs compatibility. A mismatch logs users out, which is the same outcome
  * as before; the difference is that it now happens when the format changes
  * rather than when any version number does.

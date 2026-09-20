@@ -15,7 +15,7 @@ export const pageHitsLog: { timestamp: number; path: string }[] = []
 export const pageHitsMap = new Map<string, number>()
 
 /**
- * Moved to `@server/logger` — LiveReloadHandler (core) owns membership, so
+ * Moved to `@server/logger`: LiveReloadHandler (core) owns membership, so
  * the registry cannot live in a plugin. Re-exported because this plugin's
  * public surface and internals read it (the `activeLoggers` gauge).
  */
@@ -65,7 +65,7 @@ let errorPageHitsThisSecond = 0
  * of the per-path tally.
  *
  * `pageHitsMap` is a count per path, so an entry leaving the log has to
- * decrement it — and a count that reaches zero is deleted rather than left at
+ * decrement it, and a count that reaches zero is deleted rather than left at
  * 0, which is what keeps the map from growing one dead path at a time. Both
  * pruning rules below (the retention window and the hard cap) evict from the
  * front, so both need exactly this.
@@ -246,7 +246,7 @@ export function pushAnalyticsSnapshot(snapshot: {
   history1m.push(fullSnapshot)
   if (history1m.length > 60) history1m.shift()
 
-  // The bucket sizes were four literals here — 60, 1800, 21600, 86400 — and
+  // The bucket sizes were four literals here (60, 1800, 21600, 86400), and
   // they are the same numbers the point limits and the chart intervals were
   // built from in three other places. `samples` derives from the window and
   // the point count, so a timescale that changes shape changes all of them.
@@ -388,11 +388,11 @@ export function getFilledHistoryForTimescale(
  * `setup.ts` checked `data.temp1h` on boot and `loadTemps` knew how to restore
  * all four buckets, but nothing ever put them in the persisted snapshot - so
  * the check was always false and every restart began aggregating from zero. A
- * bucket only finalises at its full count (60 samples for 1h, 1800 for 1d), so
+ * bucket only finalizes at its full count (60 samples for 1h, 1800 for 1d), so
  * the visible symptom was the 1h chart staying empty for up to an hour after
  * every boot, and the longer windows correspondingly longer.
  *
- * Plain objects rather than the accumulators themselves: this is serialised to
+ * Plain objects rather than the accumulators themselves: this is serialized to
  * JSON in the `core` row, and handing out the live objects would let a caller
  * mutate the running aggregation.
  */

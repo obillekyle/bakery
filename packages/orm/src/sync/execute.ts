@@ -37,7 +37,7 @@ async function processTableRebuild(
   // Inline, or the rebuild silently drops every foreign key the table had.
   //
   // A constraint is part of the table definition, so recreating the table
-  // without it removes it — and on SQLite there is no `ALTER` to put one back,
+  // without it removes it, and on SQLite there is no `ALTER` to put one back,
   // which is precisely why the planner turns a foreign-key change into a
   // rebuild. Without this, that plan could never *add* a key: the rebuild it
   // scheduled was the thing dropping them.
@@ -209,12 +209,12 @@ async function rebuildTablesPhase(
  * Drop declared views before any table is rebuilt, where the dialect needs it.
  *
  * A rebuild swaps the table out and back, and two of the three dialects refuse
- * to do that while a view still names the table — SQLite at the rename, Postgres
+ * to do that while a view still names the table: SQLite at the rename, Postgres
  * at the drop. `viewsBlockTableRebuild` carries which, and why; MySQL is the one
  * that does not care and skips this entirely.
  *
  * Views hold no data and `syncViewsAndTablesPhase` recreates every declared one
- * a moment later, so dropping them first costs nothing — it is the same "drop
+ * a moment later, so dropping them first costs nothing: it is the same "drop
  * and recreate" the engine already does when a view's body changes.
  *
  * Only when something is actually being rebuilt: a sync with no rebuilds should
@@ -295,7 +295,7 @@ async function addIndexesPhase(
  * Foreign keys on tables that already existed.
  *
  * Only reachable where the dialect can ALTER one in. SQLite cannot, so its
- * missing keys are handled by scheduling a table rebuild in the planner — the
+ * missing keys are handled by scheduling a table rebuild in the planner: the
  * rebuild recreates the table through `createTable`, which emits them inline.
  */
 async function foreignKeysPhase(
@@ -308,7 +308,7 @@ async function foreignKeysPhase(
   for (const fk of fksToDrop.values()) {
     // Called unconditionally, like every other phase. These two were `?.` for
     // as long as `syncMsgs` did not declare them, which read as "this message
-    // is optional" and was really "this message does not exist" — the optional
+    // is optional" and was really "this message does not exist": the optional
     // call is what let the gap survive: it type-checked, and the proxy turned
     // the miss into an error line at run time instead of a build failure.
     MESSAGES.EXEC_DROP_FK({ table: fk.table, name: fk.name ?? '' })
@@ -375,7 +375,7 @@ export function hasOldWrappers(constraints: SyncTypes.DBConstraints) {
     // and a table-level `_transform` (a function), so `Object.values` really
     // does yield a mixed union and `_oldColumn` really is absent from two of
     // its three members. Reading it off the string or the function gives
-    // `undefined`, which is what this check wants — so the narrowing is
+    // `undefined`, which is what this check wants, so the narrowing is
     // deliberate rather than a lie, and the emitted code is unchanged.
     const cols = Object.values(tObj) as (
       | SyncTypes.ColumnConstraint
@@ -385,7 +385,7 @@ export function hasOldWrappers(constraints: SyncTypes.DBConstraints) {
   })
 }
 
-/** The `foreign()` declarations, normalised into the shape the diff uses. */
+/** The `foreign()` declarations, normalized into the shape the diff uses. */
 export function collectForeignKeys(
   tsIndexes: SyncTypes.DBIndexes,
 ): SyncTypes.DBForeignKeys {
@@ -412,7 +412,7 @@ export function collectForeignKeys(
  * Which foreign keys to add and which to drop.
  *
  * Keyed by the tuple, so a constraint the database named itself still matches
- * the declaration that produced it — including on SQLite, which reports no name
+ * the declaration that produced it, including on SQLite, which reports no name
  * at all.
  */
 export function calculateForeignKeyDiff(
@@ -422,7 +422,7 @@ export function calculateForeignKeyDiff(
   /**
    * Tables that already exist, so a key on a table being *created* is left out.
    *
-   * `CREATE TABLE` emits its foreign keys inline — the only spelling SQLite
+   * `CREATE TABLE` emits its foreign keys inline: the only spelling SQLite
    * has. Counting those as "to add" made MySQL and Postgres ALTER in a
    * constraint that already existed, and made SQLite schedule a rebuild of a
    * table that did not exist yet: a fresh `db:sync` announced
@@ -430,7 +430,7 @@ export function calculateForeignKeyDiff(
    *
    * Phrased as "being created" rather than "already exists" deliberately. The
    * inverse defaults to an *empty* set, which reads as "nothing exists" and so
-   * suppressed every key precisely when the database was new — the case that
+   * suppressed every key precisely when the database was new: the case that
    * exposed this in the first place.
    */
   tablesBeingCreated: Set<string> = new Set(),
@@ -439,7 +439,7 @@ export function calculateForeignKeyDiff(
   const fksToDrop = new Map<string, SyncTypes.ForeignKeyInfo>()
 
   // `NO ACTION` on both sides of the comparison, because that is what every
-  // dialect reports for a key declared without one — so an omitted action and
+  // dialect reports for a key declared without one, so an omitted action and
   // an explicit `NO ACTION` must not read as a difference.
   const act = (a?: string) => a ?? 'NO ACTION'
   const sameActions = (
@@ -456,8 +456,8 @@ export function calculateForeignKeyDiff(
 
     const existing = dbFks[id]
     if (existing) {
-      // Same columns, different behaviour. No dialect alters a referential
-      // action in place, so the constraint is replaced — and the drop carries
+      // Same columns, different behavior. No dialect alters a referential
+      // action in place, so the constraint is replaced, and the drop carries
       // the name the *database* gave it, which is not necessarily the one we
       // would generate for it.
       if (!sameActions(existing, fk)) {
@@ -479,14 +479,14 @@ export function calculateForeignKeyDiff(
  * Table names ordered so a parent is always created before its children.
  *
  * Not cosmetic: a foreign key requires the referenced table to exist, so an
- * unordered CREATE fails outright — verified against Postgres, which answers
+ * unordered CREATE fails outright, verified against Postgres, which answers
  * `relation "o_parent" does not exist`. Dropping runs in reverse for the
  * mirror-image reason.
  *
  * A cycle cannot be ordered at all. Rather than loop forever or drop tables,
  * the remainder is appended in declaration order: the foreign key that closes
- * the cycle then fails loudly at the database, which is the honest outcome —
- * breaking it needs a deferred constraint, which no dialect here spells alike.
+ * the cycle then fails loudly at the database, which is the honest outcome.
+ * Breaking it needs a deferred constraint, which no dialect here spells alike.
  */
 export function orderTablesByDependency(
   tables: string[],

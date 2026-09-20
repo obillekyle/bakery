@@ -15,14 +15,14 @@ import {
 /**
  * The wiring, end to end, without a socket.
  *
- * `dev-service.test.ts` pins the pieces — classification, frame shape, the
+ * `dev-service.test.ts` pins the pieces: classification, frame shape, the
  * sink's no-op-when-unset, registration order. This file pins the one claim
  * those cannot make on their own: that a request-time failure travelling the
  * *real* error path (`router.ts handleRequestError`) reaches the sink at all.
  *
  * That was the defect. `notifyError`, the only producer of the overlay frame,
- * had exactly one non-test caller — the watcher's `catch` around
- * `processFileEvent`, reachable only on an internal/IO fault — while every
+ * had exactly one non-test caller (the watcher's `catch` around
+ * `processFileEvent`, reachable only on an internal/IO fault), while every
  * failure a developer actually hits went through `handleRequestError` and
  * published nothing. Before the overlay plugin existed, every assertion below
  * saw an empty `frames`.
@@ -43,7 +43,7 @@ afterEach(() => {
  * plugin registered for every later test file in the run.
  *
  * `onError: NOOP` replaces the default handler, which logs `errorBody` at warn
- * level — that is the config's job in a real app and noise here.
+ * level. That is the config's job in a real app and noise here.
  */
 function withOverlay(plugins: any[] = []) {
   const frames: { title: string; body: string }[] = []
@@ -64,7 +64,7 @@ describe('request-time errors reach the overlay', () => {
     )
 
     expect(frames).toHaveLength(1)
-    expect(frames[0].title).toBe('500 Unexpected token, expected ")" — /broken')
+    expect(frames[0].title).toBe('500 Unexpected token, expected ")": /broken')
     // `extractErrorData` puts the stack in `errorBody`; losing it here would
     // leave the overlay showing a headline with nothing under it.
     expect(frames[0].body).toContain('Unexpected token')
@@ -80,7 +80,7 @@ describe('request-time errors reach the overlay', () => {
     )
 
     expect(frames).toHaveLength(1)
-    expect(frames[0].title).toBe('503 Service Unavailable — /api/thing')
+    expect(frames[0].title).toBe('503 Service Unavailable: /api/thing')
   })
 
   test('a 404 does not cover the page', async () => {
@@ -121,7 +121,7 @@ describe('request-time errors reach the overlay', () => {
 
     expect(answered).toEqual(['yes'])
     expect(frames).toHaveLength(1)
-    expect(frames[0].title).toBe('500 boom — /broken')
+    expect(frames[0].title).toBe('500 boom: /broken')
   })
 
   /**
@@ -151,7 +151,7 @@ describe('request-time errors reach the overlay', () => {
     registerDevErrorOverlay()
     expect(plugins[0].name).toBe(DEV_ERROR_PLUGIN)
 
-    // Sink deliberately not installed — this is PROD, a cluster worker, and
+    // Sink deliberately not installed: this is PROD, a cluster worker, and
     // every consumer that never starts a compile service.
     const res = await handleRequestError(
       '/broken',

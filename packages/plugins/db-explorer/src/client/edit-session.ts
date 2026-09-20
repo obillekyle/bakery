@@ -1,7 +1,7 @@
 /**
  * The per-row dirty buffer, and the statement it becomes.
  *
- * **Pure — no DOM, no fetch.** This is where the editing model actually lives,
+ * **Pure: no DOM, no fetch.** This is where the editing model actually lives,
  * so it is the part with tests. The grid is a view over it.
  *
  * Three properties it exists to hold:
@@ -11,7 +11,7 @@
  *     latter, which means a reader can observe the row a third of the way
  *     through an edit the user considers atomic.
  *  2. **The pre-image is kept.** `expect` is built from the row as it was
- *     *read*, never from a re-read at save time — a re-read would defeat the
+ *     *read*, never from a re-read at save time: a re-read would defeat the
  *     concurrency check it exists to perform.
  *  3. **Unchanged columns are dropped**, by `updatePlan`, so two people editing
  *     different columns of one row do not collide.
@@ -23,7 +23,7 @@ import { updatePlan } from '../shared/plan'
 /**
  * A row's identity, flattened to a string.
  *
- * `JSON.stringify` over the identity columns in their declared order — the
+ * `JSON.stringify` over the identity columns in their declared order: the
  * order is the server's, from `identity.cols`, so it is stable across pages and
  * across a composite key's spelling. `null` when the row does not carry every
  * identity column, which is the same condition `updatePlan` reports as
@@ -50,7 +50,7 @@ export interface RowPlan {
   /** The pre-image of every changed column that SQL can compare. */
   expect: Record<string, unknown>
   /**
-   * Changed columns SQL cannot compare — `json` and `buffer`. The server
+   * Changed columns SQL cannot compare: `json` and `buffer`. The server
    * refuses these in `expect` and demands `force: true` to write them without
    * a concurrency check, so the UI has to say so rather than retry blindly.
    */
@@ -68,7 +68,7 @@ export type KindLookup = (column: string) => ColumnKind | undefined
  *
  * Bounded by construction: an entry exists only for a row the user has typed
  * into, they are dropped on save and on revert, and changing table or page
- * clears the whole session — there is no key here a page of data does not
+ * clears the whole session. There is no key here a page of data does not
  * already hold (convention 6).
  */
 export class EditSession {
@@ -144,7 +144,7 @@ export class EditSession {
    * One row's edits as an UPDATE.
    *
    * `where` comes from the pre-image and `set` from the edits, which is what
-   * lets a primary key itself be edited — see `updatePlan`'s own note.
+   * lets a primary key itself be edited. See `updatePlan`'s own note.
    */
   plan(
     id: string,
@@ -189,7 +189,7 @@ export interface UndoEntry {
  * Twenty rather than unlimited because each entry closes over a row's
  * pre-image, and an unbounded stack of those is exactly the module-level
  * unbounded cache convention 6 forbids. The pre-image is already being kept for
- * the concurrency check, so undo costs nothing extra to record — only to keep.
+ * the concurrency check, so undo costs nothing extra to record: only to keep.
  */
 export class UndoStack {
   private readonly entries: UndoEntry[] = []

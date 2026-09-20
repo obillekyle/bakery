@@ -32,7 +32,7 @@ export const RX_IMPORT_VUE_FILE =
 export const RX_EXPORT_BRACE = /\bexport\s*\{([\s\S]*?)\}/g
 export const RX_EXPORT_HANGING = /\bexport\s+(const|let|var)\s+(\w+)\s*=\s*/g
 export const RX_EXPORT_FUNCTION = /\bexport\s+(?:async\s+)?function\s+(\w+)/g
-/** `export const fn = async (a) => {}` / `= function () {}` — callable, not data. */
+/** `export const fn = async (a) => {}` / `= function () {}`: callable, not data. */
 export const RX_EXPORT_CALLABLE_CONST =
   /\bexport\s+(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:function\b|(?:\([^)]*\)|\w+)\s*=>)/g
 export const RX_TOP_LEVEL_IMPORT =
@@ -61,10 +61,10 @@ const CLOSING_TAG = '</script'
 /**
  * Find the `</script>` that actually closes a server block, skipping ones that
  * appear inside string literals, template literals, or comments. A plain
- * non-greedy regex stops at the first match — so server code containing
+ * non-greedy regex stops at the first match, so server code containing
  * `"</script>"` would be cut short and its remainder left in the client bundle.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character scanner — locates a block end past nested quotes
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character scanner, locates a block end past nested quotes
 function findServerScriptEnd(raw: string, start: number): number {
   let index = start
 
@@ -191,9 +191,9 @@ export function rewriteRelativeImports(
 /**
  * Find where the expression starting at `start` ends. Tracks bracket depth and
  * skips strings/comments, so a multi-line object, function, or arrow body
- * survives intact — stopping at the first newline breaks all three.
+ * survives intact: stopping at the first newline breaks all three.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character scanner — brace and quote state machine
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character scanner, brace and quote state machine
 function findExpressionEnd(code: string, start: number): number {
   let depth = 0
   let index = start
@@ -378,12 +378,12 @@ export function compileServerBlock(
   const ${p}actions = new Set(${actionAllowList})
 
   // NOTE: the top-level statements below run before middleware. Middleware can
-  // stop the response but cannot stop top-level code from executing — put
+  // stop the response but cannot stop top-level code from executing. Put
   // auth-gated work inside an exported function, not at the top level.
   export default async function ${p}server(req: any, body: any, actionName?: string, actionArgs?: any[]) {
     const ${p}result: any = {}
 
-    // The allow-list is static — it is this script's own exports — so it can
+    // The allow-list is static (it is this script's own exports), so it can
     // be answered before a line of the component runs. It used to be checked
     // after the body, which meant naming an action that does not exist still
     // executed every top-level statement in the file; with \`__vue_file\`
@@ -573,13 +573,13 @@ const RX_META_SKIPPABLE = /^\s+|^<!--[\s\S]*?-->/
 /**
  * Extract a `<template skeleton>` block: its inner markup goes into the HTML
  * shell's `#app` so the user sees something before the bundle hydrates, and
- * the block is removed from the SFC — the compiler allows only one template.
+ * the block is removed from the SFC, the compiler allows only one template.
  *
  * **Static by design, and the design is a security decision.** The markup is
  * injected verbatim: never compiled, never rendered on the server, so
  * interpolations do not evaluate and nothing request- or session-derived can
  * end up in it. A server-rendered skeleton cached across requests would serve
- * one user's data to another. Scoped styles do not reach it either — the
+ * one user's data to another. Scoped styles do not reach it either: the
  * scope attributes are stamped by the compiler this block never meets.
  *
  * One block per file; nested `<template>` elements inside it are not

@@ -3,7 +3,7 @@
 Bakery has no route table. A URL is resolved to a file on disk, every time, by a
 chain of handlers that are asked "can you serve this?" in priority order.
 
-This guide covers page routing. JSON endpoints have their own rules — see
+This guide covers page routing. JSON endpoints have their own rules. See
 [API routes](api-routes.md).
 
 ## The serve root
@@ -38,7 +38,7 @@ Two other roots exist and are **not** under the serve root:
 
 `Bakery.handlers` holds three independent `HandlerMap`s: `fetch`, `error` and
 `websocket`. Each sorts its own members by priority, highest first. **There is
-no global ordering** — a number in one registry says nothing about a number in
+no global ordering**: a number in one registry says nothing about a number in
 another.
 
 The `fetch` registry, as populated by `setupServer()`
@@ -65,7 +65,7 @@ Plugins register into the same scale: `DashboardHandler` 120,
 `MiddlewareHandler` is the one whose "claims" column is easy to misread. Its
 `canHandle` *runs* the whole chain on every request, but returns true only if
 `onRequest` or a middleware produced a `Response`
-(`packages/core/src/handlers/core/$middleware.ts`) — otherwise the request falls
+(`packages/core/src/handlers/core/$middleware.ts`): otherwise the request falls
 through to the handler that actually serves it. That is also why it sets
 `alwaysResolve`: a request that middleware allows must not be answered from the
 route cache next time without middleware running again.
@@ -74,7 +74,7 @@ The `error` registry is separate and much smaller: `ApiErrorHandler` 30,
 `TSXErrorHandler` 20, `VueErrorHandler` 18, `HTMLErrorHandler` 10,
 `DefaultErrorHandler` 0.
 
-The `websocket` registry has no meaningful scale — handlers register without an
+The `websocket` registry has no meaningful scale: handlers register without an
 explicit priority and get the default of 10 (`$registry.ts`).
 
 ## What happens to a request
@@ -86,21 +86,21 @@ explicit priority and get the default of 10 (`$registry.ts`).
 2. **WebSocket upgrade.** If `Upgrade: websocket`, the request is routed to the
    `websocket` registry and leaves the pipeline entirely. See
    [WebSockets](websockets.md).
-3. **Plugin hooks** — `onRoute`, then `onRequest`. A plugin returning a response
+3. **Plugin hooks**: `onRoute`, then `onRequest`. A plugin returning a response
    short-circuits.
 4. **The `fetch` registry.** `resolve()` walks handlers highest-priority-first,
    calling `canHandle(path, req)`; the first that says yes wins.
 5. **Blocked glob check.** If `config.blocked` matches the path *and* the
    winning handler serves files off disk, `403 Forbidden` as plain text.
-   Route-only handlers — middleware, proxy, API — are exempt: the globs exist
+   Route-only handlers (middleware, proxy, API) are exempt: the globs exist
    to stop files being served, and testing them before routing made
    `/api/manifest.json` a 403 no config could opt out of.
 6. The winning handler's `handle()`.
 
-Whatever a handler returns is normalised by `processResponse`
+Whatever a handler returns is normalized by `processResponse`
 (`router.ts`): `null`/`undefined` becomes 204, a `Blob`/`BunFile` is streamed
 with an ETag, a string is checked for HTML and injected if so, and any other
-object is JSON-encoded. The session cookie is *appended* — not set — so a
+object is JSON-encoded. The session cookie is *appended* (not set), so a
 handler's own `Set-Cookie` survives.
 
 ## How a URL becomes a file
@@ -129,7 +129,7 @@ app:
 
 ```
 /blog/existing        →  src/blog/existing.tsx   (TSXHandler)
-/blog/existing.html   →  src/blog/existing.tsx   (TSXHandler — still)
+/blog/existing.html   →  src/blog/existing.tsx   (TSXHandler, still)
 /script/index.js      →  src/script/index.ts     (TSHandler)
 ```
 
@@ -143,55 +143,55 @@ should ignore".
 match and bind `id = "123"`.
 
 **5. A path containing literal brackets is refused.** `DynamicHandler.canHandle`
-returns false for any path spelled like a route template — `[\w$]` in brackets,
-or the `[...name]` catch-all form (`$dynamic.ts`) — so a client cannot request
+returns false for any path spelled like a route template: `[\w$]` in brackets,
+or the `[...name]` catch-all form (`$dynamic.ts`), so a client cannot request
 `/blog/[id]` or `/docs/[...slug]` directly.
 
 **6. `[...name]` catches every deeper path.** A terminal `[...name]` segment
 matches one *or more* remaining segments: `docs/[...slug].tsx` answers
 `/docs/a` and `/docs/a/b/c`, binding `slug = ["a"]` and
-`slug = ["a", "b", "c"]` — an array of the remaining segments, in order.
+`slug = ["a", "b", "c"]`, an array of the remaining segments, in order.
 Three rules keep it predictable (`$base.ts`, `$routing.ts`, `$dynamic.ts`):
 
 - **It is always the weakest route.** An exact file, a single-param sibling
   (`docs/[id].tsx`), a child index (`docs/a/index.tsx`) and a deeper catch-all
   (`docs/guides/[...rest].tsx`) all win first. Only what nothing else claims
   falls through to it.
-- **A real file always wins — even across handlers.** When the requested path
+- **A real file always wins: even across handlers.** When the requested path
   names an existing file, the catch-all declines *before* answering, so the
   file's own handler serves it even when that handler has lower priority:
   `docs/style.css` next to `docs/[...slug].tsx` is served by `StaticHandler`
   (priority 0), not rendered by the page (priority 60). This is the one
   exception to "priority beats specificity", deliberately scoped to
   catch-alls: a single-param `[id].tsx` keeps the documented behavior and
-  does claim `/docs/style.css`. Directories are not files — a path naming a
+  does claim `/docs/style.css`. Directories are not files: a path naming a
   directory with no index still falls to the catch-all.
-- **It never claims its own directory — unless you ask with `!`.** `/docs` is
+- **It never claims its own directory: unless you ask with `!`.** `/docs` is
   not matched by `docs/[...slug].tsx`: the pattern requires at least one rest
   segment, so a bare `/docs` still means `docs/index.*` or a 404. The
   `docs/[...slug!].tsx` spelling opts into the bare directory, binding
-  `slug = []` there — and an `index` sibling still wins it, because static
+  `slug = []` there, and an `index` sibling still wins it, because static
   discovery runs before dynamic. The empty array is also what makes "no rest"
   distinguishable from any real path.
 - **Only terminal, and only a filename.** `[...slug]` anywhere but the last
   segment makes the file inert (nothing may follow a catch-all), and a
-  *directory* named `[...slug]/` routes nothing at all — discovery matches
+  *directory* named `[...slug]/` routes nothing at all: discovery matches
   files only, so `[...slug]/index.html` is dead weight.
 
 One inherited limitation: params mix freely within the final filename's
-pattern, but discovery never descends bracket-named *directories* — neither
+pattern, but discovery never descends bracket-named *directories*, neither
 `[id]/[...slug].tsx` nor `[category]/[slug].tsx` is reachable, because the
 segment walk resolves literal directory names only (`$routing.ts`). Dynamic
 folders have never been discoverable; catch-alls do not change that.
 
-The catch-all works in every dynamic handler — `api/[...path].ts` gives you a
+The catch-all works in every dynamic handler: `api/[...path].ts` gives you a
 single endpoint for an entire API subtree, and pairs with the middleware guide's
 interception patterns for gateway-style routing.
 
 ### Priority beats specificity across handlers
 
 Rule 2 only orders candidates *inside* one handler. Between handlers, the
-priority number wins — and it is checked before the other handler is ever asked.
+priority number wins, and it is checked before the other handler is ever asked.
 
 Given both of these files:
 
@@ -207,14 +207,14 @@ on it being more specific.
 
 ## Page handlers
 
-A `.tsx` page's default export is called with `(req, body)` — the parsed body and
+A `.tsx` page's default export is called with `(req, body)`: the parsed body and
 the route params merged together (`$dynamic.ts`, `tsx.ts`). Route params
 are applied last, so a param named `id` overwrites a query string `?id=`.
 
 ```tsx
 import { createElement, HTMLBody } from '@bakery-framework/core'
 
-// src/blog/[id].tsx — declare the param once and body.id is a string, not any
+// src/blog/[id].tsx. Declare the param once and body.id is a string, not any
 export default HTMLBody<{ id: string }>((req, body) => (
   <html lang="en">
     <head>
@@ -229,13 +229,13 @@ export default HTMLBody<{ id: string }>((req, body) => (
 ```
 
 A catch-all page declares its param the same way, except that the value is the
-rest of the path **as an array** — `['guides', 'routing']` for
+rest of the path **as an array**: `['guides', 'routing']` for
 `/wiki/guides/routing`, and `[]` for the bare directory a `[...name!]` claims:
 
 ```tsx
 import { createElement, HTMLBody } from '@bakery-framework/core'
 
-// src/wiki/[...page].tsx — one file for /wiki/<anything>, however deep
+// src/wiki/[...page].tsx: one file for /wiki/<anything>, however deep
 export default HTMLBody<{ page: string[] }>((req, body) => (
   <main>
     <h1>{body.page.join(' › ')}</h1>
@@ -249,11 +249,11 @@ markup starts with `<html`, and otherwise wraps loose markup in a minimal
 document (`core/jsx.ts`). It also passes `Bakery.server` as a third argument,
 which the bare form does not.
 
-The type parameter is optional and type-level only — `HTMLBody(render)` without
+The type parameter is optional and type-level only: `HTMLBody(render)` without
 one behaves exactly as before, with `body` as a permissive map. Declared keys
 type over that base (`RouteBody` in `@bakery-framework/core`), so undeclared params and
 query fields stay reachable. API routes get the same treatment through
-`defineRoute` — see [API routes](api-routes.md#the-signature).
+`defineRoute`. See [API routes](api-routes.md#the-signature).
 
 You do not have to use it. A default export returning a string works, and so
 does one returning a `Response`, a `BunFile`, or a plain object (encoded as
@@ -344,14 +344,13 @@ export class HealthHandler extends Handler {
 Bakery.handlers.fetch.set(HealthHandler, 90)
 ```
 
-`canHandle` receives `(path, req)` and may be async. Everything is static —
+`canHandle` receives `(path, req)` and may be async. Everything is static:
 handlers are never instantiated. Register from a plugin's `setup()`; see
 [Plugin API](../plugins/plugin-api.md).
 
 To serve files from a directory outside the serve root, register a mount instead
 of writing a handler. `mountRoutes(prefix, dir)`
-(`packages/core/src/handlers/core/$mounts.ts`) makes the normal handler chain —
-routing, compilation, caching, containment — treat that directory as if it were
+(`packages/core/src/handlers/core/$mounts.ts`) makes the normal handler chain (routing, compilation, caching, containment) treat that directory as if it were
 part of the app.
 
 ## Caching, and when it bites
@@ -364,7 +363,7 @@ Two layers cache route resolution:
 - **`HandlerMap.routeCache`** (`$registry.ts`), a process-wide LRU mapping
   `(registry, hostname, path)` to the handler that won last time.
 
-`HandlerMap.routeCache` is **not** cleared by `initRoutes()` — it is never
+`HandlerMap.routeCache` is **not** cleared by `initRoutes()`: it is never
 cleared anywhere. On a cache hit, `resolve()` calls only the cached handler's
 `canHandle` and returns it if still true, skipping every higher-priority handler
 (`$registry.ts`). See [Middleware](middleware.md#the-route-cache-does-not-skip-middleware)
@@ -373,7 +372,7 @@ for the consequence, which is the sharpest edge in the framework.
 In development, edits to `server.config.ts` or anything under the api directory
 restart the dev worker outright (`compiler/dev-service.ts`), which is what
 makes the problem invisible while you are working on those files. `.tsx` edits
-no longer restart the process — they clear the per-handler caches only, and
+no longer restart the process: they clear the per-handler caches only, and
 `HandlerMap.routeCache` survives them.
 
 ## Reserved paths
@@ -389,7 +388,7 @@ only exist when that plugin is installed.
 | `/_client/*`, `/_virtual/*` | framework browser runtime | core (`VirtualAssetHandler`) |
 | `/_gf`, `/_gf/*` | Google Fonts, proxied and cached to disk | core (`GoogleFontHandler`) |
 | `/_nm/*` | `node_modules`, bundled on demand | core (`NMHandler`) |
-| `/_livereload` | the live-reload WebSocket — **development only** | core (`LiveReloadHandler`) |
+| `/_livereload` | the live-reload WebSocket: **development only** | core (`LiveReloadHandler`) |
 | `/_dashboard`, `/_dashboard/dashboard.js`, `/api/_dashboard`, `/api/_dashboard/*` | admin console | `@bakery-framework/plugin-dashboard` |
 | `/_db`, `/_db/*`, `/api/_db`, `/api/_db/*` | database explorer | `@bakery-framework/plugin-db-explorer` |
 | `/_analytics/ping`, `/api/_analytics/stats`, `/api/_analytics/reset` | telemetry endpoints | `@bakery-framework/plugin-analytics` |
@@ -406,13 +405,13 @@ asset and leaves it out of page-hit counts
 (`packages/plugins/analytics/src/core.ts`), so an app route under `/_` would
 also go uncounted even where nothing claims it.
 
-`/api/*` and `/uploads/*` are reserved in a different sense — they are ordinary
+`/api/*` and `/uploads/*` are reserved in a different sense: they are ordinary
 app-servable prefixes owned by `ApiHandler` and `PublicHandler`. See
 [Project structure](../getting-started/project-structure.md#reserved-url-prefixes).
 
 The default blocked globs (`packages/core/src/utils/constants.ts`) also make a
 number of files unreachable from file-serving handlers regardless of where they
-sit — every `.yaml`, `.yml`, `.sql`, `.db` and `.lock` file, plus the named
+sit, every `.yaml`, `.yml`, `.sql`, `.db` and `.lock` file, plus the named
 project JSON files (`package.json`, `tsconfig.json` and friends; there is
 deliberately no blanket `.json` ban). See
 [Static assets](static-assets.md#what-is-never-served).

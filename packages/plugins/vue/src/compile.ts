@@ -19,7 +19,7 @@ import type {
  *
  * `compiler` was assigned after the await, so two requests arriving before the
  * first load finished each started their own `await import()`. Bun's module
- * cache made that harmless rather than correct; memoising the promise is what
+ * cache made that harmless rather than correct; memoizing the promise is what
  * actually makes it one load, and it is what lets `preloadCompiler()` below
  * overlap with the rest of boot while a request that beats it simply awaits
  * the same thing.
@@ -169,7 +169,7 @@ export async function compileTemplateBlock(
           // Simple expression: `{{ value }}`.
           //
           // Comments inside an interpolation are not handled specially,
-          // deliberately: Vue itself cannot parse `{{ total // pesos }}` —
+          // deliberately: Vue itself cannot parse `{{ total // pesos }}`,
           // measured against bare `compileTemplate`, which reports the same
           // SyntaxError and emits the raw broken expression. Stripping the
           // comment here just traded that for an unprefixed binding, because
@@ -198,7 +198,7 @@ export async function compileTemplateBlock(
 
   // Reported to the caller, not merely logged: a template Vue cannot compile
   // emits the raw unparseable expression into the render function, so the
-  // module *cannot run* — `{{ total // pesos }}` is the measured example, and
+  // module *cannot run*, `{{ total // pesos }}` is the measured example, and
   // Vue-alone behaves identically. Serving it anyway was a browser-side
   // SyntaxError with a healthy-looking 200.
   const errors = (result.errors ?? []).map(e =>
@@ -214,7 +214,7 @@ export async function compileTemplateBlock(
   // export lands after the `import{…}from"vue";` prologue, and `^` cannot
   // reach it there. Measured over four render shapes: correct on all four
   // before minification, wrong on the one real shape after. Swapping these
-  // two lines therefore breaks silently — the bundle still builds, still
+  // two lines therefore breaks silently: the bundle still builds, still
   // serves 200, and ships a module with a stray `export` in the middle of it.
   //
   // A regex is the wrong tool for this and no spelling fixes it. An
@@ -276,7 +276,7 @@ export function assembleComponent(options: AssembleComponentOptions): string {
     if (layoutRoute) {
       // The page renders into the layout's default <slot />. The import is a
       // plain `.vue` specifier so `rewriteVueImports` gives it the same
-      // `?__vue_script=module` treatment as any component import — the layout
+      // `?__vue_script=module` treatment as any component import: the layout
       // is just a component that happens to be discovered by convention.
       output +=
         `\nimport { createApp, h as __h } from 'vue';` +
@@ -289,7 +289,7 @@ export function assembleComponent(options: AssembleComponentOptions): string {
     }
 
     // Full build only. `app.config.compilerOptions` is read exclusively by the
-    // in-browser template compiler, which the runtime build does not carry —
+    // in-browser template compiler, which the runtime build does not carry:
     // there, the assignment does nothing except make Vue log a warning about
     // itself on every page, even for apps that configured nothing.
     if (vueBuildVariant() === 'full') {
@@ -307,7 +307,7 @@ export function assembleComponent(options: AssembleComponentOptions): string {
 /**
  * Mirror `resolveIsCustomElement` in the browser, so runtime-compiled templates
  * agree with what the SFC compiler did. A predicate that closes over server-side
- * state cannot be serialized — it falls back to the built-in tag.
+ * state cannot be serialized: it falls back to the built-in tag.
  */
 function buildRuntimeCustomElementCheck(): string {
   const ce = vuePluginOptions.customElements

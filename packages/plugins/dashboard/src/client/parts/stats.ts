@@ -8,9 +8,9 @@
  * over it. What is left here is the part that changes over time, which is the
  * only part with any state a request can move.
  *
- * The dependency runs one way through all four — tooltip and feed both reach
- * for drawing, drawing reaches for the catalogue, and the catalogue reaches for
- * nothing — so no pair of them can close a cycle.
+ * The dependency runs one way through all four: tooltip and feed both reach
+ * for drawing, drawing reaches for the catalog, and the catalog reaches for
+ * nothing, so no pair of them can close a cycle.
  */
 
 import { formatUptime, getWebSocketUrl, setEmpty, setText } from './utils'

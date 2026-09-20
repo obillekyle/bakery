@@ -9,7 +9,7 @@ import {
 /**
  * `parseThreadsOption` decides whether the process forks a cluster at all, and
  * with how many workers. It lived inside `index.ts`, which cannot be imported
- * by a test — the file dispatches on the mode flags and boots a server.
+ * by a test: the file dispatches on the mode flags and boots a server.
  *
  * The argv slice is passed in rather than read, so none of this touches
  * `process.argv`.
@@ -18,7 +18,7 @@ describe('parseThreadsOption', () => {
   test('absent means no cluster, and that is not the same as one worker', () => {
     // `index.ts` branches on `threadsOption !== null`, so returning 1 here
     // instead of null would route every plain `bun run serve` through
-    // `handleThreadsMaster` — a master process, a Worker, and on Windows a
+    // `handleThreadsMaster`: a master process, a Worker, and on Windows a
     // loopback relay serve, for a server that asked for none of it.
     expect(parseThreadsOption([])).toBeNull()
     expect(parseThreadsOption(['--dev', '--sync'])).toBeNull()
@@ -37,7 +37,7 @@ describe('parseThreadsOption', () => {
 
   test('a cluster never has zero workers', () => {
     // `0` passes the digit test, so without the Math.max the master would
-    // spawn no Workers and serve nothing — on Linux, where there is no relay
+    // spawn no Workers and serve nothing: on Linux, where there is no relay
     // serve, that is a process listening on nothing.
     expect(parseThreadsOption(['--threads', '0'])).toBe(1)
     expect(parseThreadsOption(['--threads=0'])).toBe(1)
@@ -57,7 +57,7 @@ describe('parseThreadsOption', () => {
 
   test('a negative or fractional value is not read as a count', () => {
     // `/^\d+$/` rejects both, so they take the auto path rather than reaching
-    // `parseInt` — which would have turned `-2` into 1 and `2.9` into 2.
+    // `parseInt`, which would have turned `-2` into 1 and `2.9` into 2.
     const auto = autoThreadCount()
     expect(parseThreadsOption(['--threads', '-2'])).toBe(auto)
     expect(parseThreadsOption(['--threads', '2.9'])).toBe(auto)

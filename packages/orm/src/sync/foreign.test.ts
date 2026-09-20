@@ -146,7 +146,7 @@ describe('table ordering', () => {
 describe('SQLite enforcement', () => {
   test('foreign_keys is on before the first query runs', async () => {
     // OFF by default and per-connection. Without it a FOREIGN KEY is stored,
-    // reported by PRAGMA foreign_key_list, shown in the dashboard — and
+    // reported by PRAGMA foreign_key_list, shown in the dashboard, and
     // enforces nothing. It is deliberately not in the fire-and-forget
     // performance pragma chain: applying `cache_size` late costs speed,
     // applying this late costs a row that was never checked.
@@ -188,8 +188,8 @@ describe('Field.Foreign', () => {
 
   test('copies the target column type onto the child', async () => {
     // The reason to prefer the column-level form. MySQL refuses a foreign key
-    // whose types differ from the referenced key *exactly* — an INT child
-    // against a BIGINT parent is rejected — and the two declarations usually
+    // whose types differ from the referenced key *exactly* (an INT child
+    // against a BIGINT parent is rejected), and the two declarations usually
     // sit pages apart. Copying makes the mismatch unrepresentable.
     const { resolveColumnForeignKeys } = await import('./load')
     const out = resolveColumnForeignKeys(
@@ -213,7 +213,7 @@ describe('Field.Foreign', () => {
     )
     const posts = out.constraints.posts as any
     expect(posts.authorId.type).toBe('integer')
-    // Copied from Varchar(40), width included — introspection cannot be relied
+    // Copied from Varchar(40), width included: introspection cannot be relied
     // on to report the width, so this has to come from the schema.
     expect(posts.editor.type).toBe('string')
     expect(posts.editor.length).toBe(40)
@@ -246,7 +246,7 @@ describe('Field.Foreign', () => {
   test('reports a target that is neither primary nor unique', async () => {
     // SQL forbids it. MySQL and Postgres refuse the CREATE; SQLite accepts the
     // DDL and fails every insert with `foreign key mismatch`, naming two tables
-    // and nothing else — so this is caught against the schema instead.
+    // and nothing else, so this is caught against the schema instead.
     const { resolveColumnForeignKeys } = await import('./load')
     const out = resolveColumnForeignKeys(
       {
@@ -293,7 +293,7 @@ describe('referential actions', () => {
     expect(SQLAdapter.normalizeForeignKeyAction('a')).toBe('NO ACTION')
   })
 
-  test('anything unrecognised is NO ACTION, not a new value', () => {
+  test('anything unrecognized is NO ACTION, not a new value', () => {
     // A dialect growing a code we do not know must not make the diff churn.
     expect(SQLAdapter.normalizeForeignKeyAction('z')).toBe('NO ACTION')
     expect(SQLAdapter.normalizeForeignKeyAction(undefined)).toBe('NO ACTION')

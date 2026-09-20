@@ -2,7 +2,7 @@
  * Turning a spreadsheet into statements: which CSV column feeds which database
  * column, what stops an import before it starts, and what one row edit changes.
  *
- * **Pure** — see the note at the top of `coerce.ts`. The import dialog runs
+ * **Pure**. See the note at the top of `coerce.ts`. The import dialog runs
  * `autoMap` and `blockingIssues` in the browser to show the mapping before
  * anything is sent, and the server runs the same two functions on what arrives,
  * because a client-side check is a convenience and never a guarantee.
@@ -27,7 +27,7 @@ export type ColumnMapping = Record<string, string | null>
  * Nothing fuzzier: a near-miss that silently loads the wrong column is worse
  * than an unmapped one the dialog can ask about.
  *
- * A database column is claimed at most once. Two headers that normalise to the
+ * A database column is claimed at most once. Two headers that normalize to the
  * same name would otherwise both map to it, and the second would quietly win.
  */
 export function autoMap(
@@ -42,7 +42,7 @@ export function autoMap(
   for (const c of dbColumns) {
     const key = normalize(c)
     // First declaration wins, so the mapping does not depend on column order
-    // among columns that normalise alike.
+    // among columns that normalize alike.
     if (!byNormal.has(key)) byNormal.set(key, c)
   }
 
@@ -76,7 +76,7 @@ export interface PlanIssue {
 /**
  * What makes this mapping unrunnable, as opposed to merely lossy.
  *
- * A column left out of the mapping is fine when the database can fill it in —
+ * A column left out of the mapping is fine when the database can fill it in:
  * an auto-increment key, a default, or a nullable column. A NOT NULL column
  * with no default and no mapping is not: every row would fail at the database,
  * one at a time, after the import had already started.
@@ -123,7 +123,7 @@ export function blockingIssues(
 export interface UpdatePlanInput {
   /** The row as the editor last saw it, keyed by raw column name. */
   original: Record<string, unknown>
-  /** Edited values. **An absent key means unchanged** — see `coerce.ts`. */
+  /** Edited values. **An absent key means unchanged**. See `coerce.ts`. */
   edits: Record<string, unknown>
   /** The identity columns, from `describeIdentity`. */
   identity: readonly string[]
@@ -136,7 +136,7 @@ export interface UpdatePlanResult {
   where: Record<string, unknown>
   /** Edited keys that matched what was already there. */
   unchanged: string[]
-  /** Identity columns `original` does not carry — the plan is unusable. */
+  /** Identity columns `original` does not carry: the plan is unusable. */
   missingIdentity: string[]
 }
 
@@ -148,7 +148,7 @@ export interface UpdatePlanResult {
  * and set the new one, and a plan built from the edited row would look for a
  * row that does not exist yet.
  *
- * Unchanged columns are dropped from `set`. That is not only economy — a `set`
+ * Unchanged columns are dropped from `set`. That is not only economy: a `set`
  * carrying every column makes two people editing different columns of the same
  * row collide, and the whole reason to send a narrow statement is that they
  * should not.

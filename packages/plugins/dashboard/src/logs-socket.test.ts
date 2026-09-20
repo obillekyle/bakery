@@ -11,7 +11,7 @@ import { DashboardLogsHandler } from './endpoints/logs-socket'
 /**
  * The Logs panel was dead in production, and only in production.
  *
- * Its client connected to `/_livereload`, which `LiveReloadHandler` serves —
+ * Its client connected to `/_livereload`, which `LiveReloadHandler` serves,
  * and that handler is registered only under `DEV` and refuses in `canHandle`
  * besides. A production server answered 400 on the upgrade, nothing ever
  * joined `connectedLoggers`, and the panel sat on "Connecting to server log

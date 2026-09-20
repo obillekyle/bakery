@@ -25,7 +25,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
   </button>
   <!-- `?/`, not `#/`. Routing lives in the query string now, and the click
-       handler only intercepts hrefs starting with `?/` — so a fragment href
+       handler only intercepts hrefs starting with `?/`, so a fragment href
        here was left to the browser, which appended `#/` to whatever query URL
        the reader was on instead of taking them home. `route()` rewrites this to
        carry the pinned version; `?/` is the right destination without script. -->

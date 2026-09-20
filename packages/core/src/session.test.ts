@@ -125,7 +125,7 @@ describe('Session', () => {
 
 /**
  * There is one `TieredCache('sessions')` for the process, and `Session.from`
- * looked its `sId` cookie up in it with no host check — so under a multi-tenant
+ * looked its `sId` cookie up in it with no host check, so under a multi-tenant
  * `hosts` config a session id issued by one tenant was live on every other
  * tenant, and the dashboard's session list returned all of them regardless of
  * the originating host. `hostKey()` is the guard five other per-tenant caches
@@ -224,7 +224,7 @@ describe('sessions are scoped to the host that issued them', () => {
 })
 
 /**
- * `reset()` clears the data but keeps the id, and nothing else rotated it — so
+ * `reset()` clears the data but keeps the id, and nothing else rotated it, so
  * an app that writes `userId` on login authenticates the id the visitor already
  * had, which is session fixation wherever an attacker can plant a cookie. The
  * cookie flags and the 32-byte CSPRNG id were already right; this was the
@@ -289,7 +289,7 @@ describe('Session.regenerate', () => {
     deferredValue(req, 'session', () =>
       Session.create({ id: 'cookie-rotate', persistKeys: [], data: {} }),
     )
-    // Read once so the deferred value is materialised, then rotate.
+    // Read once so the deferred value is materialized, then rotate.
     const session = req.session as Session<any>
     session.regenerate()
 

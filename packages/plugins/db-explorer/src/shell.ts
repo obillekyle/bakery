@@ -6,7 +6,7 @@
  * stylesheet in the middle of it is a route table nobody reads. `setup.ts`
  * keeps the routing and the CSRF policy; this keeps the paint.
  *
- * There is **no markup generated from data here** — the body is an empty
+ * There is **no markup generated from data here**: the body is an empty
  * `#app` and a module script. Every value the user sees is written by
  * `client/dom.ts` through `textContent`, which is why this plugin has no XSS
  * surface even though it renders arbitrary row contents.
@@ -53,7 +53,7 @@ const CSS = `
   .tab-new { font: inherit; background: none; border: 0; color: var(--dim); cursor: pointer; padding: .3rem .8rem; }
   .tab-new:hover { color: var(--accent-text); }
 
-  /* Data / Structure / Relations — one level of nesting, and only one. */
+  /* Data / Structure / Relations: one level of nesting, and only one. */
   .viewtabs { display: flex; gap: .2rem; padding: .3rem .8rem 0; border-bottom: 1px solid var(--line); background: var(--bg); }
   .viewtab { font: inherit; font-size: .8rem; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--dim); padding: .3rem .7rem; cursor: pointer; }
   .viewtab:hover { color: var(--text); }
@@ -140,7 +140,7 @@ const CSS = `
   dialog h4 { margin: .8rem 0 .3rem; font-size: .85rem; color: var(--dim); }
   .sel { font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: .15rem .3rem; }
 
-  /* The row side panel — where JSON, long text and both graph directions live. */
+  /* The row side panel: where JSON, long text and both graph directions live. */
   .panel { position: fixed; top: 0; right: 0; width: min(38rem, 100vw); height: 100vh; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 1rem; z-index: 30; }
   .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
   .panel-title h3 { margin: 0; font-family: ui-monospace, monospace; }

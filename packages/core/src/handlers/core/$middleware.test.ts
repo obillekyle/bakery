@@ -104,8 +104,8 @@ describe('a response.json envelope from middleware stops the chain', () => {
   // `if (result instanceof Response)` used to be the only accepted shape, so a
   // guard returning the framework's own one-envelope idiom was silently
   // ignored and the request carried on. On a path with no route that surfaced
-  // as a confusing 404; on a path that *does* exist — which is every path a
-  // guard is written for — the protected page was served with a 200.
+  // as a confusing 404; on a path that *does* exist (which is every path a
+  // guard is written for) the protected page was served with a 200.
   const deny = () => response.json.error(401, 'Sign in required')
 
   test('the envelope is returned, not dropped', async () => {
@@ -191,7 +191,7 @@ describe('a response.json envelope from middleware stops the chain', () => {
 
   test('a bare object still falls through', async () => {
     // The widening is to `JsonResponseData` specifically, not to "anything
-    // truthy" — a middleware that returns a stray value must not halt the
+    // truthy": a middleware that returns a stray value must not halt the
     // chain by accident.
     const matched = await withMiddleware([() => ({ status: 401 }) as any], () =>
       MiddlewareHandler.canHandle('/y', new Request('http://localhost/y')),
@@ -207,7 +207,7 @@ describe('config.onRequest', () => {
   test('a non-HTML response is returned, not dropped', async () => {
     // `return (await injectIfHtml(intercepted)) || undefined` used to sit here.
     // injectIfHtml returns null for anything that is not HTML, so a plain-text
-    // 403 became `undefined` and the request carried on to the page handler —
+    // 403 became `undefined` and the request carried on to the page handler:
     // fail-open in the hook whose shape invites auth checks.
     const res = await withConfig(
       { onRequest: forbid },

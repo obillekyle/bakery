@@ -49,8 +49,8 @@ export function validateActionRequest(req: Request, url: URL): Response | null {
 /**
  * Gate the component a `__vue_action` request will actually execute.
  *
- * `__vue_file` replaces the whole execution target — id, path and server
- * script — so every check that ran against the *route's* descriptor stopped
+ * `__vue_file` replaces the whole execution target (id, path and server
+ * script), so every check that ran against the *route's* descriptor stopped
  * describing the code that runs. The route was gated; the target was not, and
  * `POST /any-public-page?__vue_action=x&__vue_file=admin/Panel.vue` ran
  * `admin/Panel.vue`'s top-level server code with nothing to justify it.
@@ -65,7 +65,7 @@ export function validateActionTarget(
 ): Response | null {
   // A `page-only` component is a page: reachable at its own route and nowhere
   // else. Naming one in `__vue_file` from a *different* route is the bypass in
-  // its clearest form. `module-only` is deliberately not gated the same way —
+  // its clearest form. `module-only` is deliberately not gated the same way:
   // a module exists to be embedded in someone else's page, so its actions are
   // invoked from that page's route by design, and the generated stub does
   // exactly that.

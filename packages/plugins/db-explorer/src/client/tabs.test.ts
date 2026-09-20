@@ -19,7 +19,7 @@ import {
 const names = (state: TabsState) => state.tabs.map(tab => tab.view.table)
 const previews = (state: TabsState) => state.tabs.map(tab => tab.preview)
 
-/** Three permanent tabs, active on the last — the ordinary starting point. */
+/** Three permanent tabs, active on the last: the ordinary starting point. */
 function threeOpen(): TabsState {
   let state = createTabs()
   for (const name of ['a', 'b', 'c']) {

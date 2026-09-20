@@ -7,7 +7,7 @@ import { posts } from './tables'
  * Borrowing `posts`' columns rather than restating them: the shape is the
  * source table's, and a restated column the SELECT does not return would only
  * surface at query time. `db:sync --choose=db` writes the interface form here
- * instead — both are the same declaration.
+ * instead: both are the same declaration.
  */
 export const publishedPosts = view(
   'publishedPosts',

@@ -7,7 +7,7 @@ import { readdir } from 'node:fs/promises'
  * Prose conventions rot. Across six packages the only thing holding these
  * together was that someone remembered them, and the two violations this file
  * found on the day it was written had both been sitting in the tree for
- * months — one of them silently breaking four tests in an unrelated file
+ * months: one of them silently breaking four tests in an unrelated file
  * whenever Bun happened to order two files the wrong way round.
  *
  * Every check here was verified to pass when it was written, so a failure
@@ -81,7 +81,7 @@ function find(files: SourceFile[], pattern: RegExp): string[] {
  *
  * Needed because the Vue plugin *generates* browser code containing a bare
  * `catch {}`. That is emitted output, not this codebase's control flow, and
- * the alternative — parsing every file to tell code from string — costs far
+ * the alternative (parsing every file to tell code from string) costs far
  * more than one heuristic that only has to be right about quote nesting on a
  * single line.
  */
@@ -148,14 +148,14 @@ function globalThisBindings(text: string): string[] {
 }
 
 describe('conventions (CLAUDE.md)', () => {
-  test('logging is data — no console.* in server code', () => {
+  test('logging is data, no console.* in server code', () => {
     // The exceptions CLAUDE.md documents. All emit program output rather than
     // log lines: CLI usage text, and the bootstrap catch that wraps the very
     // imports which load the logger.
     //
     // `create-bakery` is the third and is exempt wholesale rather than by line:
     // it is a standalone scaffolder with no dependency on the framework at all,
-    // so there is no logger to route through — every byte it prints is for a
+    // so there is no logger to route through: every byte it prints is for a
     // human watching `bun create bakery` run.
     const ALLOWED = new Set([
       'packages/cli/src/index.ts',
@@ -165,7 +165,7 @@ describe('conventions (CLAUDE.md)', () => {
       // program output. Both files use the logger for everything else they say.
       'packages/orm/src/sync/history.ts',
       'packages/orm/src/sync/rollback.ts',
-      // A `bun test --preload`, so it is not server code at all — it runs
+      // A `bun test --preload`, so it is not server code at all: it runs
       // before any test file and never ships. `console` is also the only
       // channel it has: the logger is not configured that early, and what it
       // prints is a fact about a *previous* run that somebody should see.
@@ -178,13 +178,13 @@ describe('conventions (CLAUDE.md)', () => {
 
     // `console.clear()` is exempt by name, not by file: it emits no message.
     // It is terminal control, sitting beside the `tty.disableRawMode()` in the
-    // dev watcher's restart path — the logging happens on the line above it.
+    // dev watcher's restart path: the logging happens on the line above it.
     expect(find(serverCode, /\bconsole\.(?!clear\b)\w+\s*\(/)).toEqual([])
   })
 
   /**
    * The mode flags are accessors `core/init` installs on `process.env`, and Bun
-   * runs every test file in one process — so a file that mishandles one changes
+   * runs every test file in one process, so a file that mishandles one changes
    * what a *different* file reads, and only under full-suite ordering. Both
    * checks below were written against a real instance of exactly that: two
    * `NMHandler` tests that passed in isolation and failed in the suite, because
@@ -200,7 +200,7 @@ describe('conventions (CLAUDE.md)', () => {
   test('no source deletes a mode flag it does not own', () => {
     // Capturing a flag's descriptor before `core/init` has loaded captures
     // nothing, and the restore then deletes the accessor init installed in the
-    // meantime — leaving the flag `undefined` for every file that runs after.
+    // meantime: leaving the flag `undefined` for every file that runs after.
     //
     // Import `core/init` before capturing so the capture is real, or swap the
     // flag with `withEnvFlag` (`packages/core/src/tests/fixtures.ts`).
@@ -235,9 +235,9 @@ describe('conventions (CLAUDE.md)', () => {
     // that reads it as a condition, right up until something reads it as a
     // boolean.
     //
-    // The mechanism changed with Bun 1.4 — which rejects accessor descriptors
+    // The mechanism changed with Bun 1.4, which rejects accessor descriptors
     // on `process.env`, so the flags are `'1'`/`''` strings and `init.ts`
-    // assigns them like anything else — but the hazard did not. Assignment
+    // assigns them like anything else, but the hazard did not. Assignment
     // still coerces, so a boolean `false` still becomes the *truthy* string
     // `"false"`, and that is exactly what a naive save/restore reintroduces.
     //
@@ -246,7 +246,7 @@ describe('conventions (CLAUDE.md)', () => {
     // write through it rather than spelling the encoding out again, because a
     // second copy of it is a second chance to write `'true'`.
     //
-    // `init.ts` is exempt as the owner — it is where the encoding is defined.
+    // `init.ts` is exempt as the owner: it is where the encoding is defined.
     // `threads.ts` is exempt for `THREAD_ID`, genuinely a string.
     // `engine.test.ts` is exempt because `@bakery-framework/orm` does not import
     // core's test fixtures (they are not a published subpath), so it has to
@@ -257,7 +257,7 @@ describe('conventions (CLAUDE.md)', () => {
     // plugin cannot import core's fixtures either, and `claimedBeside` behaves
     // differently in production, so the flag has to be driven to test both
     // halves. Its `withProdFlag` is that reproduction, and it *restores*
-    // rather than deleting — the rule below is the one that bans the other
+    // rather than deleting: the rule below is the one that bans the other
     // half of this hazard.
     const ALLOWED = new Set([
       'packages/core/src/core/init.ts',
@@ -274,7 +274,7 @@ describe('conventions (CLAUDE.md)', () => {
     expect(offenders).toEqual([])
   })
 
-  test('test seams, not module mocks — no mock.module anywhere', () => {
+  test('test seams, not module mocks, no mock.module anywhere', () => {
     // Bun's module mocks are process-global and never restored, so they leak
     // into every file loaded afterwards. This is not style: ip.test.ts mocked
     // core/bakery and left `Bakery.config` undefined for the rest of the run,
@@ -312,7 +312,7 @@ describe('conventions (CLAUDE.md)', () => {
      * the rule.
      *
      * `@bakery-framework/plugin-analytics` is a hard dependency of
-     * `@bakery-framework/plugin-dashboard`: authorization is analytics' —
+     * `@bakery-framework/plugin-dashboard`: authorization is analytics',
      * `dashboardPlugin` forwards `authorize` and `credential` to
      * `setupAnalytics`, and the console's request guard *is*
      * `isAnalyticsAuthorized`, so the analytics key is literally the dashboard
@@ -321,7 +321,7 @@ describe('conventions (CLAUDE.md)', () => {
      * rely on being there.
      *
      * An allow-list of exactly one pair, and **directional**. The reverse edge
-     * — analytics importing the dashboard — is the cycle this rule exists to
+     * (analytics importing the dashboard) is the cycle this rule exists to
      * stop and still fails, as does any other plugin pair, because coupling
      * two plugins is a decision that should cost an edit here.
      */
@@ -360,7 +360,7 @@ describe('conventions (CLAUDE.md)', () => {
     // That works only because every reach for it is an `await import()` behind
     // `hasORM()`. A single static `import … from '@bakery-framework/orm/…'` at the top of
     // any CLI module puts it back in the module graph and the import is
-    // evaluated before a line of guard code runs — so a no-database app dies at
+    // evaluated before a line of guard code runs, so a no-database app dies at
     // startup with ERR_MODULE_NOT_FOUND, and nothing in this repo would notice,
     // because in-repo the workspace symlink always resolves it.
     //
@@ -406,7 +406,7 @@ describe('conventions (CLAUDE.md)', () => {
     expect(callers).toEqual([])
   })
 
-  test('one JSON envelope — nothing hand-rolls a JSON response', () => {
+  test('one JSON envelope: nothing hand-rolls a JSON response', () => {
     // {time, status, message, data} via response.json.*, for every JSON body
     // the server emits.
     const ALLOWED = new Set(['packages/core/src/utils/http/response.ts'])
@@ -423,7 +423,7 @@ describe('conventions (CLAUDE.md)', () => {
 
   test('no silently swallowed errors', () => {
     // Try/Try.catch is the idiom. A bare `catch {}` may stay only with a
-    // comment saying why silence is correct — which is the whole point, since
+    // comment saying why silence is correct, which is the whole point, since
     // every one of these is a place a real failure can go unreported.
     const EMPTY_CATCH = /catch\s*(\([^)]*\))?\s*\{\s*\}/g
     const offenders: string[] = []
@@ -443,7 +443,7 @@ describe('conventions (CLAUDE.md)', () => {
   })
 
   test('no global type or var is declared twice', () => {
-    // `interface` and `namespace` declarations merge — that is how an app
+    // `interface` and `namespace` declarations merge: that is how an app
     // augments SessionData, and it is legal. `type` and `var` cannot merge:
     // a second declaration is TS2300, which nobody ever saw because
     // skipLibCheck suppresses errors inside .d.ts files. MapOf, Wrapped,
@@ -477,7 +477,7 @@ describe('conventions (CLAUDE.md)', () => {
     const ALLOWED = new Set([
       // The compiler emits `export default async function (req, body, …)`
       // around a <script server> block, so both are genuine parameters there.
-      // They are bound only inside a .vue server block — which is why this
+      // They are bound only inside a .vue server block, which is why this
       // file must not be pulled into a program of .ts/.tsx sources.
       'req@packages/plugins/vue/src/vue.d.ts',
       'body@packages/plugins/vue/src/vue.d.ts',
@@ -516,12 +516,12 @@ describe('conventions (CLAUDE.md)', () => {
   test('every @bakery import names an enumerated export', async () => {
     // The export maps no longer carry a `"./*"` wildcard, so a subpath that is
     // not listed does not exist for anyone who installs the package. In-repo it
-    // still resolves — Bun reaches workspace packages through a symlink and
-    // does not apply their export map — so nothing fails here until a consumer
+    // still resolves (Bun reaches workspace packages through a symlink and
+    // does not apply their export map), so nothing fails here until a consumer
     // installs a tarball, which is the worst place to find out.
     //
     // Verified against a real extracted tarball when the wildcard was removed:
-    // `@bakery-framework/core/cache/tiered` and its neighbours are blocked while every
+    // `@bakery-framework/core/cache/tiered` and its neighbors are blocked while every
     // enumerated path resolves. This keeps it that way.
     //
     // The fix for a failure is to add the subpath to that package's `exports`,
@@ -552,7 +552,7 @@ describe('conventions (CLAUDE.md)', () => {
     // rewriting this tree before.
     //
     // **Both spellings.** This matched only `from '…'` until it was found to be
-    // missing four live offenders, all of them `await import('…')` — the form
+    // missing four live offenders, all of them `await import('…')`: the form
     // the CLI uses for nearly everything it pulls out of core, because it is
     // lazy-loading on purpose. `@bakery-framework/core/cache/tiered`,
     // `core/compiler/tsconfig-sync`, `core/core/plugins` and `orm/sync/load`
@@ -575,7 +575,7 @@ describe('conventions (CLAUDE.md)', () => {
   })
   test('a dialect difference lives in its own adapter', () => {
     // Every difference between the three databases is expressed as something
-    // the base adapter declares and one adapter overrides — `quoteChar`,
+    // the base adapter declares and one adapter overrides: `quoteChar`,
     // `maxQueryParams`, `dateNowExpression`, `foreignKeyClause`,
     // `supportsAlterForeignKey`, `upsertClause`, `batchInsertIdPosition`. The
     // query builder and the sync engine then never ask which database they are
@@ -653,13 +653,13 @@ describe('release versions', () => {
    * Every publishable package must appear in both lists, and the lists must
    * agree. `plugin-db-explorer` was added to some and not others: missing from
    * `MANIFESTS` the lockstep test above could not see the skew, and missing
-   * from `publish.yml` it simply never reached npm — the release "succeeded"
+   * from `publish.yml` it simply never reached npm, the release "succeeded"
    * and shipped seven of eight packages.
    *
    * **There used to be a third list.** `scripts/release.ts` carried its own
    * `PACKAGES` array and was checked here too. cutver replaced the script and
    * derives the publishable set from the workspace globs, so that arm went with
-   * it — one fewer place to forget. The two that remain are still hand-written
+   * it: one fewer place to forget. The two that remain are still hand-written
    * and still worth checking.
    *
    * Derived from the directories on disk rather than from a third hand-written
@@ -692,7 +692,7 @@ describe('release versions', () => {
       // entry of each shell loop has no continuation, which flagged
       // `packages/create` when this was first written.
       //
-      // It has to appear **twice** — publish.yml packs in one loop and
+      // It has to appear **twice**, publish.yml packs in one loop and
       // publishes in another, and a package added to only the first is packed
       // and never shipped.
       const occurrences = publish.split(
@@ -710,18 +710,18 @@ describe('release versions', () => {
    * **`bun.lock` is what decides the published dependency ranges, not the
    * manifests.** `bun pm pack` expands a `workspace:^` dependency using the
    * version recorded in the lockfile's workspace entry, so a lock left behind
-   * by a bump is not a stale-metadata annoyance — it is wrong ranges on npm.
+   * by a bump is not a stale-metadata annoyance: it is wrong ranges on npm.
    *
    * That is exactly how it shipped. CI installs with `--frozen-lockfile`, the
    * bump never reached the lock, and all seven 2.0.0-alpha packages went out
    * declaring `@bakery-framework/core@^1.2.3`. Installing the alpha channel
-   * therefore resolved a *stable* core — and 1.2.3 is the barrel-cycle release,
+   * therefore resolved a *stable* core, and 1.2.3 is the barrel-cycle release,
    * so the alpha channel did not merely mismatch, it could not be imported.
    *
    * Nothing else can see this. The lockstep test above compares manifests to
    * each other and passes; the packed tarball is the only place the skew is
    * visible, and by then it is on the registry. cutver's js adapter keeps these
-   * in sync — this fails if that stops working, or if someone bumps a version
+   * in sync: this fails if that stops working, or if someone bumps a version
    * by hand. It matters more since the migration, not less: the lockfile write
    * now happens inside a dependency rather than in a script in this repository,
    * and this is the only thing here that checks it happened at all.
@@ -752,8 +752,8 @@ describe('release versions', () => {
     // in a file destined for the browser used to typecheck happily and fail at
     // runtime; it is a type error now only because `types` is empty here.
     //
-    // Adding "bun-types" back — or dropping the key, which lets TypeScript
-    // include every @types package it can find — re-opens the hole silently,
+    // Adding "bun-types" back (or dropping the key, which lets TypeScript
+    // include every @types package it can find) re-opens the hole silently,
     // and nothing else in the suite would notice.
     const client = await Bun.file(
       `${ROOT}/packages/core/tsconfig.app.json`,
@@ -774,7 +774,7 @@ describe('release versions', () => {
 
   test('all three tsconfigs are published', async () => {
     // They are resolved by consumers as `@bakery-framework/core/tsconfig.X.json`,
-    // which needs both an `exports` entry and inclusion in `files` — miss
+    // which needs both an `exports` entry and inclusion in `files`: miss
     // either and `extends` fails only for someone who installed from npm, never
     // in this repo, where the workspace symlink resolves any path.
     const pkg = await Bun.file(`${ROOT}/packages/core/package.json`).json()
@@ -795,8 +795,8 @@ describe('release versions', () => {
   })
 
   test('the CLI keeps the ORM an optional peer', async () => {
-    // Stated as a test because the natural edit — "the CLI uses orm, so it
-    // should depend on orm" — is wrong here and looks right. A hard dependency
+    // Stated as a test because the natural edit ("the CLI uses orm, so it
+    // should depend on orm") is wrong here and looks right. A hard dependency
     // makes `create-bakery --no-orm` a lie: the app declares no database and
     // installs one anyway, along with its adapters.
     const json = await Bun.file(`${ROOT}/packages/cli/package.json`).json()
@@ -814,7 +814,7 @@ describe('release versions', () => {
   })
 
   test('every publishable package declares an engines.bun floor', async () => {
-    // A missing floor is a claim that any Bun works, which is never true here —
+    // A missing floor is a claim that any Bun works, which is never true here:
     // three of the plugins shipped without one until 2026-08-09.
     const missing: string[] = []
     for (const rel of MANIFESTS.slice(1)) {

@@ -21,7 +21,7 @@ const VUE_ENTRIES = {
 } as const
 
 /**
- * The one canonical URL for the served Vue build — the import-map alias
+ * The one canonical URL for the served Vue build: the import-map alias
  * (`setup.ts`) and the request check below both read it, so they cannot drift.
  *
  * The variant is part of the filename, not just of the entry choice, because

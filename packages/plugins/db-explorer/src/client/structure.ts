@@ -1,13 +1,13 @@
 /**
  * The Structure view: what the table *is*, as opposed to what is in it.
  *
- * Every serious client — DBeaver, DataGrip, Devart — splits a table into Data
+ * Every serious client (DBeaver, DataGrip, Devart) splits a table into Data
  * and its structure, and keeps them apart. This one was the single biggest
  * omission: `GET /api/_db/schema` has always returned the type, nullability,
  * default, enum values, auto-increment flag and resolved row identity of every
  * column, and the client used all of it *only* to pick which editor widget to
  * open. None of it was ever on screen. The reason a table is read-only was the
- * worst of it — it existed, in the server's own words, and appeared nowhere
+ * worst of it: it existed, in the server's own words, and appeared nowhere
  * except a tooltip on a padlock.
  *
  * `structureRows` is **pure** and is the whole derivation, so what each column
@@ -22,7 +22,7 @@ export interface StructureRow {
   name: string
   type: string
   nullable: string
-  /** `AUTO`, a literal `DEFAULT`, or empty — never a guess. */
+  /** `AUTO`, a literal `DEFAULT`, or empty, never a guess. */
   default: string
   /** `PK`, `unique`, or empty. */
   key: string
@@ -40,7 +40,7 @@ export interface StructureRow {
  *
  *  - **`hasDefault` and `autoIncrement` are different facts**, and an
  *    auto-increment column is reported as such rather than as "has a default".
- *    They differ in the one place it matters — `omittableOnInsert` — and
+ *    They differ in the one place it matters (`omittableOnInsert`), and
  *    conflating them on screen would teach the reader the wrong model.
  *  - **`notnull` is not the negation of `nullable` here.** The server sends
  *    both, from two different introspection calls (`getConstraints()` when it
@@ -114,8 +114,8 @@ const INDEX_HEADINGS = ['index', 'type', 'columns'] as const
 /**
  * A scrolling table of plain text cells.
  *
- * Columns and indexes are the same table twice — headings, then a `<tr>` of
- * `<td class="cell">` per row — so they are one builder and two `string[][]`.
+ * Columns and indexes are the same table twice (headings, then a `<tr>` of
+ * `<td class="cell">` per row), so they are one builder and two `string[][]`.
  */
 function dataTable(
   headings: readonly string[],
@@ -150,7 +150,7 @@ export function renderStructure(ctx: StructureContext): HTMLElement {
 }
 
 /**
- * How a row of this table is named — and, when it cannot be, why.
+ * How a row of this table is named, and, when it cannot be, why.
  *
  * First rather than last, and a banner rather than a footnote. "This table is
  * read-only" with no reason is the message that generates support questions;
@@ -165,7 +165,7 @@ function identitySection(ctx: StructureContext): HTMLElement {
     section.appendChild(
       el('p', {
         class: 'banner warn',
-        text: `no row of this table can be named — ${ctx.reason}`,
+        text: `no row of this table can be named: ${ctx.reason}`,
       }),
     )
     return section

@@ -83,7 +83,7 @@ function resetStatements() {
 /**
  * Test seam (convention 9) for the storage handle.
  *
- * The real handle is `cacheDb`, which the whole process shares — closing it to
+ * The real handle is `cacheDb`, which the whole process shares: closing it to
  * exercise a write failure would take every test file loaded afterwards with
  * it. The prepared statements are reset alongside, since they belong to the
  * connection they were compiled against.
@@ -93,7 +93,7 @@ export function __setTestDb(instance: Database | null) {
   resetStatements()
   // Same schema the real handle gets. A test that injects an already-closed
   // handle to drive the failure path cannot have one, which is the point of
-  // injecting it — hence `Try` rather than a throw.
+  // injecting it: hence `Try` rather than a throw.
   if (instance) Try(() => ensureSchema(instance))
 }
 
@@ -186,7 +186,7 @@ export async function saveAnalyticsData(_cacheBase: string) {
       // crawler hitting distinct URLs can add millions of rows well inside the
       // retention window - so the row count is capped too. But the capping
       // statement is expensive in a way its shape hides: `NOT IN (SELECT rowid
-      // ... ORDER BY timestamp DESC LIMIT n)` sorts and materialises n rowids
+      // ... ORDER BY timestamp DESC LIMIT n)` sorts and materializes n rowids
       // before it can decide that nothing needs deleting, and it ran on every
       // single flush.
       //
@@ -226,7 +226,7 @@ export async function saveAnalyticsData(_cacheBase: string) {
     // in this object while `setup.ts` read `data.temp1h` on boot and
     // `core.loadTemps` knew how to restore them. Every restart therefore threw
     // away up to 59 seconds of 1h aggregation, up to 29 minutes of 1d, and so
-    // on - and because a bucket only finalises at its full count, the 1h chart
+    // on - and because a bucket only finalizes at its full count, the 1h chart
     // stayed empty for up to an hour after every boot rather than resuming.
     const coreData: any = {
       history1m: history1m as AnalyticsSnapshot[],
@@ -241,12 +241,12 @@ export async function saveAnalyticsData(_cacheBase: string) {
       stmtUpsertCore.run('core', JSON.stringify(coreData))
     } catch {
       // The snapshot is rebuilt from memory on the next flush, so a failed
-      // upsert costs one interval of persisted history — not anything the
+      // upsert costs one interval of persisted history, not anything the
       // process still holds.
     }
   } catch (e) {
     // Telemetry must never be able to take down what it is measuring, so this
-    // still does not rethrow — but it is no longer silent.
+    // still does not rethrow, but it is no longer silent.
     //
     // The comment that used to sit here said the next flush retries. That is
     // false exactly where it mattered: the flush registered in `onShutdown` is

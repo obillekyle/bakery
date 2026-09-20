@@ -1,7 +1,7 @@
 import type { MixedPromise, Wrapped } from '../../types'
 import { is } from './is'
 
-// These were declared again, here, byte-for-byte identical to `types.d.ts` —
+// These were declared again, here, byte-for-byte identical to `types.d.ts`:
 // the second copy convention 5 exists to prevent. `isomorphic.test.ts` catches
 // a duplicated *value* by reference identity, and a type has no runtime
 // identity to compare, so nothing saw it.

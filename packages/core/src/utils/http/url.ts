@@ -2,7 +2,7 @@
  * The request's parsed URL, parsed at most once.
  *
  * Why memoize at all: `new URL` measures ~1.7µs, and the router, the body
- * parser and the proxy handler all want the same parse of the same request —
+ * parser and the proxy handler all want the same parse of the same request,
  * so the parse was hoisted into the server's `fetch` in `packages/cli/src/worker.ts`
  * and shared.
  *
@@ -10,12 +10,12 @@
  * `(req as any).__parsedUrl`: two writers, six readers across three packages,
  * every reader spelled `(req as any).__parsedUrl || new URL(req.url)` so that
  * it silently re-parsed whenever the writer had not run first. That is a
- * writer/reader ordering hazard with no way to observe it going wrong — a
+ * writer/reader ordering hazard with no way to observe it going wrong: a
  * missed write costs microseconds, not correctness, so nothing ever fails.
  * One function collapses both roles: there is no ordering left to get wrong,
  * no `any` cast anywhere, and no writer to forget. The map also keeps the
- * framework from mutating a `Request` object it does not own — a caller's
- * `Request` goes in and comes back unchanged — and holds its keys weakly, so
+ * framework from mutating a `Request` object it does not own (a caller's
+ * `Request` goes in and comes back unchanged), and holds its keys weakly, so
  * an entry dies with the request rather than needing eviction (convention 6).
  *
  * There is deliberately no setter. Nothing outside this module needs to say

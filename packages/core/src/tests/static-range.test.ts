@@ -10,10 +10,10 @@ import { fs } from '../utils/fs'
 
 /**
  * The wire contract for byte ranges on static files, asserted against a real
- * `Bun.serve` because the division of labour spans the process boundary:
+ * `Bun.serve` because the division of labor spans the process boundary:
  * `ETag.sendFile` advertises (`Accept-Ranges: bytes`), while the slicing
- * itself — 206, `Content-Range`, the appended `Accept-Ranges` on the partial
- * response — happens inside Bun when it serialises a path-backed BunFile
+ * itself (206, `Content-Range`, the appended `Accept-Ranges` on the partial
+ * response) happens inside Bun when it serializes a path-backed BunFile
  * body. No unit test of `sendFile` can see the second half, and the first
  * half only matters because of what the second does with it. `Bun.serve`
  * outside `cli/worker.ts` is fine here; the "one Bun.serve" convention check
@@ -27,15 +27,14 @@ import { fs } from '../utils/fs'
  *   before, so players that probe HEAD for it before attempting seeks never
  *   sent a range at all.
  * - A ranged GET still gets its 206 with exact bytes, and carries the header
- *   **once**. Bun appends its own copy when it slices, so the naive fix —
- *   advertise unconditionally — emitted `bytes, bytes` on every 206.
+ *   **once**. Bun appends its own copy when it slices, so the naive fix ( *   advertise unconditionally) emitted `bytes, bytes` on every 206.
  * - `Content-Disposition` on file responses is Bun's, not the framework's:
  *   the runtime attaches `filename="…"` to any BunFile body whose type
- *   resolves to `application/octet-stream`, on 200 and 206 alike — measured
+ *   resolves to `application/octet-stream`, on 200 and 206 alike: measured
  *   on Bun 1.4.0, and nothing in this repo writes that header. It carries no
  *   `attachment`, so it forces nothing; it names the file if the client does
  *   download. Kept, and pinned here as *symmetric*, because it was once
- *   reported as a range-response oddity — the asymmetry does not exist, and
+ *   reported as a range-response oddity: the asymmetry does not exist, and
  *   suppressing the header at all would mean overriding a runtime default
  *   with an emptier one.
  */
@@ -75,7 +74,7 @@ afterAll(async () => {
   await fs.rm(dir, { recursive: true, force: true })
 })
 
-describe('static files over the wire — range advertisement', () => {
+describe('static files over the wire, range advertisement', () => {
   test('a plain 200 GET advertises Accept-Ranges: bytes', async () => {
     const res = await fetch(`${base}/video.mp4`)
     expect(res.status).toBe(200)
@@ -101,7 +100,7 @@ describe('static files over the wire — range advertisement', () => {
       `bytes 100-199/${MEDIA_SIZE}`,
     )
     expect((await res.arrayBuffer()).byteLength).toBe(100)
-    // `get` joins duplicates with ", " — the double-advertisement regression
+    // `get` joins duplicates with ", ". The double-advertisement regression
     // would read `bytes, bytes` here.
     expect(res.headers.get('accept-ranges')).toBe('bytes')
   })
@@ -121,7 +120,7 @@ describe('static files over the wire — range advertisement', () => {
     // Bun does not do multipart: the whole file comes back as a 200 and Bun
     // appends no Accept-Ranges of its own. The advertisement skip used to
     // treat "GET with any Range" as "Bun will answer", so this exact response
-    // — to the one client that just proved it wants ranges — claimed nothing.
+    // (to the one client that just proved it wants ranges) claimed nothing.
     // Found by a downstream smoke test against the published alpha. The comma
     // is the entire multipart grammar, so the carve-out cannot drift from
     // Bun's parse; a *malformed* single range stays silent on purpose.
@@ -145,7 +144,7 @@ describe('static files over the wire — range advertisement', () => {
   })
 })
 
-describe('static files over the wire — Content-Disposition is symmetric', () => {
+describe('static files over the wire: Content-Disposition is symmetric', () => {
   test('an octet-stream file carries it on 200 and 206 alike', async () => {
     const full = await fetch(`${base}/blob.bin`)
     expect(full.status).toBe(200)

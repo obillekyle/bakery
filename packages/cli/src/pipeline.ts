@@ -9,7 +9,7 @@ import { retryAfterSeconds } from './rate-limit'
  * They were inline in the `Bun.serve` callback, which is unreachable from a
  * test: `worker.ts` calls `Bun.serve` at module scope, so importing it binds a
  * port. Nothing about them is server-specific, so they live here and the
- * callback calls them — the serve options are otherwise unchanged.
+ * callback calls them: the serve options are otherwise unchanged.
  */
 
 /** The `rateLimit` config with the `false` (disabled) arm removed. */
@@ -24,7 +24,7 @@ export type RateLimitConfig = Exclude<ProcessedAppConfig['rateLimit'], false>
  *
  * The `is.object` guard is load-bearing twice over. `'errorCode' in res` is a
  * `TypeError` on a primitive, and `Try.return`'s failure sentinel is a
- * `symbol` — so the guard is what keeps the rejection path from throwing
+ * `symbol`, so the guard is what keeps the rejection path from throwing
  * inside the code that exists to handle throws. Note `is.object([])` is
  * deliberately `true` (see CLAUDE.md); an array simply has no `errorCode`.
  *
@@ -41,9 +41,9 @@ export function isErrorResult(res: unknown): boolean {
  * Which token bucket this request spends from.
  *
  * The `|| hostname` is not a tidy-up. An empty key is a *valid* string that
- * hashes to one fixed slot, so every client whose IP could not be determined —
+ * hashes to one fixed slot, so every client whose IP could not be determined,
  * which is all of them when `Bakery.server` is not yet assigned, and any of
- * them behind a proxy with `trustProxy` off — would share a single bucket and
+ * them behind a proxy with `trustProxy` off: would share a single bucket and
  * 429 each other. Falling back to the hostname keeps the collision at
  * per-host, which is the coarsest grouping that is still meaningful.
  */
@@ -58,7 +58,7 @@ export function rateLimitKey(
 /**
  * The 429 a rejected request receives.
  *
- * `Retry-After` is whole seconds per RFC 9110 and never 0 — see
+ * `Retry-After` is whole seconds per RFC 9110 and never 0. See
  * `retryAfterSeconds`.
  */
 export function tooManyRequests(refill: number): Response {

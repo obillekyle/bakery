@@ -89,7 +89,7 @@ describe('DynamicHandler.executeModule', () => {
  * serve root, and it must not be behind a `.forbidden` marker.
  *
  * Three of those are filesystem work and one is a regex test, so the order they
- * run in is a performance decision — but only if a rejected entry never shadows
+ * run in is a performance decision, but only if a rejected entry never shadows
  * a later one. These pin that: in each case the *first* entry in the cache
  * matches the path and is rejected, and the answer must still be the second.
  */
@@ -119,7 +119,7 @@ describe('DynamicHandler.findDynamicRoute', () => {
     __setTestConfig({ root: SCAN_DIR })
 
     // `GONE` is the point of three tests below: an entry whose file is not
-    // there. Left implicit, that precondition is a property of the *host* — and
+    // there. Left implicit, that precondition is a property of the *host*, and
     // it silently stopped holding. A glob escape in `$routing.ts` let route
     // discovery resolve outside `SCAN_DIR` entirely and match a file Windows
     // had created at `C:\`, so `resolveRoute` returned an `Info` for a path
@@ -173,7 +173,7 @@ describe('DynamicHandler.findDynamicRoute', () => {
   })
 
   test('canHandle agrees with resolveRoute for every cache state', async () => {
-    // `canHandle` may answer from a cache — it already does for `this.cache` —
+    // `canHandle` may answer from a cache: it already does for `this.cache`,
     // so what has to hold is that it never disagrees with what `resolveRoute`
     // is about to decide, in either direction.
     for (const [label, seeded] of [
@@ -191,7 +191,7 @@ describe('DynamicHandler.findDynamicRoute', () => {
     seed(info(LIVE))
     expect(await ScanHandler.canHandle('/other/1/2')).toBe(false)
     // A literal route-template spelling in the URL is never a route, cache or
-    // no cache — all three forms, since the `!` keeps the optional spelling
+    // no cache, all three forms, since the `!` keeps the optional spelling
     // out of RX_CATCHALL's reach.
     expect(await ScanHandler.canHandle('/item/[id]')).toBe(false)
     expect(await ScanHandler.canHandle('/docs/[...slug]')).toBe(false)
@@ -199,7 +199,7 @@ describe('DynamicHandler.findDynamicRoute', () => {
   })
 })
 
-describe('findDynamicRoute — catch-all ordering', () => {
+describe('findDynamicRoute: catch-all ordering', () => {
   // Isolated per-class caches: the dynamicCache registry is keyed by class
   // identity, so a subclass never pollutes TSXHandler/ApiHandler state.
   class OrderingHandler extends DynamicHandler {}
@@ -269,7 +269,7 @@ describe('findDynamicRoute — catch-all ordering', () => {
   })
 })
 
-describe('findDynamicRoute — catch-alls yield to real files', () => {
+describe('findDynamicRoute: catch-alls yield to real files', () => {
   class YieldHandler extends DynamicHandler {}
   const Y_ROOT = fs.resolve(ROUTE_DIR, 'yield')
 
@@ -308,13 +308,13 @@ describe('findDynamicRoute — catch-alls yield to real files', () => {
 /**
  * The real-file rule has to see through compiled extensions. `TSHandler`
  * serves `provides.ts` at `/site/provides` and `/site/provides.js`, so
- * neither spelling names a file on disk — a literal stat missed both and a
+ * neither spelling names a file on disk: a literal stat missed both and a
  * catch-all page above the module's handler (58 vs 50 in the report) served
  * HTML to a browser that asked for a module. `servedSourceExists` probes the
  * registered dynamic extensions against the extensionless base, read from the
  * live registry so a plugin's extension counts without core naming it.
  */
-describe('findDynamicRoute — catch-alls yield to compiled sources', () => {
+describe('findDynamicRoute: catch-alls yield to compiled sources', () => {
   class SourceYieldHandler extends DynamicHandler {}
   class TsLikeHandler extends DynamicHandler {
     static get config() {
@@ -365,8 +365,8 @@ describe('findDynamicRoute — catch-alls yield to compiled sources', () => {
  *
  * Two things went wrong at once, which is why this lives next to the routing
  * tests rather than with the error-rendering ones. The served page was the
- * catch-all rather than the error page — an app with a root `[...slug].tsx`
- * rendered its wildcard for every 500 — and the walk up the path prefixes ran
+ * catch-all rather than the error page: an app with a root `[...slug].tsx`
+ * rendered its wildcard for every 500, and the walk up the path prefixes ran
  * a full dynamic resolution per segment, which is where most of the cost of a
  * 404 came from.
  */
@@ -385,7 +385,7 @@ describe('error pages resolve statically, never through a catch-all', () => {
 
   beforeAll(async () => {
     // A catch-all at the root and nothing else. Every error-page probe this
-    // handler makes — /error-404, /error, and the same pair per prefix — is a
+    // handler makes (/error-404, /error, and the same pair per prefix) is a
     // path the catch-all matches.
     await Bun.write(`${ERR_ROOT}/[...slug].tsx`, 'export default () => null\n')
     __setTestConfig({ root: ERR_ROOT } as any)

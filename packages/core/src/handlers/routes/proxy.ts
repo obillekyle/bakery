@@ -63,7 +63,7 @@ export class ProxyHandler extends Handler {
 
     const resHeaders = new Headers(proxyRes.headers)
     // Bun already decompressed the body, so the upstream's content-encoding is
-    // wrong — and so is its content-length, which described the compressed size.
+    // wrong, and so is its content-length, which described the compressed size.
     resHeaders.delete('content-encoding')
     resHeaders.delete('content-length')
     return new Response(proxyRes.body, {

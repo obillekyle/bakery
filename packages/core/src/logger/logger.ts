@@ -46,7 +46,7 @@ export function setLogCallback(cb: (entry: LoggerEntry) => void) {
  *
  * Three call sites used to spell this as `Promise.try(() =>
  * onLogCallback?.(…)).catch(() => {})`, which allocated two promises and
- * scheduled a microtask for *every* line — including every line logged while
+ * scheduled a microtask for *every* line, including every line logged while
  * no sink was registered at all. `Try` swallows a synchronous throw and a
  * rejected promise alike (see `utils/isomorphic/try.ts`) without allocating
  * anything on the synchronous path, which is the only path a sink typed
@@ -61,7 +61,7 @@ function emit(entry: LoggerEntry): void {
 }
 
 // Hoisted: both were rebuilt on every call, and neither depends on the input.
-// The colour table is a 23-property literal and the pattern a regex literal,
+// The color table is a 23-property literal and the pattern a regex literal,
 // so a process logging steadily paid for both on every line.
 const COLORS: MapOf<string> = {
   r: '\x1b[31m', // Red
@@ -299,7 +299,7 @@ type Messages<T extends MapOf<string>> = {
 const RX_PARAM = /\{([^}]+)\}/g
 
 type ParsedMessage = {
-  /** The string this was parsed from — the cache's validity check. */
+  /** The string this was parsed from: the cache's validity check. */
   raw: string
   level: LogLevels
   template: string
@@ -332,7 +332,7 @@ export function messageLogger<T extends MapOf<string>>(
   targetMsgs: T,
 ) {
   /**
-   * One entry per *declared* key, so it is bounded by the message table — the
+   * One entry per *declared* key, so it is bounded by the message table: the
    * tables in `serve-log.ts` are literals of a dozen-odd entries each.
    * Undeclared props are deliberately left uncached: the trap fabricates a
    * message for those, and a caller reading arbitrary property names off the

@@ -47,7 +47,7 @@ describe('hostStore', () => {
 describe('getAppVersion', () => {
   /**
    * Prereleases count. This asserted `/^\d+\.\d+\.\d+$/` and passed for every
-   * release the project ever cut — until the first one that was not stable:
+   * release the project ever cut: until the first one that was not stable:
    * `2.0.0-alpha.0` failed here, in the publish workflow's test step, on the
    * very first prerelease. The gate did its job (nothing reached npm), but the
    * assertion was wrong rather than the code.

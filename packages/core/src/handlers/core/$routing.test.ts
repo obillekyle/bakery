@@ -42,21 +42,21 @@ const find = (path: string, options = {}) =>
  *
  * This is a regression test for a Windows-only escape that was live in every
  * release before it was found, and it is written to fail on Linux too if the
- * containment clamp is removed — the glob is only how the escape was *reached*.
+ * containment clamp is removed: the glob is only how the escape was *reached*.
  *
  * `dynamicGlobs` spelled a literal asterisk as `\*`. On Windows `\` is a path
  * separator, so Bun read the pattern as drive-absolute, ignored the `cwd` in
  * `GETFILE`, and matched files at `C:\`. `getRoute` resolved one and asked
- * `fs.isForbidden`, whose walk is bounded by `startsWith(root)` — so an
+ * `fs.isForbidden`, whose walk is bounded by `startsWith(root)`, so an
  * out-of-root path skipped the loop and came back "allowed". The result was a
  * `Route.Info` whose `path` was `../../../../../../$WINRE_BACKUP_PARTITION.MARKER`.
  *
  * `ext` is `[]` here on purpose. That is what `DynamicHandler.config` uses, and
- * it is what makes the pattern `.*` rather than `.{tsx}` — with an extension
+ * it is what makes the pattern `.*` rather than `.{tsx}`, with an extension
  * filter the escape needed a matching file at the drive root to be observable,
  * which is why narrower handlers hid it.
  */
-describe('getRoute — a resolved file is always inside the root', () => {
+describe('getRoute: a resolved file is always inside the root', () => {
   test('an extension-less dynamic scan cannot escape the root', async () => {
     const deep = fs.resolve(ROOT, 'a/b/c')
     for (const path of ['/x', '/x/y', '/x/y/z']) {
@@ -79,7 +79,7 @@ describe('getRoute — a resolved file is always inside the root', () => {
     //
     // Scanned against a directory containing exactly one file. Any hit that is
     // not that file came from somewhere the `cwd` option was supposed to
-    // exclude — on Windows, `\*.*` returned four files from `C:\`.
+    // exclude: on Windows, `\*.*` returned four files from `C:\`.
     const box = fs.resolve(ROOT, 'globbox')
     await Bun.write(`${box}/only.tsx`, '\n')
 
@@ -102,7 +102,7 @@ describe('getRoute — a resolved file is always inside the root', () => {
   test('a literal-asterisk route file is still matched where one can exist', async () => {
     // `*` is a reserved character in a Windows filename, so the route form the
     // pattern exists for is POSIX-only. Skipping rather than deleting the case
-    // keeps the coverage on the platform that can hold it — and CI is Linux.
+    // keeps the coverage on the platform that can hold it, and CI is Linux.
     if (process.platform === 'win32') return
     const star = `${ROOT}/star/${String.fromCharCode(42)}.tsx`
     await Bun.write(star, 'export default () => null\n')
@@ -111,7 +111,7 @@ describe('getRoute — a resolved file is always inside the root', () => {
   })
 })
 
-describe('getRoute — catch-all discovery', () => {
+describe('getRoute: catch-all discovery', () => {
   test('a multi-segment request reaches the catch-all through directories that do not exist', async () => {
     const info = await find('/w/a/b/c')
     expect(info).not.toBeNull()
@@ -135,7 +135,7 @@ describe('getRoute — catch-all discovery', () => {
   })
 
   test('a same-level single-param wins over a child index (pre-existing semantics)', async () => {
-    // Not new behavior — pinned so the catch-all work can't drift it.
+    // Not new behavior: pinned so the catch-all work can't drift it.
     const info = await find('/docs/a')
     expect(info!.path).toBe('docs/[id].tsx')
   })
@@ -170,7 +170,7 @@ describe('getRoute — catch-all discovery', () => {
   })
 })
 
-describe('getRoute — catch-alls yield to real files', () => {
+describe('getRoute: catch-alls yield to real files', () => {
   beforeAll(async () => {
     await Bun.write(`${ROOT}/q3/[...rest].tsx`, 'export default () => null\n')
     await Bun.write(`${ROOT}/q3/style.css`, 'body{}\n')
@@ -200,7 +200,7 @@ describe('getRoute — catch-alls yield to real files', () => {
   })
 })
 
-describe('getRoute — the yield check never probes outside the root', () => {
+describe('getRoute: the yield check never probes outside the root', () => {
   const OUTSIDE = fs.resolve(ROOT, '../__outside-probe__.txt')
 
   afterAll(async () => {
@@ -208,8 +208,8 @@ describe('getRoute — the yield check never probes outside the root', () => {
   })
 
   test('a rest that escapes the directory is not turned into an existence oracle', async () => {
-    // URL parsing normalises `..` away, so this is unreachable over HTTP —
-    // but any caller that skips that normalisation must not be able to use
+    // URL parsing normalizes `..` away, so this is unreachable over HTTP,
+    // but any caller that skips that normalization must not be able to use
     // the catch-all's yield stat to probe arbitrary filesystem paths. The
     // answer must be identical whether or not the outside file exists.
     const probe = '/q3/../../__outside-probe__.txt'

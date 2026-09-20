@@ -72,7 +72,7 @@ describe('DOMTools', () => {
 
   test('params escapes U+2028/U+2029', () => {
     // Legal raw inside JSON, and legal inside a JS string literal only since
-    // ES2019 — escaping them is what `escapeScriptJson` already does for every
+    // ES2019: escaping them is what `escapeScriptJson` already does for every
     // other inline-script payload in the framework.
     //
     // Built with fromCharCode deliberately: a literal U+2028 in this file is
@@ -124,17 +124,17 @@ describe('DOMTools content-type helpers', () => {
   })
 })
 
-describe('import-map normalisation', () => {
+describe('import-map normalization', () => {
   /**
    * The process-level map (`initImportMap`) and the per-host maps
-   * (`initHostImportMaps`) used to normalise entries with two separate copies
+   * (`initHostImportMaps`) used to normalize entries with two separate copies
    * of the same code, and the copies had drifted: one special-cased the entry
    * *key*, the other tested the entry *value*. `{ legacyByValue:
    * './.server/client/utils' }` was therefore rewritten to `/_client/utils.js`
    * by the process path and left alone by the host path, for the same input.
    *
    * They now share one helper, so the assertion is simply that both paths agree
-   * on every entry — which is the property that cannot be restored by accident
+   * on every entry, which is the property that cannot be restored by accident
    * if someone inlines one of them again.
    */
   const ENTRIES: Record<string, string> = {
@@ -197,7 +197,7 @@ describe('import-map normalisation', () => {
     expect(disagreements).toEqual([])
   })
 
-  test('normalisation results are the ones both paths were meant to produce', () => {
+  test('normalization results are the ones both paths were meant to produce', () => {
     // Pinned on the host map; the test above makes the process map identical.
     expect(hostMap['@client/utils']).toBe('/_client/utils.js')
     expect(hostMap.relative).toBe('/assets/x.js')
@@ -209,7 +209,7 @@ describe('import-map normalisation', () => {
 
   test('the pre-split `.server/client/utils` value is no longer special-cased', () => {
     // Those two cases were the only `.server/` references left in the repo and
-    // pointed at a directory the workspace split deleted. They are normalised
+    // pointed at a directory the workspace split deleted. They are normalized
     // like any other relative path now rather than silently redirected.
     expect(hostMap.legacyByValue).toBe('/.server/client/utils')
     expect(hostMap.legacyByValueBare).toBe('/.server/client/utils')
@@ -232,8 +232,7 @@ describe('clearHeadBodyCache', () => {
 /**
  * The import map covers what is *installed*, not what is declared.
  *
- * A package can be installed and imported without appearing in `dependencies` —
- * a transitive one, or a dependency someone forgot to add — and reading
+ * A package can be installed and imported without appearing in `dependencies` ( * a transitive one, or a dependency someone forgot to add), and reading
  * `node_modules` is what lets the browser resolve those.
  */
 describe('initImportMap covers installed packages', () => {
@@ -246,7 +245,7 @@ describe('initImportMap covers installed packages', () => {
     const names = Object.keys(imports).filter(k => !k.endsWith('/'))
     expect(names.length).toBeGreaterThan(0)
 
-    // The entry file is resolved by NMHandler/Bun.build, not named here — the
+    // The entry file is resolved by NMHandler/Bun.build, not named here: the
     // previous version wrote `/_nm/<name>/<main-or-module>` and got it wrong for
     // anything behind an `exports` map.
     for (const name of names) {

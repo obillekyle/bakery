@@ -67,7 +67,7 @@ describe('parseArgs', () => {
     if (!parsed.ok) return
     expect(parsed.options.dir).toBe(resolve('.'))
     // Not the literal ".", which is what basename() would give without the
-    // resolve() first — and which is not a legal package name.
+    // resolve() first, and which is not a legal package name.
     expect(parsed.options.name).not.toBe('.')
     expect(isValidAppName(parsed.options.name)).toBe(true)
   })
@@ -94,7 +94,7 @@ describe('parseArgs', () => {
   })
 
   test('a second positional argument is refused', () => {
-    // Catches `bun create bakery my app` — a space where a dash was meant,
+    // Catches `bun create bakery my app`: a space where a dash was meant,
     // which would otherwise silently scaffold into `my`.
     const parsed = parseArgs(['my', 'app'])
     expect(parsed.ok).toBe(false)
@@ -122,7 +122,7 @@ describe('parseArgs', () => {
     // `@co/app` as the positional argument means a nested directory, because
     // that is what a path argument means. Its basename is the default name;
     // inferring a scoped package name from it instead would be a guess. This
-    // pins the decision — the two readings were silently disagreeing before.
+    // pins the decision: the two readings were silently disagreeing before.
     const parsed = parseArgs(['@co/app'])
     expect(parsed.ok).toBe(true)
     if (!parsed.ok) return
@@ -218,7 +218,7 @@ describe('the generated app', () => {
   test('the emitted range tracks this package, not a literal', async () => {
     // The two halves of the no-drift claim. `dependencyRange` is pure and
     // tested above; this is the half that touches disk, and it is the half that
-    // breaks silently — if the relative URL in `ownVersion` stops resolving,
+    // breaks silently: if the relative URL in `ownVersion` stops resolving,
     // every other test here still passes while generated apps pin the wrong
     // major.
     const declared = await Bun.file(
@@ -274,14 +274,14 @@ describe('the generated app', () => {
     const index = await Bun.file(join(dir, 'orm/index.ts')).text()
 
     // Without this block everything runs and typechecks with permissive `any`
-    // columns — a quiet enough failure to be worth generating rather than
+    // columns: a quiet enough failure to be worth generating rather than
     // documenting.
     expect(index).toContain(
       "declare module '@bakery-framework/orm/schema-registry'",
     )
     expect(index).toContain('InferSchema<Model>')
     // Tables *and* views. Inferring from tables alone leaves `InferViews`
-    // empty, and a view is then writable — which is the whole thing declaring
+    // empty, and a view is then writable, which is the whole thing declaring
     // one is meant to prevent.
     expect(index).toContain('type Model = typeof tables & typeof views')
     expect(index).toContain('InferViews<Model>')
@@ -306,7 +306,7 @@ describe('the template only imports enumerated exports', () => {
    * The invariant worth having a test for.
    *
    * `@bakery-framework/core` and `@bakery-framework/orm` both still publish a `"./*"` wildcard, so
-   * *every* internal file resolves today — which means a template importing the
+   * *every* internal file resolves today, which means a template importing the
    * wrong subpath is indistinguishable from one importing the right one, right
    * up until the wildcard is removed. MONOREPO.md gives it one release.
    *
@@ -368,7 +368,7 @@ describe('the template only imports enumerated exports', () => {
     // enough: the app transpiles with Bun's default automatic JSX runtime and
     // every .tsx route 500s with `Cannot find module 'react/jsx-dev-runtime'`.
     //
-    // Typecheck cannot see this — `tsc` *does* follow the extends — so a test
+    // Typecheck cannot see this (`tsc` *does* follow the extends), so a test
     // is the only thing standing between a "dedupe these away" edit and a
     // scaffolder that emits apps whose every page is broken. apps/starter
     // shipped with exactly that bug.
@@ -398,7 +398,7 @@ describe('the template only imports enumerated exports', () => {
 
 /**
  * The ORM and the plugins are choices now, and the flags are what make that
- * choice reproducible — `bun create` runs in scripts and Dockerfiles as often
+ * choice reproducible: `bun create` runs in scripts and Dockerfiles as often
  * as it runs for a person, and neither of those can answer a prompt.
  */
 describe('--orm / --no-orm / --plugins', () => {
@@ -431,7 +431,7 @@ describe('--orm / --no-orm / --plugins', () => {
     expect(opts(['app', '--plugins=dashboard']).plugins).toEqual(['dashboard'])
   })
 
-  test('order and duplicates are normalised', () => {
+  test('order and duplicates are normalized', () => {
     // So two people who typed the same set in a different order get identical
     // apps, and a diff between them is empty.
     expect(opts(['app', '--plugins', 'dashboard,vue']).plugins).toEqual([
@@ -519,7 +519,7 @@ describe('templateFiles with choices', () => {
   test('the example API route respects its own foreign key', () => {
     // posts.authorId references users.id, and the route used to insert a
     // hardcoded `authorId: 1` into a freshly synced database with no users in
-    // it — so the first POST any reader tried, following the generated README,
+    // it, so the first POST any reader tried, following the generated README,
     // answered 500 with `FOREIGN KEY constraint failed`.
     const route = fileOf(templateFiles('app', range), 'src/api/notes.ts')
     expect(route).not.toContain('authorId: 1')
@@ -538,7 +538,7 @@ describe('templateFiles with choices', () => {
 
   test('--no-orm still ships a working API route', () => {
     // The route is the thing most likely to be left importing a package that is
-    // no longer a dependency — which installs fine and fails at first request.
+    // no longer a dependency, which installs fine and fails at first request.
     const files = templateFiles('app', range, { orm: false, plugins: [] })
     const route = fileOf(files, 'src/api/notes.ts')
     // An *import* of it, not a mention: the comment in that file points at
@@ -593,7 +593,7 @@ describe('templateFiles with choices', () => {
 
   test('the dashboard is scaffolded without an authorize predicate', () => {
     // Omitted, it is loopback-only in dev and denied in production. A generated
-    // app must not be born with an open console — apps/example passes
+    // app must not be born with an open console: apps/example passes
     // `() => true` because it is a local demo, and copying that here would ship
     // every scaffolded app with the console open to anyone.
     const files = templateFiles('app', range, {
@@ -682,13 +682,13 @@ describe('multiselect key handling', () => {
     expect([...r.state.selected].sort()).toEqual(['dashboard', 'vue'])
   })
 
-  test('ctrl-c cancels, and cancelling is not an empty selection', () => {
+  test('ctrl-c cancels, and canceling is not an empty selection', () => {
     // Distinct outcomes on purpose: Ctrl-C must not scaffold, and returning an
     // empty array here would have it scaffold with no plugins instead.
     expect(press(fresh(), ' ', '\x03').kind).toBe('cancel')
   })
 
-  test('an unrecognised key changes nothing', () => {
+  test('an unrecognized key changes nothing', () => {
     const r = press(fresh(), 'q')
     if (r.kind === 'cancel') throw new Error('cancelled')
     expect({ cursor: r.state.cursor, size: r.state.selected.size }).toEqual({

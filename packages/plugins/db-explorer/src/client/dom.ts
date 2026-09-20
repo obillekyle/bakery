@@ -2,8 +2,7 @@
  * The only place this client creates a node.
  *
  * **Nothing here writes `innerHTML`, and `client/safety.test.ts` asserts that
- * no client module does.** Every value the grid renders is a database row —
- * whatever the last writer put there — and the operator's origin owns
+ * no client module does.** Every value the grid renders is a database row ( * whatever the last writer put there), and the operator's origin owns
  * `/api/_db/rows`, so a string that reached the DOM as markup would be stored
  * XSS to arbitrary row writes. `textContent` is not a style preference; it is
  * the reason this plugin has no XSS surface. The dashboard's grid, which
@@ -16,7 +15,7 @@ export interface ElOptions {
   text?: string
   title?: string
   id?: string
-  /** `aria-*`, `role`, `data-*` — anything set through `setAttribute`. */
+  /** `aria-*`, `role`, `data-*`: anything set through `setAttribute`. */
   attrs?: Record<string, string | number | boolean | null | undefined>
 }
 
@@ -88,8 +87,7 @@ export function each<T>(
 /**
  * A `<table class="grid">` with its heading row already in it.
  *
- * The two lines this replaces — build the table, loop `<th>` into a `<tr>` —
- * had been written out three times, twice in `structure.ts` and once in
+ * The two lines this replaces (build the table, loop `<th>` into a `<tr>`)  * had been written out three times, twice in `structure.ts` and once in
  * `csv-preview.ts`. Rows are appended by the caller, because the three differ
  * in what a row is: `structure.ts` has plain text cells, and `csv-preview.ts`
  * puts a checkbox row directly under the headings.

@@ -8,14 +8,14 @@ import { join } from 'node:path'
  *
  * `drawSparkline` does the standard device-pixel-ratio dance:
  *
- * ```ts no-check — quoted from client/parts/stats.ts
+ * ```ts no-check: quoted from client/parts/stats.ts
  * const rect = canvas.getBoundingClientRect()
  * canvas.width = Math.trunc(rect.width * dpr)
  * ```
  *
  * That is correct *provided the box does not depend on the attribute it
  * writes*. A canvas with no CSS width lays out at its `width`/`height`
- * attributes — so with only `min-height` declared, the line above read the
+ * attributes, so with only `min-height` declared, the line above read the
  * attribute, multiplied it by the pixel ratio and wrote it back. A feedback
  * loop with gain `dpr`, re-entered once a second by the polling redraw: on a
  * 125% display the nine charts grew 323 → 404 → 505 → 631 px and spilled out
@@ -61,7 +61,7 @@ describe('chart canvases are sized by CSS, not by their own attributes', () => {
 
   test('it is not an inline box', () => {
     // A canvas defaults to `display: inline`, where percentage width does not
-    // resolve against the parent the way this needs — and it adds a baseline
+    // resolve against the parent the way this needs, and it adds a baseline
     // gap beneath the chart.
     expect(bigChartRule()).toMatch(/display\s*:\s*block/)
   })
@@ -72,7 +72,7 @@ describe('chart canvases are sized by CSS, not by their own attributes', () => {
  *
  * Inside `.card` they stacked anyway, because that rule is
  * `display: flex; flex-direction: column` and a flex container blockifies its
- * children. The labels themselves never claimed to be blocks — so in
+ * children. The labels themselves never claimed to be blocks, so in
  * `.chart-card`, an ordinary block, the same two spans shared a line and every
  * chart read
  * `PING LATENCY HISTORYClient-to-server connection latency (last 1 min…)`.
@@ -81,7 +81,7 @@ describe('chart canvases are sized by CSS, not by their own attributes', () => {
  * the property belongs to "this is a caption on its own line", not to the two
  * containers that happen to remember to be flex today.
  *
- * A grep again, and for the same reason as above — it renders, it is just
+ * A grep again, and for the same reason as above: it renders, it is just
  * wrong, so nothing fails.
  */
 describe('card labels are block-level in their own right', () => {
@@ -95,7 +95,7 @@ describe('card labels are block-level in their own right', () => {
    *
    * Deliberately not a constructed `RegExp`: the selector begins with `.`, so
    * building a pattern from it means escaping, and an escaping mistake here
-   * fails by matching *nothing* — which reads exactly like the rule being
+   * fails by matching *nothing*, which reads exactly like the rule being
    * absent, i.e. like the bug this file exists to catch.
    */
   function rule(selector: string): string {
@@ -124,13 +124,13 @@ describe('card labels are block-level in their own right', () => {
  * value into it, set `left`/`top` from that sample's position, tagged it
  * `data-placement`, and toggled `.visible`. Every one of those was inert
  * without CSS: an unpositioned block appended to the card, so it stacked under
- * the MIN/MAX/AVG row and stayed there — the readout "stuck at the bottom"
+ * the MIN/MAX/AVG row and stayed there, the readout "stuck at the bottom"
  * instead of floating at the point.
  *
  * Two of these are less obvious than they look. The card needs
  * `position: relative`, because the JS measures its offsets against the card's
  * own rect and absolute coordinates resolve against the nearest positioned
- * ancestor — without it the tooltip lands relative to the page. And the
+ * ancestor, without it the tooltip lands relative to the page. And the
  * `data-placement` rules carry the offset transforms, because `left`/`top` are
  * the *sample's* position rather than where the box's corner should go.
  */
@@ -161,7 +161,7 @@ describe('the chart tooltip has the rules its JS assumes', () => {
     'above',
     'below',
   ])('placement %s has an offset transform', placement => {
-    // String search, not a constructed `RegExp` — for the second time in this
+    // String search, not a constructed `RegExp`: for the second time in this
     // file. A selector full of `.`, `[` and `'` needs escaping, and getting
     // that wrong matches nothing, which is indistinguishable from the rule
     // being missing: the test passes its own bug off as the bug it hunts.

@@ -21,7 +21,7 @@ import { createStubDb } from './test-fixtures'
  * `setAnalyticsCredential` are the state `checkAuthMiddleware` reads, which is
  * the point of the delegation and is why these tests reach for analytics'
  * setters rather than a dashboard-local one. They are module-level process
- * state, so anything set here is cleared in `afterAll` — an armed door left
+ * state, so anything set here is cleared in `afterAll`: an armed door left
  * behind is inherited by every file Bun loads after this one.
  */
 function openTheDoor() {
@@ -36,7 +36,7 @@ function closeTheDoor() {
 /**
  * The console's mutating surface is now the two session routes and nothing
  * else. These cases used to drive `POST /api/_dashboard/execute-action`,
- * whose `truncate` emptied a table — the worst thing a CSRF hole here could
+ * whose `truncate` emptied a table: the worst thing a CSRF hole here could
  * reach. That endpoint retired with the grid editor
  * (`@bakery-framework/plugin-db-explorer` owns row editing now), so the same
  * two guards are exercised against what is left. The blast radius shrank; the
@@ -62,7 +62,7 @@ beforeAll(async () => {
   openTheDoor()
   __setTestDb(stubDb)
   // The read probe below is `/api/_dashboard/sessions`, and the session store
-  // reads config. It used to be `/api/_dashboard/schema`, which did not — that
+  // reads config. It used to be `/api/_dashboard/schema`, which did not: that
   // endpoint is gone, along with the second read path to every table it gave
   // the console.
   await initConfig()
@@ -85,7 +85,7 @@ describe('dashboard CSRF and method qualification', () => {
   test('a cross-origin GET cannot reach sessions/delete', async () => {
     // GET is in `SAFE_METHODS`, so `checkCsrf` returns null for this by design;
     // `processBody` then reads the query string as the body. Method-qualifying
-    // the route key is the only thing that stops it — this is the half the
+    // the route key is the only thing that stops it: this is the half the
     // CSRF guard structurally cannot cover.
     const res = await handleDashboardRequest(
       new Request(`${DELETE_URL}?id=${VICTIM}`, {
@@ -166,12 +166,12 @@ describe('dashboard CSRF and method qualification', () => {
   })
 
   test('the retired write endpoints are not routes any more', async () => {
-    // Not merely gated — absent. `DASHBOARD_ALLOW_WRITES` is gone with them,
+    // Not merely gated, absent. `DASHBOARD_ALLOW_WRITES` is gone with them,
     // so there is no flag that brings them back, and a stale client or a
     // bookmarked probe finds nothing to dispatch to.
     //
     // **404, not `null`.** This asserted `toBeNull()` and passed, because that
-    // is what `dispatch` answers for an unmatched key — and core turns a `null`
+    // is what `dispatch` answers for an unmatched key, and core turns a `null`
     // from a handler into **204 No Content**. A script still posting to
     // `execute-action` was therefore told 204, read it as success, and silently
     // changed nothing. For a route that has been deleted that is the worst
@@ -206,7 +206,7 @@ describe('dashboard CSRF and method qualification', () => {
 
   test('any unmatched dashboard path is a 404, not an empty success', async () => {
     // The general rule the case above is one instance of. A handler returning
-    // `null` means "not mine" to the router, which answers 204 — fine for a
+    // `null` means "not mine" to the router, which answers 204: fine for a
     // handler declining a path, wrong for a handler that claims the whole
     // `/api/_dashboard/*` namespace and simply has no key for this one.
     const res = await handleDashboardRequest(
@@ -226,7 +226,7 @@ describe('dashboard CSRF and method qualification', () => {
 
   test('a same-origin POST still reaches the endpoint', async () => {
     // The other direction: the guards must not have made the console useless.
-    // The session does not exist, so the endpoint answers 404 — which is the
+    // The session does not exist, so the endpoint answers 404, which is the
     // proof it was dispatched rather than refused by a guard at 403.
     const res = await handleDashboardRequest(
       new Request(DELETE_URL, {
@@ -251,7 +251,7 @@ describe('dashboard CSRF and method qualification', () => {
       ),
     )
 
-    // getData is absent from the stub, so this fails inside the endpoint — the
+    // getData is absent from the stub, so this fails inside the endpoint: the
     // point is that it was dispatched at all rather than refused by a guard.
     expect(res).toBeInstanceOf(JsonResponseData)
     expect((res as JsonResponseData).status).not.toBe(403)
@@ -259,8 +259,8 @@ describe('dashboard CSRF and method qualification', () => {
 })
 
 /**
- * The predicate's own semantics — loopback matching, throwing predicates,
- * truthy-non-boolean denial, the production default — live in
+ * The predicate's own semantics (loopback matching, throwing predicates,
+ * truthy-non-boolean denial, the production default) live in
  * `packages/core/src/utils/http/authorize.test.ts` now that the guard is
  * core's. What is dashboard's and stays here is the *wiring*: that the console
  * consults the predicate at all, and that a denial is shaped differently for an
@@ -323,7 +323,7 @@ describe('dashboard authorization wiring', () => {
 
   test('assets are served without consulting the predicate', async () => {
     // Styling and script are not secrets, and letting them through keeps an
-    // unauthorised response from rendering unstyled.
+    // unauthorized response from rendering unstyled.
     setAnalyticsAuthorize(() => {
       throw new Error('the predicate must not be consulted for assets')
     })
@@ -349,7 +349,7 @@ describe('dashboard authorization wiring', () => {
   // Not covered here: that `setupDashboard` hands its options to
   // `setupAnalytics` rather than dropping them. Reaching it means calling
   // `setupDashboard`, which also mounts routes, registers the handler at
-  // priority 120 and installs a global log callback — three process-global
+  // priority 120 and installs a global log callback: three process-global
   // mutations with no restore, which is the leak convention 9 exists to stop.
   // What the block below covers instead is the half that matters at request
   // time: that the state those options land in is the state the console reads.
@@ -361,15 +361,14 @@ describe('dashboard authorization wiring', () => {
  * asserted here is that the console has no second door of its own: setting
  * analytics' credential, and nothing else, admits a *dashboard* request.
  *
- * Verified by planting the pre-delegation guard back — a module-local
- * predicate defaulting to `defaultAuthorize`, checked with `isAuthorized` —
- * and re-running: the three *admission* cases fail against it, because a
+ * Verified by planting the pre-delegation guard back (a module-local
+ * predicate defaulting to `defaultAuthorize`, checked with `isAuthorized`),  * and re-running: the three *admission* cases fail against it, because a
  * console with its own door never looks at analytics' credential or
  * predicate and refuses all three.
  *
  * The two refusal cases pass against the plant as well, and are kept as
  * controls rather than as evidence. A wrong key is refused by any guard, and
- * "neither configured" is refused by the old one too — `bun test` runs with
+ * "neither configured" is refused by the old one too: `bun test` runs with
  * `PROD` set, so `defaultAuthorize` denies before `isLoopback` is reached, and
  * `isLoopback` would deny anyway with no server to read a peer address from.
  * They pin the shape of the denial; the three above pin the delegation.
@@ -445,8 +444,8 @@ describe('the console delegates its door to analytics', () => {
   })
 
   test('neither configured denies, and the console has no default of its own', async () => {
-    // The console's `defaultAuthorize` lives at the *setup* boundary now — it
-    // is forwarded into analytics as an explicit predicate — so an analytics
+    // The console's `defaultAuthorize` lives at the *setup* boundary now (it
+    // is forwarded into analytics as an explicit predicate), so an analytics
     // door with nothing in it is closed even to loopback, which is exactly
     // what a request arriving here with no configuration must find.
     closeTheDoor()

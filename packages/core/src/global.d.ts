@@ -21,7 +21,7 @@ declare global {
   // runtime resolves those names in global scope.
   //
   // `var req: Request` and `var body: any` used to live here too. Nothing ever
-  // assigned them — not init.ts, not client/utils.ts, nothing — so
+  // assigned them, not init.ts, not client/utils.ts, nothing, so
   // `req.headers.get('host')` typechecked anywhere in the codebase and threw
   // `ReferenceError: req is not defined` when it ran. A global that only
   // exists in the type system is worse than no global at all.
@@ -29,7 +29,7 @@ declare global {
   var Fragment: typeof import('./core/jsx').Fragment
   var html: typeof import('./core/jsx').html
 
-  // JsonResponse and ISFunction are declared once, in shared.d.ts — the
+  // JsonResponse and ISFunction are declared once, in shared.d.ts: the
   // browser runtime needs them too. MapOf, Wrapped and MixedPromise are not
   // global at all any more; they are imported from ./types above.
   //
@@ -46,8 +46,8 @@ declare global {
 
   /**
    * What a middleware may return to stop the chain: a `Response`, or a
-   * `response.json.*` envelope. Anything else — including a bare object or a
-   * string — is ignored and the next middleware runs. See `$middleware.ts`.
+   * `response.json.*` envelope. Anything else (including a bare object or a
+   * string) is ignored and the next middleware runs. See `$middleware.ts`.
    */
   type MiddlewareResponse =
     | Response
@@ -64,7 +64,7 @@ declare global {
     onError?(error: Handler.Error.Data): MixedPromise<any>
     /**
      * Cross-origin resource sharing. Absent means no CORS headers at all,
-     * which is the browser default and the safe one — there is deliberately no
+     * which is the browser default and the safe one: there is deliberately no
      * permissive default, not even in development.
      */
     cors?: import('./utils/http/cors').CorsOptions | null
@@ -96,7 +96,7 @@ declare global {
 
     /**
      * Cross-origin resource sharing. Absent means no CORS headers at all,
-     * which is the browser default and the safe one — there is deliberately no
+     * which is the browser default and the safe one: there is deliberately no
      * permissive default, not even in development.
      */
     cors?: import('./utils/http/cors').CorsOptions | null
@@ -125,7 +125,7 @@ declare global {
 
     // `maxCacheSize?: number` was declared and defaulted to 500 here, and read
     // by nothing: the route LRUs size themselves and the tiered cache takes its
-    // own options. Deleted rather than wired up — there is no single cache it
+    // own options. Deleted rather than wired up: there is no single cache it
     // plausibly governs, and a knob that silently does nothing is worse than an
     // absent one. Removing it before the first publish is a docs note; after,
     // it is a breaking change.
@@ -143,14 +143,14 @@ declare global {
     trustProxy?: boolean
 
     /**
-     * Where the ORM finds the app's schema — a file, or a folder containing
+     * Where the ORM finds the app's schema: a file, or a folder containing
      * `index.ts`. Relative paths resolve against the app's cwd. Omit it (or
      * leave it empty) to auto-detect `orm/` then `schema.ts`.
      *
      * A plain string, deliberately: core must never depend on `@bakery-framework/orm`,
      * which depends on core, and a path carries no type from it. The ORM reads
      * this through `schemaFromConfig`. A configured path that does not exist is
-     * a hard error rather than a fall back to auto-detect — otherwise a typo
+     * a hard error rather than a fall back to auto-detect: otherwise a typo
      * makes the sync engine generate a fresh schema at the wrong path while the
      * real one sits untouched.
      */
@@ -339,18 +339,18 @@ declare global {
 
   // Defined as getters on process.env by core/init.ts, and substituted into
   // browser bundles by the compiler's `defines`. The client used to redeclare
-  // `ImportMeta.env` with its own incompatible shape, which is TS2687/TS2717 —
+  // `ImportMeta.env` with its own incompatible shape, which is TS2687/TS2717:
   // suppressed, like everything else in a .d.ts, by skipLibCheck.
   interface ImportMetaEnv {
     // `'1'` or `''`, not `true` or `false`. These live on `process.env`, and
-    // Bun 1.4 stopped accepting accessor descriptors there — a boolean is no
+    // Bun 1.4 stopped accepting accessor descriptors there: a boolean is no
     // longer expressible on that object at all, since data descriptors coerce
     // too. See the encoding block in `core/init.ts`.
     //
     // Typed as the literal pair rather than `string` on purpose: it makes
     // `import.meta.env.PROD !== false` a *compile* error. That comparison was
     // real, in the dashboard's fail-closed gate, and under the string encoding
-    // it is true for every value including the `''` a development server sets —
+    // it is true for every value including the `''` a development server sets,
     // so the gate would have denied on loopback in development while still
     // reading as correct. A type that only said `string` would not have caught
     // it either.
@@ -358,8 +358,8 @@ declare global {
     // In a **browser** bundle these are real booleans: `compiler.ts` substitutes
     // `JSON.stringify(!!import.meta.env.DEV)` at build time, so the literal
     // `true`/`false` is inlined and this declaration is a slight lie there. It
-    // is the harmless direction — both encodings agree on truthiness, which is
-    // all client code tests — and the server is where the mistakes happen.
+    // is the harmless direction (both encodings agree on truthiness, which is
+    // all client code tests), and the server is where the mistakes happen.
     readonly DEV: '1' | ''
     readonly PROD: '1' | ''
     readonly WORKER: '1' | ''
@@ -368,8 +368,8 @@ declare global {
     readonly THREAD_ID: string
     readonly TEST: '1' | ''
     readonly MODE: 'production' | 'development' | 'dev-worker' | 'thread-worker'
-    // `readonly SERVE_ROOT: string` was declared here. Nothing defines it —
-    // not init.ts, not the compiler's `defines` — and nothing reads it, so any
+    // `readonly SERVE_ROOT: string` was declared here. Nothing defines it,
+    // not init.ts, not the compiler's `defines`, and nothing reads it, so any
     // code that trusted the declaration would have got `undefined` typed as
     // `string`. The resolved root is `Bakery.serveRoot`; use that.
     /** Compiler define; the only one the browser bundle reads. */

@@ -65,11 +65,11 @@ describe('users grant their own level', () => {
   })
 })
 
-describe('a URL credential cannot authorise a write', () => {
+describe('a URL credential cannot authorize a write', () => {
   /**
    * A credential in a URL travels with any link. `checkCsrf` is an `Origin`
    * check rather than a token, and it *passes* when `Origin` is absent or the
-   * literal string `"null"` — which is what a sandboxed iframe sends. Requiring
+   * literal string `"null"`, which is what a sandboxed iframe sends. Requiring
    * a header on a state-changing request means the caller had to run script on
    * this origin.
    */
@@ -99,7 +99,7 @@ describe('a URL credential cannot authorise a write', () => {
 describe('the predicate must answer with an exact level', () => {
   const ask = (fn: AccessFn) => accessFromPredicate(get(), fn)
 
-  test('write and read are honoured', async () => {
+  test('write and read are honored', async () => {
     expect(await ask(() => 'write')).toBe('write')
     expect(await ask(() => 'read')).toBe('read')
     expect(await ask(async (): Promise<Access> => 'write')).toBe('write')
@@ -165,7 +165,7 @@ describe('both doors, higher wins', () => {
   })
 
   test('a denying predicate does not veto a valid key', async () => {
-    // Higher wins — the doors are alternatives, not a conjunction. Anyone
+    // Higher wins: the doors are alternatives, not a conjunction. Anyone
     // wanting a veto writes it into the predicate and issues no key.
     const access = await resolveAccess(get({ 'x-db-key': 'ops-key' }), {
       users: USERS,
@@ -211,8 +211,8 @@ describe('canWrite', () => {
  * A configured level the explorer does not have.
  *
  * `access` is typed, and neither a JavaScript caller nor a value read from the
- * environment is bound by that. An unknown level failed *closed* — `canWrite`
- * compares against `'write'` exactly — but it reached the client as the
+ * environment is bound by that. An unknown level failed *closed* (`canWrite`
+ * compares against `'write'` exactly), but it reached the client as the
  * caller's own level first, so the operator saw "no access" on a map they
  * believed granted write, with nothing naming the typo.
  */

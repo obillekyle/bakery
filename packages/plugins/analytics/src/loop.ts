@@ -20,7 +20,7 @@ let lastSaveTime = 0
  *
  * The timestamp is stamped when the write *settles*, not when it is
  * dispatched. Stamping first meant a flush that took longer than the window
- * let the next one start on top of it — two writers over the same tables,
+ * let the next one start on top of it: two writers over the same tables,
  * from a function whose whole job is to be harmless.
  *
  * `finally` rather than the success path: a failed flush that reset nothing
@@ -85,7 +85,7 @@ async function runAnalyticsTick(server: any) {
  * millisecond a second at five consoles rather than five - real, and smaller
  * than the 10 ms a call the backlog recorded.
  *
- * The serialised frame is reused too. `JSON.stringify` of a stats payload is
+ * The serialized frame is reused too. `JSON.stringify` of a stats payload is
  * not free, and it was run once per client over an identical object.
  *
  * `compute` is a test seam (convention 9): counting the calls is the only
@@ -127,8 +127,8 @@ let loopRunning = false
  * Sample the server once every `intervalMs`.
  *
  * A self-rescheduling `setTimeout`, not `setInterval`. The tick body makes a
- * full round trip through the server — `MiddlewareHandler`, so `onRequest` and
- * every app middleware — plus a `Session.count`, which is a SQLite `COUNT(*)`.
+ * full round trip through the server (`MiddlewareHandler`, so `onRequest` and
+ * every app middleware) plus a `Session.count`, which is a SQLite `COUNT(*)`.
  * `setInterval` does not wait for an async body, so once p50 exceeded one
  * second the ticks overlapped and the in-flight pings accumulated, each adding
  * load that lengthened the next: positive feedback, from the telemetry.
@@ -136,7 +136,7 @@ let loopRunning = false
  * The overlap was not only a load problem. `pushAnalyticsSnapshot` zeroes the
  * per-second counters at the end of a tick, so a re-entrant call double-advanced
  * the hourly accumulator and emptied the counters belonging to the tick still
- * in flight — drifting the 60-snapshot aggregation boundary off a real hour.
+ * in flight: drifting the 60-snapshot aggregation boundary off a real hour.
  * Re-arming in `finally` makes the overlap structurally impossible rather than
  * merely unlikely, so neither failure can come back.
  *

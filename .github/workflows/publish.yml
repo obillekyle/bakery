@@ -2,7 +2,7 @@ name: Publish
 
 # The only thing here that touches the registry, and the only one that cannot
 # be undone: npm never allows a version number to be reused, by anyone, ever.
-# So it fires on a tag rather than on a push — `version.yml` creates the tag,
+# So it fires on a tag rather than on a push: `version.yml` creates the tag,
 # and a human can also create one by hand.
 #
 # Authentication is **npm Trusted Publishing (OIDC)**: no long-lived token
@@ -13,14 +13,14 @@ name: Publish
 #   - Trusted publishing is configured **per package** on npmjs.com, and it
 #     names *this file*. Renaming publish.yml, or moving the job, breaks the
 #     trust relationship and every publish 403s until the config is updated.
-#   - It cannot perform a package's *first* publish — npm has nowhere to attach
+#   - It cannot perform a package's *first* publish: npm has nowhere to attach
 #     the trusted publisher until the package exists. Release one is done by
 #     hand with a local token; everything after comes through here.
 # Two triggers, and the second is not a convenience.
 #
 # **A tag pushed by `version.yml` cannot start this workflow.** GitHub refuses
 # to create workflow runs from events made with the default `GITHUB_TOKEN`, to
-# prevent recursion — so the `push: tags` trigger only ever fires for a tag a
+# prevent recursion, so the `push: tags` trigger only ever fires for a tag a
 # human pushes. The first automated release proved it: v1.0.1 was tagged and
 # nothing ran.
 #
@@ -87,7 +87,7 @@ jobs:
 
       # A tag can be created by hand, and by hand it can be put on the wrong
       # commit. Publishing then ships whatever the manifests happen to say
-      # under a tag claiming something else — and both are permanent.
+      # under a tag claiming something else, and both are permanent.
       - name: Refuse if the tag and the manifests disagree
         run: |
           manifest=$(bun -e 'console.log(require("./package.json").version)')
@@ -99,7 +99,7 @@ jobs:
 
       # The dist-tag is derived from the version, never passed in. A prerelease
       # published without one becomes `latest`, and then every plain
-      # `bun add @bakery-framework/core` in the world resolves to a beta —
+      # `bun add @bakery-framework/core` in the world resolves to a beta:
       # silently, and only fixable by re-tagging after people have installed it.
       # An unrecognised prerelease is refused rather than defaulted.
       - name: Work out the dist-tag
@@ -159,7 +159,7 @@ jobs:
       # protocol, this fails here rather than shipping unresolvable manifests.
       # The name deliberately avoids a trailing colon. `name: … workspace:`
       # parses as a nested mapping key, and GitHub rejects the whole file with
-      # "Invalid workflow file" — while `js-yaml` locally accepts it, so the
+      # "Invalid workflow file", while `js-yaml` locally accepts it, so the
       # error is invisible until the workflow refuses to run at all.
       - name: Refuse if any tarball still carries a workspace range
         run: |
@@ -174,7 +174,7 @@ jobs:
 
       # Dependency order: core, then everything depending on it, then the
       # scaffolder that references them all. It does not affect whether a
-      # publish succeeds — npm does not check that a dependency exists — but it
+      # publish succeeds (npm does not check that a dependency exists), but it
       # decides what a consumer sees if they install while this is half done.
       # **Resumable on purpose.** Eight publishes are eight chances to fail
       # partway, and the first real run did exactly that: six succeeded and
@@ -212,14 +212,14 @@ jobs:
             enc=$(printf '%s' "$name" | sed 's|/|%2F|')
 
             if curl -fsS -o /dev/null "https://registry.npmjs.org/$enc/$version" 2>/dev/null; then
-              echo "  $name@$version already published — skipping"
+              echo "  $name@$version already published: skipping"
               skipped=$((skipped + 1))
               continue
             fi
 
             # **Absolute path, not `dist/…`.** npm parses a bare `a/b` as a
             # GitHub shorthand, so `npm publish dist/pkg-1.0.2.tgz` tries to
-            # fetch `github:dist/pkg-1.0.2.tgz` and dies with EALLOWGIT —
+            # fetch `github:dist/pkg-1.0.2.tgz` and dies with EALLOWGIT:
             # "Fetching packages of type git have been disabled". It is not a
             # missing-file error, which is what makes it confusing.
             tgz="$GITHUB_WORKSPACE/dist/${fname}-${version}.tgz"
@@ -237,7 +237,7 @@ jobs:
           {
             echo "### Published $TAG under \`$DIST_TAG\`"
             echo
-            echo "Authenticated by OIDC — no token was used."
+            echo "Authenticated by OIDC. No token was used."
             echo
             if [ "$DIST_TAG" = latest ]; then
               echo '```'

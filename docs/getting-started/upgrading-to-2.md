@@ -26,14 +26,14 @@ changed, how it shows up if you do nothing, and what to write instead.
 **The one most apps hit.** A catch-all parameter used to arrive as a joined
 string; it is an array of segments now.
 
-```ts no-check — the 1.2 form, shown for comparison
+```ts no-check: the 1.2 form, shown for comparison
 export default html<{ page: string }>((req, body) => {
   const crumbs = body.page.split('/')
   return `<h1>${crumbs.at(-1)}</h1>`
 })
 ```
 
-```ts no-check — the 2.0 form
+```ts no-check: the 2.0 form
 export default html<{ page: string[] }>((req, body) => {
   const crumbs = body.page
   return `<h1>${crumbs.at(-1)}</h1>`
@@ -156,7 +156,7 @@ and denies everything in production.
 
 The instance method did nothing. If you wrote:
 
-```ts no-check — the 1.2 form, which had no effect
+```ts no-check: the 1.2 form, which had no effect
 session.bind(response)
 ```
 

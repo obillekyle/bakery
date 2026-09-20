@@ -16,20 +16,20 @@ import type * as SyncTypes from './types'
  * the table on every single sync.
  *
  * Comparing against what we *wrote down* removes that whole class. Two JSON
- * objects, no dialect spellings, no normalisation — and it can carry things
+ * objects, no dialect spellings, no normalization, and it can carry things
  * introspection cannot report reliably, such as a `VARCHAR` width.
  *
  * **Why it is not simply trusted.** Introspection cannot lie about what exists;
  * a ledger can. If someone alters the database outside Bakery, the ledger is
- * stale, and migrating from a stale premise is worse than a spurious rebuild —
+ * stale, and migrating from a stale premise is worse than a spurious rebuild:
  * it can drop a column somebody added. So the ledger is used only when its
  * *shape* still matches the live database, and shape is checked by comparing
- * table and column names, which needs no normalisation and therefore cannot
+ * table and column names, which needs no normalization and therefore cannot
  * suffer the bugs above. Anything else falls back to introspection.
  *
  * One consequence to know: **MySQL commits DDL implicitly**, so the schema
  * change and the ledger write cannot be one atomic unit there. A crash between
- * them leaves the ledger behind, which the shape check then catches — it fails
+ * them leaves the ledger behind, which the shape check then catches: it fails
  * safe, toward introspection.
  */
 export const LEDGER_TABLE = '__bakery_schema'
@@ -58,7 +58,7 @@ export interface LedgerEntry {
   appliedAt: number
   constraints: SyncTypes.DBConstraints
   /**
-   * Absent on rows written before the payload carried indexes — see
+   * Absent on rows written before the payload carried indexes. See
    * {@link parsePayload}. `undefined` means "not recorded", which is not the
    * same as `{}` ("recorded, and there were none"), and `db:rollback` refuses
    * the difference rather than guessing.
@@ -72,11 +72,11 @@ export interface LedgerEntry {
  * v1 rows are a bare `DBConstraints` object; v2 wraps constraints alongside the
  * indexes that were applied with them. The version is detected by the `v` key
  * rather than by a column, so existing rows keep working with no migration of
- * the migration table — which would be a fine joke and a bad idea.
+ * the migration table, which would be a fine joke and a bad idea.
  *
  * Indexes were missing from v1 because the ledger only ever fed the *diff*,
  * which reads constraints. `db:rollback` replays a stored schema as a target,
- * and a target with no indexes means "drop every index" — so the payload had to
+ * and a target with no indexes means "drop every index", so the payload had to
  * grow before rollback could be honest.
  */
 function parsePayload(
@@ -186,7 +186,7 @@ export async function writeLedger(
  * Every spelling of the ledger's name that can appear in a constraints object.
  *
  * `getConstraints()` camelCases table names, so the table created as
- * `__bakery_schema` comes back as `bakerySchema` — matching only the literal
+ * `__bakery_schema` comes back as `bakerySchema`: matching only the literal
  * name silently stripped nothing, and the ledger showed up in its own diff as
  * a table the schema did not declare. Which then made the shape check fail
  * forever and the ledger never get used at all.
@@ -213,28 +213,28 @@ export function stripLedger(
  * live database?
  *
  * **Names only, deliberately.** Comparing types or defaults here would need the
- * same normalisation the ledger exists to avoid, and a disagreement there is
+ * same normalization the ledger exists to avoid, and a disagreement there is
  * exactly what the ledger is more trustworthy about. Names are names in every
  * dialect, so this check cannot itself be wrong in the way the others were.
  *
  * **But a name has two spellings, and the two sides do not use the same one.**
- * The ledger stores the keys of your TypeScript schema — whatever you passed to
- * `table()` / `view()` — while `getConstraints()` camelCases everything it reads
+ * The ledger stores the keys of your TypeScript schema (whatever you passed to
+ * `table()` / `view()`), while `getConstraints()` camelCases everything it reads
  * back. So a table declared `view('published_posts', …)` is `published_posts` in
  * the ledger and `publishedPosts` from introspection, and this check called that
  * a drifted database: *"tables differ (+publishedPosts; -published_posts)"*, on
- * a database nothing had touched. Permanently — the spellings never converge, so
+ * a database nothing had touched. Permanently: the spellings never converge, so
  * every later sync re-reported it and the ledger was never used again. Every app
  * `bun create bakery` generated hit it on the first `db:sync`, because the
  * generated schema declares exactly that view.
  *
  * The damage is quieter than the warning. Falling back to introspection is
- * *safe*, so nothing breaks loudly — it just silently withdraws the thing the
+ * *safe*, so nothing breaks loudly: it just silently withdraws the thing the
  * ledger is for. Enum member changes, for one, only migrate when the diff runs
  * against the ledger (`plan.ledgerSource === 'ledger'`), so on any such app that
  * feature was inert.
  *
- * Comparing camel-normalised names fixes it at the one place the two spellings
+ * Comparing camel-normalized names fixes it at the one place the two spellings
  * meet. `LEDGER_ALIASES` below is the same bug, found earlier and patched for a
  * single known name; this is the general form of it.
  */
@@ -243,7 +243,7 @@ export function shapesMatch(
   live: SyncTypes.DBConstraints,
 ): { ok: true } | { ok: false; reason: string } {
   const meta = (k: string) => k.startsWith('_')
-  // Compare on the normalised spelling, report the declared one — a diff that
+  // Compare on the normalized spelling, report the declared one: a diff that
   // named tables the reader cannot find in either their schema or their database
   // would trade one confusion for another.
   const namesOf = (o: object) => {
@@ -284,13 +284,13 @@ export function shapesMatch(
  * The ledger stores the keys of your TypeScript schema verbatim; every consumer
  * of "current state" downstream looks tables up by `Case.camel(name)`, because
  * that is what `getConstraints()` produces. Handing the raw ledger to the
- * planner therefore made every lookup miss — `diffViews` asked for
+ * planner therefore made every lookup miss: `diffViews` asked for
  * `publishedPosts`, the ledger held `published_posts`, and a miss reads as "the
  * database does not have this view", so the view was recreated on every single
  * sync. Silent and harmless-looking; a view holds no data, so the only symptom
  * is churn in the log.
  *
- * Normalising on read rather than on write is deliberate: it repairs the ledgers
+ * Normalizing on read rather than on write is deliberate: it repairs the ledgers
  * already written by earlier versions, which a write-side fix could not.
  *
  * Meta keys (`_view`, `_references`, …) are values, not identifiers, and are
@@ -319,7 +319,7 @@ function normalizeLedgerKeys(
  * database, introspection otherwise.
  *
  * Returning the *source* as well as the constraints is what lets the caller say
- * out loud which one it used — a sync that quietly changed its mind about where
+ * out loud which one it used: a sync that quietly changed its mind about where
  * truth lives would be very hard to debug later.
  */
 export async function resolveCurrentState(
@@ -333,8 +333,8 @@ export async function resolveCurrentState(
   const live = stripLedger(await adapter.getConstraints())
   // `--no-ledger`, and it exists because the ledger can be *wrong about types*
   // in a way `shapesMatch` cannot see. That check compares names only, on
-  // purpose — comparing types would need the dialect normalisation the ledger
-  // exists to avoid — so a ledger claiming `VARCHAR(64)` where the column is
+  // purpose (comparing types would need the dialect normalization the ledger
+  // exists to avoid), so a ledger claiming `VARCHAR(64)` where the column is
   // really `TEXT` matches its shape and wins the diff. That happens whenever a
   // sync legitimately concluded "no change needed" and the *rule* it used later
   // got stricter, which is exactly what adding width to the diff did.
@@ -369,8 +369,8 @@ export async function resolveCurrentState(
  * Has the database stopped matching what Bakery last applied?
  *
  * The same comparison {@link resolveCurrentState} makes, exposed on its own so
- * a caller can *report* it. Sync already handles drift correctly — it quietly
- * falls back to introspection — but quietly is the problem: a column added by
+ * a caller can *report* it. Sync already handles drift correctly (it quietly
+ * falls back to introspection), but quietly is the problem: a column added by
  * hand in production is indistinguishable, from the outside, from a normal run.
  * This is how you find out.
  *
@@ -378,7 +378,7 @@ export async function resolveCurrentState(
  * synced is not "drifted"), or the shape still matches.
  *
  * Never throws. It runs at boot, and a database that cannot answer must not be
- * the reason a server fails to start — the sync path will raise anything that
+ * the reason a server fails to start: the sync path will raise anything that
  * genuinely matters.
  */
 export async function detectDrift(

@@ -6,7 +6,7 @@ import { cacheDb } from './shared-db'
  * Where the session store lives, and what survives.
  *
  * Sessions used to sit under `.cache/`, which `checkCacheVersion` deletes on
- * every framework version bump — so every patch release logged every user out.
+ * every framework version bump, so every patch release logged every user out.
  * These pin the reversal: the file is outside the wiped directory, and what
  * governs a wipe is now the *schema* version rather than any framework number.
  */
@@ -25,7 +25,7 @@ describe('the session store', () => {
 
   test('a cache wipe cannot reach it', () => {
     // `checkCacheVersion` wipes `Bakery.cacheDir` entry by entry. Being outside
-    // that directory is what makes survival structural rather than hopeful —
+    // that directory is what makes survival structural rather than hopeful:
     // the previous arrangement survived only when Windows EBUSY happened to
     // block the delete, which is the opposite of a guarantee.
     const dataDir = Bakery.dataDir.replace(/\\/g, '/')
@@ -41,7 +41,7 @@ describe('the session store', () => {
   })
 
   test('data written to a table persists across reads', () => {
-    // Not a durability test across processes — that needs a real restart — but
+    // Not a durability test across processes (that needs a real restart), but
     // it proves the handle is a real file-backed database rather than the
     // in-memory fallback a bad path would silently produce.
     cacheDb.run(

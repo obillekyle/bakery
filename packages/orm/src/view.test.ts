@@ -16,8 +16,8 @@ import type { ExtractTableTypes } from './schema-util'
 /**
  * Views.
  *
- * They worked before this — `_view` inside a table's constraints has always
- * been created with `CREATE VIEW` — but only the older `DBInfo` layout could
+ * They worked before this (`_view` inside a table's constraints has always
+ * been created with `CREATE VIEW`), but only the older `DBInfo` layout could
  * *declare* one. In the `orm/` folder layout, which the docs call preferred, it
  * meant writing `_view` into a `table()` call and casting through `any`.
  * `view()` types what was already there.
@@ -59,7 +59,7 @@ describe('view() declaration', () => {
 
 /**
  * Type-level. `_view` must not become a column in the row type, and the view's
- * name must reach `InferViews` — that is what stops a write to it compiling.
+ * name must reach `InferViews`: that is what stops a write to it compiling.
  */
 type Expect<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never
 const MODEL = { users, activeUsers }
@@ -82,7 +82,7 @@ const _notView: Expect<Extract<InferViews<typeof MODEL>, 'users'>, never> = true
  * What `Mutation.Tables` computes, mimicked locally.
  *
  * The real type reads the *registered* schema, and registration is a global
- * `declare module` — two in one program collide, so a test file cannot register
+ * `declare module`: two in one program collide, so a test file cannot register
  * one without retyping every other test in the package. The rule itself is what
  * matters and it is reproduced exactly here.
  *
@@ -137,7 +137,7 @@ describe('a view reaches the database as a view', () => {
       .all()) as any[]
     expect(objs[0]?.type).toBe('view')
 
-    // It returns only what the SELECT selects — the point of declaring one.
+    // It returns only what the SELECT selects: the point of declaring one.
     const rows = (await db.query('SELECT * FROM active_users').all()) as any[]
     expect(rows.map(r => r.name)).toEqual(['ada'])
     await db.close()
@@ -211,7 +211,7 @@ describe('RowOf / InsertOf name a declaration without copying it', () => {
   test('the row type carries no view metadata', () => {
     void [_row, _ins]
     expect(Object.keys(v.__columns as any)).toContain('_view')
-    // …but `_view` is filtered out of the row type — asserted above at compile
+    // …but `_view` is filtered out of the row type: asserted above at compile
     // time; this only pins that the runtime key is genuinely there to filter.
     expect(true).toBe(true)
   })
@@ -221,18 +221,18 @@ describe('RowOf / InsertOf name a declaration without copying it', () => {
  * A schema containing a view must reach a steady state.
  *
  * Three separate defects made that impossible, and none was visible until
- * `apps/example` moved to the folder layout and grew a real view — all three
+ * `apps/example` moved to the folder layout and grew a real view: all three
  * need a view *and* a live sync to appear:
  *
  * 1. A view was counted as an unmapped TS table forever. `initDbTablesMap`
  *    skips `_view` entries, so a view is never on the database side of the
- *    comparison, and `evaluateChanges` counts `unmappedTsTables` — so the run
+ *    comparison, and `evaluateChanges` counts `unmappedTsTables`, so the run
  *    reported changes on every sync while printing an empty plan.
  * 2. `view(name, sourceTable, body)` borrows the source's columns, `_references`
  *    included, so the view was given a foreign key of its own. No dialect will
  *    create one on a view, so it was re-planned every sync.
  * 3. Rebuilding a table dropped its foreign keys. A constraint is part of the
- *    table definition and `processTableRebuild` emitted columns only — while
+ *    table definition and `processTableRebuild` emitted columns only, while
  *    the planner deliberately turns a foreign-key change into a rebuild on
  *    SQLite, which cannot ALTER one in. The plan could never add a key.
  */
@@ -349,7 +349,7 @@ describe('a schema with a view settles', () => {
  * Views were invisible to the planner: `initDbTablesMap` skips `_view` entries
  * and every comparison walked that map, so nothing about a view ever reached
  * `hasChanges`. A new view was never planned, an edited `SELECT` was never
- * detected — you could not change a view — and one the schema had dropped was
+ * detected (you could not change a view), and one the schema had dropped was
  * never removed. They stayed roughly correct only because
  * `syncViewsAndTablesPhase` recreates every declared view whenever a sync runs
  * for some *other* reason.
@@ -404,7 +404,7 @@ describe('the view lifecycle is planned', () => {
 
   test('a new view is planned even when nothing else changed', async () => {
     // Excluding views from `unmappedTsTables` stopped them being counted as
-    // tables waiting to be created — which also removed the only signal that a
+    // tables waiting to be created, which also removed the only signal that a
     // new one needed creating. This is the replacement.
     const { db, live, tk } = await fixture(false)
     const p = await plan(db, {
@@ -455,10 +455,10 @@ describe('the view lifecycle is planned', () => {
  * SQLite keeps the text verbatim. MySQL re-qualifies every column and adds
  * parentheses; Postgres adds parentheses and a trailing semicolon. So an
  * *authored* `SELECT` and the server's rendering of it are different strings,
- * and no amount of text normalisation short of a SQL parser closes that.
+ * and no amount of text normalization short of a SQL parser closes that.
  *
  * The ledger is what makes it converge, and that is precisely what the ledger
- * is for — it records what was *applied*, so the next run compares the authored
+ * is for: it records what was *applied*, so the next run compares the authored
  * body against the authored body. Falling back to live introspection costs one
  * view recreate per sync on MySQL and Postgres, which is why recreating a view
  * is no longer treated as destructive.
@@ -500,7 +500,7 @@ describe('view bodies across dialects', () => {
             .run(),
         )
         // A table the view never touches, so the database holds more than the
-        // two fixtures on every machine — see the note on `schema` below.
+        // two fixtures on every machine. See the note on `schema` below.
         await alive(db.query('CREATE TABLE vd_bystander (id INT)').run())
         await alive(db.createView('vd_active', BODY))
 
@@ -512,12 +512,12 @@ describe('view bodies across dialects', () => {
         // fixtures. The ledger is trusted only while it describes the *whole*
         // database (`shapesMatch` compares every table name), so a schema that
         // omits any table the database holds reads as drift and the plan falls
-        // back to introspection — correct in production, where an undeclared
+        // back to introspection: correct in production, where an undeclared
         // table means someone changed the database behind Bakery's back, and
         // fatal to what this test measures. It happened: fixtures leaked into
         // bakery_test by another file's killed run failed only the Postgres
         // case of this test on one machine, presenting as a dialect bug.
-        // `vd_bystander` keeps that state reproduced deliberately — narrowing
+        // `vd_bystander` keeps that state reproduced deliberately: narrowing
         // this back to the two fixtures fails on every machine, clean database
         // or not, as `source: 'introspection'` in the second plan.
         const schema: any = {
@@ -536,7 +536,7 @@ describe('view bodies across dialects', () => {
           changed: !verbatim,
         })
 
-        // Against the ledger — the normal path — every dialect is stable.
+        // Against the ledger (the normal path) every dialect is stable.
         await alive(writeLedger(db, schema, {}))
         const second = await alive(buildSyncPlan(db, schema, quiet, msgs))
         expect({
@@ -564,7 +564,7 @@ describe('view bodies across dialects', () => {
  * `viewsBlockTableRebuild` gates a whole sync phase, and it reads backwards:
  * the flag is `true` by default and MySQL is the exception. That is easy to
  * "correct" into a SQLite-only check by someone reading the SQLite error alone,
- * so the reason is asserted here against real servers — the rebuild sequence
+ * so the reason is asserted here against real servers: the rebuild sequence
  * run with a view still standing, and each dialect's own answer recorded.
  */
 describe('viewsBlockTableRebuild matches what the server does', () => {
@@ -616,8 +616,8 @@ describe('viewsBlockTableRebuild matches what the server does', () => {
         await run('DROP TABLE IF EXISTS vb_users')
         await run('ALTER TABLE vb_users_temp_build RENAME TO vb_users')
       } catch {
-        // Which statement threw differs by dialect — SQLite refuses the rename,
-        // Postgres the drop — so only the fact of refusal is asserted.
+        // Which statement threw differs by dialect (SQLite refuses the rename,
+        // Postgres the drop), so only the fact of refusal is asserted.
         refused = true
       }
 

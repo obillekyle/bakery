@@ -38,7 +38,7 @@ export class SharedMemoryPool {
    * there is nothing to size it against. Something that needs shared scratch
    * later adds it along with the code that reads it.
    *
-   * A larger size is still accepted and still honoured, because `bind()` reads
+   * A larger size is still accepted and still honored, because `bind()` reads
    * the size out of the header rather than trusting `byteLength` - so a
    * cluster master that allocates more and shares it still works.
    */
@@ -61,7 +61,7 @@ export class SharedMemoryPool {
       Atomics.store(this.header, 1, size)
       Atomics.store(this.header, 2, BUFFER_START_OFFSET)
     } else {
-      // Adopting a buffer someone else laid out is exactly what `bind` does —
+      // Adopting a buffer someone else laid out is exactly what `bind` does:
       // it read the header for the size rather than trusting `byteLength`, and
       // so did the copy that used to sit here, character for character.
       this.bind(sizeOrBuffer)

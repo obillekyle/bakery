@@ -52,7 +52,7 @@ describe('routeTable', () => {
     expect(await dispatch(req('/toString'))).toBeNull()
   })
 
-  test('a handler returning undefined is normalised to null', async () => {
+  test('a handler returning undefined is normalized to null', async () => {
     const dispatch = routeTable({ '/api/_x/void': () => undefined })
     expect(await dispatch(req('/api/_x/void'))).toBeNull()
   })

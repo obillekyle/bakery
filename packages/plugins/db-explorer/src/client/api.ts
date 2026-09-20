@@ -34,14 +34,14 @@ export class ApiError extends Error {
  * What to show a user when a call threw.
  *
  * Here rather than in `dom.ts` because the thing it knows about is `ApiError`,
- * whose `message` is the server's own sentence from the envelope — the reason
+ * whose `message` is the server's own sentence from the envelope: the reason
  * a failed write reads as "row was modified by someone else" instead of
  * "Request failed (409)". `String(error)` is the fallback for the two throws
  * that are not ours: an abort and a network failure.
  *
- * There used to be three of these — one exported from `bulk.ts`, a private
+ * There used to be three of these: one exported from `bulk.ts`, a private
  * near-copy in `save.ts`, and a third inlined at the `notify` call in
- * `csv-commit.ts` — so improving the wording in one left the other two alone.
+ * `csv-commit.ts`, so improving the wording in one left the other two alone.
  */
 export function messageOf(error: unknown): string {
   const api = error as Partial<ApiError>
@@ -91,7 +91,7 @@ interface Envelope {
 /**
  * The data, plus what the server said it cost.
  *
- * `time` is the envelope's own field — `router.ts` fills it from `getElapsed`,
+ * `time` is the envelope's own field: `router.ts` fills it from `getElapsed`,
  * so it is the server's measurement of its own work rather than a round trip
  * timed in the browser. The status bar shows it, which is the one honest number
  * available for "why is this slow": a filter that cannot use an index shows up
@@ -159,7 +159,7 @@ export async function fetchGraph(): Promise<SchemaGraph> {
  * One page of a table, with the server's own timing.
  *
  * **`filters` carries an operator now.** It used to be a bare column→substring
- * record, which meant `col LIKE '%value%'` and nothing else — so a filter could
+ * record, which meant `col LIKE '%value%'` and nothing else, so a filter could
  * narrow a page but could never *name* a row, `1` matching `11` and `21`. With
  * `eq` in the vocabulary it can, which is what removed `ViewState.focus` and
  * turned a foreign-key jump into an ordinary filter.

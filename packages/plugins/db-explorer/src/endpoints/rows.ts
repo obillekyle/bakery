@@ -4,11 +4,11 @@
  * **Every statement carries an explicit identity predicate**, built from the
  * key the caller sent and checked against the table's declared identity first.
  * The adapter's `update(table, rowid, row)` / `remove(table, rowid)` triple is
- * never used — see the header of `identity.ts` for the three ways it is wrong.
+ * never used. See the header of `identity.ts` for the three ways it is wrong.
  *
- * **Optimistic concurrency** is the same predicate with `expect` appended:
+ * **Optimiztic concurrency** is the same predicate with `expect` appended:
  * identity ∧ expect. `changes === 0` therefore means one of two things, and the
- * dialects will not tell them apart — *the row moved on* or *the update was a
+ * dialects will not tell them apart: *the row moved on* or *the update was a
  * no-op*. MySQL reports 0 changed rows when an UPDATE sets a column to the
  * value it already held, so a zero has to be probed rather than trusted, and
  * the probe runs inside the same transaction as the UPDATE or it is answering
@@ -46,7 +46,7 @@ export interface Conflict {
 }
 
 /**
- * One row by its identity, read through the active connection — which inside
+ * One row by its identity, read through the active connection, which inside
  * `DB.transaction` is the transaction's own handle, not the pooled one.
  *
  * Built with `qId` and bound parameters (convention 8). `IS NULL` rather than
@@ -80,7 +80,7 @@ async function selectRow(
  * `where(a).and(b).and(c)…` over a predicate of any width.
  *
  * `any` for the value, because the builder's `WhereValue` is a union that also
- * carries column references and subqueries — narrowing to it here would mean
+ * carries column references and subqueries: narrowing to it here would mean
  * asserting a coerced database value is not one of those, which is true but
  * unprovable at this end. The values themselves are already bound parameters.
  */
@@ -99,7 +99,7 @@ function chain<E extends { and(column: any, value?: any): E }>(
  * Turn a `RollbackSignal` back into a response, and rethrow anything else.
  *
  * The rethrow is the load-bearing half. A `catch` that answered 200 for every
- * throw would report a failed write as a successful dry run — see `preview.ts`.
+ * throw would report a failed write as a successful dry run. See `preview.ts`.
  */
 function fromRollback(error: any): Envelope {
   if (isRollbackSignal(error)) {
@@ -109,7 +109,7 @@ function fromRollback(error: any): Envelope {
   }
   // A rollback signal carries a message this plugin wrote, so it is safe to
   // pass on. Anything else reaching here is the driver's, and the driver's
-  // text is not the caller's business — see `refuse`.
+  // text is not the caller's business. See `refuse`.
   return refuse('write', error)
 }
 
@@ -148,7 +148,7 @@ export async function handleInsertRows(
     async () => {
       // `DB.Insert` already batches under the adapter's parameter ceiling and
       // wraps multiple batches in one transaction, so there is nothing to add
-      // here — which is exactly why the insert goes through it rather than
+      // here, which is exactly why the insert goes through it rather than
       // through the adapter's own `insert()`.
       const insert = DB.Insert.into(table.name).values(records)
       if (!returning) {
@@ -157,7 +157,7 @@ export async function handleInsertRows(
           inserted: Number(result.changes ?? 0),
         })
       }
-      // `RETURNING` is SQLite and Postgres only — MySQL has no such clause and
+      // `RETURNING` is SQLite and Postgres only: MySQL has no such clause and
       // answers with its own syntax error, which is loud and correct. It is not
       // emulated: a re-SELECT would have to guess the generated keys, and
       // guessing which rows were just written is the class of bug this whole
@@ -190,7 +190,7 @@ export async function handleUpdateRow(
     // "I accept that".
     return response.json.error(
       400,
-      'expect is required — send {} to update without a concurrency check',
+      'expect is required: send {} to update without a concurrency check',
     )
   }
 
@@ -544,7 +544,7 @@ export async function handleBulkEdit(
 
         // **All or nothing.** A bulk edit is one action from the user's side,
         // and a partial apply leaves them with no way to know which half
-        // landed — the retry then double-applies whatever succeeded. Any
+        // landed: the retry then double-applies whatever succeeded. Any
         // conflict rolls the whole transaction back.
         if (conflicts.length) conflictRollback({ changed: 0, conflicts })
         if (dryRun) previewRollback({ changed, conflicts })

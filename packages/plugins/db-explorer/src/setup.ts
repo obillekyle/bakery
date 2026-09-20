@@ -19,7 +19,7 @@ import {
 import { SHELL } from './shell'
 
 /**
- * Where this plugin's own files live — each package that ships files anchors
+ * Where this plugin's own files live: each package that ships files anchors
  * to its own location, never to core's (see the dashboard's `paths.ts` for
  * the 404s that lesson cost).
  */
@@ -63,23 +63,23 @@ async function handleClientJs() {
 }
 
 /**
- * The whole request surface, and **the key spellings are the CSRF policy** —
+ * The whole request surface, and **the key spellings are the CSRF policy**,
  * `guardFor` in `plugins/routes.ts` reads them, so getting one wrong here
  * silently loosens a guard rather than failing anywhere visible.
  *
  * - **Bare keys are the reads.** A bare key matches every method and gets
  *   `checkSameOrigin` on *all* of them, which is the stricter of the two: no
  *   cross-site page reaches these, whatever verb it uses.
- * - **Every write key names its method.** That pins the verb — a `GET
- *   /api/_db/rows` no longer resolves at all — and applies `checkCsrf`.
+ * - **Every write key names its method.** That pins the verb (a `GET
+ *   /api/_db/rows` no longer resolves at all), and applies `checkCsrf`.
  *
  * This comment used to say the table needed no CSRF middleware because nothing
  * here could mutate anything. That was true when the plugin was read-only and
  * is now false: rows are inserted, edited and deleted below. What is still
  * true, and is the claim that survives, is **structural**: there is no
  * raw-SQL endpoint and nothing that creates, drops or alters a table. The write
- * surface is bounded and enumerable — it is exactly the five method-qualified
- * keys below — rather
+ * surface is bounded and enumerable (it is exactly the five method-qualified
+ * keys below), rather
  * than gated behind a flag the way the dashboard's is.
  *
  * `/api/_db/graph` and `/api/_db/lookup` are reads despite one of them taking a
@@ -117,7 +117,7 @@ export class DbExplorerHandler extends Handler {
 
   static async handle(path: string, req: Request) {
     // Styling and script are not secrets, and letting them through keeps an
-    // unauthorised response from rendering unstyled — same split as the
+    // unauthorized response from rendering unstyled: same split as the
     // dashboard. Everything else fails closed.
     const access = await resolveAccess(req, config)
     if (!/\.(css|js)$/.test(path) && !access) {
@@ -126,11 +126,11 @@ export class DbExplorerHandler extends Handler {
         : response.error('Not Found', 404)
     }
 
-    // The level travels with the request rather than in a module variable —
+    // The level travels with the request rather than in a module variable.
     // see `accessStore`. `read` is the floor for the asset paths admitted
     // above, which never consult it but must not run outside a store.
     return await accessStore.run(access || 'read', async () => {
-      // Dispatch keys on `url.pathname` from the request itself — the `path`
+      // Dispatch keys on `url.pathname` from the request itself: the `path`
       // argument only steers the auth split above.
       const result = await dispatchExplorerRoute(req)
       return result ?? response.error('Not Found', 404)

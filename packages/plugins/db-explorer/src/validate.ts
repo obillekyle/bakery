@@ -4,7 +4,7 @@
  *
  * Two rules run through every function here.
  *
- * **Errors accumulate.** A 400 names every bad field, not the first one — a
+ * **Errors accumulate.** A 400 names every bad field, not the first one: a
  * fifty-row paste fixed one error per round trip is fifty round trips, and the
  * user cannot see the shape of their mistake.
  *
@@ -55,7 +55,7 @@ const error = (
 /**
  * Resolve a wire column name against the table.
  *
- * Accepts the raw database name, and the camel spelling as a courtesy — the
+ * Accepts the raw database name, and the camel spelling as a courtesy: the
  * grid renders raw names, but a script written against a typed schema has camel
  * ones and the two are the same column. Anything else is `unknown_column`.
  */
@@ -85,7 +85,7 @@ function coerceInto(
  * is fine when the database can fill it in (auto-increment, a default, or
  * nullable) and is a `required` error otherwise. Refusing here rather than at
  * the database is what keeps a 1,000-row insert from failing on row 700 with
- * 699 rows already written — the whole statement is known to be well-formed
+ * 699 rows already written: the whole statement is known to be well-formed
  * before any of it runs.
  */
 export function validateInsertRow(
@@ -135,8 +135,8 @@ export interface PartialOptions {
    * Whether a `json` or `buffer` column may appear.
    *
    * `false` for `expect`, where the answer is not "be careful" but "this cannot
-   * be expressed": those two kinds have no portable equality predicate — see
-   * `comparableKind` — so an `expect` over one is a condition that never
+   * be expressed": those two kinds have no portable equality predicate (see
+   * `comparableKind`), so an `expect` over one is a condition that never
    * matches, which reads to the caller as a permanent conflict.
    */
   allowUncomparable: boolean
@@ -145,7 +145,7 @@ export interface PartialOptions {
 }
 
 /**
- * A partial row — the `set` of an update, or the `expect` it is guarded by.
+ * A partial row: the `set` of an update, or the `expect` it is guarded by.
  *
  * Absent keys are absent, and that is the point: this function has no concept
  * of a default, because "the caller did not mention this column" means "leave
@@ -197,7 +197,7 @@ export function validatePartial(
  * The columns of `set` that may only be written with `force`.
  *
  * A `json` or `buffer` column cannot appear in `expect`, so an edit to one is
- * unguarded by construction — it overwrites whatever is there, including
+ * unguarded by construction: it overwrites whatever is there, including
  * whatever somebody else wrote a moment ago. `force` is how the caller says
  * they know that. It is not a permission; it is an acknowledgement.
  */
@@ -220,15 +220,15 @@ export interface ValidatedKey {
 /**
  * A wire key, against the table's identity.
  *
- * **The column set must be exactly equal** — not a subset, not a superset. A
+ * **The column set must be exactly equal**, not a subset, not a superset. A
  * subset is a predicate that matches more than one row, which for a composite
  * key is precisely the dashboard's bug (its MySQL path addresses rows by the
  * *first* primary-key column, so one edit rewrites every row sharing it). A
  * superset is a caller who believes the key contains something it does not, and
  * silently ignoring the extra column would confirm that belief.
  *
- * The key is transparent by design — `{ col: value }` rather than an opaque
- * token — so there is no server-side key cache to keep, and nothing that can go
+ * The key is transparent by design (`{ col: value }` rather than an opaque
+ * token), so there is no server-side key cache to keep, and nothing that can go
  * stale between rendering a page and saving a row (convention 6).
  */
 export function validateKey(

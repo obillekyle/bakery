@@ -1,7 +1,7 @@
 /**
  * Step one of the import wizard: get the text.
  *
- * A file input and a drop zone, and both end in the same `onText` callback —
+ * A file input and a drop zone, and both end in the same `onText` callback,
  * which is the whole reason this is a module rather than two handlers. Nothing
  * downstream knows or cares which way the file arrived.
  */

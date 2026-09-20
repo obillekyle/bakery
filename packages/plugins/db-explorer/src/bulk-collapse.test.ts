@@ -12,8 +12,8 @@ import {
 /**
  * A bulk edit issued one `UPDATE` per row: 1,000 edits were 1,000 statements
  * plus the transaction and the conflict probes on top. Rows in a bulk edit
- * almost always share their `set` and their `expect` — that is what makes it a
- * bulk edit — so they collapse to one `UPDATE ... IN` per group.
+ * almost always share their `set` and their `expect` (that is what makes it a
+ * bulk edit), so they collapse to one `UPDATE ... IN` per group.
  *
  * What is asserted here is the **statement count**, not a duration. A timing
  * assertion on two cores would be flaky and would not actually say whether the

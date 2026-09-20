@@ -45,7 +45,7 @@ describe('isErrorResult', () => {
   test('errorCode counts by presence, not by truthiness', () => {
     // `'errorCode' in res`, not `res.errorCode`. A handler that builds its
     // result object with the key always present and fills it in conditionally
-    // must still route to the error registry — and `extractErrorData` is what
+    // must still route to the error registry, and `extractErrorData` is what
     // decides what an absent value means, not this predicate.
     expect(isErrorResult({ errorCode: undefined })).toBe(true)
     expect(isErrorResult({ errorCode: 0 })).toBe(true)
@@ -55,7 +55,7 @@ describe('isErrorResult', () => {
   test('a Response is judged by status even if it has an errorCode property', () => {
     // The two arms are exclusive, not combined. A `Response` subclass or a
     // patched instance carrying `errorCode` is still a successful response if
-    // its status says so — otherwise a 200 would be routed into the error
+    // its status says so: otherwise a 200 would be routed into the error
     // registry on the strength of a stray property.
     expect(
       isErrorResult(Object.assign(new Response('ok'), { errorCode: 'E' })),
@@ -68,7 +68,7 @@ describe('isErrorResult', () => {
 
   test('non-objects are not errors and do not throw', () => {
     // This is the load-bearing one. `'errorCode' in res` is a TypeError on
-    // every primitive, and `Try.return`'s failure sentinel is a **symbol** —
+    // every primitive, and `Try.return`'s failure sentinel is a **symbol**,
     // so dropping the `is.object` guard makes the rejection path throw inside
     // the code that exists to handle throws, from the one input it is
     // guaranteed to see.
@@ -99,7 +99,7 @@ describe('tooManyRequests', () => {
 
   test('Retry-After is never 0', () => {
     // "0" tells the client to retry immediately, which is the opposite of what
-    // a 429 means — and with a fast refill `1 / refill` rounds there.
+    // a 429 means, and with a fast refill `1 / refill` rounds there.
     for (const refill of [1, 10, 100, 1000]) {
       const value = tooManyRequests(refill).headers.get('Retry-After')
       expect(Number(value)).toBeGreaterThanOrEqual(1)
@@ -125,7 +125,7 @@ describe('rateLimitKey', () => {
     await initConfig()
     // `getClientIp` falls back to `Bakery.server?.requestIP()`. Saved and put
     // back rather than module-mocked, which is the same thing `ip.test.ts` and
-    // `$dynamic.test.ts` do — `mock.module` is process-global and never
+    // `$dynamic.test.ts` do: `mock.module` is process-global and never
     // unwinds (convention 9).
     savedServer = Bakery.server
     Bakery.server = undefined as unknown as typeof Bakery.server
@@ -167,7 +167,7 @@ describe('rateLimitKey', () => {
   test('an empty keyBy result falls back to the hostname', () => {
     // Not cosmetic. '' is a perfectly valid key that hashes to one fixed slot,
     // so every request keyBy could not classify would share a single token
-    // bucket across every host — one unclassifiable client 429s all of them.
+    // bucket across every host: one unclassifiable client 429s all of them.
     expect(
       rateLimitKey(
         rl(() => ''),

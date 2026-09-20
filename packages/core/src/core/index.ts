@@ -4,8 +4,8 @@ import { Case, is, Math2, match, Try } from '../utils/common'
 import { encodeSSE, response, sse } from '../utils/http'
 import Bakery, { getHostname, hostKey, hostStore } from './bakery'
 import { getConfig, NOOP } from './config'
-// `./context` is already in this barrel's graph — line 5 reaches it through
-// `./bakery`, which re-exports `hostStore` from exactly here — so naming it
+// `./context` is already in this barrel's graph: line 5 reaches it through
+// `./bakery`, which re-exports `hostStore` from exactly here, so naming it
 // adds no module edge, only a name.
 import { getFrameworkVersion } from './context'
 import { createElement, Fragment, html, raw } from './jsx'
@@ -43,7 +43,7 @@ export type {
  *
  *   export default defineRoute<{ id: string }>((req, body) => …)
  *
- * `defineRoute`, not `defineHandler` — "handler" already means a registered
+ * `defineRoute`, not `defineHandler`. "handler" already means a registered
  * `Handler` subclass in this framework, and this defines a route module.
  */
 export { defineRoute } from './define-route'
@@ -57,8 +57,8 @@ export { defineRoute } from './define-route'
  * into the module graph and reorders evaluation enough to close the cycle this
  * barrel is always one step away from: it typechecks, and then 47 tests fail
  * with `ReferenceError: Cannot access 'Logger' before initialization`. Going
- * through the `utils/http` index — which line 4 already imports for `response`
- * — adds no edge at all. Every other value here follows the same rule.
+ * through the `utils/http` index (which line 4 already imports for `response`
+ *) adds no edge at all. Every other value here follows the same rule.
  */
 export {
   Bakery,
@@ -72,7 +72,7 @@ export {
    *
    * Here because it had nowhere else to be. `createElement` escapes children
    * unless they came from itself, so `raw` is the documented way to
-   * interpolate markup an application already trusts — and it was reachable
+   * interpolate markup an application already trusts, and it was reachable
    * only through a `./jsx` subpath that existed to alias one file. The
    * routing guide pointed at `@bakery-framework/core/core/jsx`, which the
    * export map never named at all, so the documented import could not resolve
@@ -83,7 +83,7 @@ export {
    * The version of `@bakery-framework/core` itself, read from its own manifest.
    *
    * **Not the app's version**, which is what `import.meta.env.BAKERY_VERSION`
-   * and `getAppVersion()` report — the compiler reads those from
+   * and `getAppVersion()` report: the compiler reads those from
    * `<cwd>/package.json`, so in an application they answer with the
    * application's number. The name is a long-standing misnomer and this is the
    * one that means what "Bakery version" sounds like it means.

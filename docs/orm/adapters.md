@@ -1,8 +1,8 @@
 # Adapters
 
 Three built in: SQLite, MySQL and Postgres. They implement one abstract class
-([`adapters/base.ts`](../../packages/orm/src/adapters/base.ts)) — statement
-execution, introspection, DDL, transactions and backup — so the query builder
+([`adapters/base.ts`](../../packages/orm/src/adapters/base.ts)) (statement
+execution, introspection, DDL, transactions and backup), so the query builder
 and the sync engine never branch on the driver. Everything dialect-specific
 lives behind that class.
 
@@ -37,7 +37,7 @@ anything with a slash in it.
 
 With nothing configured, SQLite writes to `bakery/server.db` under the app's
 working directory. `SQLITE_PATH` overrides that, but only when neither `DB_URL`
-nor `DATABASE_URL` is set — the connection string is consulted first.
+nor `DATABASE_URL` is set: the connection string is consulted first.
 
 `bakery/` is deliberately visible while the disposable `.cache/` is hidden: a
 cache is safe to delete, and the database is not.
@@ -56,14 +56,14 @@ export async function boot() {
 }
 ```
 
-`initDB()` is idempotent and memoises the adapter, but it deliberately does not
+`initDB()` is idempotent and memoizes the adapter, but it deliberately does not
 cache a *rejection*: a transient failure at boot would otherwise make every
 later call return the same error for the life of the process.
 
 `connection` is a proxy that resolves the live adapter on each property access,
 so it can be imported at module scope before the database exists. `getActiveDb()`
 returns the current transaction when one is open (via `AsyncLocalStorage`) and
-`connection` otherwise — it is what every builder calls, and why
+`connection` otherwise: it is what every builder calls, and why
 `DB.transaction()` needs no argument passing.
 
 You rarely call any of this. `bun run dev`, `bun run start` and `db:sync` all
@@ -74,7 +74,7 @@ open the connection themselves.
 Identifier quoting is the smallest difference and the one that matters most.
 Every identifier the ORM emits goes through `qId` / `qRef` / `qRaw`, which quote
 with the active adapter's `quoteChar` after stripping that character from the
-name — so a name can never break out of its own quotes.
+name, so a name can never break out of its own quotes.
 
 | | SQLite | MySQL | Postgres |
 | --- | --- | --- | --- |
@@ -95,7 +95,7 @@ name — so a name can never break out of its own quotes.
 why the column is an integer rather than a dialect timestamp type. `Field.now()`
 is the matching value for an `INSERT` or `UPDATE`.
 
-An unrecognised column type falls back to `TEXT` rather than emitting nothing.
+An unrecognized column type falls back to `TEXT` rather than emitting nothing.
 
 ### SQLite
 
@@ -103,7 +103,7 @@ The default, and the only one you can run with no server. `:memory:` is
 supported and is what most of the test suite uses.
 
 On a connection it opens itself (not one wrapping a transaction) it sets
-`journal_mode` — `WAL`, or `DELETE` on Windows — plus `synchronous = NORMAL`,
+`journal_mode` (`WAL`, or `DELETE` on Windows) plus `synchronous = NORMAL`,
 `temp_store = memory`, a `busy_timeout` and a cache size that shrinks inside
 cluster threads.
 
@@ -216,34 +216,33 @@ off()
 
 There is exactly one observer, process-wide, not a list of listeners. Two
 reasons. It sits in the hot path of every statement, so the cost when nobody is
-watching has to be a single null read — measured at **under 10ns per query,
+watching has to be a single null read: measured at **under 10ns per query,
 which is inside the noise floor of the measurement** and around 0.03% of an
 in-memory SQLite `SELECT`. And every adapter builds a *fresh* adapter instance
 per transaction, so an observer attached to an instance would go silent for
 exactly the statements you most want to see.
 
-An observer that throws — or returns a promise that rejects — is swallowed. A
+An observer that throws (or returns a promise that rejects) is swallowed. A
 bug in your instrumentation must not become a failed write.
 
 ### The event
 
 | field | meaning |
 | --- | --- |
-| `sql` | the statement as handed to the driver, before dialect normalisation |
+| `sql` | the statement as handed to the driver, before dialect normalization |
 | `ms` | wall-clock duration, fractional |
 | `rows` | rows returned, or for `run` rows *affected*; `null` when unknowable |
 | `driver` | `'sqlite' \| 'postgres' \| 'mysql'` |
 | `method` | `'all' \| 'run' \| 'get' \| 'values' \| 'iterate'` |
 | `error` | `null` on success, the thrown value otherwise |
-| `params` | bound values — **absent unless you opt in**, see below |
+| `params` | bound values: **absent unless you opt in**, see below |
 
 `get` and `values` are built on `all` internally but report as themselves, once.
 One executed statement is one event.
 
 `iterate` is a stream, so its `ms` means something different and must not be
 averaged into the same number as the rest: it spans from the call until
-iteration *ends* — exhausted, thrown, or the consumer breaking out of the loop —
-so it includes whatever the consumer did between rows. `rows` there counts rows
+iteration *ends* (exhausted, thrown, or the consumer breaking out of the loop), so it includes whatever the consumer did between rows. `rows` there counts rows
 actually consumed, not rows the query matched.
 
 ### Parameters are off by default
@@ -259,7 +258,7 @@ import { setQueryObserver } from '@bakery-framework/orm'
 
 const captured: (readonly unknown[] | undefined)[] = []
 
-// Opt in only where the output stays local — a dev profiler, a test.
+// Opt in only where the output stays local: a dev profiler, a test.
 setQueryObserver(event => captured.push(event.params), { params: true })
 ```
 
@@ -275,8 +274,8 @@ Not equally.
   builder's output executes against it.
 - **MySQL and Postgres** are covered two ways. Their emitted SQL is asserted
   statement by statement against a stub executor in
-  [`adapters/ddl.test.ts`](../../packages/orm/src/adapters/ddl.test.ts) — worth
-  reading if you need to know exactly what a dialect does — and a separate CI
+  [`adapters/ddl.test.ts`](../../packages/orm/src/adapters/ddl.test.ts) (worth
+  reading if you need to know exactly what a dialect does), and a separate CI
   job runs the ORM suite against real MySQL 8 and Postgres 16 service
   containers ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)).
   That job fails if the live tests report as *skipped*, because a green run that
@@ -289,7 +288,7 @@ set, so `bun run test` on your machine is really testing SQLite.
 ## Writing your own
 
 An adapter is a subclass of `SQLAdapter` plus a registration. Both come from
-`@bakery-framework/orm/adapters`, which is the only subpath involved — the individual
+`@bakery-framework/orm/adapters`, which is the only subpath involved: the individual
 adapter modules are private.
 
 Two steps, and the first is the one that is easy to get wrong.
@@ -298,7 +297,7 @@ Two steps, and the first is the one that is easy to get wrong.
 nothing declared is a type error rather than a string typo that surfaces at
 runtime. Add yours by merging into the interface:
 
-```ts no-check — a declaration file in the adapter's own package
+```ts no-check: a declaration file in the adapter's own package
 declare module '@bakery-framework/orm/adapters' {
   interface DriverRegistry {
     mssql: true
@@ -307,7 +306,7 @@ declare module '@bakery-framework/orm/adapters' {
 ```
 
 Aim that at `@bakery-framework/orm/adapters` and nothing deeper. An augmentation pointed
-at a module you cannot resolve does not fail — it quietly declares a second,
+at a module you cannot resolve does not fail: it quietly declares a second,
 unrelated interface, and your driver name goes on being rejected with nothing
 to indicate why.
 
@@ -331,22 +330,21 @@ export function install(open: () => SQLAdapter) {
 }
 ```
 
-`open` is async-capable specifically so it can `await import()` your driver —
+`open` is async-capable specifically so it can `await import()` your driver:
 that is how the three built-ins avoid loading MySQL's module for a SQLite app,
 and yours should do the same.
 
 `registerAdapter` returns a disposer that removes exactly that registration,
 in any order relative to other disposers. Registering over an existing driver
 *stacks*: the built-in is hidden while yours is installed and comes back when
-the disposer runs, which is what makes overriding one for a single environment
-— or for a test — safe to undo.
+the disposer runs, which is what makes overriding one for a single environment (or for a test) safe to undo.
 
 Two more hooks, both optional:
 
-- **`matches(target)`** — a last-resort claim on a string no scheme matched.
+- **`matches(target)`**: a last-resort claim on a string no scheme matched.
   Consulted newest-registration-first, so registering after a built-in is enough
   to take a target it would have claimed.
-- **capability getters on the base class** — `supportsAlterForeignKey`,
+- **capability getters on the base class**: `supportsAlterForeignKey`,
   `viewsBlockTableRebuild`, `upsertClause`, `batchInsertIdPosition`,
   `maxQueryParams`, `dateNowExpression`, `uuidExpression`. These are how a
   dialect states what it can do; the sync engine and query builder read them
@@ -356,35 +354,35 @@ Two more hooks, both optional:
 
 Fourteen abstract members
 ([`adapters/base.ts`](../../packages/orm/src/adapters/base.ts)). Everything
-else on `SQLAdapter` is concrete and built on these — `query`, `insert`,
+else on `SQLAdapter` is concrete and built on these: `query`, `insert`,
 `transaction`, `addCol`, `drop`, `rename`, `addForeignKey`, the capability
-getters — so the surface below is the whole job.
+getters, so the surface below is the whole job.
 
 **Execution**
 
 | Member | Must be |
 | --- | --- |
 | `protected sql` | the driver handle itself, typed `unknown` on the base class because each dialect narrows it. `transaction()` casts it to `{transaction, savepoint}` and calls one of the two, so a handle missing either breaks nesting rather than failing to compile |
-| `execute` | the five primitives — `all`, `run`, `get`, `values`, `iterate`. Build it with `createExecutor(all, run, driver)` rather than by hand: that is what wires the [query observer](#observing-queries), and it derives `get`, `values` and a paging `iterate` from the two you supply. Hand-rolling means no observer events, and `get`/`values` double-counted if they are routed back through the observed `all` |
+| `execute` | the five primitives: `all`, `run`, `get`, `values`, `iterate`. Build it with `createExecutor(all, run, driver)` rather than by hand: that is what wires the [query observer](#observing-queries), and it derives `get`, `values` and a paging `iterate` from the two you supply. Hand-rolling means no observer events, and `get`/`values` double-counted if they are routed back through the observed `all` |
 
 **DDL and type mapping**
 
 | Member | Must be |
 | --- | --- |
-| `colDef(def, column?)` | one column's type, `PRIMARY KEY`, auto-increment, nullability, default and enum `CHECK` as a DDL fragment. The `column` argument exists because an enum check names its column, and is absent on the `ALTER` path — emit a plain column rather than a syntax error when it is |
+| `colDef(def, column?)` | one column's type, `PRIMARY KEY`, auto-increment, nullability, default and enum `CHECK` as a DDL fragment. The `column` argument exists because an enum check names its column, and is absent on the `ALTER` path: emit a plain column rather than a syntax error when it is |
 | `hasCol(table, column)` | whether the column exists. Bind the table name as a parameter; the concrete `addCol` calls this before altering |
 
 **Introspection**
 
 | Member | Must be |
 | --- | --- |
-| `getSchema(options?)` | one `TableDetails` per table: name, `rowCount`, columns (`name`, `type`, `notnull`, `pk`) and indexes (`name`, `unique`). `pk` must be `true` for **every** member of a composite primary key — a dialect that reports only the first one silently hands anything deriving a row identity from this a predicate matching every row that shares it |
+| `getSchema(options?)` | one `TableDetails` per table: name, `rowCount`, columns (`name`, `type`, `notnull`, `pk`) and indexes (`name`, `unique`). `pk` must be `true` for **every** member of a composite primary key: a dialect that reports only the first one silently hands anything deriving a row identity from this a predicate matching every row that shares it |
 | `getConstraints()` | per column, the shape the sync differ compares against the declared schema. Disagreeing with `getSchema()` about the same table is the failure mode that has actually happened |
-| `getIndexes()` | declared indexes, keyed camel-case, with implicit ones the engine did not create filtered out or they present as permanent drift. `rawCols` carries the database's own column spelling aligned with `cols` — `Case.snake` is not the inverse of `Case.camel`, so a consumer that needs the raw name cannot recover it and must be handed it |
-| `protected parseConstraints(col, …)` | one catalog row folded into one `ColumnConstraint`. The extra parameters are dialect-shaped — SQLite passes the `CREATE TABLE` text alongside the row because its catalog does not carry width or enum members |
+| `getIndexes()` | declared indexes, keyed camel-case, with implicit ones the engine did not create filtered out or they present as permanent drift. `rawCols` carries the database's own column spelling aligned with `cols`: `Case.snake` is not the inverse of `Case.camel`, so a consumer that needs the raw name cannot recover it and must be handed it |
+| `protected parseConstraints(col, …)` | one catalog row folded into one `ColumnConstraint`. The extra parameters are dialect-shaped: SQLite passes the `CREATE TABLE` text alongside the row because its catalog does not carry width or enum members |
 
 `rowCount` is `null` unless the caller passed `{ rowCounts: true }`. The count
-is a `COUNT(*)` per table — a full scan on SQLite and Postgres — and
+is a `COUNT(*)` per table (a full scan on SQLite and Postgres), and
 `getSchema()` also sits on write paths that only need identity, so the scan is
 opt-in and an untaken count is `null`, never `0`: a number that was not
 measured must not read as an empty table.
@@ -394,14 +392,14 @@ measured must not read as an empty table.
 | Member | Must be |
 | --- | --- |
 | `getData(table, opts)` | one page of rows, plus `totalRows`, `page`, `pageSize` and `totalPages`. See the filter contract below |
-| `remove(table, rowid)` / `update(table, rowid, row)` | one row addressed by this dialect's row handle — the `rowid` / primary key / `ctid` row in the [dialect table](#what-differs-per-dialect). Both return `RunResult` |
+| `remove(table, rowid)` / `update(table, rowid, row)` | one row addressed by this dialect's row handle: the `rowid` / primary key / `ctid` row in the [dialect table](#what-differs-per-dialect). Both return `RunResult` |
 | `truncate(table)` | empty the table. SQLite has no `TRUNCATE`, so the built-in issues `DELETE` + `VACUUM`; the method exists so the engine never has to know that |
 
 **Lifecycle**
 
 | Member | Must be |
 | --- | --- |
-| `protected withConnection(sql)` | a *sibling adapter* around an already-open handle, so a transaction body gets the same API as the connection it came from. `transaction()` calls it on the child handle the driver hands its callback — this is the whole mechanism behind `getActiveDb()`, and an implementation that returns `this` gives every nested block the parent's connection |
+| `protected withConnection(sql)` | a *sibling adapter* around an already-open handle, so a transaction body gets the same API as the connection it came from. `transaction()` calls it on the child handle the driver hands its callback: this is the whole mechanism behind `getActiveDb()`, and an implementation that returns `this` gives every nested block the parent's connection |
 | `backup(keepCount?)` | a `BackupResult`, or **`null`** when nothing was written. Null is not an error channel and not success: the sync engine refuses a destructive migration on a falsy answer, so returning a result for a backup that did not happen removes that guard |
 
 ### `getData`'s filter contract
@@ -413,8 +411,8 @@ measured must not read as an empty table.
 - **`{op, value}`**, where `op` is one of `eq` `ne` `gt` `gte` `lt` `lte`
   `contains` `starts` `ends` `null` `notnull`.
 
-`null` and `notnull` bind **no value** — which is why a filter cannot be
-modelled as a plain column/value pair, since the placeholder count has to match
+`null` and `notnull` bind **no value**, which is why a filter cannot be
+modeled as a plain column/value pair, since the placeholder count has to match
 the argument list and a pair-shaped model has one value it must invent. An
 empty string in the scalar form means *no filter*, which is what a cleared text
 box sends.
@@ -424,7 +422,7 @@ The three pattern operators escape `%` and `_` in the value and emit
 matching every row. `!` rather than a backslash for a dialect reason: MySQL
 processes backslash escapes inside string literals where SQLite and Postgres do
 not, so `ESCAPE '\'` would need a per-dialect spelling where `!` is one
-clause for all three. (The Postgres normaliser used to make the backslash
+clause for all three. (The Postgres normalizer used to make the backslash
 actively fatal by applying MySQL's rule to every dialect; that is fixed, and
 the choice of `!` stands on the MySQL ground alone.)
 
@@ -435,7 +433,7 @@ that hand-rolls the `WHERE` clause gets a subtly different filter vocabulary
 and nothing reports the divergence.
 
 The direction of the failure is what makes this worth stating. An operator
-`buildFilterSort` does not recognise is **dropped**, not refused — and so is a
+`buildFilterSort` does not recognize is **dropped**, not refused, and so is a
 filter naming a column outside `validCols`, which is why that argument is the
 column set rather than a formality. A dropped filter *widens* the result set,
 so a filter that silently did nothing looks like a permissive query rather than
@@ -445,6 +443,6 @@ straight through, and that is what got it deleted rather than fixed.
 
 ## Next
 
-- [Schema sync](sync.md) — where the DDL above comes from
+- [Schema sync](sync.md): where the DDL above comes from
 - [Queries](queries.md)
 - [Production](../deployment/production.md)

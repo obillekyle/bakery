@@ -11,8 +11,8 @@ import { SQLiteAdapter } from './sqlite'
  *     count, filtered     51.3 ms      rows, filtered     1.6 ms
  *
  * A caller that already counted can hand the total back. What is asserted
- * here is that the number is honoured and that a bad one falls back, because
- * the wrong behaviour is silent: a total that is ignored is merely slow, and
+ * here is that the number is honored and that a bad one falls back, because
+ * the wrong behavior is silent: a total that is ignored is merely slow, and
  * one that is trusted when it should not be is a wrong page count.
  */
 const dirs: string[] = []
@@ -40,7 +40,7 @@ async function seeded(rows: number): Promise<SQLiteAdapter> {
   return db
 }
 
-describe('getData honours a caller-supplied total', () => {
+describe('getData honors a caller-supplied total', () => {
   test('without one it counts, and the count is right', async () => {
     const db = await seeded(30)
     const page = await db.getData('t', { page: 1, pageSize: 10 })

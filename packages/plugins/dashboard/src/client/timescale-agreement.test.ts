@@ -11,8 +11,7 @@ import {
  * what keeps the two honest.
  *
  * The duplication is deliberate. `analytics/src/timescale.ts` is the one
- * source for the server, and importing it from the browser client *compiles* —
- * tsconfig paths resolve it — but does not run: the client is bundled and
+ * source for the server, and importing it from the browser client *compiles* ( * tsconfig paths resolve it), but does not run: the client is bundled and
  * served as a classic `<script>`, so a cross-package specifier survives as a
  * bare `import` the page cannot execute, and the whole console silently does
  * nothing.
@@ -20,7 +19,7 @@ import {
  * That is exactly what happened. `Bun.build` reported success, the file was
  * served 200 at the right length, typecheck passed and the suite passed,
  * because nothing requested the page. A test can cross the boundary the
- * bundle cannot, so the copies agree by assertion rather than by luck — which
+ * bundle cannot, so the copies agree by assertion rather than by luck, which
  * is the part of collapsing the five original tables that survives here.
  */
 describe('the browser copy of the timescale table', () => {

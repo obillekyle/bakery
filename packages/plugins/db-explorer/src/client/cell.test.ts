@@ -6,8 +6,8 @@ import { afterCommit, type CellState, keyOnCell } from './cell'
  *
  * `keyOnCell` takes a plain `{key}` and a plain cursor, which is the entire
  * reason it is a separate module: a key handler that reached into the grid
- * could only be tested by building one, and the rules below — *Enter commits
- * and moves down*, *Escape reverts*, *Delete means NULL* — are the rules a
+ * could only be tested by building one, and the rules below (*Enter commits
+ * and moves down*, *Escape reverts*, *Delete means NULL*) are the rules a
  * regression would break silently.
  */
 
@@ -75,7 +75,7 @@ describe('browsing', () => {
     expect(keyOnCell({ key: 'F2' }, at())).toEqual({ type: 'edit' })
   })
 
-  test('Delete stages NULL — the value an empty text box cannot express', () => {
+  test('Delete stages NULL: the value an empty text box cannot express', () => {
     expect(keyOnCell({ key: 'Delete' }, at())).toEqual({ type: 'null' })
   })
 

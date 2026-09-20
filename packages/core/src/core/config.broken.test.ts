@@ -22,8 +22,8 @@ import { clearHostConfigCache, getConfigLoadError, initConfig } from './config'
 /**
  * A `server.config.ts` that is *present but broken* must never boot silently.
  *
- * The old behaviour logged one `CONFIG_IMPORT_ERR` line and continued on
- * `defaultConfig` — port 3000, root 'src', no plugins, no hosts — so the
+ * The old behavior logged one `CONFIG_IMPORT_ERR` line and continued on
+ * `defaultConfig` (port 3000, root 'src', no plugins, no hosts), so the
  * developer chased "my dashboard disappeared" instead of "my config didn't
  * parse". In PROD that boot must not happen at all; in DEV it must be loud and
  * repeated in the startup banner. A *missing* config file stays perfectly fine:
@@ -42,7 +42,7 @@ const ORIGINAL_CWD = process.cwd()
 // anything non-boolean) and both of which only showed under full-suite
 // ordering:
 //
-//   1. It deleted the flag when the capture found none — removing the accessor
+//   1. It deleted the flag when the capture found none: removing the accessor
 //      `core/init` had installed in the meantime. The `import './init'` above
 //      fixes that at the source by making the capture real.
 //   2. It restored by assigning, on the stated reasoning that init's
@@ -50,7 +50,7 @@ const ORIGINAL_CWD = process.cwd()
 //      would put the pair back but not the value. The reasoning is right; the
 //      conclusion was wrong, because Bun's `process.env` proxy **stringifies on
 //      write and not on read**. So this read a boolean `true` and wrote back
-//      the string `"true"` — restoring a flag that now failed a `typeof` check
+//      the string `"true"`: restoring a flag that now failed a `typeof` check
 //      it had passed before.
 //
 // `setModeFlag` is the single encoder for these flags, so the value goes back
@@ -61,7 +61,7 @@ const ORIGINAL_CWD = process.cwd()
 // accessors and is now a silent no-op: Bun 1.4 rejects accessor descriptors on
 // `process.env`, so there is no getter, `?.get?.()` yields `undefined`, and
 // `setModeFlag(flag, undefined)` *deletes the flag*. Every `afterEach` here
-// removed `PROD` for the rest of the run — five NMHandler tests and the
+// removed `PROD` for the rest of the run: five NMHandler tests and the
 // authorize default failed several files later, none of them near this one.
 function flagRestorer(flag: string) {
   const original = process.env[flag]
@@ -131,7 +131,7 @@ describe('initConfig with a broken server.config.ts', () => {
     clearHostConfigCache()
 
     const config = await initConfig()
-    // Defaults, not the broken file's port — nothing of the file was applied.
+    // Defaults, not the broken file's port: nothing of the file was applied.
     expect(config.port).toBe(DEFAULT_PORT)
     // …and the failure is recorded for the startup banner to restate.
     expect(getConfigLoadError()).toBeTruthy()

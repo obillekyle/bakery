@@ -1,9 +1,9 @@
 /*
- * Bakery Console — design system.
+ * Bakery Console, design system.
  *
  * Visual language borrowed from operations consoles like Cloudflare's: a fixed
  * left rail, a thin top bar, and a page of white cards on a light grey field.
- * Dense, tabular and quiet — the data is the interface.
+ * Dense, tabular and quiet: the data is the interface.
  *
  * Self-contained on purpose: no webfonts, no icon CDN, no external stylesheet.
  * An admin console that fetches assets from a third party takes a supply-chain
@@ -330,7 +330,7 @@ to {
  * `display: block` on both labels, and it is not redundant with `.card`.
  *
  * These are `<span>`s. Inside `.card` they look right only because that rule is
- * `display: flex; flex-direction: column`, which blockifies its children — the
+ * `display: flex; flex-direction: column`, which blockifies its children, the
  * labels themselves never said they were blocks. `.chart-card` is an ordinary
  * block, so the same two spans ran together on one line there and every chart
  * read `PING LATENCY HISTORYClient-to-server connection latency (last 1 min…)`.
@@ -387,7 +387,7 @@ to {
  *
  *   canvas.width = getBoundingClientRect().width * devicePixelRatio
  *
- * With only `min-height` here, the measured box *was* the attribute — so that
+ * With only `min-height` here, the measured box *was* the attribute, so that
  * line read the attribute, multiplied it by the pixel ratio, and wrote it back.
  * A feedback loop with gain `dpr`, re-entered on every redraw: on a 125% display
  * the charts grew 300 → 375 → 469 → 586 px once a second and spilled out of
@@ -411,7 +411,7 @@ to {
  * into it, set `left`/`top` from the hovered sample, tagged it
  * `data-placement`, and toggled `.visible`. With nothing here, every one of
  * those was inert: an unpositioned block appended to the card, so it stacked
- * under the MIN/MAX/AVG row and sat there permanently — the readout "stuck at
+ * under the MIN/MAX/AVG row and sat there permanently, the readout "stuck at
  * the bottom" rather than floating at the point.
  *
  * `position: relative` on the card is half the fix. Absolute coordinates need a
@@ -445,7 +445,7 @@ to {
 
 /*
  * `left`/`top` are the *sample's* position, so the box is shifted off that
- * point rather than hung from its own corner — centred horizontally, and clear
+ * point rather than hung from its own corner: centred horizontally, and clear
  * of the dot vertically. `below` is the fallback the JS asks for when the
  * sample sits too near the top for the label to fit above it.
  */

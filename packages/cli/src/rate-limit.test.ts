@@ -13,7 +13,7 @@ import {
 /**
  * Guards the *distribution*, not the arithmetic. `Number(Bun.hash(key)) % 1024`
  * is a perfectly ordinary-looking expression that silently collapses the u64
- * hash to 100 reachable buckets with 83% of keys in bucket 0 — an assertion on
+ * hash to 100 reachable buckets with 83% of keys in bucket 0: an assertion on
  * one hand-picked key would have passed against the bug. What has to fail is a
  * spread that stops being a spread.
  */
@@ -108,7 +108,7 @@ describe('sampleRateLimitLog', () => {
     // The key derives from client-controlled data (IP / keyBy), so unbounded
     // growth here is convention 6's exact failure mode. Eviction is observable
     // from outside: a key that fell out of the LRU logs as if new, which is
-    // over-logging — the safe direction to be wrong in.
+    // over-logging, the safe direction to be wrong in.
     const now = 1_000
     sampleRateLimitLog('first', now)
     expect(sampleRateLimitLog('first', now + 1)).toBeNull()

@@ -45,7 +45,7 @@ const ROOT_FIXTURE = '__action-target-test__.vue'
  * Resolved in `beforeAll`, not at module scope: `Bakery.serveRoot` reads the
  * frozen config, which does not exist until `initConfig()` has run. Computing
  * it here meant this file only loaded when some *other* test file happened to
- * have initialised config first — green in a full run, and a crash the moment
+ * have initialized config first: green in a full run, and a crash the moment
  * anyone filtered the suite down to this one file.
  */
 let ROOT_FIXTURE_PATH = ''
@@ -734,7 +734,7 @@ export const doArrow = async (v) => v
 })
 
 describe('Relative import rewriting in server blocks', () => {
-  // A describe body runs at collection time, before `beforeAll` — so this has
+  // A describe body runs at collection time, before `beforeAll`, so this has
   // to be resolved per test, after `initConfig()`, for the same reason
   // `ROOT_FIXTURE_PATH` is.
   const filePath = () =>
@@ -1037,7 +1037,7 @@ describe('Action dispatch never runs the component it rejects', () => {
    * A component's top-level server statements are the part that runs no matter
    * what the request asked for. The wrapper used to reach the allow-list only
    * after them, so an action name that does not exist still executed the whole
-   * file — and with `__vue_file` naming another component, that was a way to
+   * file, and with `__vue_file` naming another component, that was a way to
    * run one page's server block from an unrelated route.
    */
   const PROBE = '__bakery_vue_toplevel_probe__'
@@ -1269,11 +1269,11 @@ describe('Server module cache lifecycle', () => {
  *
  * The interesting assertions are the *runtime* ones, because runtime is the
  * default and the smaller contract: no `app.config.compilerOptions` assignment
- * — the runtime build has no in-browser compiler to read it, so the line's
+ *. The runtime build has no in-browser compiler to read it, so the line's
  * only observable effect there is Vue warning about itself on every page.
  * Custom elements need nothing at runtime for SFCs: the decision is baked into
  * the render function server-side (`compileTemplateBlock`), which a live
- * runtime-only page verified — configured tag rendered reactively, no
+ * runtime-only page verified, configured tag rendered reactively, no
  * "Failed to resolve component".
  */
 describe('Vue build variant', () => {
@@ -1291,7 +1291,7 @@ describe('Vue build variant', () => {
     expect(vueChunkPath().endsWith('.full.js')).toBe(true)
   })
 
-  test('the un-varianted URL no longer serves — the cache cannot alias builds', async () => {
+  test('the un-varianted URL no longer serves: the cache cannot alias builds', async () => {
     setVuePluginOptions({})
     const version = initVueVersion()
     const res = await serveVueChunk(
@@ -1343,7 +1343,7 @@ describe('Vue build variant', () => {
 })
 
 /**
- * The chunk actually serves — the variant tests above only pin the URL shape.
+ * The chunk actually serves: the variant tests above only pin the URL shape.
  * Vue resolves from the repo root (workspace hoisting), so this exercises the
  * resolve → build → cache path end to end and pins that the runtime variant
  * really is the runtime build.

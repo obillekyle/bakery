@@ -136,7 +136,7 @@ export function bindSparklineTooltips() {
       updateSparklineTooltip(config)
       // The marker is painted *into* the canvas, so it only moves when the
       // canvas is repainted. Without this it would lag the pointer by up to a
-      // second — the polling redraw's interval — and read as a stuck dot.
+      // second (the polling redraw's interval), and read as a stuck dot.
       drawSparkline(config.canvas, config.history, config.stroke, config.fill)
     })
 

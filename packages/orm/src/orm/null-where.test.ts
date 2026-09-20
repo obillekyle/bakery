@@ -4,8 +4,8 @@ import { __resetTestDb, __setTestDb } from '../connection'
 import { DB } from './index'
 
 /**
- * `where(col, null)` used to compile to a bound NULL — `col = ?` with a null
- * parameter — which SQL's three-valued logic makes UNKNOWN for every row. The
+ * `where(col, null)` used to compile to a bound NULL: `col = ?` with a null
+ * parameter, which SQL's three-valued logic makes UNKNOWN for every row. The
  * query is valid, runs, and matches nothing, so a migration walking rows
  * `where('legacy_id', null)` reported "0 nulls" over a column full of them.
  *
@@ -82,7 +82,7 @@ describe('null in a where clause compiles to IS NULL', () => {
     expect(params).toEqual(['dhl'])
   })
 
-  test('the rows actually come back — the failure this guards was silent', async () => {
+  test('the rows actually come back: the failure this guards was silent', async () => {
     const nullCouriers = await DB.table('parcels')
       .where('courier', null)
       .select({ id: 'parcels.id' })
@@ -102,7 +102,7 @@ describe('null in a where clause compiles to IS NULL', () => {
  *
  * `null-where` reached `formatClause` in query.ts and stopped there, and the
  * tests above only ever asked a `SELECT`. `orm/mutation.ts` compiles its own
- * WHERE twice — once for `UpdateExecutable`, once for `DeleteExecutable` — and
+ * WHERE twice (once for `UpdateExecutable`, once for `DeleteExecutable`), and
  * both emitted `= ?` with a bound NULL, which matches no row in three-valued
  * logic. So an update changed nothing and a delete removed nothing, each
  * reporting zero changes, which a caller cannot tell from a conflict.
@@ -142,8 +142,7 @@ describe('null in a mutation where clause', () => {
       .where('courier', null)
       .parse()
 
-    // Scoped to the WHERE. The SET clause binds `courier = ?` legitimately —
-    // that is the value being written — so asserting over the whole statement
+    // Scoped to the WHERE. The SET clause binds `courier = ?` legitimately (    // that is the value being written), so asserting over the whole statement
     // tests the wrong half.
     const where = sql.slice(sql.indexOf(' WHERE '))
     expect(where).toContain('IS NULL')

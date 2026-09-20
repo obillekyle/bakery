@@ -7,7 +7,7 @@
  *
  * A coerced value that differs from the text carries the text as its `title`,
  * so `"007"` landing in an integer column is visibly `7` and traceably `007`.
- * A failure is ringed and shows the reason `coerceValue` gave — the same
+ * A failure is ringed and shows the reason `coerceValue` gave: the same
  * sentence the server would have returned.
  */
 
@@ -46,7 +46,7 @@ export function paintPreview(
  * column it governs is.
  *
  * On by default for every kind except text, because `''` is a value in a text
- * column and an error in every other one — see `defaultEmptyToNull`.
+ * column and an error in every other one. See `defaultEmptyToNull`.
  */
 function nullToggleRow(
   model: ImportModel,

@@ -43,7 +43,7 @@ function kindLookup(
  *
  * The pre-image goes as `expect`, so the statement is `identity ∧ expect` and a
  * concurrent edit is a 409 rather than a silent overwrite. `force` is sent only
- * when a changed column is `json` or `buffer` — kinds SQL cannot compare, so
+ * when a changed column is `json` or `buffer`: kinds SQL cannot compare, so
  * there is no predicate to guard them with.
  */
 export async function saveRow(
@@ -113,8 +113,8 @@ async function reportFailure(
 /**
  * Keep mine / Take theirs, with the server's copy of the row in hand.
  *
- * The 409 body carries the row as it now stands — that is why the endpoint
- * attaches it — so this is a real choice rather than a prompt to guess.
+ * The 409 body carries the row as it now stands (that is why the endpoint
+ * attaches it), so this is a real choice rather than a prompt to guess.
  */
 function offerResolution(
   table: SchemaTable,
@@ -172,7 +172,7 @@ function offerResolution(
 /**
  * Keep mine: the same `set`, with `expect` taken from *their* row.
  *
- * Not `expect: {}` — that is last-write-wins, which the endpoint refuses to
+ * Not `expect: {}`. That is last-write-wins, which the endpoint refuses to
  * default to for exactly this reason. Rebasing on the row that was just shown
  * means a *third* edit arriving between the 409 and this retry is a 409 again,
  * which is the correct answer rather than an inconvenience.

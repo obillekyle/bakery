@@ -14,7 +14,7 @@ export { hostStore } from './context'
  * one collapses to the unprefixed key. That is not cosmetic: this key becomes a
  * **filename** in five handlers, and `getOrCreateCachedFile` writes three files
  * per entry with no bound and no eviction. Prefixing the raw `Host` header let
- * any client mint an unlimited number of cache entries — 25 requests for one
+ * any client mint an unlimited number of cache entries: 25 requests for one
  * path under 25 made-up hostnames took the cache directory from 9 files to 84.
  *
  * `resolveHostConfig` already carries this reasoning for the config cache; the
@@ -74,7 +74,7 @@ export const Bakery: globalThis.Bakery = {
   // nothing read. See the constructor in `utils/shared-pool.ts`.
   sharedPool: new SharedMemoryPool(),
   // Defined in `core/context.ts`, which is low enough that a module needing a
-  // path does not have to import `Bakery` to get one — reaching them through
+  // path does not have to import `Bakery` to get one: reaching them through
   // here is what closed the logger cycle. These stay the reading surface for
   // application and framework code; context is the single definition.
   //

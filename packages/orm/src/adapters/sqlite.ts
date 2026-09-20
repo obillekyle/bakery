@@ -10,7 +10,7 @@ import { createExecutor, SQLAdapter } from './base'
 // the call site.
 const MESSAGES = messageLogger(new Logger('database'), {
   JOURNAL_WAL_REFUSED:
-    'W SQLite refused WAL for %y{file}%* (answered %y{answer}%*) — running the %y{mode}%* journal instead. Expected on a network path; on a local disk it costs every write.',
+    'W SQLite refused WAL for %y{file}%* (answered %y{answer}%*): running the %y{mode}%* journal instead. Expected on a network path; on a local disk it costs every write.',
   PRAGMA_FAILED:
     'W A SQLite performance pragma was rejected: %r{error}%*. The database works; it is not tuned.',
 } as const)
@@ -25,13 +25,13 @@ export class SQLiteAdapter extends SQLAdapter {
   /**
    * Resolves when the performance pragmas have finished, or failed loudly.
    *
-   * They are deliberately not awaited by every query the way `ready` is —
+   * They are deliberately not awaited by every query the way `ready` is:
    * tuning is not correctness, and making the first statement of every process
    * wait on six round trips to gain nothing is the wrong trade. But `close()`
    * has to wait, because a handle closed underneath an in-flight pragma
    * rejects with `Connection closed`, and that is indistinguishable at the
-   * catch from a filesystem genuinely refusing one. A short-lived adapter — a
-   * test, a one-shot script — would otherwise warn on every close about a
+   * catch from a filesystem genuinely refusing one. A short-lived adapter (a
+   * test, a one-shot script) would otherwise warn on every close about a
    * failure that never happened.
    */
   protected readonly tuned: Promise<unknown> = Promise.resolve()
@@ -41,7 +41,7 @@ export class SQLiteAdapter extends SQLAdapter {
    *
    * SQLite defaults the pragma OFF and it is per-connection, so without this a
    * FOREIGN KEY is stored, reported by `PRAGMA foreign_key_list`, shown in the
-   * dashboard — and enforces nothing.
+   * dashboard, and enforces nothing.
    *
    * Deliberately *not* in the performance pragma chain above it. That chain is
    * fire-and-forget by design (its own comment calls the statements
@@ -148,7 +148,7 @@ export class SQLiteAdapter extends SQLAdapter {
       filename,
       typeof connectionTarget === 'string' ? connectionTarget : undefined,
     )
-    // `sql` is supplied when wrapping an existing connection — notably once per
+    // `sql` is supplied when wrapping an existing connection: notably once per
     // transaction. Setup below belongs only to a connection we open ourselves;
     // re-running it per transaction meant a mkdirSync plus six unawaited
     // PRAGMAs
@@ -167,7 +167,7 @@ export class SQLiteAdapter extends SQLAdapter {
       (filename === ':memory:'
         ? new SQL('sqlite://:memory:')
         : new SQL(filename, { adapter: 'sqlite' }))
-    // Every owned connection, `:memory:` included — the perf pragmas below
+    // Every owned connection, `:memory:` included, the perf pragmas below
     // skip in-memory databases, but correctness does not get to.
     this.ready = ownsConnection
       ? this.sql.unsafe('PRAGMA foreign_keys = ON;')
@@ -186,8 +186,8 @@ export class SQLiteAdapter extends SQLAdapter {
         // Not `catch(() => {})`. Every performance pragma failing silently is
         // how a database ends up running at a fraction of its speed with
         // nothing anywhere saying so, and convention 3 bans the bare form for
-        // exactly this. These are tuning, not correctness — `foreign_keys`
-        // above is awaited and is allowed to reject — so a failure is a
+        // exactly this. These are tuning, not correctness (`foreign_keys`
+        // above is awaited and is allowed to reject), so a failure is a
         // warning rather than a throw.
         .catch((error: Error) => {
           MESSAGES.PRAGMA_FAILED({ error: error.message })
@@ -208,8 +208,8 @@ export class SQLiteAdapter extends SQLAdapter {
    *
    * The journal mode used to be `platform === 'win32' ? 'DELETE' : 'WAL'`, a
    * rule with no recorded reason. The hypothesis behind it was that a Windows
-   * network path cannot host WAL, which is true — WAL needs a shared `-shm`
-   * mapping that SMB and WebDAV do not provide — but the rule applied to every
+   * network path cannot host WAL, which is true (WAL needs a shared `-shm`
+   * mapping that SMB and WebDAV do not provide), but the rule applied to every
    * Windows install, local disks included, where WAL works.
    *
    * Measured on this machine, four interleaved rounds against a CPU-bound
@@ -229,7 +229,7 @@ export class SQLiteAdapter extends SQLAdapter {
    * `@bakery-framework/core/cache/shared-db`. It is deliberately not shared:
    * that site is synchronous `bun:sqlite` and this one is an async
    * `Bun.SQL`, so the control flow has nothing in common and only the
-   * predicate would move — at the cost of a new published export subpath on a
+   * predicate would move: at the cost of a new published export subpath on a
    * surface that was closed on purpose before 2.0.0.
    */
   private async confirmWAL(rows: unknown, filename: string): Promise<void> {
@@ -323,7 +323,7 @@ export class SQLiteAdapter extends SQLAdapter {
   )
 
   // `PRAGMA table_info('${table}')` interpolated the table name into a
-  // string literal — a second SQL writer on a public adapter method, outside
+  // string literal, a second SQL writer on a public adapter method, outside
   // the `qId`/`qRef`/`safeColumn` guards convention 8 makes the only ones.
   // The `pragma_table_info` table-valued function takes the same argument as a
   // bound parameter, so there is nothing left to quote; MySQL and Postgres
@@ -347,8 +347,7 @@ export class SQLiteAdapter extends SQLAdapter {
         bigint: 'BIGINT',
         json: 'JSON',
       }[d.type as string] || 'TEXT'
-    // SQLite has no VARCHAR of its own — every text column is TEXT affinity —
-    // but it stores the *declared* type verbatim and hands it back through
+    // SQLite has no VARCHAR of its own (every text column is TEXT affinity),     // but it stores the *declared* type verbatim and hands it back through
     // `pragma table_info`. Emitting the width is therefore free here and is
     // what lets one schema round-trip on all three dialects.
     let out =
@@ -429,7 +428,7 @@ export class SQLiteAdapter extends SQLAdapter {
             type: c.type,
             notnull: c.notnull === 1,
             // `pk` is the column's **1-based position within the primary key**,
-            // not a boolean — `PRAGMA table_info` reports 0 for "not part of the
+            // not a boolean: `PRAGMA table_info` reports 0 for "not part of the
             // key", 1 for the first key column, 2 for the second. So `=== 1`
             // reported a composite `PRIMARY KEY (a, b)` as a single-column key on
             // `a`, silently, and only on SQLite: MySQL reads `column_key = 'PRI'`
@@ -566,7 +565,7 @@ export class SQLiteAdapter extends SQLAdapter {
   }
 
   /**
-   * SQLite has `UNION ALL` but neither `INTERSECT ALL` nor `EXCEPT ALL` — the
+   * SQLite has `UNION ALL` but neither `INTERSECT ALL` nor `EXCEPT ALL`: the
    * `ALL` modifier is only accepted after `UNION`.
    */
   override get supportsSetOperationAll(): boolean {
@@ -586,7 +585,7 @@ export class SQLiteAdapter extends SQLAdapter {
       const tName = Case.camel(table.name)
       dbConstraints[tName] = {} as SyncTypes.TableConstraints
 
-      // Bound, not interpolated — the same conversion `hasCol` above
+      // Bound, not interpolated: the same conversion `hasCol` above
       // records. This one survived it: `getConstraints` runs over every table
       // the database reports, so a name carrying an apostrophe closed the
       // literal and the rest of the statement went with it.
@@ -668,7 +667,7 @@ export class SQLiteAdapter extends SQLAdapter {
   /**
    * SQLite has no UUID function, so the canonical 8-4-4-4-12 form is assembled
    * from `randomblob(16)`. Version and variant nibbles are **not** forced, so
-   * this is a random 128-bit value in UUID shape rather than a conforming v4 —
+   * this is a random 128-bit value in UUID shape rather than a conforming v4:
    * unique, but do not hand it to something that validates the version field.
    *
    * SQLite stores the default expression verbatim and hands it back the same
@@ -691,7 +690,7 @@ export class SQLiteAdapter extends SQLAdapter {
 
     // SQLite has no catalog column for width; it stores the *declared* type
     // verbatim and hands it back through `pragma table_info`, so the number is
-    // in the type string — 'VARCHAR(64)'. That is also why emitting the width
+    // in the type string, 'VARCHAR(64)'. That is also why emitting the width
     // is worth doing on a dialect with no real VARCHAR: it is what lets one
     // schema round-trip on all three.
     const declared = String(col.type || '')
@@ -719,7 +718,7 @@ export class SQLiteAdapter extends SQLAdapter {
   }
 
   // `protected override`, not `private`: narrowing a base member's visibility
-  // is TS2415, and it made SQLiteAdapter fail to satisfy SQLAdapter — so the
+  // is TS2415, and it made SQLiteAdapter fail to satisfy SQLAdapter, so the
   // one adapter with real test coverage did not typecheck against the contract
   // the two untested ones share.
   protected override parseDefault(def: any): any {
@@ -732,7 +731,7 @@ export class SQLiteAdapter extends SQLAdapter {
       // sqlite_master hands back the literal exactly as formatDefault wrote it,
       // so the quote it doubled per SQL rules is still doubled. Stripping the
       // delimiters without collapsing it leaves `it''s fine` where the schema
-      // says `it's fine` — drift diffColumnMismatch can never resolve, and a
+      // says `it's fine`: drift diffColumnMismatch can never resolve, and a
       // table rebuild on every db:sync as a result.
       return unquoted.replaceAll(quote + quote, quote)
     }

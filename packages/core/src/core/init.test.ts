@@ -5,14 +5,14 @@ import './init'
  * `core/init.ts` puts the mode flags on `process.env` as `'1'`/`''` strings.
  *
  * They were booleans behind accessor pairs until Bun 1.4.0, which rejects
- * accessor descriptors on `process.env` outright — the framework died on
+ * accessor descriptors on `process.env` outright: the framework died on
  * `import` in every entry. The tests here used to assert that mechanism
  * directly (`typeof descriptor.get === 'function'`), which made them a
  * restatement of the implementation rather than of anything it guaranteed. They
  * now assert the guarantees, all of which survived the encoding change.
  *
  * `threads.ts` assigns these before importing the worker: `THREAD_ID` on the
- * single-worker/clamped path (deliberately *not* `THREAD_WORKER` there — a
+ * single-worker/clamped path (deliberately *not* `THREAD_WORKER` there, a
  * cluster of one must not shrink its caches), and both via Worker env in the
  * multi-worker path. When the flags were getter-only accessors that assignment
  * threw, the throw was swallowed by a `Try(...)`, and `reusePort`, the
@@ -23,10 +23,10 @@ import './init'
  * ## Why the restore is careful
  *
  * These flags are process-global and every later test file reads them, so a
- * leak here is a failure somewhere else — it has happened twice. Restoring is
+ * leak here is a failure somewhere else: it has happened twice. Restoring is
  * now a plain assignment, which is correct *because* everything is already a
  * string: the old hazard was that assignment coerced boolean `false` to the
- * truthy string `"false"`, flipping dev-only behaviour in three tests in
+ * truthy string `"false"`, flipping dev-only behavior in three tests in
  * `handlers/` and `dashboard/` that this file merely happened to precede. The
  * `''` encoding is what removes that trap rather than working around it.
  */
@@ -41,7 +41,7 @@ const FLAGS = [
   'MODE',
 ] as const
 
-/** The only two the cluster master writes — and so the only two written here. */
+/** The only two the cluster master writes, and so the only two written here. */
 const WRITTEN = ['THREAD_WORKER', 'THREAD_ID'] as const
 
 const env = process.env as any
@@ -78,7 +78,7 @@ describe('core/init mode flags', () => {
     }
   })
 
-  test('a false flag is falsy — never the string "false"', () => {
+  test('a false flag is falsy, never the string "false"', () => {
     // The whole reason for `'1'`/`''` rather than `'true'`/`'false'`. Every
     // gate in the codebase tests these for truthiness, and `"false"` is a
     // truthy string: this encoding failing would not throw anywhere, it would
@@ -95,7 +95,7 @@ describe('core/init mode flags', () => {
 
   test('import.meta.env sees the assignment', () => {
     // Everything downstream branches on `import.meta.env.*`, which is the same
-    // object as `process.env` in Bun — verified, and the reason the flags could
+    // object as `process.env` in Bun: verified, and the reason the flags could
     // not simply move somewhere else when accessors stopped working.
     for (const flag of WRITTEN) assign(flag, '1')
 

@@ -24,7 +24,7 @@ On first read (`packages/core/src/session.ts`):
 
 1. The `sId` cookie is parsed out of the `Cookie` header.
 2. If it names a live, unexpired session, that one is returned and marked
-   accessed — which slides expiry without counting as a write.
+   accessed, which slides expiry without counting as a write.
 3. Otherwise a new empty `Session` is created.
 
 On the way out, `processResponse` asks the session for a cookie
@@ -40,7 +40,7 @@ issued (`session.ts`). Three consequences worth knowing:
   read dirtied the session into the next disk flush.
 - Sliding expiry still works. A read re-stamps the in-memory access time, and
   once more than half the cookie's `Max-Age` has elapsed since it was last
-  issued, the next response re-issues it *and* re-persists the session — so the
+  issued, the next response re-issues it *and* re-persists the session, so the
   stored row's access time renews at a cadence of at most half the timeout, and
   an active session never ages out on either side. `session.touch()` forces the
   refresh immediately.
@@ -58,12 +58,12 @@ Built at `packages/core/src/session.ts`.
 
 - **`HttpOnly`** always. Script cannot read the session id.
 - **`SameSite=Lax`** always. This stops a cross-site `fetch` or form POST from
-  carrying the cookie, but *not* a top-level navigation — which is why API
+  carrying the cookie, but *not* a top-level navigation, which is why API
   routes run a separate same-origin check. See
   [Security](../deployment/security.md).
 - **`Secure`** when any of: the request URL is `https:`; `trustProxy` is on and
   `x-forwarded-proto` is `https`; or the process is in production
-  (`import.meta.env.PROD`). The production case is deliberate — a TLS terminator
+  (`import.meta.env.PROD`). The production case is deliberate: a TLS terminator
   that forgets to forward the header must not be able to downgrade the cookie.
   You do not need middleware to add this flag.
 - **`Max-Age`** is 1 hour, or 30 days if the session has any persisted key
@@ -83,11 +83,11 @@ Two idle timeouts, both measured from last access
 | Ordinary session | **1 hour** |
 | Session with at least one persisted key | **30 days** |
 
-"Idle", not absolute: each request that touches the session restarts the clock —
-reads included, without costing a write (see above).
+"Idle", not absolute: each request that touches the session restarts the clock.
+Reads included, without costing a write (see above).
 
 Expiry is enforced twice. On read, an expired session is deleted and a fresh one
-returned (`session.ts`) — so a stolen id stops working at the timeout,
+returned (`session.ts`), so a stolen id stops working at the timeout,
 not at the next sweep. A background sweep every 15 minutes then reclaims the
 storage (`session.ts`).
 
@@ -150,7 +150,7 @@ Statics for administration (`session.ts`): `Session.count`,
 `Session.get(id)`, `Session.delete(id)`, `Session.keys()`, `Session.values()`,
 `Session.entries()`, `Session.list({ page, pageSize, sortBy, sortOrder })`, and
 an async iterator over every live session. All of them except `Session.count`
-are scoped to the current host — see below.
+are scoped to the current host. See below.
 
 ## Rotate the id at the privilege boundary
 
@@ -168,7 +168,7 @@ export default function login(req: Request) {
 }
 ```
 
-Call it on any privilege change — login, and again on logout if the session
+Call it on any privilege change: login, and again on logout if the session
 outlives it. `createdAt` is preserved: the session continues, only its bearer
 token changes.
 
@@ -176,8 +176,8 @@ token changes.
 
 Session cache keys are namespaced by the current host through `hostKey()`
 (`core/bakery.ts`), so a `hosts` entry is a tenant boundary: an id issued by
-`a.com` does not resolve on `b.com`, and `Session.list()` — the dashboard's
-session table — only shows the host it was asked on. A hostname with no `hosts`
+`a.com` does not resolve on `b.com`, and `Session.list()` (the dashboard's
+session table) only shows the host it was asked on. A hostname with no `hosts`
 entry, and every request in a single-host app, shares the default namespace.
 
 Upgrading an app that already has `hosts` configured invalidates the sessions
@@ -203,7 +203,7 @@ export function readCart(req: Request): string | undefined {
 }
 ```
 
-It extends an index signature, so unknown keys still work — augmenting adds
+It extends an index signature, so unknown keys still work: augmenting adds
 completion and type checking for the keys you declare without making the rest an
 error.
 
@@ -211,7 +211,7 @@ error.
 
 Keys beginning with `__bakery.` are framework-internal privilege markers
 (`session.ts`). Application data shares the same bag, so **any code that
-writes a caller-supplied key must refuse the prefix** — otherwise a preferences
+writes a caller-supplied key must refuse the prefix**: otherwise a preferences
 endpoint becomes a privilege-escalation primitive:
 
 ```ts

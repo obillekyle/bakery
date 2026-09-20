@@ -29,14 +29,14 @@ beforeEach(async () => {
   calls = []
 
   // `cache/tiered.ts` and `session.ts` push real hooks onto this array at
-  // import time — one of them closes the cache database. Running those here
+  // import time: one of them closes the cache database. Running those here
   // would break every test file loaded afterwards, so the array is emptied for
   // the duration and restored below.
   savedHooks = Bakery.shutdownHooks.splice(0, Bakery.shutdownHooks.length)
   __resetShutdownSequence()
 
   // The real teardown closes the shared cache database and the ORM connection
-  // for the whole process — fine at exit, fatal to every test file scheduled
+  // for the whole process: fine at exit, fatal to every test file scheduled
   // after this one. Record the calls instead.
   __setTestTeardown({
     closeCache: () => {
@@ -76,12 +76,12 @@ describe('runShutdownSequence', () => {
     // app hook may still want to write through.
     //
     // The tail is the regression. `cache/tiered.ts` closed the shared cache
-    // database inside its own framework hook — registered at module-evaluation
+    // database inside its own framework hook: registered at module-evaluation
     // time, so first of all of them, and therefore before every plugin. The
     // analytics shutdown flush writes through that same handle: its statements
     // threw, an outer catch swallowed them, and up to a minute of page hits
     // plus the entire history delta vanished on every clean stop. The ORM
-    // connection was worse — `closeDB()`'s only caller was the `db:sync` CLI,
+    // connection was worse: `closeDB()`'s only caller was the `db:sync` CLI,
     // so a SIGINT abandoned a live MySQL/Postgres pool. Both now run here,
     // after the plugins, and both are visible in this order.
     __setTestConfig({
@@ -195,9 +195,9 @@ describe('runShutdownSequence', () => {
   test('gives up on a hook that never settles rather than hanging', async () => {
     // The cluster master already bounded its wait, with a comment saying a
     // wedged worker must delay shutdown, not prevent it. The standalone path
-    // did not honour its own principle: `worker.ts` awaited this sequence
+    // did not honor its own principle: `worker.ts` awaited this sequence
     // before `process.exit(0)`, so one hook that never resolved meant SIGINT
-    // never terminated the process at all — Ctrl-C looked like it did nothing.
+    // never terminated the process at all, Ctrl-C looked like it did nothing.
     __setTestConfig({})
     Bakery.shutdownHooks.push(() => new Promise<void>(() => {}))
     Bakery.shutdownHooks.push(() => {
@@ -215,7 +215,7 @@ describe('runShutdownSequence', () => {
   })
 
   test('the standalone deadline is the one the cluster master uses', () => {
-    // Two paths, one principle — and one constant, so they cannot drift.
+    // Two paths, one principle, and one constant, so they cannot drift.
     expect(SHUTDOWN_TIMEOUT_MS).toBe(FLUSH_TIMEOUT_MS)
   })
 })

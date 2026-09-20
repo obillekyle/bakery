@@ -1,19 +1,19 @@
 /**
  * Open tables as tabs, with VS Code's preview semantics.
  *
- * **Pure — no DOM.** Every transition is a function from a state to a state, so
+ * **Pure, no DOM.** Every transition is a function from a state to a state, so
  * the rules below are asserted in `tabs.test.ts` rather than inferred from a
  * click handler. `tabstrip.ts` is the view over this.
  *
- * The behaviour is Supabase Studio's, which is VS Code's:
+ * The behavior is Supabase Studio's, which is VS Code's:
  *
- *  - A **single click** opens a *preview* tab — rendered italic, and **replaced
+ *  - A **single click** opens a *preview* tab: rendered italic, and **replaced
  *    in place** by the next single click. Browsing twelve tables therefore
  *    leaves one tab open, not twelve, which is the whole point.
  *  - **Double-clicking**, or **editing**, makes it permanent. Investment is what
  *    promotes a tab; merely looking at it is not.
  *  - A table that is already open is *selected* rather than reopened, and its
- *    own view state — page, sort, filters — is left exactly as it was. That is
+ *    own view state (page, sort, filters) is left exactly as it was. That is
  *    the property that makes tabs worth having: switching back restores.
  *
  * There is at most one preview tab, which is what makes "replace the preview"
@@ -58,8 +58,8 @@ function previewIndex(state: TabsState): number {
 /**
  * Single click: open as preview.
  *
- * Three cases in order, and the order is the behaviour. An already-open table
- * wins over everything — reopening it would throw away the page and filters the
+ * Three cases in order, and the order is the behavior. An already-open table
+ * wins over everything: reopening it would throw away the page and filters the
  * user left it on, which is precisely what tabs exist to preserve.
  */
 export function openPreview(state: TabsState, view: ViewState): TabsState {
@@ -109,8 +109,8 @@ export function selectTab(state: TabsState, index: number): TabsState {
 /**
  * Close one tab.
  *
- * Closing the active tab activates whatever slid into its slot — the tab to the
- * right — and the last tab when there is nothing to the right. Closing anything
+ * Closing the active tab activates whatever slid into its slot (the tab to the
+ * right), and the last tab when there is nothing to the right. Closing anything
  * left of the active one shifts the active index down so the *same* tab stays
  * selected, which is the bug the naive version has.
  */
@@ -172,7 +172,7 @@ export function pruneTabs(
 /**
  * The whole strip in a hash.
  *
- * `x` repeats, one per tab, each holding a whole encoded view — `URLSearchParams`
+ * `x` repeats, one per tab, each holding a whole encoded view: `URLSearchParams`
  * escapes the inner `&` on the way in and unescapes it on the way out, so the
  * nesting needs no encoding of its own. `a` is the active index and `w` the
  * preview one; both are indexes rather than flags because there is at most one
@@ -191,7 +191,7 @@ export function decodeTabs(hash: string): TabsState {
   const params = new URLSearchParams(hash.replace(/^#/, ''))
   const encoded = params.getAll('x')
 
-  // A pre-tabs link — `#t=parcels&p=2` — is one permanent tab. Those links are
+  // A pre-tabs link (`#t=parcels&p=2`) is one permanent tab. Those links are
   // in chat logs and bookmarks, and silently rendering nothing for them would
   // be the most visible possible regression.
   if (!encoded.length) {

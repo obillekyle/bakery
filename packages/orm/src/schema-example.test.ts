@@ -23,7 +23,7 @@ beforeAll(async () => {
  * example's `@database/*` import cannot resolve there.
  *
  * So it is guarded here instead. This catches the failure that actually
- * matters — the template drifting out of sync with the `schema-util` API and
+ * matters: the template drifting out of sync with the `schema-util` API and
  * only breaking for the next person who copies it.
  */
 describe('schema.example.ts stays valid', () => {

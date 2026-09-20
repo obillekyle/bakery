@@ -35,7 +35,7 @@ export function registerCache(cache: Flushable): void {
 }
 
 /**
- * Test seam — see `__setTestDb` / `__setTestConfig` for the pattern.
+ * Test seam. See `__setTestDb` / `__setTestConfig` for the pattern.
  *
  * Detaches the live registry so a test can drive `flushAllCaches()` against its
  * own caches without flushing and closing the process's real ones (`Strings`,
@@ -134,8 +134,8 @@ export class TieredCache<K extends string | number, V> {
         this.opts.flushInterval,
       )
       // A flush timer must not be the reason a process cannot exit. Every
-      // cache here is module-level, so importing `session.ts` — or anything
-      // reaching it — left an interval holding the loop open forever: a script
+      // cache here is module-level, so importing `session.ts` (or anything
+      // reaching it) left an interval holding the loop open forever: a script
       // or a test that imported core printed its answer and then hung. The CLI
       // never noticed because it calls `process.exit` on every path.
       this.flushTimer.unref?.()
@@ -316,7 +316,7 @@ export class TieredCache<K extends string | number, V> {
     totalPages: number
   } {
     // Paging happens in SQL, so the dirty memory tier has to reach disk first.
-    // That was a third, hand-written copy of `flushToDisk` — same shape, but
+    // That was a third, hand-written copy of `flushToDisk`: same shape, but
     // looping over `stmt.insert` instead of `commitKey`, which is exactly the
     // bypass `flushAllToDisk` documents below having already been fixed once.
     // There is nothing search needs that the predicate would deny it: an entry
@@ -396,7 +396,7 @@ export class TieredCache<K extends string | number, V> {
     if (this.memoryStore.size === 0) return
     db.transaction(() => {
       // Through `commitKey`, not a raw insert. This is the shutdown flush, and
-      // it used to ignore `shouldPersist` — so the interval flush and eviction
+      // it used to ignore `shouldPersist`, so the interval flush and eviction
       // dropped a non-persisting entry while a clean stop wrote it. For the
       // session tier that predicate is "has persisted keys or has data", so
       // every shutdown wrote up to a thousand empty sessions, which then
@@ -423,7 +423,7 @@ export class TieredCache<K extends string | number, V> {
     const entry = this.memoryStore.get(key)
     if (!entry) return
     // `shouldPersist?.(v)` is `undefined` when the option is absent, and
-    // `!undefined` is `true` — so a cache configured without a predicate took
+    // `!undefined` is `true`, so a cache configured without a predicate took
     // the delete branch for every key. Since `enforceMemoryLimit` commits as
     // it evicts, that made eviction destroy the value rather than demote it
     // to disk. Absence of the option means "persist everything".
@@ -471,7 +471,7 @@ const logger = new Logger('tiered-cache')
  * database: this hook is registered at module-evaluation time and therefore
  * sits at index 0, while a plugin's shutdown hook is registered later during
  * plugin setup. Closing the handle here invalidated it for every plugin that
- * writes on the way out — the analytics flush bound the same `cacheDb`, so
+ * writes on the way out: the analytics flush bound the same `cacheDb`, so
  * every statement threw into an outer catch and up to a minute of page hits
  * plus the whole history delta was discarded on every clean stop, silently.
  *

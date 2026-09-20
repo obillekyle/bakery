@@ -9,7 +9,7 @@ import {
 
 /**
  * `foreign()` produced an index named after the constraint, which the next
- * diff compared as `foreign` against `index` and tried to drop and re-add —
+ * diff compared as `foreign` against `index` and tried to drop and re-add,
  * and since index drops are destructive, the dev server stopped booting.
  *
  * It now fails at load with a message naming the declaration. These pin that
@@ -38,13 +38,13 @@ describe('unsupported foreign keys are rejected, not silently indexed', () => {
 })
 
 /**
- * Fixtures are real files because `loadSchema` really imports them — the whole
+ * Fixtures are real files because `loadSchema` really imports them: the whole
  * point of the two-layout probe is which path it reaches for on disk, and a
  * stub of the filesystem would test the stub.
  *
  * They live under `.cache/` (gitignored, already the convention in
  * `$mounts.test.ts`) and each test gets its own directory, so a fixture that
- * exists only to be *ignored* — the decoys below — cannot leak into another
+ * exists only to be *ignored* (the decoys below) cannot leak into another
  * case. Tables are written as the plain object shape `table()` produces rather
  * than by importing it, which keeps the fixture free of a resolution path back
  * into the workspace.
@@ -92,7 +92,7 @@ beforeAll(async () => {
   await Bun.write(`${BARE}/.keep`, '')
 
   // Decoys: both defaults are present, so any test below that finds them has
-  // fallen back instead of honouring the configured path.
+  // fallen back instead of honoring the configured path.
   await Bun.write(
     `${CONFIGURED}/orm/index.ts`,
     tableSource('decoyFolder', 'id'),
@@ -181,7 +181,7 @@ describe('a configured schema path replaces the probe', () => {
 
 /**
  * The guard fails closed. Falling back to the defaults here would mean a typo
- * in one config string leaves the app running with a schema it never chose —
+ * in one config string leaves the app running with a schema it never chose,
  * and `--choose=db` then writes a freshly generated one to the typo'd path.
  */
 describe('a configured path that does not exist fails closed', () => {
@@ -228,13 +228,13 @@ describe('reading the option off the app config', () => {
 /**
  * `orm/tables.ts` was called `orm/schema.ts`.
  *
- * Loading never cared — that goes through `index.ts`'s re-exports, so the
- * filename is free — but *generation* writes to this path. Writing `tables.ts`
+ * Loading never cared: that goes through `index.ts`'s re-exports, so the
+ * filename is free, but *generation* writes to this path. Writing `tables.ts`
  * beside someone's existing `schema.ts` would leave two files declaring the
  * same tables, and `collectConstraints` would silently keep whichever the
  * module exported last.
  */
-describe('the folder write target honours the old filename', () => {
+describe('the folder write target honors the old filename', () => {
   const LEGACY = `${FIXTURES}/legacy`
   const FRESH = `${FIXTURES}/fresh`
   const BOTH_NAMES = `${FIXTURES}/bothnames`

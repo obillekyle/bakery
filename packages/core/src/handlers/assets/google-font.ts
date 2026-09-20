@@ -9,8 +9,8 @@ import { Handler } from '../core/$base'
  * The Google Fonts CSS endpoints this proxy is willing to forward to.
  *
  * `css` is the v1 API, `css2` the current one, `icon` the Material icon
- * stylesheet. Everything else on `fonts.googleapis.com` — and anything at all
- * once the path is attacker-supplied — is refused, because this handler is an
+ * stylesheet. Everything else on `fonts.googleapis.com` (and anything at all
+ * once the path is attacker-supplied) is refused, because this handler is an
  * unauthenticated outbound fetch from the server's own IP and the path used to
  * be forwarded verbatim.
  */
@@ -22,7 +22,7 @@ const GF_CSS_PATHS = new Set(['css', 'css2', 'icon'])
  * Google answers `200` for a request carrying parameters it does not know, so
  * before this list every `?family=Roboto&junk=<n>` was a fresh cache key *and*
  * a fresh outbound request: six junk requests were measured producing six keys
- * and eighteen files. Names are compared raw, without percent-decoding — a
+ * and eighteen files. Names are compared raw, without percent-decoding: a
  * name spelled `%66amily` simply fails the list, which is the safe direction.
  */
 const GF_CSS_PARAMS = new Set([
@@ -39,7 +39,7 @@ const GF_MAX_QUERY = 512
 const GF_MAX_GSTATIC_PATH = 256
 
 /**
- * A path under `fonts.gstatic.com`, as the rewritten CSS references it —
+ * A path under `fonts.gstatic.com`, as the rewritten CSS references it:
  * `s/roboto/v47/KFOmCnqEu92Fr1Mu4mxK.woff2`.
  *
  * Every segment must start with an alphanumeric, which is what rules out `..`
@@ -54,7 +54,7 @@ const GF_GSTATIC_PATH =
  *
  * `getOrCreateCachedFile` writes three files per entry (raw, `.zst`, `.gz`)
  * and nothing ever removed them, so the cache directory grew with the number
- * of distinct request URLs — which is to say, without bound. The allow-lists
+ * of distinct request URLs, which is to say, without bound. The allow-lists
  * above shrink the key space but do not close it: a family *name* is still
  * free text, and a wrong one costs a 400 from Google rather than a rejection
  * here. This is the bound, in the shape convention 6 asks for.
@@ -86,7 +86,7 @@ function trackCacheEntry(cacheDir: string, cacheName: string): void {
  * Test seams for the bound, in the `__`-prefixed style of `__setTestConfig`.
  *
  * Every other branch of this handler is reachable from a test through
- * `handle()` — the allow-lists refuse before anything is fetched. The eviction
+ * `handle()`: the allow-lists refuse before anything is fetched. The eviction
  * path is not: reaching it legitimately means 257 successful round trips to
  * Google, which is not a unit test. These let one assert the bound holds and
  * that an evicted entry takes its `.zst`/`.gz` companions with it.

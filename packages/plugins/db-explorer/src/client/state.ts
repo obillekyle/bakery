@@ -9,7 +9,7 @@
  * The view lives in the **hash** rather than the query string on purpose. The
  * explorer is reached with `?db-key=…` on a first visit, the client scrubs that
  * parameter out of the URL immediately, and a view state sharing the query
- * string would be scrubbed along with it — or worse, would have to be
+ * string would be scrubbed along with it, or worse, would have to be
  * reconstructed by an edit to the same `URLSearchParams` the credential was
  * just removed from. A hash also never reaches the server, which is the right
  * place for "which row am I on".
@@ -34,7 +34,7 @@ export interface ViewState {
   sortBy: string | null
   sortOrder: 'ASC' | 'DESC'
   /**
-   * Column, operator and operand — several, each removable.
+   * Column, operator and operand: several, each removable.
    *
    * A **list** rather than a record, because the builder lets a filter exist
    * before it has a column or a value and a record cannot hold a half-built
@@ -62,7 +62,7 @@ export function defaultView(table = ''): ViewState {
  * omitted rather than written, so the common case is `t=parcels`.
  *
  * There is no `r` any more. It carried a row identity because a filter could
- * not name a row — `id=1` matched `11` under a substring `LIKE` — and with `eq`
+ * not name a row (`id=1` matched `11` under a substring `LIKE`), and with `eq`
  * available a foreign-key jump is just a filter. An old link with `r=` decodes
  * to the same page it always did, minus the highlight.
  */
@@ -159,7 +159,7 @@ export function tableOf(
  *
  * Matched against the **raw** database name, which is what the schema report
  * carries: `introspect()` builds from `getSchema()`, and that speaks raw names.
- * (`getConstraints()` camel-cases, so the same table is `bakerySchema` there —
+ * (`getConstraints()` camel-cases, so the same table is `bakerySchema` there:
  * that spelling never reaches this client, and matching it here would risk
  * hiding a user table that happens to be called `bakerySchema`.)
  */

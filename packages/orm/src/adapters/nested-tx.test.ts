@@ -10,7 +10,7 @@ import { SQLiteAdapter } from './sqlite'
  * Nested transactions, on every dialect.
  *
  * Before `SQLAdapter.transaction` learned to dispatch, a `transaction` inside a
- * `transaction` died on Bun's own refusal — `cannot call begin inside a
+ * `transaction` died on Bun's own refusal: `cannot call begin inside a
  * transaction use savepoint() instead`, identical wording on all three servers.
  * That is not an exotic shape: it is any two transactional functions calling
  * each other.
@@ -39,14 +39,13 @@ interface Dialect {
  * without re-checking MySQL.
  *
  * Bun 1.3.14's MySQL driver does not resume the *first query issued after a
- * transaction* unless the event loop has other work pending. Not slow —
+ * transaction* unless the event loop has other work pending. Not slow:
  * indefinite: a bare `await db.query(…).all()` after `await db.transaction(…)`
  * never settles and no per-test timeout fires, so `bun test` sits there until
  * something kills it. A single unrelated `setTimeout` is enough to unwedge it.
  *
  * Two things established before this went in. It is **not** caused by
- * savepoints — the minimal reproduction is a plain non-nested transaction —
- * and it is **not** caused by the change this file tests: the same reproduction
+ * savepoints (the minimal reproduction is a plain non-nested transaction),  * and it is **not** caused by the change this file tests: the same reproduction
  * hangs identically against the adapters at HEAD.
  *
  * It has never been seen outside a test because a server always has pending
@@ -90,7 +89,7 @@ for (const dialect of DIALECTS) {
       for (const fn of cleanup) await fn()
     })
 
-    // Each test gets its own table and its own connection — and every
+    // Each test gets its own table and its own connection, and every
     // statement in that test has to go through the returned `db`. A second
     // `dialect.open()` would not be a second view of the same data: SQLite
     // gives every `:memory:` connection a private database.
@@ -213,7 +212,7 @@ for (const dialect of DIALECTS) {
 /**
  * The path an application actually takes. `DB.transaction` resolves its
  * connection through `getActiveDb()`, which returns the *transaction* adapter
- * when one is open — so a nested `DB.transaction` is what reached the broken
+ * when one is open, so a nested `DB.transaction` is what reached the broken
  * `BEGIN`, without either function knowing the other existed.
  */
 describe('DB.transaction nests through getActiveDb', () => {

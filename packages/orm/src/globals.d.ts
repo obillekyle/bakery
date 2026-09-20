@@ -4,7 +4,7 @@ import type { AppDBOptionals, AppDBSchema } from './schema-registry'
  * Ambient database types.
  *
  * These live with the orm package rather than in core's `global.d.ts`: they are
- * derived from this package's schema registry, and core cannot reference orm —
+ * derived from this package's schema registry, and core cannot reference orm,
  * orm depends on core, so the reverse would be circular.
  *
  * Both are read only inside this package (`orm/query.ts`, `orm/mutation.ts`,

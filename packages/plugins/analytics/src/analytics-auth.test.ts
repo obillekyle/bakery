@@ -93,13 +93,13 @@ describe('analytics authorization', () => {
 
 /**
  * `applyAnalyticsAuth` is the half of `setupAnalytics` that runs on every call,
- * and both plugins call it — `analyticsPlugin` directly, `dashboardPlugin`
+ * and both plugins call it: `analyticsPlugin` directly, `dashboardPlugin`
  * through `setupDashboard`, because the analytics key is the dashboard key.
  *
  * Which means registration order decides who configures the door last, and
  * these pin that it does not decide *what the door is*. Verified against the
  * unconditional assignment this replaced: the first two cases fail there, and
- * the second is the shape `apps/example` actually has —
+ * the second is the shape `apps/example` actually has,
  * `dashboardPlugin({ authorize })` then `analyticsPlugin({ credential })`,
  * which under a plain assignment shut the console the first call opened.
  */
@@ -130,7 +130,7 @@ describe('setup applies only the options it is given', () => {
   })
 
   test('a value that is given still wins', async () => {
-    // The other direction — "does not clear" must not have become "cannot
+    // The other direction: "does not clear" must not have become "cannot
     // change". Last config wins is the rule; omission is simply not a config.
     applyAnalyticsAuth({ credential: 'first' })
     applyAnalyticsAuth({ credential: 'second' })
@@ -165,7 +165,7 @@ describe('setup applies only the options it is given', () => {
 })
 
 describe('analytics websocket upgrade', () => {
-  test('honours the credential', async () => {
+  test('honors the credential', async () => {
     setAnalyticsCredential('ops-key-7')
     expect(
       await AnalyticsWSHandler.canHandle(

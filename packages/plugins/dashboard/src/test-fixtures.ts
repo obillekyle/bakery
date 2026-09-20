@@ -9,7 +9,7 @@
  * A database stand-in that records what it was asked to do and does none of it.
  *
  * The assertion that matters in both suites is that the recorded list stays
- * *empty* — a rejection that arrives after the truncate is not a rejection — so
+ * *empty* (a rejection that arrives after the truncate is not a rejection), so
  * the stub must reach no real database and must log every method the endpoints
  * can call. `setup.test.ts` (routing and CSRF) and `endpoints/database.test.ts`
  * (the write gate) each kept their own copy, and the copies had already

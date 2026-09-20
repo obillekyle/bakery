@@ -59,7 +59,7 @@ async function sharedHandler(
   const modulePath = fs.resolve(Bakery.serveRoot, filePath)
   const params = info.getParams(path) || {}
   markDevFile(params, filePath)
-  // Redacted before it becomes page data — see `publicErrorData`. The params
+  // Redacted before it becomes page data. See `publicErrorData`. The params
   // are both substituted into the render and injected as `__PAGE_PARAMS__`.
   // `errorData` is undefined for an ordinary page; Object.assign ignores that.
   const finalParams = Object.assign(

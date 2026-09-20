@@ -14,7 +14,7 @@ describe('parsedUrl', () => {
 
   test('returns the SAME object on a second call for the same request', () => {
     // The assertion that matters. A broken memo still returns a *correct* URL,
-    // so a value-only test cannot see the regression — only identity can.
+    // so a value-only test cannot see the regression: only identity can.
     const req = new Request('http://localhost/one?a=1')
 
     const first = parsedUrl(req)
@@ -50,7 +50,7 @@ describe('parsedUrl', () => {
   })
 
   test('handles the shapes the router actually sees', () => {
-    // An empty query, an encoded segment, and a bare origin — the memo must not
+    // An empty query, an encoded segment, and a bare origin: the memo must not
     // change what `new URL` would have produced.
     for (const href of [
       'http://localhost/',

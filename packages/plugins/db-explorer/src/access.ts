@@ -9,20 +9,20 @@ import {
  *
  * The explorer used to be read-only by construction, so a boolean answered the
  * whole question. It edits rows now, and "may this request in" and "may this
- * request *write*" are different questions — so the predicate returns a level
+ * request *write*" are different questions, so the predicate returns a level
  * rather than a yes.
  *
  * Two doors, and an application may use either or both:
  *
- *   - `users` — named credentials, for people and scripts that have no session
+ *   - `users`: named credentials, for people and scripts that have no session
  *     (an on-call engineer with a key, a seeding job).
- *   - `authorize` — a predicate over the request, for applications that already
+ *   - `authorize`: a predicate over the request, for applications that already
  *     know who their users are and would rather not keep a second list.
  *
  * Either can admit and the **higher** level wins, because they answer about the
  * same caller: a session admin presenting a read-only key is still an admin.
  *
- * Everything fails closed. Nothing configured admits nobody — the same default
+ * Everything fails closed. Nothing configured admits nobody: the same default
  * the read-only explorer had, and the reason there is no `writes: true` flag to
  * leave set by accident.
  *
@@ -37,7 +37,7 @@ export type Access = 'read' | 'write'
 /**
  * An application's own access check. Return `'write'`, `'read'`, or `false`.
  *
- * Anything else — including `true` — is a denial. The predicate is application
+ * Anything else (including `true`) is a denial. The predicate is application
  * code and this return type is only advice; an untyped or transpiled one can
  * hand back anything, and admission is the expensive direction to get wrong.
  */
@@ -71,14 +71,14 @@ function higher(a: Access | false, b: Access | false): Access | false {
 /**
  * The credential this request presents, or `null`.
  *
- * Core's `readCredential` accepts three forms — `x-db-key`, a Bearer token, and
- * `?db-key=` — and the query form is deliberate there: a human opening a URL
+ * Core's `readCredential` accepts three forms: `x-db-key`, a Bearer token, and
+ * `?db-key=`, and the query form is deliberate there: a human opening a URL
  * cannot set a header.
  *
  * **On a state-changing request the query form is refused.** A credential in a
  * URL is what makes a cross-site write possible: the browser will send it
- * because it is in the link, and `checkCsrf` — which is an `Origin` check, not
- * a token — passes when `Origin` is absent or literally `"null"`, as it is from
+ * because it is in the link, and `checkCsrf` (which is an `Origin` check, not
+ * a token) passes when `Origin` is absent or literally `"null"`, as it is from
  * a sandboxed iframe or some redirect chains. Requiring a header for writes
  * means the caller had to run script on this origin.
  */
@@ -87,12 +87,12 @@ function presentedKey(req: Request): string | null {
   if (presented === null) return null
   if (SAFE_METHODS.has(req.method)) return presented
 
-  // `readCredential` prefers header, then Bearer, then the query — so if
+  // `readCredential` prefers header, then Bearer, then the query, so if
   // neither header carried a value, what it returned came from the URL.
   //
   // **The value, not `has()`.** An empty header is *present*, so
   // `x-db-key: ''` alongside `?db-key=SECRET` read as "a header was used" and
-  // let a URL credential through on a write — the one case this function
+  // let a URL credential through on a write, the one case this function
   // exists to refuse. `readCredential` skips a falsy header and falls to the
   // query, so the two checks disagreed about which form had been presented.
   const fromHeader = Boolean(
@@ -106,7 +106,7 @@ function presentedKey(req: Request): string | null {
  *
  * **Every entry is compared, with no early exit.** Each comparison is constant
  * time (core's `credentialMatches`), and stopping at the first match would make
- * the response time depend on where in the map the matching key sits — which
+ * the response time depend on where in the map the matching key sits, which
  * leaks the position of a valid key over enough samples.
  */
 export function accessFromUsers(
@@ -158,7 +158,7 @@ export async function resolveAccess(
   req: Request,
   config: AccessConfig,
 ): Promise<Access | false> {
-  // Both doors are consulted even when the first admits — the predicate may
+  // Both doors are consulted even when the first admits: the predicate may
   // grant `write` where a key granted `read`, and the caller is one person.
   const fromKey = accessFromUsers(req, config.users)
   const fromPredicate = await accessFromPredicate(req, config.authorize)
@@ -177,8 +177,8 @@ export function canWrite(access: Access | false): boolean {
  * `hostStore` is one in core: a module variable is shared by every in-flight
  * request, so under any concurrency at all one caller's level would decide
  * another caller's write. It is also cheaper than re-resolving per endpoint,
- * which would run an application's `authorize` predicate — possibly a session
- * lookup — twice for one request.
+ * which would run an application's `authorize` predicate (possibly a session
+ * lookup) twice for one request.
  *
  * Outside a request it is `false`, which is the safe answer rather than a
  * crash: an endpoint reached some other way has no caller to grant anything.
@@ -198,8 +198,8 @@ export function currentCanWrite(): boolean {
  * Refuse a `users` map that names a level the explorer does not have.
  *
  * `access` is typed `Access`, and a JavaScript caller or a value read from the
- * environment is not bound by that. An unknown level — `'admin'` is the one
- * that gets written — passed straight through `higher`, reached the client as
+ * environment is not bound by that. An unknown level (`'admin'` is the one
+ * that gets written) passed straight through `higher`, reached the client as
  * the caller's own level in `/api/_db/schema`, and then failed `canWrite`,
  * which compares against `'write'` exactly. So it failed *closed*, which is
  * the right direction and an unhelpful way to say "your configuration has a

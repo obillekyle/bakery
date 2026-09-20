@@ -1,7 +1,7 @@
 /**
  * The tab strip, and the view switcher under it.
  *
- * Two rows, and **exactly two** — the table tabs, then Data / Structure /
+ * Two rows, and **exactly two**: the table tabs, then Data / Structure /
  * Relations for whichever table is active. Beekeeper sells itself on not having
  * "tabs within tabs", and it is right: one level of nesting is navigable and
  * two is a maze. Nothing below this line gets its own strip.
@@ -19,7 +19,7 @@ export interface TabStripContext {
   /** Double-click on a preview tab: keep it. */
   onPromote: (index: number) => void
   onClose: (index: number) => void
-  /** The `+` button — back to the table picker. */
+  /** The `+` button: back to the table picker. */
   onNew: () => void
 }
 
@@ -50,7 +50,7 @@ function tabNode(ctx: TabStripContext, index: number): HTMLElement {
 
   const label = button(tab.view.table, () => ctx.onSelect(index), {
     class: 'tab-label',
-    title: tab.preview ? `${tab.view.table} — preview` : tab.view.table,
+    title: tab.preview ? `${tab.view.table}: preview` : tab.view.table,
   })
   on(label, 'dblclick', () => ctx.onPromote(index))
   node.appendChild(label)

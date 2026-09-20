@@ -12,7 +12,7 @@ const MESSAGES = messageLogger(new Logger('db-backup'), {
 
 /**
  * Returns whether a backup file was actually written. Callers about to run a
- * destructive migration must check this — a thrown error, a `:memory:` database,
+ * destructive migration must check this: a thrown error, a `:memory:` database,
  * or a missing `pg_dump`/`mysqldump` all previously looked identical to success.
  */
 export async function backupDatabase(adapter?: any): Promise<boolean> {

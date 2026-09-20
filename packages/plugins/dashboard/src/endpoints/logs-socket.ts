@@ -7,7 +7,7 @@ import type { ServerWebSocket } from 'bun'
  * The console's log stream.
  *
  * **The Logs panel was dead in production**, and only in production. Its client
- * connected to `/_livereload`, which `LiveReloadHandler` serves — and that
+ * connected to `/_livereload`, which `LiveReloadHandler` serves, and that
  * handler is registered only under `DEV` and refuses in `canHandle` besides.
  * So a production server answered 400 on the upgrade, nothing ever joined
  * `connectedLoggers`, and the panel sat on "Connecting to server log

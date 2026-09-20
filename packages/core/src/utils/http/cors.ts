@@ -1,8 +1,8 @@
 /**
  * Cross-origin resource sharing.
  *
- * Bakery already ships the pieces of an API server — `ApiHandler`, sessions,
- * CSRF, rate limiting — and had no way to serve one to a browser on another
+ * Bakery already ships the pieces of an API server (`ApiHandler`, sessions,
+ * CSRF, rate limiting), and had no way to serve one to a browser on another
  * origin. This is that.
  *
  * Two halves, and both are needed: a preflight `OPTIONS` has to be answered
@@ -22,8 +22,8 @@ export interface CorsOptions {
   /**
    * Origins allowed to read responses.
    *
-   * `'*'` is honoured literally, and is refused in combination with
-   * `credentials` — see `resolveOrigin`. A function receives the request's
+   * `'*'` is honored literally, and is refused in combination with
+   * `credentials`. See `resolveOrigin`. A function receives the request's
    * `Origin` and returns the value to echo, or `null` to deny.
    */
   origin: string | string[] | ((origin: string) => string | null)
@@ -45,7 +45,7 @@ const DEFAULT_METHODS = ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE']
  * The value for `Access-Control-Allow-Origin`, or `null` to send nothing.
  *
  * **`'*'` with credentials is refused rather than silently downgraded.** The
- * browser rejects that pairing anyway, so honouring it would produce a request
+ * browser rejects that pairing anyway, so honoring it would produce a request
  * that fails in the client with a CORS error and a server that believes it
  * allowed the call. Echoing the origin instead would be a *quiet widening* of
  * what the app asked for. Returning null makes the misconfiguration visible as
@@ -97,7 +97,7 @@ export function corsHeaders(
 /**
  * The response to a preflight, or `null` if this is not one.
  *
- * A preflight is `OPTIONS` *with* `Access-Control-Request-Method` — plain
+ * A preflight is `OPTIONS` *with* `Access-Control-Request-Method`: plain
  * `OPTIONS` is a normal request and must fall through to routing, or an app
  * with its own OPTIONS route would find it shadowed.
  *

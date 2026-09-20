@@ -7,7 +7,7 @@ import type * as SyncTypes from './sync/types'
  *
  * The former `value()` primitive, now private and two arguments shorter.
  * `autoIncrement` and `primary` were positional booleans that only
- * `Field.Primary()` ever set, and it can state them directly — which is the
+ * `Field.Primary()` ever set, and it can state them directly, which is the
  * whole reason `value('integer', undefined, false, true, true)` was worth
  * replacing.
  *
@@ -27,7 +27,7 @@ function column<T, N extends boolean = false, O extends boolean = false>(
   if (nullable === true || d === null) result.nullable = true
   // The runtime object is byte-for-byte what it was before `TableDef` changed
   // shape: `type` holds the dialect name, `optional` is type-level only. That
-  // is the whole safety argument for this change — no adapter, no generated
+  // is the whole safety argument for this change: no adapter, no generated
   // file and no stored ledger payload sees any difference.
   return result as unknown as TableDef<T, N, O>
 }
@@ -52,9 +52,9 @@ const isColumnValue = (v: unknown): v is ColumnValue =>
 /**
  * Resolve either calling convention to `{ table, cols }`.
  *
- * The string form — `Field.Index('posts', ['authorId'])` — cannot catch a typo
- * in either argument until sync time, if then. The column form —
- * `Field.Index(posts.authorId)` — carries its own table, so that argument
+ * The string form: `Field.Index('posts', ['authorId'])`: cannot catch a typo
+ * in either argument until sync time, if then. The column form:
+ * `Field.Index(posts.authorId)`: carries its own table, so that argument
  * disappears and a mistake becomes a compile error.
  */
 function resolveTarget(
@@ -86,8 +86,8 @@ export interface ForeignKeyActions {
 /**
  * The shape `Field.Foreign()` contributes to a row type.
  *
- * Always `integer`, because that is what `Field.Primary()` always is — an
- * `INTEGER PRIMARY KEY AUTOINCREMENT` — and a foreign key exists to point at
+ * Always `integer`, because that is what `Field.Primary()` always is (an
+ * `INTEGER PRIMARY KEY AUTOINCREMENT`), and a foreign key exists to point at
  * one. Nullable adds `| null`, which is the only variation worth having.
  *
  * The runtime object still resolves its type from the referenced column (see
@@ -102,14 +102,14 @@ type ForeignDef<N extends true | undefined> = TableDef<
   N extends true ? true : false
 >
 
-/** What `Field.Index` / `Field.Unique` accept — a column produced by `table()`. */
+/** What `Field.Index` / `Field.Unique` accept: a column produced by `table()`. */
 type ColumnValue = { __table: string; __column: string }
 
 /**
  * What `Field.Enum` accepts: a literal array, or a TypeScript string enum.
  *
  * A string enum is an ordinary object at runtime (`{ Draft: 'draft' }`), so
- * both forms reduce to the same list of members — `Object.values` for the
+ * both forms reduce to the same list of members, `Object.values` for the
  * object, the tuple itself for the array.
  *
  * **String enums only.** A *numeric* enum compiles to an object with a reverse
@@ -127,7 +127,7 @@ type EnumValues<V> = V extends readonly (infer U extends string)[]
   : V[keyof V]
 
 /**
- * `Field` — the column vocabulary, namespaced so it is discoverable.
+ * `Field`: the column vocabulary, namespaced so it is discoverable.
  *
  * This replaced `value('string', null, true, false, false)`, which required
  * remembering a type string *and* the meaning of four positional booleans.
@@ -137,8 +137,8 @@ type EnumValues<V> = V extends readonly (infer U extends string)[]
  * **`Field` is now the whole vocabulary, not sugar over one.** `value`,
  * `primary`, `index`, `unique` and `foreign` are gone; the construction they
  * did lives in `column()` and `resolveTarget()` above, private to this file.
- * What the sync engine and the type inference consume is unchanged — plain
- * descriptor objects — so this moved the API without moving the contract.
+ * What the sync engine and the type inference consume is unchanged (plain
+ * descriptor objects), so this moved the API without moving the contract.
  *
  * The one shape deliberately left unspellable is **nullable *and* defaulted to
  * something other than null**, because a null default is how you say nullable.
@@ -158,7 +158,7 @@ type EnumValues<V> = V extends readonly (infer U extends string)[]
  */
 export const Field = {
   /**
-   * `INTEGER PRIMARY KEY AUTOINCREMENT` — the id column, spelled once.
+   * `INTEGER PRIMARY KEY AUTOINCREMENT`: the id column, spelled once.
    *
    * The single most repeated line in any schema, and the one most likely to be
    * written wrong by hand: `value('integer', undefined, false, true, true)`.
@@ -185,7 +185,7 @@ export const Field = {
     >('integer', d),
 
   /**
-   * A fractional number — `DOUBLE` on MySQL, `DOUBLE PRECISION` on Postgres,
+   * A fractional number: `DOUBLE` on MySQL, `DOUBLE PRECISION` on Postgres,
    * `REAL` on SQLite.
    *
    * Named `Float` rather than mirroring the underlying `'number'` type string,
@@ -208,12 +208,12 @@ export const Field = {
     >('string', d),
 
   /**
-   * Unbounded text — `TEXT` on every dialect.
+   * Unbounded text: `TEXT` on every dialect.
    *
    * **MySQL rejects a literal `DEFAULT` on TEXT**, so this takes no default.
    * That is not an omission: `Field.String('')` emits
    * `TEXT NOT NULL DEFAULT ''`, which MySQL refuses outright with "BLOB, TEXT,
-   * GEOMETRY or JSON column can't have a default value" — the shipped schema
+   * GEOMETRY or JSON column can't have a default value", the shipped schema
    * template could not `db:sync` against MySQL because of exactly this. Use
    * `Varchar` when you need a default.
    */
@@ -227,12 +227,12 @@ export const Field = {
   },
 
   /**
-   * Sized text — `VARCHAR(n)`, and the answer to TEXT's default problem, since
+   * Sized text: `VARCHAR(n)`, and the answer to TEXT's default problem, since
    * every dialect accepts a default on a sized column.
    *
    *     slug: Field.Varchar(255, ''),
    *
-   * SQLite has no real `VARCHAR` — all text is TEXT affinity — but it stores
+   * SQLite has no real `VARCHAR` (all text is TEXT affinity), but it stores
    * the declared type verbatim and reads it back, so one schema round-trips on
    * all three.
    *
@@ -254,7 +254,7 @@ export const Field = {
     ),
 
   /**
-   * A 64-bit integer — `BIGINT` everywhere.
+   * A 64-bit integer: `BIGINT` everywhere.
    *
    * Reads back as a **string** on MySQL and Postgres, which is how they avoid
    * losing precision, and as a **number** on SQLite, which does not: values
@@ -269,11 +269,11 @@ export const Field = {
     >('bigint' as any, d),
 
   /**
-   * A JSON document — `JSON` on MySQL, `JSONB` on Postgres, a `JSON`-declared
+   * A JSON document: `JSON` on MySQL, `JSONB` on Postgres, a `JSON`-declared
    * text column on SQLite.
    *
    * MySQL and Postgres parse it into an object on read; SQLite hands back the
-   * raw string. The row type is therefore `unknown` — narrow it where you use
+   * raw string. The row type is therefore `unknown`: narrow it where you use
    * it rather than trusting a type that would be wrong on one of the three.
    *
    * Takes no default, for the same reason `Text` does not: MySQL refuses a
@@ -286,7 +286,7 @@ export const Field = {
     (nullable: true): TableDef<unknown, true, true>
   },
 
-  /** True/false — `BOOLEAN` on Postgres, `TINYINT(1)` on MySQL. */
+  /** True/false: `BOOLEAN` on Postgres, `TINYINT(1)` on MySQL. */
   Bool: <D extends boolean | null | undefined = undefined>(d?: D) =>
     column<
       Nullable<boolean, D extends null ? true : false>,
@@ -312,8 +312,8 @@ export const Field = {
    *
    * **The column's type is copied from the target, not declared here**, and
    * that is the real reason to prefer this form. MySQL refuses a foreign key
-   * whose column type does not match the referenced key *exactly* — an
-   * `INT` child against a `BIGINT` parent is rejected outright — and that
+   * whose column type does not match the referenced key *exactly* (an
+   * `INT` child against a `BIGINT` parent is rejected outright), and that
    * mismatch is invisible in a schema where the two columns are declared pages
    * apart. Resolution happens in `resolveColumnForeignKeys()`, where the whole
    * schema is in scope, so the two cannot disagree.
@@ -332,11 +332,11 @@ export const Field = {
       } = {},
     ) =>
       ({
-        // `integer` in the row type, always — see `ForeignDef`. At *runtime* the
+        // `integer` in the row type, always. See `ForeignDef`. At *runtime* the
         // type is still overwritten from the referenced column by
         // `resolveColumnForeignKeys()`, because MySQL refuses a key whose column
-        // type does not match the target exactly. For the ordinary case — a key
-        // pointing at a `Field.Primary()` — the two agree and there is nothing to
+        // type does not match the target exactly. For the ordinary case: a key
+        // pointing at a `Field.Primary()`: the two agree and there is nothing to
         // reconcile.
         type: 'integer',
         ...(options.nullable ? { nullable: true, default: null } : {}),
@@ -429,7 +429,7 @@ export const Field = {
    * The column form carries its own table, so there is no separate table
    * argument to get wrong; the string form exists because the `DBInfo`
    * namespace layout has no `table()` values to point at. Several columns make
-   * one composite index, in the order given — which is the order that decides
+   * one composite index, in the order given, which is the order that decides
    * which queries it can serve.
    *
    * A direct alias of `index()` rather than a wrapper, so the two cannot drift
@@ -460,7 +460,7 @@ export const Field = {
   },
 
   /**
-   * A UUID, generated by the database — `CHAR(36)` sized text with a
+   * A UUID, generated by the database: `CHAR(36)` sized text with a
    * per-dialect default expression.
    *
    *     id: Field.Uuid(),
@@ -468,7 +468,7 @@ export const Field = {
    * `gen_random_uuid()` on Postgres, `UUID()` on MySQL, and
    * `lower(hex(randomblob(16)))` shaped into the canonical form on SQLite,
    * which has no UUID function of its own. All three round-trip through the
-   * `%uuid%` marker, the same way `Field.Date.now()` round-trips `%dateNow%` —
+   * `%uuid%` marker, the same way `Field.Date.now()` round-trips `%dateNow%`,
    * without the read-back half the database reports its own expression, the
    * schema says `%uuid%`, and the column rebuilds on every sync forever.
    *
@@ -496,11 +496,11 @@ export const Field = {
    *
    * Enforced in the database too, and **the same way on all three dialects**:
    * a `CHECK (col IN (…))`. MySQL has a native `ENUM` and this deliberately
-   * does not use it — a value rejected by MySQL and accepted by SQLite means
+   * does not use it: a value rejected by MySQL and accepted by SQLite means
    * an app that behaves differently depending on where it runs, which is worse
    * than either choice made consistently.
    *
-   * The members are **not part of the column diff** — see
+   * The members are **not part of the column diff**. See
    * `ColumnConstraint._enum`. Adding or removing one does not migrate on its
    * own; the table has to be rebuilt for the CHECK to change.
    */
@@ -520,7 +520,7 @@ export const Field = {
       throws(
         'Field.Enum() takes a string enum or an array of strings. A numeric ' +
           'enum reverse-maps its members, so its values are half names and ' +
-          'half numbers — use Field.Int() and validate in your code, or give ' +
+          'half numbers. Use Field.Int() and validate in your code, or give ' +
           'the enum string values.',
       )
     }
@@ -555,7 +555,7 @@ export const Field = {
    * **`updatedAt` is not auto-maintained on write, and that is a deliberate
    * limit rather than an oversight.** Doing it silently needs the query layer
    * to know which tables have the column, and the query layer has no runtime
-   * view of the schema at all — `schema.ts` is loaded by the sync engine, not
+   * view of the schema at all: `schema.ts` is loaded by the sync engine, not
    * by the ORM. The alternatives were a `hasCol` probe on every UPDATE, or
    * stamping a column that might not exist. Stamp it yourself:
    *
@@ -570,7 +570,7 @@ export const Field = {
    * The current time as Unix **seconds**, for a value position.
    *
    * A plain number, so it binds as an ordinary parameter and needs no dialect
-   * handling — unlike `%dateNow%`, which is a DDL default marker and means
+   * handling: unlike `%dateNow%`, which is a DDL default marker and means
    * nothing in an INSERT or UPDATE.
    */
   now: () => Math.floor(Date.now() / 1000),

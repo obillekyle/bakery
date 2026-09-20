@@ -1,7 +1,7 @@
 # Analytics plugin
 
-`@bakery-framework/plugin-analytics` collects request telemetry — hit counts, memory,
-uptime, session count, self-measured ping — aggregates it into five time
+`@bakery-framework/plugin-analytics` collects request telemetry (hit counts, memory,
+uptime, session count, self-measured ping) aggregates it into five time
 windows, and persists it to SQLite.
 
 > **Read this first: the read endpoints are closed until you set a
@@ -41,7 +41,7 @@ connected stats sockets.
 
 `recordRouteHit` classifies each path ([`analytics/src/core.ts`](../../packages/plugins/analytics/src/core.ts)):
 
-- the plugin's **own** three paths are not counted at all — `/_analytics/ping`,
+- the plugin's **own** three paths are not counted at all: `/_analytics/ping`,
   `/api/_analytics/stats` and `/api/_analytics/reset`. The sampling loop fetches
   the ping through the real server once a second to time a round trip, so
   counting it gave an idle server a permanent floor of one route hit and one
@@ -49,13 +49,13 @@ connected stats sockets.
   belongs to the application and is counted;
 - paths starting `/api/` count as **API hits**;
 - paths starting `/_`, and anything with a static-asset extension, are
-  **excluded** from page hits entirely — this is `isAssetPath`, and it is why
+  **excluded** from page hits entirely: this is `isAssetPath`, and it is why
   framework and plugin routes never appear in "top pages";
 - everything else is a **page hit**, appended to a hit log and a per-path
   counter.
 
 `recordErrorPageHit` is exported for callers that want to contribute, and
-`connectedLoggers` is re-exported from core — the live-reload handler owns that
+`connectedLoggers` is re-exported from core: the live-reload handler owns that
 registry, so it cannot live in a plugin.
 
 ### Aggregation and retention
@@ -99,15 +99,15 @@ are restored.
 `?excludeHistory=true` (omit the series, keep the latest point).
 
 The two `/api/` endpoints return the standard JSON envelope; the router
-serialises it. The route table is declared with `routeTable(... satisfies
-PluginRouteTable)` — see [Plugin API](plugin-api.md#declaring-endpoints-with-routetable)
+serializes it. The route table is declared with `routeTable(... satisfies
+PluginRouteTable)`. See [Plugin API](plugin-api.md#declaring-endpoints-with-routetable)
 for why the `satisfies` matters.
 
 ## Authorization
 
 Set a shared credential and the endpoints open to anything presenting it:
 
-```ts no-check — import.meta.env keys are app-defined
+```ts no-check: import.meta.env keys are app-defined
 analyticsPlugin({ credential: import.meta.env.ANALYTICS_KEY })
 ```
 
@@ -124,24 +124,24 @@ or empty variable turns the door **off**, never open.
   own roles rather than by a shared key. Either door admits.
 
 With neither configured analytics is closed to everyone. That is the safe
-default — an earlier version returned "authorized" when the old `DASHPASS`
-variable was unset, publishing process stats to anyone — and it is the reason
+default (an earlier version returned "authorized" when the old `DASHPASS`
+variable was unset, publishing process stats to anyone), and it is the reason
 the plugin ships off rather than open.
 
 **This is the dashboard's door too.** `@bakery-framework/plugin-analytics` is
 a hard dependency of [`@bakery-framework/plugin-dashboard`](dashboard.md),
 which forwards its own `authorize` and `credential` here and guards
 `/_dashboard` with `isAnalyticsAuthorized`: the analytics key *is* the
-dashboard key. Configure it on either plugin — a call that omits an option
+dashboard key. Configure it on either plugin: a call that omits an option
 leaves whatever the other one set, so registration order does not decide the
 answer.
 
 Applied uniformly:
 
 - `/api/_analytics/stats` and `/api/_analytics/reset` return 401 when a door
-  is armed but the request fails it, 404 when neither door is configured — the
+  is armed but the request fails it, 404 when neither door is configured: the
   404 does not advertise the endpoint.
-- `/_analytics_ws` honours the same check in `canHandle`, because the upgrade
+- `/_analytics_ws` honors the same check in `canHandle`, because the upgrade
   happens before any plugin hook runs
   ([`analytics/src/endpoints/websocket.ts`](../../packages/plugins/analytics/src/endpoints/websocket.ts)).
 
@@ -176,6 +176,6 @@ own route.
 
 `computeStats(timescale, excludeHistory, pagesFilter)` from
 `@bakery-framework/plugin-analytics/endpoints/stats` builds the same payload the HTTP
-endpoint would return, without the authorization check — it is the function the
+endpoint would return, without the authorization check: it is the function the
 guard sits in front of, not behind. Exposing it on your own route means you own
 the access decision.

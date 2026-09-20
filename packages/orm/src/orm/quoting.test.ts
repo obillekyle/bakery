@@ -5,7 +5,7 @@ import { DB } from './index'
 
 /**
  * Unlike orm.test.ts, these run against a real adapter rather than a stub with
- * `quoteChar: '"'` hardcoded — so they actually verify the dialect's quoting
+ * `quoteChar: '"'` hardcoded, so they actually verify the dialect's quoting
  * instead of the mock's.
  */
 let db: SQLiteAdapter
@@ -50,7 +50,7 @@ describe('real SQLite identifier quoting', () => {
 /**
  * `join(left, right)` built its `ON` clause from the raw right-hand argument
  * when no alias was given. For an undotted right column that argument is a
- * *table* name, and the rewriter in `parse()` only quotes dotted pairs — so
+ * *table* name, and the rewriter in `parse()` only quotes dotted pairs, so
  * `join('teachers.campusId', 'campuses')` emitted
  * `ON "teachers"."campus_id" = campuses`: a bare table name where a column
  * belongs, which no dialect accepts and nothing catches until execution.
@@ -66,7 +66,7 @@ describe('real SQLite identifier quoting', () => {
  * ``AllTableColumns<S>``, so the undotted form is already a compile error and
  * only reaches the builder from JavaScript, a cast, or a runtime-built name. A
  * caller in that position gets no help from a thrown error that the type system
- * would have given them first — but they do get correct SQL.
+ * would have given them first, but they do get correct SQL.
  */
 describe('join always qualifies its right-hand column', () => {
   test('an undotted right column resolves to that table s id', () => {
@@ -335,7 +335,7 @@ describe('SELECT DISTINCT', () => {
 
   test('order in the chain does not matter, and it is idempotent', () => {
     // `distinct()` sets a flag rather than appending, so the stage it is called
-    // at is irrelevant — the alternative would make `.distinct()` before a
+    // at is irrelevant: the alternative would make `.distinct()` before a
     // `.where()` mean something different from after it.
     const before = DB.from('teachers')
       .distinct()
@@ -408,7 +408,7 @@ describe('DISTINCT inside an aggregate', () => {
 
   test('a function in the select list keeps its extra arguments', () => {
     // Regression: the select clause re-implemented function rendering and never
-    // read `extraArgs`, so COALESCE lost its fallback and returned NULL — while
+    // read `extraArgs`, so COALESCE lost its fallback and returned NULL, while
     // the identical call inside a WHERE was correct. Both go through
     // `evalOperands` now, which is also what binds the argument rather than
     // interpolating it.
@@ -484,7 +484,7 @@ describe('upsert', () => {
   })
 
   test('inserting only the conflict column has nothing to update', () => {
-    // Not a special case in the code — it falls out of "everything except the
+    // Not a special case in the code: it falls out of "everything except the
     // key", and DO NOTHING is the correct statement for it.
     expect(
       DB.Insert.into('teachers')

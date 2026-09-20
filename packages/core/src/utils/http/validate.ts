@@ -1,8 +1,7 @@
 /**
  * Request-body validation for route modules.
  *
- * `defineRoute<{ title: string }>` declares a body shape and enforces nothing —
- * the scaffolder's own template says so twice: *"declares the contract — it
+ * `defineRoute<{ title: string }>` declares a body shape and enforces nothing ( * the scaffolder's own template says so twice: *"declares the contract) it
  * does not validate it. The body is still client input."* Every route was left
  * to hand-check or not, and most did not.
  *
@@ -10,7 +9,7 @@
  * core` has zero runtime dependencies and that is worth keeping, so validation
  * accepts two shapes it can consume without knowing who produced them:
  *
- *   - **Standard Schema** (`~standard`) — the shared interface zod, valibot and
+ *   - **Standard Schema** (`~standard`): the shared interface zod, valibot and
  *     arktype all implement. Bring your own library; Bakery never imports it.
  *   - **A plain function** that returns the parsed value or throws.
  *
@@ -59,7 +58,7 @@ function isStandardSchema<T>(v: Validator<T>): v is StandardSchemaLike<T> {
 /**
  * Render a Standard Schema path as dotted notation.
  *
- * Segments may be plain keys or `{ key }` objects — the spec allows both, and a
+ * Segments may be plain keys or `{ key }` objects: the spec allows both, and a
  * library that uses the object form would otherwise render as `[object Object]`
  * in the very message meant to tell someone which field is wrong.
  */

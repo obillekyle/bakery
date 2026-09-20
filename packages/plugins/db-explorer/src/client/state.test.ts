@@ -31,7 +31,7 @@ const state = (over: Partial<AppState> = {}): AppState => ({
 })
 
 describe('view state in the URL', () => {
-  test('the common case is short — defaults are omitted, not written', () => {
+  test('the common case is short: defaults are omitted, not written', () => {
     expect(encodeView(defaultView('parcels'))).toBe('t=parcels')
   })
 
@@ -70,7 +70,7 @@ describe('view state in the URL', () => {
   })
 
   test('a filter carrying an unknown operator is dropped, not sent', () => {
-    // The ORM *drops* an operator it does not know, which widens the result —
+    // The ORM *drops* an operator it does not know, which widens the result,
     // so a hand-edited link must not be able to smuggle one through.
     const raw = encodeURIComponent(
       JSON.stringify([

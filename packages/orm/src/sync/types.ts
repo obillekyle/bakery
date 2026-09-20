@@ -15,7 +15,7 @@ export interface ColumnConstraint {
    * **Now part of the column diff**, so widening a `Varchar` migrates. This
    * used to say the opposite, and the reason was sound at the time: it needed
    * every adapter to report the width back exactly, and any that did not would
-   * rebuild the table on every sync. That is no longer a guess — all three
+   * rebuild the table on every sync. That is no longer a guess: all three
    * were measured against live servers, and the one real trap (MySQL reporting
    * `character_maximum_length = 65535` for an unsized `TEXT`) is handled in
    * `SQLAdapter.sizedTextLength`.
@@ -25,7 +25,7 @@ export interface ColumnConstraint {
    */
   length?: number
   /**
-   * The permitted values of an enum column — `Field.Enum([...])`.
+   * The permitted values of an enum column: `Field.Enum([...])`.
    *
    * Not part of the column diff, for exactly the reason `length` is not:
    * MySQL reports an ENUM's members back in its own spelling, Postgres reports
@@ -63,11 +63,11 @@ export interface IndexConstraint {
    *
    * It exists because `Case.snake` is not the inverse of `Case.camel`
    * (`SKU_code` → `sKUCode` → `s_k_u_code`), so a consumer that needs the raw
-   * spelling — a statement, a display — cannot recover it from `cols` and had
+   * spelling (a statement, a display) cannot recover it from `cols` and had
    * to rebuild a camel→raw map from the schema's column list. That rebuild was
    * first-wins over collisions: a table holding both `user_id` and `userId`
    * files them under one camel key, and an index over the *second* resolved to
-   * the first — a predicate over the wrong column. The adapter knows the real
+   * the first, a predicate over the wrong column. The adapter knows the real
    * names at parse time; carrying them costs an array.
    */
   rawCols?: string[]
@@ -77,7 +77,7 @@ export interface IndexConstraint {
 }
 
 /**
- * Referential actions, normalised to the SQL spelling.
+ * Referential actions, normalized to the SQL spelling.
  *
  * One vocabulary for three dialects: MySQL and SQLite report these words back
  * verbatim, Postgres reports single characters (`c`, `a`, `r`, `n`, `d`) which
@@ -115,7 +115,7 @@ export interface ForeignKeyInfo {
  *
  * It lives here rather than beside `buildSyncPlan` because `sync/rename.ts` and
  * `sync/diff.ts` both mutate a plan and are both imported *by* the planner. A
- * home in `plan.ts` would make that pair of edges circular — type-only, and so
+ * home in `plan.ts` would make that pair of edges circular: type-only, and so
  * erased under `verbatimModuleSyntax`, but this repo has been bitten by import
  * cycles often enough that not creating one is worth more than the adjacency.
  */

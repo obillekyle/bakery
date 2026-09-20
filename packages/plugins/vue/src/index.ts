@@ -6,7 +6,7 @@ import { rewriteVueImports } from './utils'
 
 /**
  * `vuePlugin` is this package's only export, and its parameter type lived in a
- * `.d.ts` reachable through no working specifier — so a consumer could pass
+ * `.d.ts` reachable through no working specifier, so a consumer could pass
  * options but never name their type. Re-exported here, where the function that
  * takes them is.
  */
@@ -20,7 +20,7 @@ export default function vuePlugin(options?: VuePluginOptions) {
     // Declarative, read by the tsconfig generator at dev boot rather than by
     // the server. `.vue` needs its own project for two reasons core cannot
     // cover: plain `tsc` cannot parse an SFC at all (so this is for `vue-tsc`),
-    // and `vue.d.ts` declares `req` and `body` for SFC scope — globals core
+    // and `vue.d.ts` declares `req` and `body` for SFC scope. Globals core
     // deliberately does not provide. Before this, those declarations shipped in
     // the package and were reachable by no app.
     tsconfig: {
@@ -28,7 +28,7 @@ export default function vuePlugin(options?: VuePluginOptions) {
         name: 'vue',
         // An SFC's `<script>` is rendered on the server, so it reaches the ORM
         // and the app's schema registration the way an API route does. Without
-        // this the tables fall back to `any` in every `.vue` file — silently,
+        // this the tables fall back to `any` in every `.vue` file: silently,
         // because the untyped mode is a supported state and does not error.
         server: true,
         extends: '@bakery-framework/core/tsconfig.vue.json',
@@ -39,7 +39,7 @@ export default function vuePlugin(options?: VuePluginOptions) {
         // An SFC's `<script>` is browser code, so an `importMap` alias inside one
         // is resolved by the browser's own import map and has to typecheck. The
         // flag is off by default precisely because the *server* project must not
-        // have it — an alias only the browser can satisfy would typecheck there
+        // have it: an alias only the browser can satisfy would typecheck there
         // and fail at runtime. Vue is the case the flag exists to allow.
         importMapPaths: true,
       },

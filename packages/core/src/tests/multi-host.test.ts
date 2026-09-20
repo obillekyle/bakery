@@ -47,7 +47,7 @@ describe('Multi-Host Architecture', () => {
 
   describe('hostKey()', () => {
     // Only a *configured* host earns its own key namespace. An unconfigured one
-    // is served the base config, so it shares the default bucket — which is
+    // is served the base config, so it shares the default bucket, which is
     // also what stops a client from minting cache files by inventing hostnames.
     const hosts = { 'client-a.com': {} } satisfies Record<string, HostEntry>
 

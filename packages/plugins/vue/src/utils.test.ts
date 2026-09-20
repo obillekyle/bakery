@@ -13,7 +13,7 @@ import {
 /**
  * Unit coverage for the pure helpers in `utils.ts`.
  *
- * Everything here is a string in, string out — no config, no fixtures, no
+ * Everything here is a string in, string out: no config, no fixtures, no
  * filesystem, so there is nothing to set up or tear down and no shared state
  * to leak into another file. `vue-plugin.test.ts` exercises the same code
  * through `getServerResponse` and a real SFC parse, which is the right level
@@ -106,7 +106,7 @@ describe('rewriteRelativeImports', () => {
     )
   })
 
-  test('a double-quoted specifier is rewritten and normalised to single quotes', () => {
+  test('a double-quoted specifier is rewritten and normalized to single quotes', () => {
     expect(rewriteRelativeImports(`import db from "./db"`, PAGE)).toBe(
       `import db from '${abs('db')}'`,
     )
@@ -174,7 +174,7 @@ describe('collectExportedFunctionNames', () => {
     ).toEqual(['paren', 'bare', 'asyncArrow', 'expr'])
   })
 
-  test('ignores data exports — they are page data, not actions', () => {
+  test('ignores data exports: they are page data, not actions', () => {
     expect(
       collectExportedFunctionNames(
         `export const total = 5\nexport const list = [1, 2]\nexport const cfg = { a: 1 }`,
@@ -194,7 +194,7 @@ describe('collectExportedFunctionNames', () => {
 describe('compileServerBlock', () => {
   /**
    * Shapes whose wrapper must be syntactically valid. An invalid one is not a
-   * compile error anywhere — the module fails to import at request time and
+   * compile error anywhere: the module fails to import at request time and
    * `getServerResponse` logs and serves `{}`, so the page renders with no data
    * and no obvious cause.
    */
@@ -319,7 +319,7 @@ describe('extractServerScripts', () => {
 
   test('<script serverless> is not a server block', () => {
     // The attribute match is anchored on a following delimiter precisely so a
-    // longer attribute starting with "server" cannot claim the block — and a
+    // longer attribute starting with "server" cannot claim the block, and a
     // false positive here deletes a client script and runs it on the server.
     const raw = `<script serverless>const a = 1</script>`
     expect(extractServerScripts(raw)).toEqual({ script: '', clean: raw })

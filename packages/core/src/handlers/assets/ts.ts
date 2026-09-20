@@ -46,15 +46,15 @@ export class TSHandler extends DynamicHandler {
     //
     // The route is named because this branch was unreachable until
     // `compileText` stopped throwing past it, and a nameless "Compilation
-    // Failed" is only half an answer: the diagnostic — file, line, column,
-    // source line — goes to the log as `compLog.COMPILE_FAIL`, and the two
+    // Failed" is only half an answer: the diagnostic (file, line, column,
+    // source line) goes to the log as `compLog.COMPILE_FAIL`, and the two
     // have to be joinable. Naming it discloses nothing a client did not
     // already send: `info.path` is what it asked for. In production
     // `publicBody` replaces the whole 5xx body anyway.
     return cached || response.error(`Compilation Failed: ${info.path}`, 500)
   }
 
-  /** Compile seam — ts.test.ts substitutes it to exercise the failure branch. */
+  /** Compile seam, ts.test.ts substitutes it to exercise the failure branch. */
   static compileRoute(file: fs.AbsolutePath): Promise<string | null> {
     return compile(file)
   }

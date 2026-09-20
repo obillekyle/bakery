@@ -18,20 +18,20 @@ export class NMHandler extends Handler {
    *
    * **The literal path wins whenever it exists, and the order is the whole
    * point.** `Bun.build` resolves a directory or package entry itself, with
-   * *browser* conditions — which is what picks `vue`'s `esm-bundler` build over
+   * *browser* conditions, which is what picks `vue`'s `esm-bundler` build over
    * the CJS one behind its `node` condition. `Bun.resolveSync` has no such
    * knob: it answers with Bun's own server conditions. Resolving here first and
    * handing `Bun.build` the concrete file therefore silently downgraded every
-   * package with a `browser`/`node` split — `/_nm/vue` came back as
+   * package with a `browser`/`node` split: `/_nm/vue` came back as
    * `index.mjs` re-exporting `vue.cjs.js`, and the browser then rejected
    * `import { Fragment } from 'vue'`.
    *
    * So the literal path goes first whenever it is on disk, and `resolveSync` is
    * the second candidate rather than the first. It is still needed, for two
-   * distinct cases: a public subpath that does not match the physical layout —
+   * distinct cases: a public subpath that does not match the physical layout,
    * `@vue-material/core` maps `"./utils"` to `./dist/utils/index.js`, so the
    * documented `@vue-material/core/utils` has no `utils` directory to find and
-   * used to 500 — and a package whose root is declared *only* through
+   * used to 500, and a package whose root is declared *only* through
    * `exports`, where `Bun.build` on the directory answers `ModuleNotFound`
    * because it looks for `main`/`module` and finds neither.
    *
@@ -65,15 +65,15 @@ export class NMHandler extends Handler {
    * **Why this does not call `getStatic`.** `getStatic` is the single writer of
    * the containment + `.forbidden` pair, and three of the four handlers its doc
    * comment names now go through it. This one cannot, and the reason is not
-   * the root (it takes a `roots` argument) — it is that `getStatic` answers
+   * the root (it takes a `roots` argument): it is that `getStatic` answers
    * "is there a plain file literally at this path", and `/_nm/` deliberately
    * asks a different question: what would an importer of this specifier get?
    * `resolveEntry` answers it, applying the package's `exports` map, and
-   * `Bun.build` then does directory-index resolution on whatever survives — so
+   * `Bun.build` then does directory-index resolution on whatever survives, so
    * `/_nm/pkg/sub` reaches `pkg/sub/index.js`, which is precisely what the
    * import map's `"<pkg>/": "/_nm/<pkg>/"` prefix entry (`utils/http/dom.ts`)
    * produces for an extensionless subpath import. `getStatic` returns `null`
-   * for that path — it is a directory — so routing through it would turn every
+   * for that path (it is a directory), so routing through it would turn every
    * extensionless subpath import into a 204. `nm.test.ts` pins both halves of
    * that divergence.
    *

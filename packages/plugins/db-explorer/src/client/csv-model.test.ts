@@ -99,7 +99,7 @@ describe('buildModel', () => {
     expect(model.emptyToNull.courier).toBe(false)
   })
 
-  test('with no header row the columns are synthesised and no row is lost', () => {
+  test('with no header row the columns are synthesized and no row is lost', () => {
     const model = buildModel('1,dhl\n2,ups\n', COLUMNS, { hasHeader: false })
     expect(model.headers).toEqual(['Column 1', 'Column 2'])
     expect(model.rows.length).toBe(2)
@@ -128,7 +128,7 @@ describe('reassign moves a target rather than duplicating it', () => {
       column: 'courier',
     })
     expect(targetOf(next.assign.weightKg!)).toBe('courier')
-    // The header that used to own `courier` falls to skip — a duplicate
+    // The header that used to own `courier` falls to skip: a duplicate
     // mapping is therefore impossible to express, not merely discouraged.
     expect(targetOf(next.assign.Courier!)).toBeNull()
   })

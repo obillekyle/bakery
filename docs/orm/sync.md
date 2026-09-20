@@ -17,9 +17,9 @@ the app directory, not the repo root.
 
 | Mode | Runs sync? |
 | --- | --- |
-| `bun run dev` | **Yes, when the schema changed** — skipped when a hash of the schema sources matches the one recorded after the last successful sync |
+| `bun run dev` | **Yes, when the schema changed**: skipped when a hash of the schema sources matches the one recorded after the last successful sync |
 | `bun run start` (production) | **No** |
-| `bakery --sync` / `-s` | Yes, before the server boots — and forces the dev sync past the hash check |
+| `bakery --sync` / `-s` | Yes, before the server boots, and forces the dev sync past the hash check |
 | `bun run db:sync` | Yes, and then exits |
 
 Development syncs itself: `dev.ts` calls `SyncService.run()` after config and
@@ -28,7 +28,7 @@ sources and the DB target matches the one recorded under `.cache/` after
 the previous *successful* sync
 ([`packages/cli/src/dev.ts`](../../packages/cli/src/dev.ts)). The check fails
 closed: unreadable sources, no recorded hash, or a missing local database file
-all sync rather than skip, and a failed sync never records the hash — the next
+all sync rather than skip, and a failed sync never records the hash, the next
 boot re-syncs.
 
 **Production does not.** `prod.ts` calls `initDB()` and nothing else
@@ -43,7 +43,7 @@ Nothing about a running production server will change your database on its own.
 ## Where the schema comes from
 
 Auto-detected from the app's working directory: `orm/index.ts` first, then
-`schema.ts`. Neither present is fine — an empty project syncs nothing.
+`schema.ts`. Neither present is fine: an empty project syncs nothing.
 
 If `server.config.ts` sets `schema`, that path replaces the probe entirely and
 **must exist**. `db:sync` prints the resolved path and exits 1 otherwise:
@@ -80,16 +80,16 @@ bun run db:sync [--migrate] [--choose=db|ts] [--dry-run] [--force-sync] [--no-le
 Introspection is per-adapter; the diff is not. Working from the database's own
 column list, the plan can contain:
 
-- **tables to add** — anything in the schema the database has never seen
-- **tables to drop** — anything in the database the schema no longer declares
-- **tables to rename** — see below
+- **tables to add** (anything in the schema the database has never seen
+- **tables to drop**) anything in the database the schema no longer declares
+- **tables to rename**. See below
 - **columns to add / drop / rename**
-- **tables to rebuild** — a column whose type, nullability or default no longer
+- **tables to rebuild**: a column whose type, nullability or default no longer
   matches. Neither `ALTER` nor a rename can express that, so the table is
   recreated: a temp table with the new definitions, shared columns copied
   across, the original dropped, the temp renamed into place. **Columns that are
   not shared do not survive.**
-- **views to update** — a `_view` body that differs, compared as normalised text
+- **views to update**: a `_view` body that differs, compared as normalized text
 - **indexes to add and drop**
 
 Then the phases execute inside a single transaction, in this order: drop
@@ -135,8 +135,8 @@ When it is:
 3. **Production** (`NODE_ENV=production`, and only that) refuses outright
    unless `--force-sync` is passed, and exits 1.
 4. A database backup is taken before execution. If the backup did **not**
-   happen — an in-memory database, a missing `pg_dump`/`mysqldump`, a thrown
-   error — the sync aborts rather than proceeding without a recoverable copy.
+   happen (an in-memory database, a missing `pg_dump`/`mysqldump`, a thrown
+   error) the sync aborts rather than proceeding without a recoverable copy.
 
 Index drops count as destructive on purpose: any index the database has that the
 schema does not declare is dropped, which silently removes indexes an operator
@@ -145,7 +145,7 @@ they will not survive the next sync.
 
 ## Generating a schema from the database
 
-Schema generation is the ORM's job, not something an application hand-rolls —
+Schema generation is the ORM's job, not something an application hand-rolls:
 the generator, the type mapping and the registration block all live in
 `@bakery-framework/orm`, and a scaffolded app gets the command under the name
 that says what it does:
@@ -156,14 +156,14 @@ bun run db:codegen
 
 That is `db:sync --migrate`: adopt what the database already holds. It writes
 the schema from introspection, records it in the ledger so the next sync has
-nothing to do, and **changes no tables** — the safe verb for a database Bakery
+nothing to do, and **changes no tables**: the safe verb for a database Bakery
 did not create. Under the `orm/` folder layout the generator owns `tables.ts`
 outright and seeds `views.ts` / `indexes.ts` only when they do not exist, so
 hand-authored declarations are never overwritten by a regeneration.
 
 `--choose=db` is the other direction of an ordinary sync: when the schema file
 and the database disagree, take the database's side and rewrite the file. Same
-generator, different occasion — reach for it when reconciling drift, not when
+generator, different occasion. Reach for it when reconciling drift, not when
 adopting.
 
 ```bash
@@ -172,13 +172,13 @@ bun run db:sync --choose=db
 
 This is also what happens automatically when there is no schema file at all:
 point Bakery at an existing database, run `db:sync`, and you get a starting
-schema. The write target is the schema file for the layout in use — for the
+schema. The write target is the schema file for the layout in use: for the
 `orm/` folder that is `orm/schema.ts`, never `orm/index.ts`, so your re-exports
 and hand-written `indexes.ts` survive.
 
 The previous schema is copied to `bakery/backups/schema.<timestamp>.ts` first,
 keeping the ten most recent. The file is gitignored and the generator rewrites
-it wholesale — comments, `_view` bodies and `old()` wrappers included — so this
+it wholesale (comments, `_view` bodies and `old()` wrappers included), so this
 is the one source file with no other safety net.
 
 The generator follows the layout it is writing into. A single-file project gets
@@ -208,10 +208,10 @@ mismatch". See [Schema](schema.md#foreign-keys).
 | --- | --- |
 | 0 | Synced, nothing to do, `--dry-run`, `--help`, or you declined the prompt |
 | 1 | Configured schema path missing, a reference to a non-unique target, production without `--force-sync`, or a destructive plan with no backup |
-| 42 | Schema regenerated during `bun run dev` — the watcher restarts the worker |
+| 42 | Schema regenerated during `bun run dev`: the watcher restarts the worker |
 
 ## Next
 
-- [Schema](schema.md) — declaring what you want
-- [Adapters](adapters.md) — what the DDL looks like per dialect
+- [Schema](schema.md): declaring what you want
+- [Adapters](adapters.md): what the DDL looks like per dialect
 - [CLI](../reference/cli.md)

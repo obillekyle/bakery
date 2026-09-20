@@ -8,19 +8,19 @@ import { getAppVersion, getFrameworkVersion } from './context'
 /**
  * Discard `.cache/` when the thing that produced it has changed.
  *
- * Its own module, and that is the fix rather than an organisational
+ * Its own module, and that is the fix rather than an organizational
  * preference. This used to live in `config.ts` and run from `initConfig()`,
  * which is far too late: `cache/shared-db.ts` opens `.cache/shared-cache.db`
  * at **import** time, so by the time the check ran the process was already
  * holding a handle to a file inside the directory it was about to delete. On
  * Windows that delete fails with `EBUSY`, node's recursive walk stops at the
- * locked entry, and everything it had not reached yet survived — including
+ * locked entry, and everything it had not reached yet survived, including
  * `html/`, the compiled-page cache, which is exactly what a version bump has
  * to discard.
  *
  * Now `shared-db.ts` awaits this before opening the database, and `initConfig`
  * still calls it for the case where nothing has touched the cache yet. It is
- * memoised, so whichever gets there first does the work and the other is free.
+ * memoized, so whichever gets there first does the work and the other is free.
  */
 let done: Promise<void> | null = null
 
@@ -76,7 +76,7 @@ async function run(): Promise<void> {
 
   // Read from `Bakery.cacheDir`, never re-derived from `fs.cwd`. This value is
   // handed straight to a recursive delete below, and it used to be a
-  // hand-written copy of the constant in `core/bakery.ts` — two sources of
+  // hand-written copy of the constant in `core/bakery.ts`: two sources of
   // truth for a `rm -rf`. Renaming the cache directory in one place and not the
   // other would have pointed this delete at whatever the stale literal named.
   const cacheDir = Bakery.cacheDir
@@ -98,7 +98,7 @@ async function run(): Promise<void> {
     // here used to notice.
     //
     // Not hypothetical, and found the day it happened. Bun 1.4.1 reworked the
-    // bundler's barrel optimisation across ten commits: 1.4.0 emptied a
+    // bundler's barrel optimization across ten commits: 1.4.0 emptied a
     // `sideEffects: false` re-export entry to `export { a };` with no
     // declaration, which is the husk `compiler.ts` carries a repair for. So a
     // cache written by 1.4.0 can hold a husk that the running 1.4.2 would
@@ -123,7 +123,7 @@ async function run(): Promise<void> {
   // The marker is written **only** when the directory is actually empty.
   //
   // It used to be written unconditionally, right after a delete whose every
-  // error was swallowed — so a failed wipe produced a file asserting the cache
+  // error was swallowed, so a failed wipe produced a file asserting the cache
   // was current, and nothing ever tried again. A stale compiled page then
   // outlived the upgrade that was supposed to remove it, silently and
   // permanently. Leaving the old marker in place costs one retry per boot and
@@ -145,7 +145,7 @@ async function run(): Promise<void> {
  *
  * Per-entry rather than one recursive call on the directory itself, because a
  * single locked file otherwise shields every entry the walk had not yet
- * reached — the failure is ordering-dependent, so it presents as "sometimes the
+ * reached: the failure is ordering-dependent, so it presents as "sometimes the
  * cache clears".
  */
 export const __wipeCacheDir = wipe
@@ -154,7 +154,7 @@ export const __wipeCacheDir = wipe
  * The one thing in `.cache/` the wipe must not take.
  *
  * **The app's committed `tsconfig.json` *references* `.cache/tsconfig/*.json`,
- * so deleting them breaks the editor for the whole project** — not one setting,
+ * so deleting them breaks the editor for the whole project**, not one setting,
  * everything. TypeScript reports `TS6053: File '…/server.json' not found` for
  * each reference, has no project left to put a file in, and falls back to an
  * inferred one with no ambients: `req.session`, `Bakery`, the JSX namespace and
@@ -162,13 +162,13 @@ export const __wipeCacheDir = wipe
  *
  * That happens on every framework upgrade, because the version wipe is keyed on
  * the framework version among others. The developer sees their editor lose every
- * type the moment they bump a patch, and nothing says why — the files come back
+ * type the moment they bump a patch, and nothing says why: the files come back
  * only on the next `bun run dev`, which is not an obvious remedy for "my types
  * vanished".
  *
  * Keeping them is safe in the direction that matters. A stale project is
  * regenerated on the next dev boot and is, in the meantime, *approximately
- * right* — while a missing one is catastrophically wrong. Nothing is executed
+ * right*, while a missing one is catastrophically wrong. Nothing is executed
  * from these files either: they configure a typechecker, so the "never read a
  * cache an older framework wrote" rule the wipe exists to enforce does not apply.
  */
@@ -181,7 +181,7 @@ async function wipe(dir: string): Promise<string[]> {
 
   for (const entry of entries) {
     if (WIPE_KEEP.has(entry)) continue
-    // Errors are deliberately not swallowed *silently* here — each failure is
+    // Errors are deliberately not swallowed *silently* here: each failure is
     // collected and reported by the caller.
     await Try.catch(() =>
       rm(`${dir}/${entry}`, { recursive: true, force: true }),

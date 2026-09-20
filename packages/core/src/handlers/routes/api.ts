@@ -46,19 +46,19 @@ export class ApiHandler extends DynamicHandler {
     if (result !== null && result !== undefined) return result
 
     // Two different faults used to share one bare 404, and neither channel
-    // named the file — so "No response from handler" sent the developer
+    // named the file, so "No response from handler" sent the developer
     // hunting for a route that was sitting on disk the whole time.
     //
     // `null` and `undefined` are what tell them apart, and the split is exact
     // rather than incidental: `DynamicHandler.executeModule` *throws* when the
     // import fails (that is the 500 path), returns a literal `null` for
     // "module loaded, no `default`", and otherwise returns whatever the
-    // handler produced — `undefined` when it produced nothing.
+    // handler produced, `undefined` when it produced nothing.
     if (result === null) {
       // A 500, not a 404: the route resolved, the file exists, and the server
       // could not answer with it. That is a server fault, and the message says
-      // what to add. PROD still redacts it — `publicBody` replaces any 5xx
-      // body — so naming the file here discloses nothing to a client.
+      // what to add. PROD still redacts it (`publicBody` replaces any 5xx
+      // body), so naming the file here discloses nothing to a client.
       handlerLog.API_NO_DEFAULT({ file: filePath })
       return response.error(
         `API route has no export default: ${info.path}`,
@@ -88,7 +88,7 @@ export class ApiErrorHandler extends ErrorHandler {
 
   static handle(_p: string, _r: Request, error: Handler.Error.Data) {
     // `publicBody`, not `errorBody`: in production the latter is the stack of
-    // whatever threw. The full trace still reaches the log — `handleRequestError`
+    // whatever threw. The full trace still reaches the log: `handleRequestError`
     // passes the unredacted data to `config.onError` before this runs.
     return response.json.error(error.errorCode, ErrorHandler.publicBody(error))
   }

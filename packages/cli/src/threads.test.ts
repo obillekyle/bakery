@@ -10,12 +10,12 @@ import {
 /**
  * Guards the bounded pre-terminate flush. `handleShutdown` used to call
  * `worker.terminate()` straight away, which gives a worker no chance to run its
- * shutdown hooks — so buffered session writes waited for the tiered cache's own
+ * shutdown hooks, so buffered session writes waited for the tiered cache's own
  * 30s interval and a cluster shutdown could drop up to a full interval of them.
  *
  * What is covered here is the wait: that every worker is asked, that all
  * acknowledgements resolve it, and that a worker which never answers cannot
- * hang shutdown. What is *not* covered is the real `Worker` round trip — that
+ * hang shutdown. What is *not* covered is the real `Worker` round trip: that
  * needs a spawned thread binding a real port, and the message contract is one
  * string on each side. `FlushTarget` exists so the wait can be tested without
  * pretending to test the rest.

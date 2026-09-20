@@ -52,8 +52,8 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
    * `delete` and `clear` invalidate too, and neither used to.
    *
    * `list()` memoizes the sorted handler array and only `set` cleared it, so a
-   * removed handler stayed in the list — and therefore stayed *in the request
-   * pipeline* — until something happened to add one. Registration is
+   * removed handler stayed in the list (and therefore stayed *in the request
+   * pipeline*) until something happened to add one. Registration is
    * add-only in a served process, which is why this never bit: it is reachable
    * only by code that unregisters, and the first thing to do that was a test.
    *
@@ -99,7 +99,7 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
    * `canHandle` without the microtask hop when the answer is synchronous.
    *
    * Most canHandles are plain predicates, and `await`ing their boolean cost a
-   * microtask hop (~426ns) per probe, 2–4 probes per request. Returns a
+   * microtask hop (~426ns) per probe, 2 to 4 probes per request. Returns a
    * boolean for a sync answer and the promise itself for an async one, so
    * callers only `await` a value that is actually a promise:
    *
@@ -148,7 +148,7 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
     if (cached) {
       probed = new Set()
       // A cache hit skips every handler above the cached one. Ask the
-      // gatekeepers that outrank it first — the same handlers, in the same
+      // gatekeepers that outrank it first: the same handlers, in the same
       // order, a cold resolve would have reached before the cached one.
       const rank = this.order().get(cached) ?? Number.POSITIVE_INFINITY
       for (const gate of this.gatekeepers()) {

@@ -68,7 +68,7 @@ describe('RouteData.Info', () => {
   })
 })
 
-describe('getDynamicRoute — catch-all segments', () => {
+describe('getDynamicRoute: catch-all segments', () => {
   test('a terminal [...name] compiles to a multi-segment matcher', () => {
     const route = getDynamicRoute('docs/[...slug].tsx')
     expect(route).not.toBeNull()
@@ -95,7 +95,7 @@ describe('getDynamicRoute — catch-all segments', () => {
   })
 
   /**
-   * `[...name!]` — the `!` opts into the bare directory. The plain form's
+   * `[...name!]`, the `!` opts into the bare directory. The plain form's
    * "never claims its own directory" rule is load-bearing for index siblings,
    * so the two spellings are tested against each other.
    */

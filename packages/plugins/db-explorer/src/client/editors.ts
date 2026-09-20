@@ -28,7 +28,7 @@ export interface EditorHooks {
 export interface EditorHandle {
   node: HTMLElement
   focus: () => void
-  /** The current value, already NULL-aware. Not coerced — that is the caller's. */
+  /** The current value, already NULL-aware. Not coerced: that is the caller's. */
   read: () => unknown
 }
 
@@ -100,7 +100,7 @@ function enumControl(column: SchemaColumn, value: unknown): Control {
  * A checkbox, and it reads back a real boolean.
  *
  * A driver hands a boolean column back as `1`/`0` on SQLite and MySQL, so the
- * *initial* state has to accept those spellings — but what leaves here is
+ * *initial* state has to accept those spellings, but what leaves here is
  * `true`/`false`, which is what `coerceValue` wants and what makes `sameValue`
  * agree that nothing changed when nothing did.
  */
@@ -123,7 +123,7 @@ function booleanControl(_column: SchemaColumn, value: unknown): Control {
  *
  * It refuses an ISO string with a `Z` and refuses one carrying milliseconds, so
  * the value is trimmed to `YYYY-MM-DDTHH:mm` going in and handed back as a full
- * ISO string going out — `coerceValue`'s `date` branch parses either, but the
+ * ISO string going out: `coerceValue`'s `date` branch parses either, but the
  * round trip has to be lossless in the direction the user sees.
  */
 function dateControl(_column: SchemaColumn, value: unknown): Control {
@@ -199,8 +199,8 @@ export interface EditorOptions {
  * An editor for one cell.
  *
  * The wrapper owns three things the control does not: the null toggle, the
- * validity message, and key forwarding. Validation runs `coerceValue` — the
- * same function the server runs — so the message the user sees before sending
+ * validity message, and key forwarding. Validation runs `coerceValue` (the
+ * same function the server runs), so the message the user sees before sending
  * is the message they would have got back.
  */
 export function createEditor(

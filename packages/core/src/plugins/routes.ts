@@ -2,8 +2,8 @@
  * Declarative endpoint tables for plugins.
  *
  * The dashboard already used a `Record<path, handler>` map; analytics used a
- * hand-rolled `if (path === … && method === …)` chain. This generalises the
- * dashboard's shape — the one that was already working — so a third plugin does
+ * hand-rolled `if (path === … && method === …)` chain. This generalizes the
+ * dashboard's shape (the one that was already working), so a third plugin does
  * not arrive with a fourth style of dispatch.
  *
  * Scope is deliberately narrow: exact-match paths only, no params or wildcards.
@@ -16,7 +16,7 @@ import { response } from '../utils/http/response'
 import type { ValidResponses } from './types'
 
 /**
- * Handlers may return anything the router knows how to serialize — the
+ * Handlers may return anything the router knows how to serialize: the
  * dashboard's return `JsonResponseData` and `BunFile` as well as `Response`.
  * `ValidResponses` (= `Handler.Response`) is the framework's name for that set.
  */
@@ -27,7 +27,7 @@ export type PluginRoute = (req: Request, url: URL) => ValidResponses
  * method-qualified path (`'POST /api/_x/reset'`). A method-qualified entry wins
  * over a bare one for the same path.
  *
- * The two forms are guarded differently — see `guardFor` below. A bare key is
+ * The two forms are guarded differently. See `guardFor` below. A bare key is
  * same-origin-only; a method-qualified one gets the ordinary CSRF check.
  */
 export type PluginRouteTable = Record<string, PluginRoute>
@@ -35,7 +35,7 @@ export type PluginRouteTable = Record<string, PluginRoute>
 /**
  * What a dispatch built from `T` actually resolves to: the union of that
  * table's own handler return types, awaited, with the `undefined`/`void` cases
- * replaced by `null` — exactly what `dispatch` does at runtime with `?? null`.
+ * replaced by `null`. Exactly what `dispatch` does at runtime with `?? null`.
  *
  * Keyed on the table type rather than flattened to `ValidResponses` because
  * `ValidResponses` contains `object`, which absorbs `Response`, `Bun.BunFile`
@@ -59,7 +59,7 @@ export type PluginRouteResult<T extends PluginRouteTable> =
  * unsafe ones same-origin. `'GET /api/_x/public'` is therefore also the way to
  * declare an endpoint that *is* meant to answer cross-origin.
  *
- * A **bare** key matches every method, which means the author did not say —
+ * A **bare** key matches every method, which means the author did not say,
  * and that is exactly how the dashboard's mutating endpoints ended up
  * answering a `GET`. `checkCsrf` is no help there: it waves GET through by
  * definition, so a cross-site `<img src="/api/_dashboard/execute-action">`
@@ -76,7 +76,7 @@ function guardFor(qualified: boolean) {
 
 export function routeTable<T extends PluginRouteTable>(routes: T) {
   /**
-   * Declared as an overload — the same shape `handleRequest` uses in
+   * Declared as an overload: the same shape `handleRequest` uses in
    * `router.ts`. The signature carries the precise per-table union; the
    * implementation only ever sees the `PluginRoute` *constraint*, so on its own
    * it could infer no better than the wide `ValidResponses`.

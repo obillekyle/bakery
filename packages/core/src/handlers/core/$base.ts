@@ -35,7 +35,7 @@ export function getDynamicRoute(path: string): Handler.Dynamic.Route | null {
     if (optionalMatch) {
       if (i !== last) return null
       params.push(optionalMatch[1])
-      // The whole segment — separator included — is optional, so the pattern
+      // The whole segment (separator included) is optional, so the pattern
       // is assembled below rather than pushed here: `docs/[...slug!]` has to
       // match `/docs` itself, which `/docs/(.*)` cannot.
       catchAll = true
@@ -46,14 +46,14 @@ export function getDynamicRoute(path: string): Handler.Dynamic.Route | null {
     const catchAllMatch = segment.match(RX_CATCHALL)
     if (catchAllMatch) {
       // Only terminal: a segment after `[...x]` has no unambiguous meaning
-      // (which segments belong to the rest?), so the file stays inert — the
+      // (which segments belong to the rest?), so the file stays inert, the
       // same behavior it had before catch-alls existed.
       if (i !== last) return null
       params.push(catchAllMatch[1])
       // `.+` rather than `.*`: the catch-all requires at least one segment,
       // so `docs/[...slug]` does not shadow a `docs/index` sibling for
       // `/docs` itself. `[...slug!]` is the spelling that opts into the
-      // bare directory — and an index sibling still wins there, because
+      // bare directory, and an index sibling still wins there, because
       // static discovery runs before dynamic in `resolveRouteFile`.
       mappedPaths.push('(.+)')
       catchAll = true
@@ -115,7 +115,7 @@ export namespace Route {
 // namespace for its nested classes; `const RouteData = { Info: class {} }`
 // provides only the value, and every one of those type references stops
 // resolving.
-// biome-ignore lint/complexity/noStaticOnlyClass: also a type namespace — see above
+// biome-ignore lint/complexity/noStaticOnlyClass: also a type namespace. See above
 export class RouteData {
   static Info = class Info {
     readonly params: string[]
@@ -157,7 +157,7 @@ export class RouteData {
       const boundParams: MapOf<string | string[]> = {}
       for (let i = 0; i < this.params.length; i++) {
         const value = match[i + 1]
-        // The catch-all is always terminal, so it is always the last param —
+        // The catch-all is always terminal, so it is always the last param,
         // and it binds as the *segments*, not the joined string: every
         // consumer was calling `.split('/')` on it anyway, and the joined
         // form silently conflated `/docs/a%2Fb` with `/docs/a/b`. A bare
@@ -214,7 +214,7 @@ export namespace Handler {
  * Keyed by class identity rather than stored as a `${name}_cache` dynamic
  * property: the getter runs several times per request, and the template
  * string + megamorphic property lookup showed up in profiles. A `Map` (not
- * `WeakMap`) is fine — handler classes live for the process.
+ * `WeakMap`) is fine: handler classes live for the process.
  */
 const handlerCaches = new Map<any, HandlerCache<string, Route.Info>>()
 
@@ -246,22 +246,21 @@ export class Handler {
    * source file by being handed a path that looks like one, and applying the
    * deny-list to them made `/api/manifest.json` a 403 no config could undo.
    *
-   * Deny by default: anything that does not opt out — including a plugin's
-   * handler — keeps the check. This is the single source of truth for that
+   * Deny by default: anything that does not opt out (including a plugin's
+   * handler) keeps the check. This is the single source of truth for that
    * question; `router.ts` gates its request-path check on it, and
    * `DynamicHandler.resolveRoute` gates the resolved-file check on it.
    */
   static servesFiles = true
 
   /**
-   * The URL prefix this handler owns as a complete user-facing surface —
-   * `'/_dashboard'`, `'/_db'` — or `null` for the ordinary case of a handler
+   * The URL prefix this handler owns as a complete user-facing surface (   * `'/_dashboard'`, `'/_db'`), or `null` for the ordinary case of a handler
    * that answers by extension or content rather than by prefix.
    *
    * This exists so one surface can ask whether another is mounted without
    * probing it. The dashboard used to detect the explorer by calling every
    * registered handler's `canHandle('/_db')` with a control path to exclude
-   * the priority-0 catch-all — it worked, and the `as any` it needed was the
+   * the priority-0 catch-all: it worked, and the `as any` it needed was the
    * tell that the registry could not say what a handler serves. A declaration
    * is that answer. It is deliberately *not* consulted by routing: `canHandle`
    * stays the authority on requests, so a stale or missing namespace can

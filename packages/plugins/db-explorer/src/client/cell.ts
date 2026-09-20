@@ -4,9 +4,9 @@
  * **Pure, and the reason it exists apart from the grid.** A key handler that
  * reads the DOM to decide what to do can only be tested by building a DOM;
  * this one takes a plain `{key, shiftKey}` and a plain cursor and answers with
- * an action, so `cell.test.ts` pins the whole interaction model — including the
+ * an action, so `cell.test.ts` pins the whole interaction model, including the
  * two rules that are easy to regress, *Enter commits and moves down* and
- * *blur is not in this table at all* — without happy-dom.
+ * *blur is not in this table at all*, without happy-dom.
  *
  * **Blur is deliberately absent.** The dashboard saves on blur, so a stray
  * click into another cell is a write, and a three-column edit is three
@@ -45,7 +45,7 @@ export type CellAction =
   | { type: 'commit'; move: 'down' | 'right' | 'left' | 'none' }
   /** Throw the editor's value away and restore the cell. */
   | { type: 'cancel' }
-  /** Stage SQL NULL — distinct from staging the empty string. */
+  /** Stage SQL NULL: distinct from staging the empty string. */
   | { type: 'null' }
 
 const NONE: CellAction = { type: 'none' }
@@ -78,14 +78,14 @@ function moveTo(state: CellState, row: number, col: number): CellAction {
   return { type: 'move', ...next }
 }
 
-/** Only when the table is editable — a read-only grid still navigates. */
+/** Only when the table is editable: a read-only grid still navigates. */
 function whenEditable(action: CellAction): Rule {
   return (_event, state) => (state.editable ? action : NONE)
 }
 
 /**
  * While an editor is open. Four keys, and everything else belongs to the input
- * — a `default` that swallowed keys here would make the editor unable to
+ *: a `default` that swallowed keys here would make the editor unable to
  * receive a literal `a`.
  */
 const EDITING: Record<string, Rule> = {

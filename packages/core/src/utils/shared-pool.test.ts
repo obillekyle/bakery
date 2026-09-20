@@ -19,7 +19,7 @@ describe('SharedMemoryPool', () => {
     expect(pool.buffer.byteLength).toBeLessThan(1024 * 1024)
   })
 
-  test('a larger size is still honoured', () => {
+  test('a larger size is still honored', () => {
     // `threads.ts` shares one buffer across workers and `bind` reads the size
     // out of the header, so a master that asks for more still works.
     const pool = new SharedMemoryPool(64 * 1024)

@@ -49,7 +49,7 @@ function renderLogEntry(cEl: HTMLElement, parsed: any) {
   logRow.style.borderBottom = '1px solid rgba(255, 255, 255, 0.02)'
 
   // `level` and `by` arrive over the websocket. LiveReloadHandler rebroadcasts
-  // client_log frames from any connected client, so both are untrusted —
+  // client_log frames from any connected client, so both are untrusted:
   // `payload` was already escaped by colorizeHtml, these were not.
   logRow.innerHTML = `
     <span style="color: var(--text-muted); margin-right: 0.5rem;">[${escapeHTML(String(timestamp))}]</span>

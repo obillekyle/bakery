@@ -73,7 +73,7 @@ describe('updatePlan', () => {
       identity: ['id'],
     })
     expect(plan.set).toEqual({ id: 8 })
-    // The old value, not the new one — an UPDATE keyed on the edited value
+    // The old value, not the new one, an UPDATE keyed on the edited value
     // would look for a row that does not exist yet.
     expect(plan.where).toEqual({ id: 7 })
   })

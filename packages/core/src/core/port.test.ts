@@ -54,7 +54,7 @@ describe('resolvePort', () => {
     expect(resolvePort(3000)).toBe(8080)
   })
 
-  test('PORT=0 is honoured — it means "let the OS pick"', () => {
+  test('PORT=0 is honored: it means "let the OS pick"', () => {
     setPort('0')
     expect(resolvePort(3000)).toBe(0)
   })
@@ -82,7 +82,7 @@ describe('resolvePort', () => {
 })
 
 /**
- * The behaviour above is only worth anything if the three processes that need
+ * The behavior above is only worth anything if the three processes that need
  * to agree actually ask this function. Each of them used to spell the rule out
  * itself; this fails the moment one of them starts again.
  */
@@ -118,7 +118,7 @@ describe('the three port call sites share one rule', () => {
  * `--port` exists because every other framework a developer arrives from has
  * it. It works by folding into `process.env.PORT` rather than being threaded
  * through the three call sites and two spawn sites, so these pin the folding
- * *and* the precedence — a flag that lost to an inherited `PORT` would be the
+ * *and* the precedence: a flag that lost to an inherited `PORT` would be the
  * surprising order, and the one you cannot fix by typing something.
  */
 describe('applyPortFlag', () => {
@@ -163,7 +163,7 @@ describe('applyPortFlag', () => {
     expect(process.env.PORT).toBeUndefined()
   })
 
-  test('port 0 is accepted — it means "let the OS pick"', () => {
+  test('port 0 is accepted: it means "let the OS pick"', () => {
     setPort(undefined)
     applyPortFlag(['--port', '0'])
     expect(resolvePort(3000)).toBe(0)

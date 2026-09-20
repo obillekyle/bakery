@@ -9,7 +9,7 @@ import { buildSyncPlan } from './plan'
 const MYSQL_URL = process.env.MYSQL_TEST_URL
 const PGSQL_URL = process.env.PGSQL_TEST_URL
 
-/** See adapters/nested-tx.test.ts — Bun's MySQL driver needs a pending timer. */
+/** See adapters/nested-tx.test.ts: Bun's MySQL driver needs a pending timer. */
 function alive<T>(promise: T | Promise<T>): Promise<T> {
   const timer = setTimeout(() => {}, 30_000)
   return Promise.resolve(promise).finally(() => clearTimeout(timer))
@@ -35,7 +35,7 @@ const DIALECTS: [string, boolean, () => SQLAdapter][] = [
  * rebuild the table on every sync forever. What changed is that all three could
  * finally be measured against live servers rather than trusted.
  *
- * The measurement found the trap immediately — MySQL reports
+ * The measurement found the trap immediately: MySQL reports
  * `character_maximum_length = 65535` for an unsized `TEXT` where Postgres
  * reports `null`, so a naive read makes every `Field.Text()` column rebuild on
  * MySQL and only on MySQL. That is what the third test here pins.
@@ -83,7 +83,7 @@ describe('width participates in the column diff', () => {
   /**
    * Plan the whole database against itself, with one table's schema swapped for
    * `tsTable`. Feeding `buildSyncPlan` the full introspected set is what keeps
-   * every *other* table mapped — hand it one table and it stops to ask what to
+   * every *other* table mapped: hand it one table and it stops to ask what to
    * drop.
    */
   async function planFor(db: SQLAdapter, table: string, tsTable: any) {
@@ -110,7 +110,7 @@ describe('width participates in the column diff', () => {
       await alive(db.query(`CREATE TABLE ${table} (${ddl})`).run())
 
       // Same schema: nothing to do. If this fails the feature is worse than
-      // useless — it rebuilds on every sync.
+      // useless: it rebuilds on every sync.
       const same = await planFor(db, table, {
         id: Field.Primary(),
         slug: Field.Varchar(64, ''),

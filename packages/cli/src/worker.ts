@@ -42,7 +42,7 @@ const sharedPoolBound = new Promise<void>(resolve => {
 if (typeof self !== 'undefined' && 'addEventListener' in self) {
   self.addEventListener('message', (e: any) => {
     if (e.data?.type === 'INIT_SHARED_POOL' && e.data.buffer) {
-      // Rebinds on every send on purpose — a late or repeated handover from
+      // Rebinds on every send on purpose: a late or repeated handover from
       // the master must still land; resolving the promise twice is a no-op.
       Bakery.sharedPool.bind(e.data.buffer)
       signalSharedPoolBound()
@@ -52,7 +52,7 @@ if (typeof self !== 'undefined' && 'addEventListener' in self) {
       // The cluster master asking for a flush before it calls terminate().
       // Deliberately no process.exit() here: inside a Worker thread that would
       // take the whole cluster down, master included. We flush, we acknowledge,
-      // and the master terminates us — or gives up waiting and does it anyway.
+      // and the master terminates us, or gives up waiting and does it anyway.
       void (async () => {
         Bakery.server?.stop(true)
         await runShutdownSequence()
@@ -63,9 +63,9 @@ if (typeof self !== 'undefined' && 'addEventListener' in self) {
 }
 
 try {
-  // Memoised no-op on the dev/prod entry paths, which already ran it (and
+  // Memoized no-op on the dev/prod entry paths, which already ran it (and
   // exited there if it threw). A cluster worker is spawned straight into this
-  // file and passes through neither entry, so this is its first call — and in
+  // file and passes through neither entry, so this is its first call, and in
   // PROD a present-but-broken server.config.ts must fail the boot here rather
   // than serve the built-in defaults.
   await initConfig()
@@ -74,9 +74,9 @@ try {
   process.exit(1)
 }
 
-// Skipped entirely when the ORM is not installed — the app has no database and
+// Skipped entirely when the ORM is not installed. The app has no database and
 // asked for none. Note what is *inside* the guard rather than outside it: once
-// the ORM is present, a failure to initialise is still fatal, because at that
+// the ORM is present, a failure to initialize is still fatal, because at that
 // point the app does have a database and it does not work.
 if (hasORM()) {
   try {
@@ -100,7 +100,7 @@ try {
 if (import.meta.env.THREAD_WORKER) {
   // The master posts INIT_SHARED_POOL immediately after constructing this
   // Worker, but the message lands on a later event-loop turn than an immediate
-  // Bun.serve — early requests would hit a worker-local SharedMemoryPool whose
+  // Bun.serve. Early requests would hit a worker-local SharedMemoryPool whose
   // counters and rate-limit state bind() then silently discards. So in
   // thread-worker mode only, wait for the handover before serving. Plain
   // prod/dev never set THREAD_WORKER and skip this entirely.
@@ -120,7 +120,7 @@ if (import.meta.env.THREAD_WORKER) {
 // Same resolver `startup.ts`'s banner and the dev master's URL use, so what we
 // bind and what they advertise cannot disagree. It throws on a malformed
 // `PORT` rather than handing `Bun.serve` a `NaN` it silently turns into a
-// random ephemeral port — which is how `PORT=3000x` used to produce a server
+// random ephemeral port, which is how `PORT=3000x` used to produce a server
 // on 51570 under a banner reading `http://localhost:3000/`.
 let PORT: number
 try {
@@ -157,7 +157,7 @@ try {
           const key = rateLimitKey(rl, req, hostname)
           const slot = rateLimitSlot(key)
           if (!Bakery.sharedPool.consumeToken(slot, rl.max, rl.refill)) {
-            // Sampled — availability under flood: stdout is effectively
+            // Sampled: availability under flood: stdout is effectively
             // synchronous on Windows, so a line per rejection replays the
             // flood the limiter just absorbed as a logging flood.
             const suppressed = sampleRateLimitLog(key)
@@ -221,7 +221,7 @@ try {
 if (isDevWorker) {
   // One `.catch` on the whole chain, not one nested inside the `.then`. The
   // nested form covered `startCompileService` rejecting but left the dynamic
-  // `import()` itself unhandled — so a compiler module that failed to load
+  // `import()` itself unhandled, so a compiler module that failed to load
   // produced an unhandled rejection rather than the WATCHER_ERR line that
   // exists to report exactly that.
   import('@bakery-framework/core/compiler')
@@ -241,7 +241,7 @@ async function handleShutdown(signal: string) {
 
   Bakery.server?.stop(true)
 
-  // config.onShutdown, framework hooks, plugins, then resource close — see
+  // config.onShutdown, framework hooks, plugins, then resource close. See
   // shutdown.ts for why that order. It used to run only the middle two, so an
   // application's `onShutdown` was declared, defaulted to a no-op, and never
   // called. The sequence carries its own deadline.
@@ -252,7 +252,7 @@ async function handleShutdown(signal: string) {
  * `process.exit(0)` lives here, in a `finally`, because `handleShutdown` is
  * async and the signal handler cannot await it: registered directly, its
  * promise was neither awaited nor caught, so a rejection anywhere in teardown
- * became an unhandled rejection *and* skipped the exit — the process kept
+ * became an unhandled rejection *and* skipped the exit, the process kept
  * running with its listener stopped, answering nothing.
  */
 function onSignal(signal: string): void {

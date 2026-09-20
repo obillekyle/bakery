@@ -17,7 +17,7 @@ export namespace ETag {
     return `W/"${hash.toString(36)}"`
   }
 
-  /** The one writer of the file-etag format — `fromFile` and the negotiation
+  /** The one writer of the file-etag format: `fromFile` and the negotiation
    * memo below must agree byte-for-byte, or a warm hit would break every
    * `If-None-Match` a cold response handed out. */
   function fileTag(size: number, mtime: number): string {
@@ -78,8 +78,8 @@ export namespace ETag {
 
   /**
    * Per-base-path record of which compressed siblings exist, anchored on the
-   * base file's mtime. `getOrCreateCachedFile` — the only writer of these
-   * files — writes the raw file and every variant together in one
+   * base file's mtime. `getOrCreateCachedFile` (the only writer of these
+   * files) writes the raw file and every variant together in one
    * `Promise.all`, so the base mtime changes whenever the variant set does;
    * that makes the mtime the invalidation signal, and no write-side hook is
    * needed (fs.ts stays unaware of this module, keeping the dependency arrow
@@ -92,7 +92,7 @@ export namespace ETag {
    *
    * Only *complete* variant sets are recorded. A partial set means either a
    * build caught mid-write (the trio lands over a few ms) or user-authored
-   * precompressed siblings next to a served `.gz` — in both cases the set can
+   * precompressed siblings next to a served `.gz`: in both cases the set can
    * change without the base mtime moving, so those fall back to per-request
    * probing, which is exactly the pre-memo behavior.
    */
@@ -102,8 +102,7 @@ export namespace ETag {
   /**
    * One stat, and the values are kept rather than discarded: a `BunFile`
    * caches its stat on first property access (~66us fresh, ~40ns after), so
-   * routing the probe through `fs.exists` — which stats a throwaway instance —
-   * made every served variant pay a second, identical stat in `fromFile`.
+   * routing the probe through `fs.exists` (which stats a throwaway instance)    * made every served variant pay a second, identical stat in `fromFile`.
    * Same existence predicate as `fs.exists`; note a missing file reports
    * size 0 and a far-future sentinel `lastModified`, never 0.
    */
@@ -119,7 +118,7 @@ export namespace ETag {
 
   /**
    * Test seam (convention 9): lets etag.test.ts count sibling probes without
-   * module-mocking `bun` or `node:fs` — which is process-global and never
+   * module-mocking `bun` or `node:fs`, which is process-global and never
    * unwinds. Same shape as `fs.__setForbiddenProbe`.
    */
   export function __setVariantProbe(fn: (path: string) => VariantStat | null) {
@@ -136,7 +135,7 @@ export namespace ETag {
     negotiationMemo.clear()
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: content negotiation — one branch per encoding outcome
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: content negotiation, one branch per encoding outcome
   function negotiateFile(file: Bun.BunFile, req?: Request) {
     const fileName = file.name || 'file'
 
@@ -174,7 +173,7 @@ export namespace ETag {
       )
 
       // The memo is consulted only for a base that exists right now, and only
-      // when its recorded mtime matches the anchor exactly — a wiped cache
+      // when its recorded mtime matches the anchor exactly: a wiped cache
       // dir (missing base reports the far-future sentinel mtime) or any
       // rewrite falls through to a fresh probe.
       let entry = baseExists ? negotiationMemo.get(basePath) : undefined
@@ -232,14 +231,14 @@ export namespace ETag {
     }
 
     // Range handling itself lives in Bun.serve, not here: any Response whose
-    // body is a *path-backed* BunFile is sliced by the runtime — 206 with
-    // Content-Range on a satisfiable single range, 416 past EOF — including
+    // body is a *path-backed* BunFile is sliced by the runtime (206 with
+    // Content-Range on a satisfiable single range, 416 past EOF), including
     // the negotiated compressed variants above (the range then addresses the
     // encoded bytes, which is what RFC 9110 says a range means). What the
     // runtime does not do is advertise: a plain 200 or a HEAD said nothing,
     // so players that probe HEAD for `Accept-Ranges` before attempting seeks
     // never tried. Advertised here because this is the one funnel every
-    // file-serving handler's BunFile passes through, and only here — an
+    // file-serving handler's BunFile passes through, and only here: an
     // in-memory Blob or a `sendText` string body ignores Range entirely
     // (served whole, 200), which is why `.name` gates the claim.
     //
@@ -248,14 +247,14 @@ export namespace ETag {
     // to the 206/416, and setting it here too emitted `bytes, bytes`.
     //
     // A **multipart** range (`bytes=0-1,10-11`) is carved back out of the
-    // skip: Bun does not do multipart — it serves the whole file as a 200 and
-    // appends nothing — so the skip left that response advertising nothing at
+    // skip: Bun does not do multipart (it serves the whole file as a 200 and
+    // appends nothing), so the skip left that response advertising nothing at
     // all, which reads as "ranges not supported" to the one client that just
     // demonstrated it wants them. Found by a downstream smoke test. The comma
     // is the entire multipart grammar, so this cannot drift from Bun's own
     // parse the way a real Range parser here could; RFC-legal multipart gets
     // the 200-with-advertisement it deserves. What stays excluded-and-silent
-    // is a *malformed* single range (`Range: potato`) — also served whole by
+    // is a *malformed* single range (`Range: potato`), also served whole by
     // Bun, but that requester sent garbage, and mirroring Bun's full validity
     // judgment here is exactly the second-parser drift this comment refuses.
     // HEAD ignores `Range` and gets the header even when one is present.
@@ -277,9 +276,9 @@ export namespace ETag {
   }
 
   /**
-   * Returns synchronously on every path that does not compress — no request,
+   * Returns synchronously on every path that does not compress: no request,
    * small body, unsupported Accept-Encoding, and crucially the 304
-   * short-circuit — and returns a Promise only when compression actually
+   * short-circuit, and returns a Promise only when compression actually
    * runs on a body large enough to offload (`ASYNC_COMPRESSION_MIN`). The
    * one call site that can receive either (`processResponse`) awaits.
    */
@@ -307,7 +306,7 @@ export namespace ETag {
       'Content-Type': type,
     }
 
-    // Negotiation only — no compression yet. The ext suffix the etag embeds
+    // Negotiation only: no compression yet. The ext suffix the etag embeds
     // is decided by the Accept-Encoding header alone, so the 304 check can
     // run first: a client that already holds the body must not cost a
     // zstd pass whose output is then thrown away.
@@ -344,7 +343,7 @@ export namespace ETag {
 
       // Off the request thread for large bodies: the sync pass measured
       // ~700us of event-loop stall per 135KB response. Below the cutoff the
-      // pool round-trip costs more than the stall it removes — numbers on
+      // pool round-trip costs more than the stall it removes: numbers on
       // `ASYNC_COMPRESSION_MIN` in fs.ts.
       if (encoderAsync && text.length >= ASYNC_COMPRESSION_MIN) {
         return encoderAsync(text).then(

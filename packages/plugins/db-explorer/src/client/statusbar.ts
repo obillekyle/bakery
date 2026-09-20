@@ -5,7 +5,7 @@
  * Every database client has one, and it earns its space by answering three
  * questions that otherwise need a round trip through the developer tools: how
  * many rows there really are, how long the server took, and whether this
- * session can write at all. The last one is the reason it exists here — the
+ * session can write at all. The last one is the reason it exists here: the
  * access level used to be a line of sidebar text that scrolled away.
  *
  * `statusParts` is **pure** and is where the wording lives, so the segments are
@@ -30,7 +30,7 @@ export interface StatusFacts {
 /**
  * The segments, in order, already worded.
  *
- * Absent facts are **omitted rather than rendered as a placeholder** — a
+ * Absent facts are **omitted rather than rendered as a placeholder**: a
  * `page 1 / ?` teaches nobody anything, and `getData` genuinely does not always
  * return a total. An empty array is the honest answer for "nothing is open".
  */
@@ -70,7 +70,7 @@ function formatCount(count: number): string {
  * Sub-millisecond timings keep one decimal.
  *
  * `getElapsed` returns a float, and a fast query rounding to `0 ms` reads as
- * "not measured" rather than "fast" — which is the opposite of what it means.
+ * "not measured" rather than "fast", which is the opposite of what it means.
  */
 function formatMs(ms: number): string {
   return ms < 10 ? ms.toFixed(1) : String(Math.round(ms))
@@ -89,7 +89,7 @@ export class StatusBar {
    * The last facts painted.
    *
    * Kept so `bumpDirty` can repaint one segment without the caller having to
-   * reconstruct the row count, the page and the timing — which it cannot,
+   * reconstruct the row count, the page and the timing, which it cannot,
    * since a staged edit does not re-fetch and the alternative would be showing
    * a stale count or none.
    */
@@ -122,8 +122,8 @@ export class StatusBar {
 
   private render(): void {
     this.line.textContent = statusParts(this.facts).join(' · ')
-    // The dirty count is the one segment worth colouring, and it is always
-    // last — so the class goes on the bar rather than on a span nobody can see
+    // The dirty count is the one segment worth coloring, and it is always
+    // last, so the class goes on the bar rather than on a span nobody can see
     // when the bar is empty.
     this.node.classList.toggle('dirty', this.facts.dirtyRows > 0)
   }

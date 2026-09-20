@@ -12,7 +12,7 @@ import path from 'node:path'
 // Side-effect import, and it must come before the descriptor capture below.
 // `@bakery-framework/orm` does not otherwise load `core/init`, so without this the
 // capture sees no `PROD` accessor, and the restore below has nothing to put
-// back — deleting the one init installs later and leaving every subsequent
+// back: deleting the one init installs later and leaving every subsequent
 // file in the run with `import.meta.env.PROD === undefined`.
 import '@bakery-framework/core/core/init'
 import { setLogCallback } from '@bakery-framework/core/logger'
@@ -43,7 +43,7 @@ describe('the production guard reads NODE_ENV, and only NODE_ENV', () => {
    *
    * The unconditional `delete` this used to open with was a cross-file leak.
    * `@bakery-framework/orm` does not import `core/init`, so when this file loads
-   * first the captured `PROD` is absent — and the restore then removed the flag
+   * first the captured `PROD` is absent, and the restore then removed the flag
    * init had installed in the meantime, leaving `import.meta.env.PROD`
    * undefined for every file that ran afterwards. `bundleModule` passes that
    * flag straight to `Bun.build`, which rejects a non-boolean `minify`, so two
@@ -62,7 +62,7 @@ describe('the production guard reads NODE_ENV, and only NODE_ENV', () => {
       process.env[key] = value
       return
     }
-    // Absent when this file loaded, so there is nothing to put back — but only
+    // Absent when this file loaded, so there is nothing to put back, but only
     // remove it if *this file* is what put it there. `core/init` may have been
     // imported by another test file in between (orm does not import it), and
     // deleting the flag init installed leaves `import.meta.env.PROD` undefined
@@ -90,7 +90,7 @@ describe('the production guard reads NODE_ENV, and only NODE_ENV', () => {
     // The original code compared `process.env.PROD` against the *string*
     // 'true' while init.ts installed a boolean, so the term never fired.
     // Deleting it is deliberate, and this pins that: `PROD` means
-    // only "--dev is absent", and `db:sync` never passes --dev, so honouring
+    // only "--dev is absent", and `db:sync` never passes --dev, so honoring
     // the flag would make every standalone sync count as production and leave
     // the interactive confirm unreachable.
     process.env.NODE_ENV = 'development'
@@ -111,8 +111,7 @@ describe('the production guard reads NODE_ENV, and only NODE_ENV', () => {
   })
 
   test('neither signal present is not production', () => {
-    // A process that never imported core/init.ts — a bare unit test, say —
-    // must not be treated as a deployment.
+    // A process that never imported core/init.ts (a bare unit test, say)     // must not be treated as a deployment.
     delete (process.env as Record<string, unknown>).PROD
     process.env.NODE_ENV = 'development'
     expect(isProductionSync()).toBe(false)
@@ -129,7 +128,7 @@ describe('the production guard reads NODE_ENV, and only NODE_ENV', () => {
  *
  * Measured against a real database before removing it, the special case:
  *   - dropped a rename in a table nothing else touched, leaving the sync to
- *     report a *perfect* sync while the column kept its old name — forever,
+ *     report a *perfect* sync while the column kept its old name: forever,
  *     since the next run re-derives and re-discards the same plan;
  *   - threw `Object.entries requires that input parameter not be null or
  *     undefined` when a table rename and an unrelated column rename coincided,
@@ -309,7 +308,7 @@ describe('SQLite column renames survive execution', () => {
 
   test('a rename and a rebuild on the same table keep the data', async () => {
     // The column type change forces a rebuild, and the rebuild copies columns
-    // by their *new* names — which only exist because the rename ran first.
+    // by their *new* names, which only exist because the rename ran first.
     const db = fresh()
     await db
       .query(

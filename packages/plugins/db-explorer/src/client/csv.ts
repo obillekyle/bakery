@@ -1,8 +1,8 @@
 /**
  * The CSV import wizard: pick → sniff → map → preview → commit.
  *
- * This file is the composition and nothing else. Each step is its own module —
- * `csv-pick.ts`, `csv-map.ts`, `csv-preview.ts`, `csv-commit.ts` — and
+ * This file is the composition and nothing else. Each step is its own module:
+ * `csv-pick.ts`, `csv-map.ts`, `csv-preview.ts`, `csv-commit.ts`, and
  * everything that *decides* anything is in `csv-model.ts` and is pure. What is
  * left here is one mutable `model` reference and the repaint that follows it.
  *

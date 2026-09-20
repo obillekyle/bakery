@@ -11,7 +11,7 @@ export namespace DB {
   /**
    * Bound a query that only needs its first row. `.get()` otherwise runs the
    * full query and materializes every row into JS objects before discarding all
-   * but one — `first()` on an unfiltered table scanned the whole table.
+   * but one: `first()` on an unfiltered table scanned the whole table.
    */
   function singleRow(sql: string): string {
     return /\bLIMIT\s+\d+/i.test(sql) ? sql : `${sql} LIMIT 1`
@@ -124,7 +124,7 @@ export namespace DB {
    * `S`. That read as "columns of the schema in scope" and is not what it
    * means: the right-hand side of a join names a table you are *adding*, so
    * it cannot already be in scope. The parameter was ignored in the body,
-   * so every call site got this answer anyway — it only misled the reader.
+   * so every call site got this answer anyway: it only misled the reader.
    */
   export type AllTableColumns = {
     [T in keyof DBSchema]: `${T & string}.${Extract<keyof DBSchema[T] & string, string>}`
@@ -163,12 +163,12 @@ export namespace DB {
     schemaSQLFunctionRef<C>
 
   /**
-   * `COUNT`, `SUM` and `AVG` also come in a `.distinct` form —
+   * `COUNT`, `SUM` and `AVG` also come in a `.distinct` form:
    * `DB.count.distinct('users.city')` emits `COUNT(DISTINCT "users"."city")`.
    *
    * Only these three. `DISTINCT` is legal inside `MIN`/`MAX` on every dialect
    * and cannot change their result, so offering it there would imply an effect
-   * that does not exist — the same reason the builder has no per-column
+   * that does not exist: the same reason the builder has no per-column
    * `distinct('col')`.
    */
   const aggregate = <N extends string>(fnName: N) =>
@@ -217,7 +217,7 @@ export namespace DB {
     /**
      * `'users.score'` or `'users.score DESC'`. The direction is optional and
      * per column, which is why it is spelled inside the string rather than as
-     * a separate field — a window frequently orders by two columns in opposite
+     * a separate field: a window frequently orders by two columns in opposite
      * directions, and one shared flag could not express that.
      */
     orderBy?: string | string[]
@@ -234,7 +234,7 @@ export namespace DB {
 
     const order = list(spec.orderBy).map(entry => {
       // Split the direction off the tail rather than taking a separate
-      // argument — `safeColumn` would reject 'score DESC' as an identifier, so
+      // argument: `safeColumn` would reject 'score DESC' as an identifier, so
       // the two halves have to be validated apart from each other anyway.
       const m = /^(.*?)\s+(ASC|DESC)$/i.exec(String(entry).trim())
       if (!m) return `${safeColumn(String(entry).trim())} ASC`
@@ -248,7 +248,7 @@ export namespace DB {
   /**
    * An aggregate over a window: `SUM("total") OVER (PARTITION BY "user_id")`.
    *
-   * ```ts no-check — illustrative
+   * ```ts no-check, illustrative
    * DB.from('orders').select({
    *   runningTotal: DB.over(DB.sum('orders.total'), {
    *     partitionBy: 'orders.userId',
@@ -258,7 +258,7 @@ export namespace DB {
    * ```
    *
    * Takes an existing function ref rather than a column, so every aggregate the
-   * builder already has — including `DB.count.distinct(…)` — composes with a
+   * builder already has, including `DB.count.distinct(…)`, composes with a
    * window without a second set of wrappers.
    */
   export function over(
@@ -269,7 +269,7 @@ export namespace DB {
   }
 
   /**
-   * The ranking functions, which take no column — the window *is* the argument.
+   * The ranking functions, which take no column: the window *is* the argument.
    *
    * Only these three are wrapped by name. The rest of `WINDOW_FUNCTIONS`
    * (`LAG`, `NTILE`, `FIRST_VALUE`, …) take arguments whose meaning differs per
@@ -288,12 +288,12 @@ export namespace DB {
   /**
    * Any window function by name, with its own arguments.
    *
-   * ```ts no-check — illustrative
+   * ```ts no-check, illustrative
    * DB.window('LAG', ['orders.total', 1], { orderBy: 'orders.createdAt' })
    * ```
    *
    * The name is checked against `WINDOW_FUNCTIONS` (plus the aggregates) at
-   * parse time — it is interpolated, not bound. Arguments go through
+   * parse time. It is interpolated, not bound. Arguments go through
    * `evalOperands`, so a bare string binds as a parameter and `DB.col('x')`
    * references a column, exactly as everywhere else in the builder.
    */
@@ -373,10 +373,10 @@ export namespace DB {
   export type SelectValue<S extends TableSchemas, J extends string> =
     | ColumnString<S, J>
     | SQLFunctionRef<ColumnString<S, J> | '*'>
-    // Unparameterised: a window's columns are validated at construction by
+    // Unparameterized: a window's columns are validated at construction by
     // `safeColumn`, not by the select's column union. Threading `S`/`J` through
     // would mean typing the spec against the same table set, which reads well
-    // until a window orders by a *select alias* — legal SQL, and not a column
+    // until a window orders by a *select alias*: legal SQL, and not a column
     // of any table in scope.
     | WindowRef
     | QBRaw
@@ -405,7 +405,7 @@ export namespace DB {
   /**
    * Memo for `Case.camel` over result-row keys. Every row of every result set
    * is re-cased key by key, so a 1000-row × 8-column query ran `Case.camel`
-   * 8000 times over the same eight strings — and `Case.camel` is two regex
+   * 8000 times over the same eight strings, and `Case.camel` is two regex
    * passes, one with a replacer callback.
    *
    * Capped `Map`, not `LRUCache`, for the reason given on `snakeCache` in
@@ -450,13 +450,13 @@ export namespace DB {
     abstract parse(): { sql: string; params: any[] }
 
     /**
-     * `UNION` — every distinct row from this query and the next.
+     * `UNION`: every distinct row from this query and the next.
      *
      * Returns a {@link QBSet}, not `this`. That is the whole shape of the
      * feature: a compound select is not a `SELECT` with an extra clause, it is
      * a different kind of statement whose operands happen to be selects. So
-     * `.where()` and `.select()` are gone from the result — they would have to
-     * mean "on which branch?" — and what remains is what SQL allows after the
+     * `.where()` and `.select()` are gone from the result: they would have to
+     * mean "on which branch?", and what remains is what SQL allows after the
      * last operand: `orderBy`, `limit`, `offset`.
      */
     union<Q>(next: QBExecutable<Q>): QBSet<P> {
@@ -466,7 +466,7 @@ export namespace DB {
       ])
     }
 
-    /** `UNION ALL` — as `union`, keeping duplicates. Cheaper: no dedupe pass. */
+    /** `UNION ALL`: as `union`, keeping duplicates. Cheaper: no dedupe pass. */
     unionAll<Q>(next: QBExecutable<Q>): QBSet<P> {
       return new QBSet<P>([
         { op: null, query: this },
@@ -474,7 +474,7 @@ export namespace DB {
       ])
     }
 
-    /** `INTERSECT` — rows present in both. */
+    /** `INTERSECT`: rows present in both. */
     intersect<Q>(next: QBExecutable<Q>, all = false): QBSet<P> {
       return new QBSet<P>([
         { op: null, query: this },
@@ -482,7 +482,7 @@ export namespace DB {
       ])
     }
 
-    /** `EXCEPT` — rows in this query that are not in the next. */
+    /** `EXCEPT`: rows in this query that are not in the next. */
     except<Q>(next: QBExecutable<Q>, all = false): QBSet<P> {
       return new QBSet<P>([
         { op: null, query: this },
@@ -504,7 +504,7 @@ export namespace DB {
      *
      * And it is slow in proportion to how badly the ordering indexes.
      * Measured on 100,000 rows: 3x `all()` on SQLite ordered by a primary key,
-     * **130x** ordered by a column with no index — 35.7 seconds against
+     * **130x** ordered by a column with no index, 35.7 seconds against
      * 275 ms. Postgres pays a round trip per chunk instead and lands at 19x
      * and 101x. The table is on `pagedIterate` in `adapters/base.ts`.
      *
@@ -636,7 +636,7 @@ export namespace DB {
     >
 
     /**
-     * `FULL OUTER JOIN`. Typed like the others, but **MySQL has none** — the
+     * `FULL OUTER JOIN`. Typed like the others, but **MySQL has none**: the
      * runtime refuses there, because a capability the compiler cannot see
      * cannot be expressed in this signature.
      */
@@ -673,19 +673,19 @@ export namespace DB {
     >
 
     /**
-     * Ordering and paging are legal straight off the table — `DB.table('t')
-     * .limit(10)` needs no where or select — and always worked at runtime.
+     * Ordering and paging are legal straight off the table: `DB.table('t')
+     * .limit(10)` needs no where or select, and always worked at runtime.
      * They were simply missing from this stage of the interface chain.
      */
     orderBy(
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
-    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    /** `SELECT DISTINCT`. See the runtime method for the semantics. */
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
-    /** Cursor pagination — see the implementation for why it is not paginate(). */
+    /** Cursor pagination. See the implementation for why it is not paginate(). */
     seek(
       column: ColumnString<S, J>,
       cursor: unknown,
@@ -721,11 +721,11 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
-    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    /** `SELECT DISTINCT`. See the runtime method for the semantics. */
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
-    /** Cursor pagination — see the implementation for why it is not paginate(). */
+    /** Cursor pagination. See the implementation for why it is not paginate(). */
     seek(
       column: ColumnString<S, J>,
       cursor: unknown,
@@ -752,7 +752,7 @@ export namespace DB {
       valueOrRef?: WhereValue<ColumnString<S, J>>,
     ): IQBHaving<S, J, P>
     /**
-     * `SELECT DISTINCT` — see the runtime method for the semantics.
+     * `SELECT DISTINCT`. See the runtime method for the semantics.
      *
      * Declared here too, unlike the sibling stages, because this one has no
      * `limit`: `distinct()` was added everywhere `limit` already appeared, and
@@ -776,11 +776,11 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
-    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    /** `SELECT DISTINCT`. See the runtime method for the semantics. */
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
-    /** Cursor pagination — see the implementation for why it is not paginate(). */
+    /** Cursor pagination. See the implementation for why it is not paginate(). */
     seek(
       column: ColumnString<S, J>,
       cursor: unknown,
@@ -792,8 +792,8 @@ export namespace DB {
   export interface IQBSelect<S extends TableSchemas, J extends string, P = any>
     extends QBObject<P> {
     /**
-     * Grouping after selecting, which always worked at runtime — clauses are
-     * assembled at `parse()`, so call order is irrelevant — and was simply
+     * Grouping after selecting, which always worked at runtime (clauses are
+     * assembled at `parse()`, so call order is irrelevant), and was simply
      * missing from this stage of the chain. The same gap `IQBTable` had for
      * `orderBy`/`limit`, found by writing the query that motivates it:
      * `.select({ n: DB.count.distinct(c) }).groupBy(x).having(…)`.
@@ -816,8 +816,8 @@ export namespace DB {
     ): IQBHaving<S, J, P>
 
     /**
-     * Filtering after projection is ordinary builder usage — the clauses are
-     * assembled, not emitted in call order — and worked at runtime already.
+     * Filtering after projection is ordinary builder usage (the clauses are
+     * assembled, not emitted in call order), and worked at runtime already.
      * The projection `P` is preserved, so the row type survives the call.
      */
     where(
@@ -837,11 +837,11 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
-    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    /** `SELECT DISTINCT`. See the runtime method for the semantics. */
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
-    /** Cursor pagination — see the implementation for why it is not paginate(). */
+    /** Cursor pagination. See the implementation for why it is not paginate(). */
     seek(
       column: ColumnString<S, J>,
       cursor: unknown,
@@ -856,11 +856,11 @@ export namespace DB {
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
     ): IQBOrderBy<S, J, P>
-    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    /** `SELECT DISTINCT`. See the runtime method for the semantics. */
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
-    /** Cursor pagination — see the implementation for why it is not paginate(). */
+    /** Cursor pagination. See the implementation for why it is not paginate(). */
     seek(
       column: ColumnString<S, J>,
       cursor: unknown,
@@ -871,11 +871,11 @@ export namespace DB {
 
   export interface IQBLimit<S extends TableSchemas, J extends string, P = any>
     extends QBObject<P> {
-    /** `SELECT DISTINCT` — see the runtime method for the semantics. */
+    /** `SELECT DISTINCT`. See the runtime method for the semantics. */
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
     paginate(page: number, pageSize: number): IQBLimit<S, J, P>
-    /** Cursor pagination — see the implementation for why it is not paginate(). */
+    /** Cursor pagination. See the implementation for why it is not paginate(). */
     seek(
       column: ColumnString<S, J>,
       cursor: unknown,
@@ -895,23 +895,23 @@ export namespace DB {
   /**
    * A compound select: two or more queries joined by `UNION` and friends.
    *
-   * The emission rules below are not style choices — each one is the only form
+   * The emission rules below are not style choices: each one is the only form
    * all three dialects accept, measured against live servers rather than read
    * off a standard:
    *
-   * - **Operands are bare, never parenthesised.** MySQL and Postgres take
-   *   `(SELECT …) UNION (SELECT …)`; **SQLite rejects it outright** — a
-   *   parenthesised select is not a legal operand of a compound there.
+   * - **Operands are bare, never parenthesized.** MySQL and Postgres take
+   *   `(SELECT …) UNION (SELECT …)`; **SQLite rejects it outright**: a
+   *   parenthesized select is not a legal operand of a compound there.
    * - **A branch carrying its own `ORDER BY`/`LIMIT` is wrapped as a derived
    *   table** instead. `SELECT id FROM a LIMIT 2 UNION …` is a syntax error on
-   *   all three, the parenthesised fix works on two of them, and
+   *   all three, the parenthesized fix works on two of them, and
    *   `SELECT * FROM (SELECT id FROM a LIMIT 2) AS b0` works on all three. The
    *   alias is required by MySQL and harmless elsewhere.
    * - **`ORDER BY` and `LIMIT` on the set go at the very end**, unwrapped,
    *   where every dialect reads them as applying to the whole compound.
    * - **`INTERSECT ALL` / `EXCEPT ALL` are gated.** MySQL 8.0.31+ and Postgres
-   *   have them; SQLite does not, and its message — `near "ALL": syntax error`
-   *   — does not say which construct it means.
+   *   have them; SQLite does not, and its message (`near "ALL": syntax error`
+   *  ) does not say which construct it means.
    */
   export class QBSet<P = any> extends QBExecutable<P> {
     private _orderBy: string[] = []
@@ -990,7 +990,7 @@ export namespace DB {
           ) {
             throws(
               `${op} is not supported by this database. ` +
-                `Use ${op.replace(' ALL', '')} instead — it removes duplicates.`,
+                `Use ${op.replace(' ALL', '')} instead: it removes duplicates.`,
             )
           }
           parts.push(op)
@@ -1063,8 +1063,8 @@ export namespace DB {
   }
 
   /**
-   * Emit one WHERE/HAVING clause. Captures nothing from the builder — it takes
-   * `params` as an argument — so it lives here rather than being re-created as
+   * Emit one WHERE/HAVING clause. Captures nothing from the builder (it takes
+   * `params` as an argument), so it lives here rather than being re-created as
    * a closure on every `parse()`, which is once per executed query.
    */
   function formatClause(
@@ -1082,7 +1082,7 @@ export namespace DB {
     if (op === 'IS NULL' || op === 'IS NOT NULL') {
       return `${left} ${op}`
     }
-    // One rule, three callers — see `nullComparison`.
+    // One rule, three callers. See `nullComparison`.
     const nullOp = nullComparison(op, rightArg, isRightColumn)
     if (nullOp) return `${left} ${nullOp}`
     if (op === 'BETWEEN' && Array.isArray(rightArg)) {
@@ -1218,14 +1218,14 @@ export namespace DB {
 
     /**
      * Both columns, the joined table and the alias go through the convention-8
-     * guards here, at the call site — the same thing `orderBy` and `groupBy`
+     * guards here, at the call site: the same thing `orderBy` and `groupBy`
      * do, and for the same reason: the `ColumnString` union is compile-time
      * only, so a value taken off a request reaches this method as a plain
      * string.
      *
      * It previously concatenated the raw arguments into an ON clause and left
      * `parse()` to run a `word.word` regex over the result, quoting what
-     * matched and passing everything else through untouched — so
+     * matched and passing everything else through untouched, so
      * `join("users.id = 1 OR 1=1 UNION SELECT password FROM secrets --", …)`
      * was emitted verbatim.
      */
@@ -1252,8 +1252,8 @@ export namespace DB {
       }
 
       // Always qualified, never the raw argument. An undotted right column
-      // means "that table's `id`" — which is what the aliased form already
-      // emitted — but the unaliased path passed `strRight` straight through, so
+      // means "that table's `id`" (which is what the aliased form already
+      // emitted), but the unaliased path passed `strRight` straight through, so
       // `join('teachers.campusId', 'campuses')` produced
       // `ON "teachers"."campus_id" = campuses`: a bare table name in a value
       // position, invalid on every dialect and only discovered at execution.
@@ -1271,8 +1271,8 @@ export namespace DB {
         throws(`Invalid join type: ${type}`)
       }
       // Refused at the call site rather than at the server, because MySQL's
-      // message for it — "You have an error in your SQL syntax" pointing at the
-      // whole statement — says nothing about which construct is unsupported.
+      // message for it ("You have an error in your SQL syntax" pointing at the
+      // whole statement) says nothing about which construct is unsupported.
       if (joinType === 'FULL' && !getActiveDb()?.supportsFullOuterJoin) {
         throws(
           'FULL OUTER JOIN is not supported by this database (MySQL has no ' +
@@ -1303,7 +1303,7 @@ export namespace DB {
     }
 
     /**
-     * `FULL OUTER JOIN` — every row from both sides, matched where possible.
+     * `FULL OUTER JOIN`: every row from both sides, matched where possible.
      *
      * SQLite (3.39+) and Postgres have it; **MySQL does not**, at any version,
      * so this throws there rather than emitting SQL the server will reject.
@@ -1393,7 +1393,7 @@ export namespace DB {
     }
 
     /**
-     * `SELECT DISTINCT`. Applies to the whole select list, not one column —
+     * `SELECT DISTINCT`. Applies to the whole select list, not one column:
      * SQL has no per-column distinct, and offering one would imply otherwise.
      *
      * Idempotent, so `.distinct().distinct()` is one keyword rather than two.
@@ -1419,7 +1419,7 @@ export namespace DB {
     }
 
     /**
-     * Cursor (keyset) pagination — the next `pageSize` rows *after* `cursor`.
+     * Cursor (keyset) pagination: the next `pageSize` rows *after* `cursor`.
      *
      *     const first = await DB.from('posts').seek('id', null, 20).all()
      *     const next  = await DB.from('posts')
@@ -1427,15 +1427,15 @@ export namespace DB {
      *
      * `paginate()` is offset-based, and an offset is not free: `LIMIT 20 OFFSET
      * 200000` makes the server walk and discard 200,000 rows, so page 10,000
-     * costs far more than page 1. This walks nothing — it seeks straight into
-     * the index — so every page costs the same.
+     * costs far more than page 1. This walks nothing (it seeks straight into
+     * the index), so every page costs the same.
      *
      * It also does not skip or repeat rows when the table is written to
      * mid-scan, which offset paging does by construction: delete one row on
      * page 1 and every later page shifts by one.
      *
-     * The trade is that pages are only reachable in order — there is no "jump
-     * to page 500" — and the column must be **unique and ordered**, which in
+     * The trade is that pages are only reachable in order (there is no "jump
+     * to page 500"), and the column must be **unique and ordered**, which in
      * practice means a primary key or something monotonic. A non-unique cursor
      * column silently drops the rows that tie on the boundary value, which is
      * why this takes one column rather than pretending to sort by several.
@@ -1458,14 +1458,14 @@ export namespace DB {
       if (cursor !== null && cursor !== undefined) {
         // `gt`/`lt`, not a `'id >'` string: the operator belongs in an operand
         // ref, and folding it into the column name puts `id >` through
-        // `safeColumn`, which rejects it — correctly, since that is the guard
+        // `safeColumn`, which rejects it. Correctly, since that is the guard
         // stopping an operator from being smuggled into an identifier.
         this._where.push({
           connector: this._where.length === 0 ? 'WHERE' : 'AND',
           ...parseWhereArgs(column, dir === 'ASC' ? gt(cursor) : lt(cursor)),
         })
       }
-      // Ordering is not optional here the way it is for `paginate` — a cursor
+      // Ordering is not optional here the way it is for `paginate`: a cursor
       // is meaningless without the order it is a position in. Prepended so an
       // explicit `.orderBy()` still breaks ties after it.
       this._orderBy.unshift(`${safeColumn(column)} ${dir}`)
@@ -1475,7 +1475,7 @@ export namespace DB {
     // The numbered sections below are the statement grammar. Parameter push order
     // is load-bearing (Postgres renumbers `?` to `$n` left to right), so the
     // sequence is the correctness condition, not incidental.
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SQL assembler — one section per clause, in emission order
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SQL assembler, one section per clause, in emission order
     parse(): { sql: string; params: any[] } {
       const params: any[] = []
 
@@ -1500,7 +1500,7 @@ export namespace DB {
       if (Object.keys(this._select).length > 0) {
         for (const [alias, colRef] of Object.entries(this._select)) {
           if (colRef instanceof WindowRef || colRef instanceof SQLFunctionRef) {
-            // `evalOperands` is the single writer for a function call — the
+            // `evalOperands` is the single writer for a function call: the
             // same one WHERE and HAVING go through, allow-list included.
             //
             // This used to re-implement it, and the copies had drifted: the

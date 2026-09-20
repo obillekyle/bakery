@@ -10,16 +10,15 @@ import { fs } from '../utils'
 import { asDev, asProd } from './fixtures'
 
 /**
- * `ErrorHandler.publicBody` redacts `errorBody` — the thrown error's stack —
- * outside DEV, and `DefaultErrorHandler`/`ApiErrorHandler` both render through
+ * `ErrorHandler.publicBody` redacts `errorBody` (the thrown error's stack)  * outside DEV, and `DefaultErrorHandler`/`ApiErrorHandler` both render through
  * it. The HTML and TSX error pages did not: they merged the raw error data
- * into the page params, which reach the document twice — through `{{...}}`
+ * into the page params, which reach the document twice, through `{{...}}`
  * substitution and through the `window.__PAGE_PARAMS__` script that
  * `DOMTools.params` injects into *every* page.
  *
  * That second path is why this is not an app-template problem: an `error.html`
  * that never mentions `errorBody` still published the stack. Verified against
- * a live production server before the fix — absolute source paths and all.
+ * a live production server before the fix: absolute source paths and all.
  */
 
 const ROOT = fs.resolve(process.cwd(), '.cache/__err-redact__')
@@ -43,7 +42,7 @@ async function bodyOf(res: any): Promise<string> {
 beforeAll(async () => {
   await initConfig()
   // A template that *does* interpolate the body, and one that never mentions
-  // it — the leak has to be closed for both.
+  // it: the leak has to be closed for both.
   await Bun.write(
     `${ROOT}/error.html`,
     '<html><body><pre>{{errorBody}}</pre></body></html>\n',
@@ -80,7 +79,7 @@ describe('HTML error pages redact the stack outside DEV', () => {
     expect(text).not.toContain('SECRETSTACK')
   })
 
-  test('DEV still shows it — that is the whole point of the mode', async () => {
+  test('DEV still shows it: that is the whole point of the mode', async () => {
     const text = await asDev(() =>
       HTMLErrorHandler.handle('/__boom', req(), ERROR).then(bodyOf),
     )
@@ -102,7 +101,7 @@ describe('TSX error pages redact the stack outside DEV', () => {
     await Bun.write(
       `${ROOT}/error.tsx`,
       // The `${...}` is source code being written to a file, not a placeholder
-      // this string forgot to interpolate — the fixture *is* a template literal
+      // this string forgot to interpolate: the fixture *is* a template literal
       // in the page it creates.
       // biome-ignore lint/suspicious/noTemplateCurlyInString: emitted source, not a placeholder
       'export default (_req: any, body: any) => `<html><body>${body.errorBody}</body></html>`\n',
@@ -121,8 +120,8 @@ describe('ordinary pages still render', () => {
   /**
    * Regression guard. The first version of the redaction called
    * `publicErrorData(errorData)` unconditionally, but `errorData` is
-   * `undefined` on a normal page render — `DEFAULT_ERROR` exists only on the
-   * error handler — so every dynamic page died with "undefined is not an
+   * `undefined` on a normal page render (`DEFAULT_ERROR` exists only on the
+   * error handler), so every dynamic page died with "undefined is not an
    * object (evaluating 'error.errorCode')", which then became the rendered
    * error. The unit tests above all passed: they only ever exercised the
    * error path. A live production request is what caught it.
@@ -154,8 +153,8 @@ describe('ordinary pages still render', () => {
 /**
  * The built-in fallback page splits on the same DEV gate `publicBody` uses,
  * and everything below the split is a disclosure the production page must not
- * make. The DEV page is a diagnostics page — branded title, `<pre>` body, a
- * requester/date footer — and `processResponse` injects the import map and
+ * make. The DEV page is a diagnostics page (branded title, `<pre>` body, a
+ * requester/date footer), and `processResponse` injects the import map and
  * client bundle into it like any page. Outside DEV every one of those told an
  * anonymous requester something: the import map is an inventory of the app's
  * installed packages, the footer echoed the requester's IP and a server
@@ -163,7 +162,7 @@ describe('ordinary pages still render', () => {
  * status line and the public body, and it is branded so `processResponse`
  * serves it byte-for-byte.
  */
-describe('DefaultErrorHandler — the production page is plain', () => {
+describe('DefaultErrorHandler: the production page is plain', () => {
   const ERROR403 = {
     errorCode: 403,
     errorText: 'Forbidden',
@@ -171,7 +170,7 @@ describe('DefaultErrorHandler — the production page is plain', () => {
   }
 
   // Through the real pipeline: the import map is not something `handle` emits,
-  // it is what `processResponse` splices into every unbranded HTML response —
+  // it is what `processResponse` splices into every unbranded HTML response,
   // so the page has to be read after that splice would have happened.
   const served = async (error: typeof ERROR403) => {
     const r = new Request('http://localhost/__denied')
@@ -202,7 +201,7 @@ describe('DefaultErrorHandler — the production page is plain', () => {
     expect(text).not.toContain('<hr')
   })
 
-  test('no dev chrome — the framework branding goes too', async () => {
+  test('no dev chrome: the framework branding goes too', async () => {
     const { text } = await asProd(() => served(ERROR403))
     expect(text).not.toContain('Bakery')
   })
@@ -225,13 +224,13 @@ describe('DefaultErrorHandler — the production page is plain', () => {
 })
 
 /**
- * A denial authored with no message — `response.error('', 403)`, or the bare
+ * A denial authored with no message: `response.error('', 403)`, or the bare
  * `new Response(null, { status: 403 })` that `handleRequest` itself returns
- * for a forbidden path — used to render `<h1>403 - </h1>` over a `<pre>` of
+ * for a forbidden path, used to render `<h1>403 - </h1>` over a `<pre>` of
  * `403: ""`. The separator needs text to separate and an empty body renders
  * as no element, in both modes.
  */
-describe('DefaultErrorHandler — an empty message renders clean', () => {
+describe('DefaultErrorHandler: an empty message renders clean', () => {
   const EMPTY = { errorCode: 403, errorText: '', errorBody: '' }
 
   // `await`ed rather than `.then`ed: unlike the page handlers above,
@@ -252,7 +251,7 @@ describe('DefaultErrorHandler — an empty message renders clean', () => {
     expect(text).not.toContain('403 -')
   })
 
-  test('DEV agrees — the heading rule is not mode-gated', async () => {
+  test('DEV agrees: the heading rule is not mode-gated', async () => {
     const text = await asDev(() => pageText(EMPTY))
     expect(text).toContain('<h1>403</h1>')
     expect(text).not.toContain('403 -')

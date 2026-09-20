@@ -38,7 +38,7 @@ describe('immutable list edits behind the chips', () => {
 })
 
 describe('a foreign key as a filter', () => {
-  test('one eq per column — which is what replaced ViewState.focus', () => {
+  test('one eq per column, which is what replaced ViewState.focus', () => {
     // The old client carried a separate row identity because `filters` was a
     // substring LIKE and `id=1` also matched `11`. `eq` makes the filter the
     // identity.

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { cacheKey, fkForColumn, fkKeyOf, fkLabel, reverseFks } from './fk'
 import type { SchemaGraph } from './meta'
 
-/** The pure half of `fk.ts` — the graph reasoning, with no timers in it. */
+/** The pure half of `fk.ts`: the graph reasoning, with no timers in it. */
 const graph: SchemaGraph = {
   foreignKeys: {
     'parcel->courier': {

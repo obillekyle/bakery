@@ -3,7 +3,7 @@
  *
  * **Every count that reaches a dialog comes from a `dryRun`.** The server
  * executes the statements inside a transaction and rolls back, so the number is
- * what would actually happen — not the number of checkboxes, which is the same
+ * what would actually happen, not the number of checkboxes, which is the same
  * number only when nothing has changed underneath and no key has gone missing.
  * `confirm.ts` turns that count into the right amount of ceremony.
  */
@@ -69,7 +69,7 @@ export function bulkToolbar(ctx: BulkContext): BulkToolbar {
  * One column, one value, across the selection.
  *
  * The value goes through the same editor the grid uses, so an enum is a select
- * and a nullable column can be set to NULL — the operation people actually
+ * and a nullable column can be set to NULL: the operation people actually
  * reach for and the one a plain text prompt cannot express.
  */
 async function openSetColumn(ctx: BulkContext): Promise<void> {
@@ -97,7 +97,7 @@ async function openSetColumn(ctx: BulkContext): Promise<void> {
   }
 
   const picker = select(
-    editable.map(c => ({ value: c.name, label: `${c.name} — ${c.type}` })),
+    editable.map(c => ({ value: c.name, label: `${c.name}: ${c.type}` })),
     column.name,
     name => {
       column = editable.find(c => c.name === name) ?? column
@@ -199,7 +199,7 @@ async function runDelete(ctx: BulkContext): Promise<void> {
 /**
  * A ten-second offer to put the row back.
  *
- * Only for the immediate tier — anything above one row went through a dialog,
+ * Only for the immediate tier: anything above one row went through a dialog,
  * and re-inserting a hundred rows from the browser's memory is a second bulk
  * write dressed up as a safety net. The pre-image is already in hand because
  * the grid holds the rows it rendered.
@@ -230,7 +230,7 @@ function offerDeleteUndo(
  * Add rows by hand.
  *
  * A column is sent only when the user gave it a value or when the database
- * cannot supply one — `omittableOnInsert` is the same predicate the importer's
+ * cannot supply one: `omittableOnInsert` is the same predicate the importer's
  * blocking check uses. Sending every column would defeat every default in the
  * schema and would make an auto-increment key impossible to leave alone.
  */
@@ -344,7 +344,7 @@ function buildInsertRows(
  * A rejected promise from an event listener is an unhandled rejection and a
  * silent no-op on screen, which is the one outcome a destructive action must
  * not have. `null` is the failure, so a dry run's caller checks the result and
- * an action's caller ignores it — they were two identically-bodied functions
+ * an action's caller ignores it: they were two identically-bodied functions
  * until the second was noticed to be the first with the value discarded.
  */
 async function run<T>(call: () => Promise<T>): Promise<T | null> {
@@ -363,7 +363,7 @@ async function run<T>(call: () => Promise<T>): Promise<T | null> {
  * three dialects add a key that is not a column: SQLite selects `rowid` and
  * Postgres `ctid::text AS rowid`, while MySQL selects `*` and so never showed
  * this. `validateInsertRow` refuses unknown columns by design, so restoring
- * the row verbatim came back `400 rowid: unknown_column` — the undo offered
+ * the row verbatim came back `400 rowid: unknown_column`, the undo offered
  * after a delete silently did not undo, on two dialects out of three.
  *
  * Exported for the test. There is no DOM here and the bug lived in a callback

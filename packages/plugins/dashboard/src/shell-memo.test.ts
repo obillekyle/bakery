@@ -6,7 +6,7 @@ import renderDashboardShell, { __resetShellCache } from './shell'
 
 /**
  * The console shell is an 11.8 KB document that is identical on every request
- * — the only thing in it that can change is one nav entry, which depends on
+ *: the only thing in it that can change is one nav entry, which depends on
  * whether an explorer is mounted at `/_db`. It was rendered from JSX per
  * request at 0.50 ms a time.
  *
@@ -49,7 +49,7 @@ describe('the console shell is rendered once', () => {
     expect(String(without)).toContain('id="panel-database"')
 
     // A second surface declaring the namespace is exactly how the nav learns
-    // about it — `shell.tsx` asks the registry's declarations, never imports
+    // about it: `shell.tsx` asks the registry's declarations, never imports
     // the explorer.
     Bakery.handlers.fetch.set(FakeExplorer, 10)
 

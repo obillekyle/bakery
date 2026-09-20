@@ -4,7 +4,7 @@
  * Nothing exposed these before: every deployment ran on Bun's defaults, which
  * is fine until an app with more workers than the server has connection slots
  * meets `FATAL: sorry, too many clients already`. `--threads N` makes that a
- * realistic shape rather than a theoretical one — each worker opens its own
+ * realistic shape rather than a theoretical one: each worker opens its own
  * pool, so the number that matters is `max x threads`.
  *
  * **SQLite ignores all of it**, and that is not an omission: a SQLite adapter
@@ -39,14 +39,14 @@ const ENV_KEYS: Record<keyof PoolOptions, string> = {
 /**
  * Read pool options from the environment, dropping anything unusable.
  *
- * Unset stays unset — an option Bakery does not pass is one Bun defaults,
+ * Unset stays unset: an option Bakery does not pass is one Bun defaults,
  * which is different from passing Bun a zero. A non-numeric or negative value
  * is dropped for the same reason: `DB_POOL_MAX=lots` must not become
  * `max: NaN`, which Bun would take and then behave unpredictably around.
  *
  * **Only known keys are ever forwarded**, and that matters more than it looks:
- * Bun accepts an unrecognised option silently — verified, `new SQL(url, {
- * totallyNotAnOption: 1 })` constructs and queries fine — so a typo'd key
+ * Bun accepts an unrecognized option silently (verified, `new SQL(url, {
+ * totallyNotAnOption: 1 })` constructs and queries fine), so a typo'd key
  * would configure nothing and report nothing. Passing a fixed set means the
  * typo lands in an env var name, where it is at least visible in one place.
  */
@@ -70,7 +70,7 @@ export function poolOptionsFromEnv(
 /**
  * Merge pool options into the object handed to `new SQL()`.
  *
- * The timeouts are **seconds here and milliseconds inside Bun** — it multiplies
+ * The timeouts are **seconds here and milliseconds inside Bun**: it multiplies
  * by 1000 on the way in, verified by reading `sql.options` back: `idleTimeout:
  * 5` is stored as `5000`. Seconds is what Bun's own documented unit is, so this
  * passes them straight through rather than converting and doubling the factor.

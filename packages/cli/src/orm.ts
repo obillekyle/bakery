@@ -3,15 +3,15 @@
  *
  * The CLI declares it as an **optional peer**, so an app scaffolded with
  * `--no-orm` never downloads it. Every use of it in this package is already an
- * `await import()`, so its absence is not a module-graph problem — it is a
+ * `await import()`, so its absence is not a module-graph problem: it is a
  * question this file answers once, before anything tries.
  *
  * **Absence and breakage must not be conflated, and telling them apart is the
  * only reason this file exists.** The obvious implementation is to wrap the
  * `await import()` in a try and treat a throw as "not installed", and it is
  * wrong in the direction that costs data: a database that is configured but
- * unreachable, a `DB_URL` with a typo, a schema module that throws at import —
- * all of those would be swallowed as "no ORM here" and the server would boot
+ * unreachable, a `DB_URL` with a typo, a schema module that throws at import.
+ * All of those would be swallowed as "no ORM here" and the server would boot
  * happily with no database and no complaint. `initDB` failing has always been
  * fatal and stays fatal. Only *resolution* failing is soft.
  *
@@ -25,10 +25,10 @@ let resolved: boolean | null = null
 /**
  * True when `@bakery-framework/orm` can be resolved from this package.
  *
- * Memoised: it is asked on the boot path and once more per shutdown, the answer
+ * Memoized: it is asked on the boot path and once more per shutdown, the answer
  * cannot change within a process, and the filesystem walk is not free.
  *
- * `import.meta.dir` is the resolution base on purpose — it is what a real
+ * `import.meta.dir` is the resolution base on purpose: it is what a real
  * `import` from this module would use, so the answer matches what the `await
  * import()` calls below it will actually do. Resolving from `process.cwd()`
  * would ask a different question (does the *app* see it) and could disagree,
@@ -43,7 +43,7 @@ export function hasORM(): boolean {
     resolved = true
   } catch {
     // Not installed. The only expected outcome of this catch, and the reason
-    // it is allowed to be silent — see the note above about what is *not*
+    // it is allowed to be silent. See the note above about what is *not*
     // routed through here.
     resolved = false
   }

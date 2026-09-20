@@ -2,8 +2,8 @@
  * What goes *inside* a cell: the text, the classes, and the foreign-key button.
  *
  * Split out of `grid.ts` alongside the header and the row bar. This half is the
- * one with no knowledge of the cursor or the editor — it is handed a value and
- * returns a node — which is why it could leave.
+ * one with no knowledge of the cursor or the editor (it is handed a value and
+ * returns a node), which is why it could leave.
  *
  * The `<button>` for a foreign key is a real button rather than a styled span,
  * because it is activated by keyboard and read as an action by a screen reader.
@@ -33,7 +33,7 @@ export interface CellPaintContext {
  * Write one cell's value into its `<td>`.
  *
  * The staged flag is passed in rather than read from a session here, so this
- * module needs no `EditSession` — a staged value and a stored value take
+ * module needs no `EditSession`: a staged value and a stored value take
  * exactly the same path and cannot diverge in how they look.
  */
 export function paintCell(
@@ -69,7 +69,7 @@ function cellBody(
 /**
  * A foreign key as a link, resolving its label on hover.
  *
- * The resolver owns the delay, the cache and the cancellation — see `fk.ts`.
+ * The resolver owns the delay, the cache and the cancellation. See `fk.ts`.
  * All that happens here is arming it on `pointerenter` and disarming it on
  * `pointerleave`, which is what keeps a sweep across the grid from costing
  * fifty round trips.

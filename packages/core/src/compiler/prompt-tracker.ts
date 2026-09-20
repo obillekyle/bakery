@@ -3,7 +3,7 @@ import { cacheDir } from '../core/context'
 import { Try } from '../utils/common/try'
 
 /**
- * **`cacheDir` comes from `core/context`, not from `Bakery` — do not change it
+ * **`cacheDir` comes from `core/context`, not from `Bakery`. Do not change it
  * back.** `logger.ts` imports this module, so importing `core/bakery` here
  * completed a cycle:
  *
@@ -14,7 +14,7 @@ import { Try } from '../utils/common/try'
  * import arrived first found `Logger` still in its temporal dead zone. That
  * shipped in 1.2.3 and made `import '@bakery-framework/core'` throw
  * `ReferenceError: Cannot access 'Logger' before initialization` from a clean
- * install — see `tests/module-cycle.test.ts`.
+ * install. See `tests/module-cycle.test.ts`.
  *
  * `core/context` holds the same single definition of the path and imports
  * nothing that reaches the logger.

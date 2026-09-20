@@ -205,9 +205,9 @@ export interface HoverPoint {
  * Which sample the pointer is over, and where that sample is drawn.
  *
  * Shared by the two things that must agree about it: the marker painted on the
- * canvas and the tooltip positioned over the card. This arithmetic — the 50px
+ * canvas and the tooltip positioned over the card. This arithmetic: the 50px
  * reserved for the axis labels, the 24 and 12 of vertical padding, and the
- * `L - M` offset for a series shorter than the window — used to live only in
+ * `L - M` offset for a series shorter than the window: used to live only in
  * the tooltip. Copying it into the draw path would have worked exactly until
  * one copy was adjusted, at which point the dot and its label would point at
  * different samples and look like a rounding bug.

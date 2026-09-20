@@ -1,7 +1,7 @@
 /**
  * Every timescale fact, in one place, derived from two numbers each.
  *
- * There were **five** of these tables across two packages, and they agreed —
+ * There were **five** of these tables across two packages, and they agreed,
  * which is luck rather than design, because nothing made them. `timescaleToMs`
  * here, `getHistoryLimitForTimescale` in `core.ts`, the bucket counts inside
  * `pushAnalyticsSnapshot`, and `getTimescaleIntervalMs` / `getTimescaleLimit`
@@ -15,7 +15,7 @@
  *     samples    = bucketMs / TICK_MS
  *
  * So `1d` is a day shown as 48 points, which makes each point half an hour and
- * each half hour 1,800 one-second samples — and those are exactly the numbers
+ * each half hour 1,800 one-second samples, and those are exactly the numbers
  * the five tables carried.
  */
 
@@ -71,7 +71,7 @@ export function isTimescale(value: string): value is Timescale {
  * Facts for a timescale, or `1m`'s.
  *
  * A default rather than a throw, because the value reaches here from a query
- * parameter and a socket frame — both of which a client writes, and neither of
+ * parameter and a socket frame: both of which a client writes, and neither of
  * which should be able to raise a 500. The narrowest window is the safe one to
  * fall back to: it reads the least data and shows the least.
  */

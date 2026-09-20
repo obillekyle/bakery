@@ -10,7 +10,7 @@ import type { Driver as RegisteredDriver } from './registry'
 export namespace SQLAdapter {
   /**
    * Kept as `SQLAdapter.Driver` because that is what the ~40 existing call
-   * sites say, but the list itself now lives in `registry.ts` — a namespace
+   * sites say, but the list itself now lives in `registry.ts`: a namespace
    * member cannot be declaration-merged from another package, and adding a
    * driver has to be possible from outside.
    */
@@ -37,8 +37,8 @@ export namespace SQLAdapter {
     name: string
     /**
      * `null` unless the caller asked for counts. A `COUNT(*)` is a full scan
-     * on SQLite and Postgres, and `getSchema()` is on the write path — every
-     * explorer write introspects to resolve row identity — so the scan is paid
+     * on SQLite and Postgres, and `getSchema()` is on the write path (every
+     * explorer write introspects to resolve row identity), so the scan is paid
      * only where a number is actually displayed. `null`, not `0`: a count that
      * was never taken must not read as an empty table.
      */
@@ -47,7 +47,7 @@ export namespace SQLAdapter {
     indexes: TableIndexInfo[]
   }
   export interface SchemaOptions {
-    /** Take the per-table `COUNT(*)`. Off by default — see `rowCount`. */
+    /** Take the per-table `COUNT(*)`. Off by default. See `rowCount`. */
     rowCounts?: boolean
   }
   export interface TableDataResult {
@@ -61,7 +61,7 @@ export namespace SQLAdapter {
   // as in `sync/types.ts`, and this copy had fallen behind: no `length`, no
   // `_enum`, no `_oldColumn`/`_transform`, and a `type` union missing `bigint`
   // and `json`. The three sync call sites that cast to it were therefore
-  // *erasing* the fields at the exact point they are read — harmless only
+  // *erasing* the fields at the exact point they are read: harmless only
   // because `colDef` takes `unknown`. One declaration now, in `sync/types.ts`.
 
   export type RowRecord = MapOf<any>
@@ -116,7 +116,7 @@ export namespace SQLAdapter {
    * The slice of a Bun `SQL` handle that transaction nesting needs.
    *
    * Structural rather than `SQL`, because the base class holds `sql` as
-   * `unknown` — each adapter narrows it — and because both members are
+   * `unknown` (each adapter narrows it), and because both members are
    * verified by probe rather than by the type: `savepoint` is present on the
    * root connection and on every transaction and savepoint handle in Bun
    * 1.3.14, on all three dialects.
@@ -149,7 +149,7 @@ export namespace SQLAdapter {
  * 32,766 for every dialect, deliberately below the two that could go higher.
  * The counter that overflows is 16 bits and it does not *fail* on overflow, it
  * wraps: a 120,000-parameter insert reported `expected 54464 values, received
- * 120000` — 120000 − 65536 — which reads like memory corruption rather than a
+ * 120000` (120000 − 65536), which reads like memory corruption rather than a
  * limit being hit. Half the 16-bit ceiling leaves room for whatever bookkeeping
  * a driver adds on top of the parameters we counted, and the cost of the extra
  * round trips is nothing next to the bytes those parameters weigh.
@@ -161,14 +161,14 @@ export const DEFAULT_MAX_QUERY_PARAMS = 32766
  * open one from?
  *
  * A duck check, because `value instanceof SQL` is unusable: Bun's `SQL` export
- * has no `prototype` property at all — it is `undefined` as of 1.3.14 — and
+ * has no `prototype` property at all. It is `undefined` as of 1.3.14, and
  * `instanceof` against it does not return false, it **throws**
  * `instanceof called on an object with an invalid prototype property` for every
  * object operand. The MySQL and Postgres constructors read as if they tested
  * this and did not: `instanceof` short-circuits to false for a primitive
  * *before* it touches the right operand, so the string form never reached the
- * throw and the only caller that passes a real handle — `transaction()`,
- * wrapping the connection Bun hands its callback — failed every time it ran.
+ * throw and the only caller that passes a real handle (`transaction()`,
+ * wrapping the connection Bun hands its callback) failed every time it ran.
  *
  * `typeof` covers `function` as well as `object` because a Bun connection is
  * callable: it is the tagged-template entry point, with `unsafe` hung off it.
@@ -193,8 +193,8 @@ export function quoteIdentifier(name: string, quoteChar: string): string {
 /**
  * How many rows one `iterate()` chunk fetches. See {@link pagedIterate}.
  *
- * Big enough that the round trips are amortised, small enough that the point of
- * streaming — never holding the whole result — survives. Not a tuning knob
+ * Big enough that the round trips are amortized, small enough that the point of
+ * streaming (never holding the whole result) survives. Not a tuning knob
  * anyone has measured; it is a default, and `createExecutor` takes an override.
  */
 export const DEFAULT_STREAM_CHUNK = 500
@@ -203,7 +203,7 @@ export const DEFAULT_STREAM_CHUNK = 500
  * `iterate()`, built out of `all()` by paging.
  *
  * **Bun cannot stream.** As of 1.3.14 an `SQLQuery` is a thenable and nothing
- * more — no `Symbol.asyncIterator`, no `Symbol.iterator`, and its own methods
+ * more, no `Symbol.asyncIterator`, no `Symbol.iterator`, and its own methods
  * (`raw`, `simple`, `values`, `execute`, `run`) all resolve the whole result.
  * The adapters used to hand their raw query object to `for await`, which is why
  * `iterate` threw `… .iterate is not a function` on **every** dialect and why
@@ -217,21 +217,21 @@ export const DEFAULT_STREAM_CHUNK = 500
  * ```
  *
  * Verified on all three dialects against live servers, including a statement
- * that already carries its own `ORDER BY` or `LIMIT` — the derived table
+ * that already carries its own `ORDER BY` or `LIMIT`: the derived table
  * contains it, so the window composes rather than colliding. MySQL needs the
  * alias; the other two tolerate it.
  *
  * **What this is not.** It is not a server-side cursor, and the difference is
  * observable, so say it plainly: the statement is re-executed once per chunk,
  * and chunk boundaries are only stable under a total order. Rows inserted or
- * deleted mid-walk can therefore be seen twice or missed — the same hazard
+ * deleted mid-walk can therefore be seen twice or missed: the same hazard
  * offset pagination has, and exactly what `seek()` exists to avoid. What it
  * does buy is the thing people reach for streaming to get: memory bounded by
  * the chunk instead of by the result.
  *
  * **What it costs, and why it is not one number.** The statement is
  * re-executed per chunk, so the total is the chunk count times whatever one
- * window costs — and what one window costs depends entirely on whether the
+ * window costs, and what one window costs depends entirely on whether the
  * ordering can be served from an index. If it cannot, every chunk sorts the
  * whole result and throws away the offset, which is quadratic in the chunk
  * count. Measured on 100,000 rows, a chunk size of 500, so 200 statements:
@@ -242,7 +242,7 @@ export const DEFAULT_STREAM_CHUNK = 500
  *     postgres  ORDER BY an unindexed column all 126 ms   iterate 12,767 ms   101x
  *
  * Thirty-five seconds to walk what `all()` returns in 275 ms. The backlog
- * recorded a flat "393x", which is the right neighbourhood for the unindexed
+ * recorded a flat "393x", which is the right neighborhood for the unindexed
  * case and says nothing about the case a caller can fix: **order by something
  * indexed and the cost collapses by 40x.**
  *
@@ -254,7 +254,7 @@ export const DEFAULT_STREAM_CHUNK = 500
  * So: reach for this when the result does not fit in memory, not when it is
  * merely large. If it fits, `all()` is between 3 and 130 times faster. If it
  * does not, index the column you order by, and prefer `seek()` where the shape
- * allows it — that is keyset pagination and it has neither the cost nor the
+ * allows it: that is keyset pagination and it has neither the cost nor the
  * skipped-row hazard described above.
  */
 export function pagedIterate(
@@ -280,16 +280,16 @@ export function createExecutor(
   run: SQLAdapter.Executor['run'],
   driver: SQLAdapter.Driver,
   options: {
-    /** Replace the paging walker — for a driver that can genuinely stream. */
+    /** Replace the paging walker: for a driver that can genuinely stream. */
     iterate?: SQLAdapter.Executor['iterate']
     chunkSize?: number
   } = {},
 ): SQLAdapter.Executor {
   const iterate = options.iterate ?? pagedIterate(all, options.chunkSize)
   // `get` and `values` call the raw `all` rather than `exec.all`, which is a
-  // behavioural detail worth stating: it is what keeps one executed statement
+  // behavioral detail worth stating: it is what keeps one executed statement
   // to exactly one observer event. Routing them through the observed `exec.all`
-  // would report every `.get()` twice — once as `get`, once as `all` — and a
+  // would report every `.get()` twice (once as `get`, once as `all`), and a
   // "slowest queries" panel built on double-counted rows is worse than none.
   return {
     all: observe(driver, 'all', all, rows =>
@@ -328,7 +328,7 @@ export abstract class SQLAdapter {
    * The database this connection is pointed at, or `undefined`.
    *
    * Parsed from the URL rather than asked of the server, because the one caller
-   * — normalising a stored view body — runs inside the diff and must not add a
+   * (normalizing a stored view body) runs inside the diff and must not add a
    * round trip to it. SQLite has no such name and needs none: it does not
    * qualify a view's tables in the first place.
    *
@@ -346,7 +346,7 @@ export abstract class SQLAdapter {
   }
 
   /**
-   * Placeholder ceiling for a single statement — see
+   * Placeholder ceiling for a single statement. See
    * {@link DEFAULT_MAX_QUERY_PARAMS} for why it is one number and not three.
    *
    * A getter rather than a field so a dialect that genuinely differs can
@@ -421,7 +421,7 @@ export abstract class SQLAdapter {
    *
    * Set by {@link transaction} on the child it just built, never by a
    * constructor. Inferring it from "was I handed an open connection?" would be
-   * a guess — a pooled handle is open too, and issuing `SAVEPOINT` outside a
+   * a guess: a pooled handle is open too, and issuing `SAVEPOINT` outside a
    * transaction block is an error on Postgres and a silent no-op on MySQL.
    * Only `transaction` knows for certain, because it is what opened the thing.
    */
@@ -434,18 +434,18 @@ export abstract class SQLAdapter {
   protected abstract withConnection(sql: unknown): SQLAdapter
 
   /**
-   * Run `callback` atomically — `BEGIN` at the top level, `SAVEPOINT` within an
+   * Run `callback` atomically: `BEGIN` at the top level, `SAVEPOINT` within an
    * enclosing transaction.
    *
    * The dispatch is the whole point. Bun refuses a nested `BEGIN` outright
    * (`cannot call begin inside a transaction use savepoint() instead`, verbatim
    * on all three dialects), so before this, any two transactional functions
-   * that composed — `createUser()` called from `importUsers()`, both perfectly
-   * reasonable alone — crashed the moment they met.
+   * that composed (`createUser()` called from `importUsers()`, both perfectly
+   * reasonable alone) crashed the moment they met.
    *
    * A failed inner block rolls back to its own savepoint and nothing more, so
    * an outer transaction that catches the error keeps its own work. It only
-   * gets the whole thing if it lets the error propagate — which is the same
+   * gets the whole thing if it lets the error propagate, which is the same
    * rule a single transaction already follows.
    */
   async transaction<T>(
@@ -472,7 +472,7 @@ export abstract class SQLAdapter {
    * A table-level `FOREIGN KEY` clause, for inclusion in `CREATE TABLE`.
    *
    * Emitted inline rather than by `ALTER` wherever possible, because SQLite has
-   * no `ALTER TABLE ADD FOREIGN KEY` at all — inline is the only spelling all
+   * no `ALTER TABLE ADD FOREIGN KEY` at all: inline is the only spelling all
    * three dialects share.
    */
   foreignKeyClause(fk: SyncTypes.ForeignKeyInfo): string {
@@ -502,8 +502,8 @@ export abstract class SQLAdapter {
    * One spelling for a referential action, whatever the dialect called it.
    *
    * Postgres reports a single character rather than a word; MySQL and SQLite
-   * report the word. Anything unrecognised becomes `NO ACTION` — the SQL
-   * default — so a dialect that grows a new code cannot make the diff churn.
+   * report the word. Anything unrecognized becomes `NO ACTION` (the SQL
+   * default), so a dialect that grows a new code cannot make the diff churn.
    */
   static normalizeForeignKeyAction(raw: unknown): SyncTypes.ForeignKeyAction {
     const v = String(raw ?? '')
@@ -540,7 +540,7 @@ export abstract class SQLAdapter {
    *
    * `cols` names the unique columns that decide "already there"; `targets` are
    * the columns to overwrite, empty meaning "insert if absent". Both arrive as
-   * declared — snake-casing and quoting happen here, so the caller never has to
+   * declared: snake-casing and quoting happen here, so the caller never has to
    * know which dialect it is talking to.
    */
   upsertClause(cols: string[], targets: string[]): string {
@@ -557,7 +557,7 @@ export abstract class SQLAdapter {
    * Which end of a batched multi-row insert `lastInsertRowid` refers to.
    *
    * A large insert is split into batches, so the id has to be taken from one of
-   * them — and the dialects do not agree which. SQLite and Postgres report the
+   * them, and the dialects do not agree which. SQLite and Postgres report the
    * *last* row written; MySQL's `insertId` reports the *first* of the block.
    * Taking the matching end keeps each dialect's own answer true rather than
    * inventing a third one.
@@ -583,7 +583,7 @@ export abstract class SQLAdapter {
    * A rebuild is `CREATE t_temp` → copy → `DROP TABLE t` →
    * `RENAME t_temp TO t`,
    * and two of the three dialects refuse to run it while a view still names `t`
-   * — at different steps, and with different messages:
+   *: at different steps, and with different messages:
    *
    * - **SQLite** refuses the *rename*: `error in view v: no such table: main.t`
    * - **Postgres** refuses the *drop*: `cannot drop table t because other
@@ -592,7 +592,7 @@ export abstract class SQLAdapter {
    *   it resolves a view's tables at query time rather than binding them at
    *   creation.
    *
-   * So this is `true` by default and MySQL is the exception — the reverse of
+   * So this is `true` by default and MySQL is the exception: the reverse of
    * how it first reads. Where it holds, the planner drops declared views before
    * the rebuild phase and recreates them a moment later; where it does not, the
    * drop is skipped and the views are simply left alone.
@@ -602,7 +602,7 @@ export abstract class SQLAdapter {
   }
 
   /**
-   * `INTERSECT ALL` and `EXCEPT ALL` — the duplicate-preserving forms.
+   * `INTERSECT ALL` and `EXCEPT ALL`: the duplicate-preserving forms.
    *
    * `UNION ALL` is universal and is not covered by this; only the other two
    * are. MySQL grew them in 8.0.31 and Postgres has always had them; SQLite
@@ -617,7 +617,7 @@ export abstract class SQLAdapter {
    * `FULL OUTER JOIN`.
    *
    * Postgres has it; SQLite gained it in 3.39 and the version Bun bundles has
-   * it. **MySQL has never had it**, at any version — the workaround there is a
+   * it. **MySQL has never had it**, at any version: the workaround there is a
    * `LEFT JOIN` unioned with a `RIGHT JOIN`, which is a different query rather
    * than a flag, so the builder refuses instead of rewriting silently.
    */
@@ -661,7 +661,7 @@ export abstract class SQLAdapter {
    *
    * Names are deliberately excluded. SQLite's `PRAGMA foreign_key_list` does
    * not report one, so a name-keyed diff would see every SQLite foreign key as
-   * new on every sync — the perpetual-rebuild failure this project has hit
+   * new on every sync: the perpetual-rebuild failure this project has hit
    * repeatedly. The tuple is the same on all three dialects.
    */
   static foreignKeyId(fk: {
@@ -690,7 +690,7 @@ export abstract class SQLAdapter {
         refTable: String(r.parent),
         refCols: [] as string[],
         name: key,
-        // Normalised here, not at the call site: Postgres reports a single
+        // Normalized here, not at the call site: Postgres reports a single
         // character where MySQL reports a word, and the diff has to compare one
         // vocabulary or it replaces every key on every sync.
         onDelete: SQLAdapter.normalizeForeignKeyAction(r.on_delete),
@@ -821,7 +821,7 @@ export abstract class SQLAdapter {
   protected async preSync(_tx: SQLAdapter): Promise<void> {}
   protected async postSync(_tx: SQLAdapter): Promise<void> {}
   /**
-   * Patterns recognised when reading a default back *out* of the database.
+   * Patterns recognized when reading a default back *out* of the database.
    * Matched loosely (parens stripped, uppercased, `includes`), so a prefix
    * fragment is a perfectly good entry here.
    */
@@ -830,8 +830,8 @@ export abstract class SQLAdapter {
   /**
    * The complete SQL expression emitted *into* DDL for a `%dateNow%` default.
    *
-   * Deliberately separate from `dateNowDefaults`. Conflating the two — emitting
-   * `dateNowDefaults[0]` — is what produced `DEFAULT (EXTRACT(EPOCH FROM)` on
+   * Deliberately separate from `dateNowDefaults`. Conflating the two (emitting
+   * `dateNowDefaults[0]`) is what produced `DEFAULT (EXTRACT(EPOCH FROM)` on
    * Postgres and `DEFAULT (UNIX_TIMESTAMP)` on MySQL: a prefix is fine to match
    * against and fatal to emit. SQLite only escaped because its match pattern
    * happened to be a complete expression.
@@ -860,7 +860,7 @@ export abstract class SQLAdapter {
 
   /**
    * Loose match: parens stripped, uppercased, substring. A prefix fragment is a
-   * perfectly good entry in the pattern lists — and is fatal to *emit*, which
+   * perfectly good entry in the pattern lists, and is fatal to *emit*, which
    * is the whole reason the emitted expression is a separate field.
    */
   private matchesMarker(
@@ -879,12 +879,12 @@ export abstract class SQLAdapter {
   /**
    * The declared width of a **sized** text column, or `undefined`.
    *
-   * The guard is the entire point, and it is not defensive coding — it is a
+   * The guard is the entire point, and it is not defensive coding: it is a
    * measured result. MySQL reports `character_maximum_length = 65535` for an
    * unsized `TEXT` column, where Postgres reports `null`. Take the number
    * unconditionally and every `Field.Text()` column reads back as
    * `length: 65535`, the schema says nothing, the two never agree, and MySQL
-   * rebuilds the table on every sync forever — the exact failure that kept
+   * rebuilds the table on every sync forever, the exact failure that kept
    * `length` out of the diff until it could be checked against real servers.
    *
    * So: a width counts only when the dialect also calls the column a *sized*
@@ -907,8 +907,7 @@ export abstract class SQLAdapter {
   /**
    * A `CHECK (col IN (…))` clause restricting a column to a set of values.
    *
-   * Takes the column name because a CHECK has to name it. Values bind nowhere —
-   * this is DDL — so they are quoted the same way `formatDefault` quotes a
+   * Takes the column name because a CHECK has to name it. Values bind nowhere (   * this is DDL), so they are quoted the same way `formatDefault` quotes a
    * string default, by doubling the single quote.
    */
   protected enumClause(column: string, values: string[]): string {
@@ -923,7 +922,7 @@ export abstract class SQLAdapter {
     const isStr = typeof def === 'string'
     if (isStr && def.toUpperCase() === 'NULL') return null
     // `def.trim() !== ''` first, because `Number('')` is `0` and `Number(' ')`
-    // is `0` — so an empty-string default came back as the *number* zero. The
+    // is `0`, so an empty-string default came back as the *number* zero. The
     // schema then said `''`, the database said `0`, and the column was rebuilt
     // on every single sync, forever.
     //
@@ -958,20 +957,20 @@ export abstract class SQLAdapter {
   }
 
   /**
-   * The `LIKE` escape character — `!`, and deliberately **not** a backslash.
+   * The `LIKE` escape character: `!`, and deliberately **not** a backslash.
    *
    * A backslash is the obvious choice and is still the wrong one. MySQL
    * processes backslash escapes inside string literals where SQLite and
-   * Postgres do not, so `ESCAPE '\'` would need a per-dialect spelling — and
+   * Postgres do not, so `ESCAPE '\'` would need a per-dialect spelling, and
    * the whole point of one escape character is one clause for all three.
    *
    * The Postgres normalizer used to make this worse: it applied MySQL's rule
    * to every dialect, so `'\'` swallowed its own closing quote and the driver
-   * reported a syntax error several tokens later. That defect is fixed — the
-   * scanner now has no opinion about backslashes, matching the server — and
+   * reported a syntax error several tokens later. That defect is fixed (the
+   * scanner now has no opinion about backslashes, matching the server), and
    * `a backslash in a literal is a character, not an escape` pins it. `!` stays
    * regardless, because MySQL's literal-level escaping is the server's real
-   * behaviour, not a scanner bug, and a character with no meaning to any of the
+   * behavior, not a scanner bug, and a character with no meaning to any of the
    * three parsers needs no capability getter.
    */
   protected readonly likeEscape = '!'
@@ -984,7 +983,7 @@ export abstract class SQLAdapter {
    * Make a value match literally under `LIKE`.
    *
    * Without this a search for `50%` matches every row and one for `a_b` matches
-   * `axb` — `%` and `_` are the wildcards, and the filter passed user input
+   * `axb`: `%` and `_` are the wildcards, and the filter passed user input
    * through untouched. The escape character itself goes first, or escaping it
    * afterwards would double the ones this method just added.
    */
@@ -1040,7 +1039,7 @@ export abstract class SQLAdapter {
    * One filter, as SQL. Returns `null` when the filter says nothing.
    *
    * `params` is appended to rather than returned, because an operator may bind
-   * one value, two, or none at all — `IS NULL` has nothing to bind, and
+   * one value, two, or none at all: `IS NULL` has nothing to bind, and
    * pretending otherwise is how a placeholder count drifts from its arguments.
    */
   private filterClause(
@@ -1060,8 +1059,8 @@ export abstract class SQLAdapter {
 
     const { op, value } = raw as { op?: string; value?: unknown }
 
-    // No value to bind, and none expected — these two are the whole reason a
-    // filter cannot be modelled as a plain column/value pair.
+    // No value to bind, and none expected: these two are the whole reason a
+    // filter cannot be modeled as a plain column/value pair.
     if (op === 'null') return `${quoted} IS NULL`
     if (op === 'notnull') return `${quoted} IS NOT NULL`
 
@@ -1344,7 +1343,7 @@ export class DatabaseStatement {
    * **Not a cursor, and not cheap.** Bun cannot stream, so this pages: the
    * statement becomes a derived table and is re-executed once per 500 rows.
    * On 100,000 rows that is 200 statements, and the total depends on whether
-   * the ordering is indexed — 3x `all()` on SQLite ordered by a primary key,
+   * the ordering is indexed: 3x `all()` on SQLite ordered by a primary key,
    * **130x** ordered by a column with no index (35.7 seconds against 275 ms).
    * The full table and the reasoning are on {@link pagedIterate}.
    *

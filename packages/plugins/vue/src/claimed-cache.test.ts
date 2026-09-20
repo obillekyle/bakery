@@ -11,8 +11,8 @@ import { __resetClaimedCache, claimedBeside } from './handler'
  * page request. Measured against trees of an app's shape: 0.48 ms at four
  * directories, 1.24 ms at twelve, 4.44 ms at thirty.
  *
- * In production it cannot change — no watcher, and the `SIGHUP` handler is a
- * deliberate no-op — so it is memoised there and computed per request in
+ * In production it cannot change (no watcher, and the `SIGHUP` handler is a
+ * deliberate no-op), so it is memoized there and computed per request in
  * development, where a file appearing has to be seen on the next load.
  *
  * Both halves are asserted by *changing the directory underneath it*, which is
@@ -20,7 +20,7 @@ import { __resetClaimedCache, claimedBeside } from './handler'
  */
 /**
  * Core's test fixtures are not a published subpath, so this reproduces init's
- * encoding locally — the same allowance `orm/sync/engine.test.ts` has, and for
+ * encoding locally: the same allowance `orm/sync/engine.test.ts` has, and for
  * the same reason. The encoding is the load-bearing part: the flags are
  * `'1'`/`''` strings since Bun 1.4 stopped accepting accessor descriptors on
  * `process.env`, and a plain `false` stores the string `"false"`, which is
@@ -28,7 +28,7 @@ import { __resetClaimedCache, claimedBeside } from './handler'
  */
 function withProdFlag<T>(value: boolean, fn: () => T): T {
   // Restored, never deleted. This file imports `core/init` above, so `PROD` is
-  // always present by the time anything here runs — and deleting a flag you do
+  // always present by the time anything here runs, and deleting a flag you do
   // not own leaves it `undefined` for every file that runs after, which is the
   // leak `conventions.test.ts` bans outright.
   const original = process.env.PROD
@@ -72,7 +72,7 @@ describe('sibling claims', () => {
     // `PROD` is `'1'` in a test process, so development has to be asked for
     // explicitly here. That is also why `__resetClaimedCache` exists: a test
     // that writes into a page directory between two calls is, by default,
-    // running against the production behaviour.
+    // running against the production behavior.
     withProdFlag(false, () => {
       const root = pageDir()
       const target = `${root}/[...slug].vue`
@@ -134,7 +134,7 @@ describe('sibling claims', () => {
   })
 
   test('the extensionless stem is claimed alongside the file', () => {
-    // Unchanged behaviour, pinned here because the memo now stands between
+    // Unchanged behavior, pinned here because the memo now stands between
     // the walk and every caller.
     const root = pageDir()
     const claims = claimedBeside(`${root}/[...slug].vue`)

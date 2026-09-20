@@ -6,10 +6,10 @@
  *
  * **Why a screenshot at all.** The README describes a server that resolves
  * routes off the filesystem and checks a schema against the database on the way
- * up, and it described that in a monochrome fence. The boot output is coloured
- * on purpose — green for the two things that had to succeed before the port
+ * up, and it described that in a monochrome fence. The boot output is colored
+ * on purpose: green for the two things that had to succeed before the port
  * opened, blue for an address worth clicking, yellow for the numbers a reader
- * might want to change — and a fence throws all of that away.
+ * might want to change, and a fence throws all of that away.
  *
  * **Generated, not captured by hand.** The server is booted, its output read
  * until it reports the port open, and the process torn down. Refreshing the
@@ -22,7 +22,7 @@
  * dark one.
  */
 
-/** GitHub's own light and dark palettes — the image sits inside a GitHub page. */
+/** GitHub's own light and dark palettes: the image sits inside a GitHub page. */
 const THEMES = {
   dark: {
     bg: '#0d1117',
@@ -68,9 +68,9 @@ interface Run {
 /**
  * ANSI SGR into runs.
  *
- * Only the codes the logger emits — `packages/core/src/logger/logger.ts` is the
- * whole palette. Anything unrecognised resets rather than guessing: a wrong
- * colour here is a claim about the output that is not true.
+ * Only the codes the logger emits: `packages/core/src/logger/logger.ts` is the
+ * whole palette. Anything unrecognized resets rather than guessing: a wrong
+ * color here is a claim about the output that is not true.
  *
  * `37` is the logger's "regular", which means the foreground rather than a
  * literal white; painting it white would leave it invisible on the light pane.
@@ -121,7 +121,7 @@ const esc = (s: string) =>
 
 const strip = (line: string) => line.replace(/\x1b\[[0-9;]*m/g, '')
 
-const TITLE = 'my-app — bakery'
+const TITLE = 'my-app: bakery'
 
 function pane(lines: string[], theme: Theme, name: string): string {
   const body = lines
@@ -232,7 +232,7 @@ if (!lines.length) {
 
 const html = `<!doctype html>
 <meta charset="utf-8">
-<title>bakery — terminal</title>
+<title>bakery, terminal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">

@@ -6,7 +6,7 @@
  * everything else and had no business sharing a module with the grid's chrome.
  *
  * A **single click opens a preview tab** and a **double click makes it
- * permanent** — the two are wired here and defined in `tabs.ts`.
+ * permanent**: the two are wired here and defined in `tabs.ts`.
  */
 
 import { append, box, button, each, el, on } from './dom'
@@ -46,7 +46,7 @@ export function renderSidebar(ctx: SidebarContext): HTMLElement {
  * The system-tables checkbox, present only when there is something to reveal.
  *
  * `__bakery_schema` is the ORM's sync ledger and is not the user's data, so it
- * is hidden by default — but every real client offers the toggle rather than
+ * is hidden by default, but every real client offers the toggle rather than
  * hiding such tables outright, because a ledger row is occasionally exactly
  * what someone needs to see. The count is in the label so the checkbox says
  * what it would do before it is clicked.
@@ -65,7 +65,7 @@ function systemToggle(ctx: SidebarContext): HTMLElement | null {
   const label = el('label', {
     class: 'note system-toggle',
     text: ` show system tables (${hidden})`,
-    title: "the framework's own bookkeeping — the ORM sync ledger",
+    title: "the framework's own bookkeeping: the ORM sync ledger",
   })
   label.prepend(check)
   return label
@@ -76,8 +76,8 @@ function tableButton(ctx: SidebarContext, table: SchemaTable): HTMLElement {
     class: 'table-btn',
   })
   // `dblclick` fires *after* its two `click`s, so the single click has already
-  // opened the preview tab and this only promotes it — which is exactly VS
-  // Code's behaviour and needs no suppression of the first click.
+  // opened the preview tab and this only promotes it, which is exactly VS
+  // Code's behavior and needs no suppression of the first click.
   on(node, 'dblclick', () => ctx.onOpen(table.name))
 
   if (table.name === ctx.activeTable) node.classList.add('active')
@@ -96,7 +96,7 @@ function badgeFor(table: SchemaTable): HTMLElement | null {
     return el('span', {
       class: 'ro',
       text: '⊞',
-      title: 'a view — it has no rows of its own to address',
+      title: 'a view: it has no rows of its own to address',
     })
   }
   if (!table.writable) {

@@ -5,7 +5,7 @@ import { restorableRow } from './bulk'
  * The undo offered after deleting a single row.
  *
  * It re-inserts the row the grid rendered, and `getData` adds a key that is
- * not a column on two of the three dialects — SQLite selects `rowid`,
+ * not a column on two of the three dialects: SQLite selects `rowid`,
  * Postgres `ctid::text AS rowid`. `validateInsertRow` refuses unknown columns
  * by design, so the restore answered `400 rowid: unknown_column` and the undo
  * did nothing. MySQL selects `*` and never showed it, and the stub adapter in

@@ -23,7 +23,7 @@ import {
  *
  * Deliberately dependency-free. `bun create` downloads this package on its own,
  * so anything it depends on is a download the user waits through before seeing
- * a single file — and the framework it scaffolds is the last thing it should
+ * a single file, and the framework it scaffolds is the last thing it should
  * drag along.
  */
 
@@ -61,7 +61,7 @@ type Options = {
   dir: string
   name: string
   install: boolean
-  /** `null` means "not specified" — ask, or fall back to the default. */
+  /** `null` means "not specified". Ask, or fall back to the default. */
   orm: boolean | null
   plugins: PluginId[] | null
   yes: boolean
@@ -71,14 +71,14 @@ type Options = {
  * Parse one `--plugins` value into the ids it names.
  *
  * Split out of `parseArgs` because it is the only flag that validates rather
- * than assigns, and inlining it put the loop over the complexity limit — which
+ * than assigns, and inlining it put the loop over the complexity limit, which
  * is the rule doing its job: a `for` over argv should read as a dispatch table.
  */
 function parsePlugins(
   value: string,
 ): { ok: true; plugins: PluginId[] } | { ok: false; message: string } {
   // `none` rather than an empty string, so "I want no plugins" is something you
-  // can state — an empty `--plugins=` reads like a mistake and is treated as one
+  // can state: an empty `--plugins=` reads like a mistake and is treated as one
   // by the caller, which rejects an empty value before reaching here.
   if (value === 'none') return { ok: true, plugins: [] }
 
@@ -109,7 +109,7 @@ function parsePlugins(
  * user typed, and answering it with a stack trace teaches nothing. Throwing is
  * reserved for a failure of the scaffolding itself.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: argv dispatcher — one branch per flag
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: argv dispatcher, one branch per flag
 export function parseArgs(
   argv: string[],
 ): { ok: true; options: Options } | { ok: false; message: string } {
@@ -174,7 +174,7 @@ export function parseArgs(
   if (dir === null) return { ok: false, message: HELP }
 
   // `.` is the documented way to scaffold in place, and `basename(resolve('.'))`
-  // is the containing folder's name — which is the name the user means.
+  // is the containing folder's name, which is the name the user means.
   const resolved = resolve(dir)
   const appName = name ?? basename(resolved)
 
@@ -198,8 +198,7 @@ export function parseArgs(
  * Fill in whatever the flags left unspecified.
  *
  * Asks only when there is a terminal on both ends and `--yes` was not passed.
- * A pipe, a CI runner or a `--yes` takes the defaults — ORM in, no plugins —
- * which is what `bun create bakery my-app` has always produced, so adding the
+ * A pipe, a CI runner or a `--yes` takes the defaults (ORM in, no plugins),  * which is what `bun create bakery my-app` has always produced, so adding the
  * prompts changed no existing invocation.
  *
  * Returns `null` when the user cancels, which is a distinct outcome from
@@ -252,7 +251,7 @@ export async function resolveChoices(
  * overwritten.
  *
  * Scaffolding is the one operation where "the directory already had something
- * in it" is almost always a mistake, and it is not undoable — so this refuses
+ * in it" is almost always a mistake, and it is not undoable, so this refuses
  * rather than merges or prompts. `.git` and the editor droppings people
  * routinely create a directory with are ignored, because refusing on those
  * makes `git init && bun create bakery .` fail for no reason.
@@ -265,7 +264,7 @@ export async function isScaffoldable(dir: string): Promise<boolean> {
     entries = await readdir(dir)
   } catch {
     // Does not exist, which is the common case and the good one. A permission
-    // error also lands here and is caught properly by the write that follows —
+    // error also lands here and is caught properly by the write that follows:
     // reporting it as "not empty" would be a worse message than the real one.
     return true
   }
@@ -316,7 +315,7 @@ async function main(): Promise<number> {
   if (!(await isScaffoldable(dir))) {
     console.log(
       `${dir} already has files in it. Bakery will not scaffold over an ` +
-        'existing directory — pick an empty one, or empty this one first.',
+        'existing directory. Pick an empty one, or empty this one first.',
     )
     return 1
   }
@@ -351,7 +350,7 @@ async function main(): Promise<number> {
     const code = await proc.exited
     if (code !== 0) {
       console.log(
-        '\nbun install failed. The app is written — run it again in ' +
+        '\nbun install failed. The app is written. Run it again in ' +
           `${dir} once the problem is fixed.`,
       )
       return code

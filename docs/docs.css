@@ -1,12 +1,12 @@
 /*
-  Hand-written, no build step and no CDN — the site is one file plus the .md
+  Hand-written, no build step and no CDN: the site is one file plus the .md
   sources it renders. That is deliberate: `docs/*.md` stays the single source of
   truth, so `tests/docs-examples.test.ts` still compiles every example in it.
   A generator would either fork the content or move it out of that test's reach.
 */
 :root {
-  /* Tells the browser to render *native* UI — scrollbars, the search input's
-     clear button, focus rings — in the matching scheme. Without it the page
+  /* Tells the browser to render *native* UI (scrollbars, the search input's
+     clear button, focus rings) in the matching scheme. Without it the page
      goes dark and the scrollbar stays white, which is the one piece of chrome
      no amount of custom CSS reaches on its own. */
   color-scheme: light;
@@ -42,7 +42,7 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     /* Must match `:root[data-theme="dark"]` above. These were #e8974a/#f0a962
-       — bakery's orange, carried over when this shell was adapted from that
+      : bakery's orange, carried over when this shell was adapted from that
        project's and never re-themed. The explicit toggle was right, so the bug
        only showed for a reader whose OS is dark and who never touched the
        control: the whole site in another project's brand colour. */
@@ -109,7 +109,7 @@ body {
 }
 /* The version badge *is* the picker.
  *
- * `appearance: base-select` opts into the customizable select — the button and
+ * `appearance: base-select` opts into the customizable select, the button and
  * the popup become styleable elements rather than OS chrome. A browser that has
  * not implemented it ignores the declaration and every `::picker()` rule with
  * it, and is left with a working native select that reads the same list. So the
@@ -117,7 +117,7 @@ body {
  * plain, never to broken. */
 .picker {
   border: 0; cursor: pointer; font-family: var(--mono);
-  /* Takes the free space so everything after it sits against the right edge —
+  /* Takes the free space so everything after it sits against the right edge,
      the job `.brand` used to do, moved one element along so the version sits
      beside the title instead of being flung to the far side of the bar. Same
      reason there is no `.nav-spacer`: an auto margin on a real element beats an
@@ -179,14 +179,14 @@ body {
 .results.open { display: block; }
 .results a { display: block; padding: 8px 10px; border-radius: 7px; text-decoration: none; color: var(--text); overflow: hidden; }
 .results a:hover, .results a.sel { background: var(--bg-alt); }
-/* All three are spans, so each needs `display:block` — without it the crumb,
+/* All three are spans, so each needs `display:block`, without it the crumb,
    title and snippet run together on one line ("ARCHITECTUREArchitecture…"). */
 .results .r-title { display: block; font-weight: 600; color: var(--text-strong); font-size: 14px; line-height: 1.4; }
 .results .r-crumb { display: block; font-size: 11px; color: var(--brand); text-transform: uppercase; letter-spacing: .04em; }
 .results .r-snip { display: block; font-size: 12px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .results .empty { padding: 14px; color: var(--text-mute); font-size: 13px; text-align: center; }
 /* Every icon is an inline SVG sized identically and filled with currentColor.
-   These were text glyphs — "◐" and "⌥" — which sit on different optical
+   These were text glyphs ("◐" and "⌥"), which sit on different optical
    baselines, cannot be aligned reliably, and vary by installed font. "⌥" is the
    Mac option key, which was standing in for a GitHub mark that did not exist. */
 .icon-btn {
@@ -229,7 +229,7 @@ main {
      onto the heading, which then covers that band itself. */
   width: var(--aside-w); flex: none; padding: 0 20px 0 8px;
   /* 80vh, not 80%: a percentage resolves against the containing block, and
-     this one has no definite height — the declaration would be dropped and
+     this one has no definite height. The declaration would be dropped and
      the panel would grow until the page itself scrolled. The fifth of the
      viewport it leaves is what keeps the last entries off the bottom edge,
      which is the job a bottom padding was doing badly: padding sits inside
@@ -241,7 +241,7 @@ main {
   transition: mask-image .2s linear;
 }
 
-/* Only while there is something below to scroll to — a permanent fade would
+/* Only while there is something below to scroll to: a permanent fade would
    dim the last entry of a list that fits, which says "more" when there is
    none. The class is set from the script, since no selector can ask whether an
    element overflows. */
@@ -366,7 +366,7 @@ main {
   main { margin-left: 0; padding: 28px 20px 80px; }
   #search { width: 130px; } #search:focus { width: 170px; }
 }
-/* The nav ran out of room below ~600px — 445px of content in a 388px viewport,
+/* The nav ran out of room below ~600px, 445px of content in a 388px viewport,
    which pushed the GitHub link off-screen where it could not be tapped. A
    narrower field only moves the breakpoint where that happens again, so the
    field collapses to an icon instead and expands over the nav when tapped. */
@@ -392,7 +392,7 @@ main {
 
 /* ----------------------------------------------------------------- changelog
    The releases page. Every entry is an `h2` the markdown renderer produced, so
-   the rules hang off that rather than off markup this page emits specially —
+   the rules hang off that rather than off markup this page emits specially:
    there is none, which is what lets the page reuse the renderer, the anchors,
    the on-page contents and the search index unchanged.
 
@@ -418,6 +418,6 @@ main {
 }
 .changelog h2 + p { margin: 0 0 18px; }
 
-/* The point the next batch of releases is fetched at. It has no content — the
+/* The point the next batch of releases is fetched at. It has no content: the
    observer needs something with a position, not something with a look. */
 .cl-more { height: 1px; }

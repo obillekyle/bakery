@@ -2,7 +2,7 @@
  * The interactive half of `bun create bakery`, written from scratch.
  *
  * Every prompt library worth using is a dependency, and this package declares
- * **none** on purpose — `bun create` downloads it standalone, so anything it
+ * **none** on purpose: `bun create` downloads it standalone, so anything it
  * pulls in is a download the user waits through before seeing a single file.
  * Two prompts is less code than justifying the exception.
  *
@@ -185,7 +185,7 @@ export async function confirm(
   return null
 }
 
-/** Returns the chosen ids, or `null` if the user cancelled. */
+/** Returns the chosen ids, or `null` if the user canceled. */
 export async function multiselect(
   question: string,
   choices: Choice[],

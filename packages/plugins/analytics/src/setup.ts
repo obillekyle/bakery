@@ -123,7 +123,7 @@ export { startAnalyticsLoop }
  * plugin keeps the same rule in `isDashboardPath`, over namespaces rather than
  * exact paths.
  *
- * Exact matches, not prefixes — `/_analytics/pingback` belongs to the app.
+ * Exact matches, not prefixes: `/_analytics/pingback` belongs to the app.
  */
 const ANALYTICS_PATHS = new Set([
   '/_analytics/ping',
@@ -156,7 +156,7 @@ class AnalyticsHandler extends Handler {
 
 /**
  * Auth stays inside each endpoint (`handleStatsRequest` / `handleResetRequest`
- * fail closed on their own) — this table only replaces the path/method chain.
+ * fail closed on their own): this table only replaces the path/method chain.
  *
  * `satisfies` rather than an annotation: it checks the table against
  * `PluginRouteTable` while keeping the literal type, so `routeTable` can carry
@@ -170,7 +170,7 @@ const analyticsRoutes = routeTable({
 
 /**
  * `/_analytics/ping` is a plain `Response`; the two `/api/` endpoints return
- * the JSON envelope, which the router serialises in `processResponse`. Spelling
+ * the JSON envelope, which the router serializes in `processResponse`. Spelling
  * the union out here means adding a route that returns something else is a
  * compile error rather than a silent widening.
  */
@@ -194,7 +194,7 @@ export interface AnalyticsAuthOptions {
 /**
  * The auth half of `setupAnalytics`, split out from the once-only half.
  *
- * Auth is (re)applied on every call — last config wins — so the dashboard
+ * Auth is (re)applied on every call (last config wins), so the dashboard
  * bringing analytics up with the shared key overrides a bare
  * `analyticsPlugin()`, whichever order they registered in.
  *
@@ -208,7 +208,7 @@ export interface AnalyticsAuthOptions {
  * shutting the console it was registered to open. A call that carries a value
  * wins; a bare call is a no-op against auth rather than a silent disarm.
  * Turning a door off means not registering the plugin, or passing the empty
- * string — never omitting the option.
+ * string, never omitting the option.
  *
  * It is separate, and exported, because `setupAnalytics` cannot be called from
  * a test: it also registers two handlers, installs a shutdown hook and kicks

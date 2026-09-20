@@ -2,7 +2,7 @@
  * What the server said about a column, and the four decisions the grid makes
  * from it.
  *
- * **Pure — no DOM.** Every branch the editor would otherwise take on a column's
+ * **Pure, no DOM.** Every branch the editor would otherwise take on a column's
  * type is resolved here, once, into a `WidgetKind`, and every consumer
  * dispatches through a record of small functions rather than an if-chain. A
  * record of five functions has no cognitive complexity; five `else if`s have
@@ -11,7 +11,7 @@
  *
  * The shapes below mirror `endpoints/read.ts` exactly. They are re-declared
  * rather than imported because that module reaches for the ORM and for
- * `node:async_hooks` through its neighbours, and this one is compiled into the
+ * `node:async_hooks` through its neighbors, and this one is compiled into the
  * browser bundle.
  */
 
@@ -48,7 +48,7 @@ export interface SchemaTable {
   rowCount: number
   columns: SchemaColumn[]
   identity: Identity
-  /** Optional so a fixture — and an older server — need not carry them. */
+  /** Optional so a fixture (and an older server) need not carry them. */
   indexes?: SchemaIndex[]
   isView?: boolean
   writable: boolean
@@ -87,7 +87,7 @@ export type WidgetKind = 'enum' | 'boolean' | 'date' | 'json' | 'text'
 
 /**
  * `enum` first, because it is a constraint on a `string` column rather than a
- * kind of its own — the server reports `kind: 'string'` with an `enum` list,
+ * kind of its own: the server reports `kind: 'string'` with an `enum` list,
  * and a free-text box over a checked list is a guaranteed round trip to a
  * `not_in_enum` error.
  */
@@ -124,7 +124,7 @@ export function columnMeta(column: SchemaColumn): ColumnMeta {
  * `NULL` is rendered as the word and styled as absent, which is the
  * distinction the whole editor turns on: an empty string is a value and a
  * blank cell would make the two look identical. Binary is summarised rather
- * than dumped — a blob rendered as its bytes is thousands of characters of
+ * than dumped: a blob rendered as its bytes is thousands of characters of
  * noise that also makes the row unselectable.
  */
 export function cellText(value: unknown): string {
@@ -139,7 +139,7 @@ function safeJson(value: unknown): string {
     return JSON.stringify(value) ?? String(value)
   } catch {
     // A cycle or a BigInt. The cell still has to render something, and the
-    // failure is cosmetic — the value itself is untouched.
+    // failure is cosmetic: the value itself is untouched.
     return String(value)
   }
 }

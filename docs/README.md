@@ -9,7 +9,7 @@ route manifest to register, and no bundler config to maintain.
 
 | | |
 | --- | --- |
-| **Runtime** | Bun **1.3.14 or newer**. Not optional — `Bun.serve` is the server, `Bun.SQL` the database driver, `Bun.build` the compiler. There is no Node fallback. |
+| **Runtime** | Bun **1.3.14 or newer**. Not optional: `Bun.serve` is the server, `Bun.SQL` the database driver, `Bun.build` the compiler. There is no Node fallback. |
 | **Package manager** | Bun. `npm install` resolves the packages but cannot run them. |
 | **TypeScript** | Only for typechecking and editor support. Bun transpiles at runtime; a generated app installs `typescript` and `bun-types` for you. |
 
@@ -23,7 +23,7 @@ bun create bakery my-app
 cd my-app && bun run dev
 ```
 
-Open [localhost:3000](http://localhost:3000). That is the whole loop — the scaffolder writes a
+Open [localhost:3000](http://localhost:3000). That is the whole loop: the scaffolder writes a
 working app, installs its dependencies, and `bun run dev` serves it with live
 reload.
 
@@ -73,7 +73,7 @@ file's path *is* the route.
 
 > **Adding a `.tsx` page needs one more file.** Pages render through Bakery's own
 > `createElement`, and Bun's runtime does not follow `extends` into a package
-> specifier — so a `tsconfig.json` repeating three `jsx*` options is required, or
+> specifier, so a `tsconfig.json` repeating three `jsx*` options is required, or
 > every page returns 500 while `tsc` stays clean. `bun create bakery` writes it
 > correctly; [Installation](getting-started/installation.md#adding-bakery-to-an-existing-project)
 > has the file.
@@ -81,14 +81,14 @@ file's path *is* the route.
 ## Key concepts
 
 - **Filesystem routing.** A URL resolves against the serve root *per request*,
-  so a dropped-in file serves and a deleted one stops — no restart, no manifest.
+  so a dropped-in file serves and a deleted one stops: no restart, no manifest.
   Resolution is exact file → directory index → `[param]` segment, and static
   always beats dynamic.
 - **Handlers.** Every request surface is a `Handler` subclass registered with a
   priority: `/api` at 70, `.tsx` at 60, `.html` at 55, static files at 0. The
   first handler whose `canHandle` claims the path wins.
 - **Three registries, three scales.** `fetch`, `error` and `websocket` are
-  independent — a fetch handler at 90 and an error handler at 20 are not
+  independent: a fetch handler at 90 and an error handler at 20 are not
   comparable.
 - **Middleware.** An array in `server.config.ts`, running before routing. Return
   a `Response` or a `response.json.*` envelope to stop the request; return
@@ -111,7 +111,7 @@ file's path *is* the route.
 | `src/pricing.html` | `/pricing` |
 | `src/api/orders.ts` | `/api/orders` |
 | `src/api/orders/[id].ts` | `/api/orders/42` |
-| `src/checkout.ts` | `/checkout.js` — compiled for the browser |
+| `src/checkout.ts` | `/checkout.js`: compiled for the browser |
 
 Dynamic segments arrive merged into the body object, not as a separate argument:
 
@@ -128,7 +128,7 @@ export default defineRoute<{ id: string }>((req, body) =>
 The second argument is the **parsed** body: the query string for `GET` and
 `HEAD`, otherwise JSON, form data, or `{ file }` for a binary content type.
 
-Every JSON body the server emits uses one envelope — `{time, status, message,
+Every JSON body the server emits uses one envelope: `{time, status, message,
 data}`:
 
 | Call | Result |
@@ -174,8 +174,8 @@ export default defineConfig({
 ```
 
 A `Response` or a `response.json.*` envelope stops the chain; returning nothing
-continues. Anything else — a string, a bare object, `true` — is ignored and the
-next middleware runs. A **throw** is a 500 and stops the request — deliberately,
+continues. Anything else (a string, a bare object, `true`) is ignored and the
+next middleware runs. A **throw** is a 500 and stops the request: deliberately,
 because middleware is where auth checks live, and treating a crashed check as "no
 opinion" would let the request through.
 
@@ -218,7 +218,7 @@ not tell, which is a fail-open bug wearing a guard's clothing.
 enforce one. Pass a validator and the handler only runs on a body that satisfies
 it:
 
-```ts no-check — `orderSchema` stands in for a Standard Schema the reader supplies
+```ts no-check: `orderSchema` stands in for a Standard Schema the reader supplies
 import { defineRoute, response } from '@bakery-framework/core'
 
 export default defineRoute({ body: orderSchema }, async (req, order) => {
@@ -227,11 +227,11 @@ export default defineRoute({ body: orderSchema }, async (req, order) => {
 })
 ```
 
-`body` accepts any [Standard Schema](https://standardschema.dev) — zod, valibot,
-arktype — or a plain function that returns the parsed value or throws. Bakery
+`body` accepts any [Standard Schema](https://standardschema.dev) (zod, valibot,
+arktype), or a plain function that returns the parsed value or throws. Bakery
 bundles none of them.
 
-**Error pages are files.** `error-404.html`, `error.tsx`, `error-500.tsx` — the
+**Error pages are files.** `error-404.html`, `error.tsx`, `error-500.tsx`: the
 name encodes the scope, and lookup walks *up* from the requested path, trying
 `error-<code>` before `error` at each level:
 
@@ -248,7 +248,7 @@ and the right status.
 | --- | --- |
 | Return `response.json.error(...)` from a route | Throwing for an expected denial |
 | `defineRoute({ body: schema }, handler)` | Trusting `defineRoute<T>` to validate |
-| `middleware` for auth — only two return shapes halt it | The `onRequest` hook, where any truthy return halts the request |
+| `middleware` for auth, only two return shapes halt it | The `onRequest` hook, where any truthy return halts the request |
 | `Bakery.dataDir` for anything precious | `.cache/`, which the framework deletes on its own |
 | `hostKey(path)` for a per-tenant cache | Keying a map on a client-supplied header |
 

@@ -3,7 +3,7 @@ import { parseCSVRows, sniffDelimiter, stripBOM } from './csv'
 
 /**
  * The four things `parseCSVRows` in `orm/adapters/base.ts` gets wrong are the
- * first four tests here — see this module's header for why it is a second
+ * first four tests here. See this module's header for why it is a second
  * implementation rather than a fix to that one.
  */
 

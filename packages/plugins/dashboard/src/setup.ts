@@ -2,7 +2,7 @@ import { bundleModule } from '@bakery-framework/core/compiler'
 import { Bakery } from '@bakery-framework/core/core/bakery'
 import { isDevWorker } from '@bakery-framework/core/core/init'
 import { Handler, mountRoutes } from '@bakery-framework/core/handlers'
-// LiveReloadHandler owns this registry — it adds and removes sockets from it.
+// LiveReloadHandler owns this registry: it adds and removes sockets from it.
 import {
   connectedLoggers,
   errorMsg,
@@ -43,7 +43,7 @@ let cachedDashboardJsPath: string | null = null
  * `/_dashboard` and `/api/_dashboard` are namespace *roots*, not prefixes.
  *
  * A bare `startsWith` also matches `/api/_dashboard-anything`, and this handler
- * outranks every content handler at priority 120 — so the prefix form silently
+ * outranks every content handler at priority 120, so the prefix form silently
  * claimed, and then 404'd, any application route whose path merely began with
  * those characters. Match the root itself or a segment below it, nothing else.
  */
@@ -62,7 +62,7 @@ export class DashboardHandler extends Handler {
 
   static canHandle(path: string) {
     // Deliberately narrow. This handler outranks every content handler, so
-    // anything it claims can never reach the route mount below — assets must
+    // anything it claims can never reach the route mount below: assets must
     // fall through.
     if (inNamespace(path, '/api/_dashboard')) return true
     return path === '/_dashboard' || path === '/_dashboard/dashboard.js'
@@ -85,7 +85,7 @@ export class DashboardHandler extends Handler {
 }
 
 /**
- * The console holds no authorization state of its own — there is no
+ * The console holds no authorization state of its own: there is no
  * `__setTestAuthorize` seam here any more, because there is nothing local to
  * seam. Both options land in analytics, and a test drives the door with
  * `setAnalyticsAuthorize` / `setAnalyticsCredential` from
@@ -97,7 +97,7 @@ export class DashboardHandler extends Handler {
  * the console keeps its documented default of loopback-in-development,
  * because `bun create bakery` scaffolds a bare `dashboardPlugin()` and a
  * console that 404s on the first `bun run dev` is the wrong first impression.
- * Forwarding `defaultAuthorize` can only ever narrow — it denies in
+ * Forwarding `defaultAuthorize` can only ever narrow: it denies in
  * production and admits nothing but this machine in development.
  */
 export function setupDashboard(
@@ -127,11 +127,11 @@ export function setupDashboard(
   })
 
   // The stylesheet is served by the normal static pipeline from this
-  // plugin's own directory — no bespoke asset route, no hand-rolled caching.
+  // plugin's own directory: no bespoke asset route, no hand-rolled caching.
   mountRoutes('/_dashboard', pluginPath('../public'))
 
   // The console's log stream, and it is registered in every mode. The Logs
-  // panel used to ride on `/_livereload`, which exists only under `DEV` — so
+  // panel used to ride on `/_livereload`, which exists only under `DEV`, so
   // the panel worked on the machine it was written on and answered 400
   // everywhere else. See `endpoints/logs-socket.ts`.
   Bakery.handlers.websocket.set(DashboardLogsHandler)
@@ -153,25 +153,25 @@ async function handleDashboardView() {
  * survives into the output and resolves through the page's import map. That is
  * correct for the `/_nm/` bundles, which are loaded as modules. It is fatal
  * here: this file is served as a classic `<script>`, an import map does not
- * apply to one, and a top-level `import` is a syntax error — so the *entire*
+ * apply to one, and a top-level `import` is a syntax error, so the *entire*
  * bundle fails to execute and the console does nothing at all.
  *
  * **This asks the engine instead of matching a pattern, and the first version
  * of it matched a pattern and was wrong.** It anchored on `^import`. In
  * development the bundle is not minified and the import starts a line, so it
  * looked right. Production minifies, the import lands mid-line, and the check
- * that existed to catch exactly this missed it — measured by reintroducing the
+ * that existed to catch exactly this missed it: measured by reintroducing the
  * bug and watching a production server answer 200 with the import present.
  *
  * Against seven shapes, the anchored regex was wrong on three: a minified bare
  * import, a side-effect-only `import"./x.css"`, and a top-level `await`. A
  * widened regex got the first two and still missed the third. `new Function`
- * is wrong on none of them, because it is not approximating the question — a
+ * is wrong on none of them, because it is not approximating the question: a
  * function body rejects a top-level `import` and a top-level `await` for the
  * same reasons a classic script does. It also costs less than the widened
  * regex: 13.0 us against 26.4 on a 24 KB bundle, and 12.0 for the broken one.
  *
- * It parses without executing, and only on the build path — the cached branch
+ * It parses without executing, and only on the build path: the cached branch
  * returns the file and never reaches here.
  *
  * One known difference, and it is in the safe direction: a function body
@@ -233,7 +233,7 @@ export async function handleJsAsset() {
   const unrunnable = whyUnrunnable(bundleResult.content as string)
   if (unrunnable) {
     pluginLog.DASHBOARD_BUNDLE_ERR({
-      error: `dashboard.js cannot run as a classic script: ${unrunnable}. The usual cause is an import across a package boundary, which the bundler leaves as a bare specifier for the import map — and an import map does not apply to a classic script.`,
+      error: `dashboard.js cannot run as a classic script: ${unrunnable}. The usual cause is an import across a package boundary, which the bundler leaves as a bare specifier for the import map, and an import map does not apply to a classic script.`,
     })
     return response.error(
       `dashboard.js cannot run as a classic script: ${unrunnable}`,
@@ -257,7 +257,7 @@ export async function handleJsAsset() {
 /**
  * One door, and it is analytics'. `isAnalyticsAuthorized` reads the same
  * credential and the same predicate that gate `/api/_analytics/stats` and the
- * `/_analytics_ws` socket — which the console's own client calls, so a console
+ * `/_analytics_ws` socket, which the console's own client calls, so a console
  * admitted by a different key than the data it renders would be half-open by
  * construction.
  *
@@ -270,7 +270,7 @@ export async function handleJsAsset() {
  */
 async function checkAuthMiddleware(req: Request, path: string) {
   // Styling and script for the console are not secrets, and letting them
-  // through keeps an unauthorised response from rendering unstyled.
+  // through keeps an unauthorized response from rendering unstyled.
   if (/\.(css|js)$/.test(path)) return null
 
   if (await isAnalyticsAuthorized(req)) return null
@@ -281,7 +281,7 @@ async function checkAuthMiddleware(req: Request, path: string) {
 }
 
 /**
- * `checkCsrf` has exactly one other call site — inside `ApiHandler`, at
+ * `checkCsrf` has exactly one other call site: inside `ApiHandler`, at
  * priority 70. This handler sits at 120 and claims the whole `/api/_dashboard`
  * namespace, so `ApiHandler.handle` never ran for these paths and the check
  * never happened: a cross-origin `<form method=post>` arrived with the
@@ -294,7 +294,7 @@ async function checkAuthMiddleware(req: Request, path: string) {
  * that reason; neither half closes the hole alone.
  *
  * The example used to be `execute-action?action=truncate`, which was the worst
- * of them — a link that emptied a table. That endpoint is gone with the grid
+ * of them: a link that emptied a table. That endpoint is gone with the grid
  * editor, and the two session routes are what is left to protect. The hazard
  * is unchanged; only the blast radius shrank.
  */
@@ -308,11 +308,11 @@ function checkCsrfMiddleware(req: Request, url: URL): DashboardResponse | null {
 }
 
 /**
- * Authenticated routes only — the logout/login cases below run before the auth
+ * Authenticated routes only: the logout/login cases below run before the auth
  * check and are deliberately kept out of this table.
  *
  * Every mutating endpoint is method-qualified. A bare key matches **any**
- * method, which made each of these reachable by GET — and a GET is a safe
+ * method, which made each of these reachable by GET, and a GET is a safe
  * method as far as `checkCsrf` is concerned, so the CSRF guard above cannot
  * see it. `POST /api/_analytics/reset` is the same shape.
  *
@@ -334,8 +334,8 @@ const dispatchDashboardRoute = routeTable(dashboardRoutes)
  * Three genuinely different shapes, so a union rather than a single type: the
  * shell is a `Response`, `dashboard.js` is served straight off disk as a
  * `Bun.BunFile` once it has been bundled and cached, and every `/api/` endpoint
- * answers with the JSON envelope. `processResponse` in `router.ts` serialises
- * all three — `Response` passes through, a `Blob` goes to `ETag.sendFile`, and
+ * answers with the JSON envelope. `processResponse` in `router.ts` serializes
+ * all three: `Response` passes through, a `Blob` goes to `ETag.sendFile`, and
  * a `JsonResponseData` is stamped with the elapsed time and JSON-encoded.
  */
 export type DashboardResponse =
@@ -364,7 +364,7 @@ export async function handleDashboardRequest(
   if (result) return result
 
   // `dispatch` answers `null` for a path no key matched, and a handler
-  // returning `null` means "not mine" — which core turns into **204 No
+  // returning `null` means "not mine", which core turns into **204 No
   // Content**. Every unmatched request under this namespace therefore answered
   // 204: a status that reads as success and carries nothing.
   //
@@ -376,7 +376,7 @@ export async function handleDashboardRequest(
   // **Only under `/api/`, and that boundary is load-bearing.** The stylesheet
   // is served by `mountRoutes`, not by a key in the table above, so `null` is
   // precisely how `/_dashboard/style.css` *falls through* to the static
-  // pipeline. A blanket 404 here claims it and the console loads unstyled —
+  // pipeline. A blanket 404 here claims it and the console loads unstyled,
   // which is what happened when this was first written without the condition.
   if (path.startsWith('/api/')) return response.error('Not Found', 404)
   return null

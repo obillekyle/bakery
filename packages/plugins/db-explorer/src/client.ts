@@ -1,23 +1,23 @@
 /**
  * The explorer's browser entry: boot, then wiring. Nothing else.
  *
- * This file used to be the whole client — 197 lines, one `renderTable` that
+ * This file used to be the whole client: 197 lines, one `renderTable` that
  * fetched, built a header, built a body and built a pager, and scored **34**
  * against biome's ceiling of 25. Growing that into a data editor would have
  * meant growing that one function, so the shape changed first. The pieces live
- * under `client/`, each obeying two mechanical rules — **no function both
- * fetches and renders**, and **every loop body is a named function** — and what
+ * under `client/`, each obeying two mechanical rules (**no function both
+ * fetches and renders**, and **every loop body is a named function**), and what
  * is left here is the composition: state, routing, and which callback goes
  * where.
  *
  * The layout is the one a database client is expected to have: a table list, a
  * strip of table tabs with VS Code preview semantics, Data / Structure /
- * Relations under it — **one level of nesting and no more** — and a status bar.
+ * Relations under it (**one level of nesting and no more**), and a status bar.
  * Tab state lives in `client/tabs.ts` and is pure; this module owns the hash.
  *
  * What is deliberately *not* here, and is not anywhere: a SQL console, an ER
- * diagram, and grid virtualisation. The first is refused by the plugin's
- * contract — no raw SQL, structurally — and the other two are not what a row
+ * diagram, and grid virtualization. The first is refused by the plugin's
+ * contract (no raw SQL, structurally), and the other two are not what a row
  * editor is for.
  */
 
@@ -119,7 +119,7 @@ function writeHash(): void {
   selfNavigation = true
   location.hash = encodeTabs(tabs)
   // `hashchange` fires as a task, so the flag has to survive at least until
-  // the next one — a microtask would clear it before the listener ran.
+  // the next one: a microtask would clear it before the listener ran.
   setTimeout(() => {
     selfNavigation = false
   }, 0)
@@ -137,7 +137,7 @@ async function confirmDiscard(): Promise<boolean> {
   const ok = await confirmChoice({
     verb: 'discard',
     count: session.dirtyRows(),
-    table: currentTable() || '—',
+    table: currentTable() || '-',
     detail: 'unsaved edits will be thrown away',
   })
   if (ok) session.clear()
@@ -202,8 +202,8 @@ function switchView(view: TableView): void {
  *
  * The slots matter: `renderChrome` repaints the sidebar and the strip in
  * place, and `#main` is not one of them. Rebuilding the whole shell on every
- * tab-strip change would tear down the grid — including any editor open in it
- * and the focus inside that editor — every time a staged edit promoted a
+ * tab-strip change would tear down the grid (including any editor open in it
+ * and the focus inside that editor) every time a staged edit promoted a
  * preview tab, which is precisely when it must not.
  */
 const sideSlot = el('div', { class: 'side-slot' })
@@ -263,7 +263,7 @@ async function renderAll(): Promise<void> {
   await renderMain()
 }
 
-/** Fetch, then render — the two never live in one function. */
+/** Fetch, then render: the two never live in one function. */
 async function renderMain(): Promise<void> {
   const main = mainSlot
   const view = activeView(tabs)
@@ -282,7 +282,7 @@ async function renderMain(): Promise<void> {
   }
 
   // Structure and Relations render from the schema report the client already
-  // holds — no request, so no loading state and no failure path.
+  // holds: no request, so no loading state and no failure path.
   if (view.view !== 'data') {
     page.paintMeta(main, view, table)
     return
@@ -318,7 +318,7 @@ function openRowPanel(
       handle.close()
       save(table, id)
     },
-    // A real edit is what makes a preview tab permanent — VS Code's rule, and
+    // A real edit is what makes a preview tab permanent: VS Code's rule, and
     // the one that matters: nobody wants the tab they just typed into replaced
     // by the next single click in the sidebar.
     onDirtyChange: () => {
@@ -333,14 +333,14 @@ function openRowPanel(
 /**
  * Follow a foreign key.
  *
- * One `eq` filter per referenced column, which *is* the row identity — so the
+ * One `eq` filter per referenced column, which *is* the row identity, so the
  * destination page holds exactly the referenced row. This used to need a
  * second mechanism: `filters` was a substring `LIKE`, `id=1` also matched `11`,
  * so a link carried a separate `focus` identity and the grid highlighted it.
  * `eq` removed the need and `focus` went with it.
  *
  * The current view is pushed first, so Back returns to where the reference was
- * followed from — the breadcrumb, which stays.
+ * followed from: the breadcrumb, which stays.
  */
 async function followFk(
   target: FkTarget,
@@ -370,14 +370,14 @@ async function boot(): Promise<void> {
   adoptUrlKey()
   try {
     // `{access, tables}`: the client has to know its posture *before* it
-    // renders, so it never draws an edit affordance it cannot honour.
+    // renders, so it never draws an edit affordance it cannot honor.
     state.report = await fetchSchema()
   } catch (error) {
     app.replaceChildren(el('p', { class: 'error', text: messageOf(error) }))
     return
   }
 
-  // The graph is decoration — a schema with no declared foreign keys is
+  // The graph is decoration: a schema with no declared foreign keys is
   // ordinary, and a failure here must not cost anyone the grid.
   state.graph = await fetchGraph().catch(() => null)
 

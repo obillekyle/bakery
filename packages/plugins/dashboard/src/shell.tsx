@@ -18,15 +18,15 @@ import { renderTopPagesPanel } from './components/TopPagesPanel'
  * Asked of the registry's *declarations*, never by importing db-explorer: a
  * plugin-to-plugin import is a package-graph edge, and
  * `tests/conventions.test.ts` allows exactly one of those (this package →
- * analytics). `Handler.namespace` is the declaration — any handler that owns
+ * analytics). `Handler.namespace` is the declaration: any handler that owns
  * `/_db` as a surface gets the link, including an application serving its own
  * explorer there.
  *
- * This replaces a behavioural probe that called every handler's
+ * This replaces a behavioral probe that called every handler's
  * `canHandle('/_db')` with a control path to exclude the priority-0 catch-all.
  * The probe worked and its `as any` was the tell: the registry could not say
  * what a handler serves, so the question had to be asked by experiment. Now it
- * can — `list()` is typed `typeof Handler[]`, so this reads with no cast, and
+ * can: `list()` is typed `typeof Handler[]`, so this reads with no cast, and
  * a second plugin wanting a console entry declares a namespace rather than
  * copying a probe.
  */
@@ -58,7 +58,7 @@ function navSections(explorerMounted: boolean): {
       group: 'Data',
       items: [
         // The console does not browse the database any more, so Database is a
-        // way *out* of it when the explorer is mounted — a link, not a tab.
+        // way *out* of it when the explorer is mounted: a link, not a tab.
         // Without it the entry stays a tab showing the panel that explains
         // where the editor went and how to get it back; an entry that silently
         // navigates to a 404 would be worse than either.
@@ -154,7 +154,7 @@ export default function Dashboard() {
             <div class="rail-foot">
               <span>Bakery</span>
               {/* Was the literal `v3`, which was never any version of anything
-                  — nothing filled the id, and the framework was on 1.x when it
+                 : nothing filled the id, and the framework was on 1.x when it
                   was written. `getFrameworkVersion()` reads core's own
                   manifest, which is the number this label claims to be; the
                   app's version is a different question and `BAKERY_VERSION`

@@ -5,8 +5,7 @@ import { type Validator, validate } from '../utils/http/validate'
 /**
  * `defineRoute`, in its own module rather than in `core/index.ts`.
  *
- * `core/index.ts` is a barrel — it pulls in the logger, plugins, jsx and utils —
- * so anything importing it from *inside* core closes a cycle and dies with
+ * `core/index.ts` is a barrel (it pulls in the logger, plugins, jsx and utils),  * so anything importing it from *inside* core closes a cycle and dies with
  * `ReferenceError: Cannot access 'Logger' before initialization`. That is
  * recorded in CLAUDE.md as costing 67 tests once; it cost this file's own tests
  * a second time, which is what moved it here. Consumers still reach it through
@@ -19,9 +18,9 @@ import { type Validator, validate } from '../utils/http/validate'
  *
  *   export default defineRoute<{ id: string }>((req, body) => …)
  *
- * With a validator, it also *enforces* that shape — see the overload below.
+ * With a validator, it also *enforces* that shape. See the overload below.
  *
- * `defineRoute`, not `defineHandler` — "handler" already means a registered
+ * `defineRoute`, not `defineHandler`: "handler" already means a registered
  * `Handler` subclass in this framework, and this defines a route module.
  */
 export function defineRoute<P = {}>(fn: RouteHandler<P>): RouteHandler<P>
@@ -30,7 +29,7 @@ export function defineRoute<P = {}>(fn: RouteHandler<P>): RouteHandler<P>
  *
  *   export default defineRoute({ body: schema }, (req, body) => …)
  *
- * `body` is a Standard Schema (zod, valibot, arktype — Bakery imports none of
+ * `body` is a Standard Schema (zod, valibot, arktype, Bakery imports none of
  * them) or a plain function returning the parsed value. A rejection answers
  * `400` through the framework's JSON envelope and the handler never runs.
  */
@@ -42,7 +41,7 @@ export function defineRoute(
   a: RouteHandler<any> | { body: Validator<any> },
   b?: RouteHandler<any>,
 ): RouteHandler<any> {
-  // One argument: identity, unchanged. Types only, no runtime cost — every
+  // One argument: identity, unchanged. Types only, no runtime cost: every
   // existing route keeps working byte for byte.
   if (typeof a === 'function') return a
 

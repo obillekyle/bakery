@@ -11,21 +11,21 @@ import {
  * Every page the example app ships is requested, and none of them may 500.
  *
  * CLAUDE.md has recorded since the workspace split that "booted meant the
- * process started, not that anything was served" — every `.tsx` page in
+ * process started, not that anything was served", every `.tsx` page in
  * `apps/starter` returned 500 for an unknown stretch while both gates stayed
  * green. That lesson was written down and then not acted on: no workflow boots
  * either app, and nothing in the suite requests a page.
  *
  * So it happened again, in the other app. `d13e57f` made a catch-all bind its
  * segments as an **array**, and `apps/example/src/wiki/[...page].tsx` kept
- * calling `body.page.split('/')`. Every request to it answered 500 — a shipped
+ * calling `body.page.split('/')`. Every request to it answered 500: a shipped
  * page in the repo's own reference app, through an alpha line and twelve
  * releases, with a green suite and a green typecheck the whole way. `tsc`
  * cannot see it because the page's `body` is typed by what the page itself
  * declares, and that declaration was the thing that was wrong.
  *
  * **The assertion is "nothing 5xx", not "everything 200".** A route the walk in
- * `support/serve-app.ts` maps badly — `Layout.tsx` is a component, not a page —
+ * `support/serve-app.ts` maps badly: `Layout.tsx` is a component, not a page:
  * answers 404, and a 404 is a correct answer to a request for something that is
  * not there. To stop the whole thing passing by 404ing uniformly, a handful of
  * routes known to exist are asserted at 200 as well.

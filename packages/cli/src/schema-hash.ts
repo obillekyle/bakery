@@ -1,18 +1,18 @@
 /**
  * Hash everything the boot-time schema sync reads: the schema source files
- * (resolved with the same probe order as orm/sync/load.ts — configured path,
+ * (resolved with the same probe order as orm/sync/load.ts, configured path,
  * then the `orm/` folder layout, then a root `schema.ts`) plus the DB target,
  * since switching `DB_URL` changes what "synced" means.
  *
- * Returns `null` for any indeterminate state — a configured path that does not
- * exist, an unreadable file — so `classifySchemaSync` fails closed into
+ * Returns `null` for any indeterminate state (a configured path that does not
+ * exist, an unreadable file), so `classifySchemaSync` fails closed into
  * re-syncing. Total absence of a schema is *not* indeterminate (it is a
  * supported state for the defaults) and hashes to a stable value.
  *
  * `base` defaults to the app's cwd, which is what `dev.ts` wants and the only
  * value it passes. It is a parameter at all because `fs.cwd` is a module-level
  * constant evaluated at import time, so a test cannot reach this function's
- * probe any other way without `process.chdir` before the import — process-global
+ * probe any other way without `process.chdir` before the import: process-global
  * state of exactly the kind convention 9 exists to keep out of the suite.
  *
  * The `@bakery-framework/core/utils` import stays dynamic, as it was inline in

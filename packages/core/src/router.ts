@@ -27,11 +27,11 @@ import { parsedUrl } from './utils/http/url'
  * The origin check lives here rather than in each `canHandle` on purpose:
  * every socket a plugin or an app registers inherits it, instead of every
  * author having to remember. `/_analytics_ws` was the only handler that got it
- * right on its own, and it did so by authenticating — `/_livereload` had
+ * right on its own, and it did so by authenticating: `/_livereload` had
  * nothing, and `WebSocketHandler.canHandle` returns `true` by default, so the
  * base class was handing out sockets to anyone who asked.
  *
- * Returning `false` (rather than a 403) keeps the published signature — the
+ * Returning `false` (rather than a 403) keeps the published signature: the
  * caller below turns a refusal into `400 WebSocket Upgrade Failed`, which is
  * also what an unclaimed path gets. The reason reaches the log; the client is
  * told nothing it did not already know.
@@ -65,10 +65,10 @@ export async function upgradeWebsocket(
  * Whether the deny-list applies to whatever this handler is about to answer
  * with. `Bakery.config.blocked` exists to stop files on disk being served, so
  * handlers that read the request path as a route *name* opt out by declaring
- * `servesFiles = false` — `ApiHandler`, `ProxyHandler`, `MiddlewareHandler`.
+ * `servesFiles = false`: `ApiHandler`, `ProxyHandler`, `MiddlewareHandler`.
  *
  * Deny by default, and the direction matters. Naming only the obvious file
- * servers — Static, Public, NM — would have left `/schema.ts` and
+ * servers (Static, Public, NM) would have left `/schema.ts` and
  * `/server.config.ts` reachable through `TSHandler`, which compiles a source
  * file and serves the result. Anything that does not opt out, including a
  * plugin's handler, keeps the check.
@@ -94,7 +94,7 @@ export async function handleRequest(req: Request) {
   // One read of the config getter, not three: `Bakery.serveRoot` walks
   // `hostStore.getStore()?.config ?? getConfig()` on every access, and the
   // blocked-glob check below used to pay the same walk again. And no
-  // `fs.resolve` around the target — `isForbidden` normalises both arguments
+  // `fs.resolve` around the target: `isForbidden` normalizes both arguments
   // itself, so that was a second full path resolution of the same string on
   // every request.
   const config = Bakery.config
@@ -102,7 +102,7 @@ export async function handleRequest(req: Request) {
   // Before anything else, including the forbidden-path check: a preflight names
   // the route it is asking about in a *header*, not the path, so running it
   // through routing would answer a question nobody asked. The browser sends no
-  // credentials with it either, which is why it cannot be authorised.
+  // credentials with it either, which is why it cannot be authorized.
   //
   // Only when `cors` is configured. Absent, this is not reached at all and the
   // browser's own default applies.
@@ -136,7 +136,7 @@ export async function handleRequest(req: Request) {
   const handler = await Bakery.handlers.fetch.resolve(path, req)
   if (!handler) return new Response('Not Found', { status: 404 })
 
-  // `matchBlockedCached` memoises the verdict on the request store, so the
+  // `matchBlockedCached` memoizes the verdict on the request store, so the
   // re-check `StaticHandler.handle` keeps for its direct callers costs a map
   // hit instead of a second pair of glob matches.
   if (servesFiles(handler) && matchBlockedCached(config.blocked, path)) {
@@ -236,14 +236,14 @@ export const serveWebSocket: Bun.WebSocketHandler<any> = {
  * Make an error page answer with the error's status.
  *
  * The HTML and TSX error handlers end in `injectIfHtml`, which builds its
- * Response without one — so an app with `src/error-404.html` served its 404
+ * Response without one, so an app with `src/error-404.html` served its 404
  * page as `200 OK` and every crawler, cache and monitor believed it. Applied
  * here rather than inside `injectIfHtml` on purpose: the only status signal
  * available down there is `params`, which for a GET is the query string, and
  * `?errorCode=500` is not something a client gets to decide.
  *
  * A `JsonResponseData` (the `/api/` arm) carries its own `.status` that
- * `processResponse` reads, and a BunFile has no status at all — both pass
+ * `processResponse` reads, and a BunFile has no status at all: both pass
  * through untouched.
  */
 function applyErrorStatus(
@@ -277,7 +277,7 @@ export async function handleRequestError(
 
   // Wrapped for the same reason the registry call below it is: this is app
   // code. An `onError` that throws used to escape `Try.return`'s fallback in
-  // the caller — a fallback that itself rejects is not a fallback — so the one
+  // the caller (a fallback that itself rejects is not a fallback), so the one
   // hook whose job is to handle failure took the app's error page down with
   // it and the client got Bun's raw 500 instead.
   const [onErrorFailed, configError] = await Try.catch(() =>
@@ -353,8 +353,8 @@ export async function processResponse(
   // (e.g. an auth cookie from a login route) that must not be overwritten.
   sess && resp.headers.append('Set-Cookie', sess)
 
-  // Every response funnels through here — pages, API JSON, static files, error
-  // pages — so this is the one place that cannot miss one. Applied before ETag
+  // Every response funnels through here (pages, API JSON, static files, error
+  // pages), so this is the one place that cannot miss one. Applied before ETag
   // so the negotiated `Vary` sees the `Origin` entry and merges with it rather
   // than either overwriting the other.
   const cors = Bakery.config.cors

@@ -88,7 +88,7 @@ describe('response.error', () => {
   })
 
   test('a message with CR/LF or non-ASCII cannot break statusText', async () => {
-    const message = 'first line\r\nsecond line — ünïcode'
+    const message = 'first line\r\nsecond line: ünïcode'
     const res = response.error(message, 502)
     expect(res.status).toBe(502)
     // The reason-phrase must stay printable ASCII with no header-splitting

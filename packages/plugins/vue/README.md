@@ -7,7 +7,7 @@ Vue single-file components for
 bun add @bakery-framework/plugin-vue vue
 ```
 
-`vue` and `@vue/compiler-sfc` are peer dependencies — installing `vue` brings
+`vue` and `@vue/compiler-sfc` are peer dependencies: installing `vue` brings
 the compiler with it.
 
 ## Usage
@@ -28,11 +28,11 @@ Options are typed as `VuePluginOptions`.
 
 ## License
 
-MIT with the Commons Clause v1.0 — see [LICENSE](./LICENSE).
+MIT with the Commons Clause v1.0. See [LICENSE](./LICENSE).
 
-**Not an OSI-approved licence.** The Commons Clause removes the right to *sell*
-the software — meaning to charge for a product or service whose value derives
+**Not an OSI-approved license.** The Commons Clause removes the right to *sell*
+the software: meaning to charge for a product or service whose value derives
 substantially from it, hosting and support included. Everything else the MIT
-licence grants is unchanged: use it, modify it, ship it inside your own product.
-If your organisation only permits OSI-approved dependencies, this will not pass
+license grants is unchanged: use it, modify it, ship it inside your own product.
+If your organization only permits OSI-approved dependencies, this will not pass
 that check.

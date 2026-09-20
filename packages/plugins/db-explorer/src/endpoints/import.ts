@@ -1,5 +1,5 @@
 /**
- * CSV import — the rows, not the file.
+ * CSV import: the rows, not the file.
  *
  * The parse happens in the browser, in `shared/csv.ts`, and stays there. This
  * endpoint takes rows that are already records, so the mapping the user
@@ -8,7 +8,7 @@
  *
  * Two things separate it from `POST /api/_db/rows`, and both are about scale:
  * the bound is a spreadsheet's worth of rows rather than an edit's, and a bad
- * row does not have to end the whole import — `onBadRow: 'skip'` reports it and
+ * row does not have to end the whole import: `onBadRow: 'skip'` reports it and
  * carries on, which is what a 50,000-row file with three malformed lines needs.
  */
 
@@ -56,7 +56,7 @@ export async function handleImport(
     records.push(validated.values)
   })
 
-  // `stop` refuses the whole file before a statement runs — the same "413 with
+  // `stop` refuses the whole file before a statement runs: the same "413 with
   // nothing executed" promise, for a 400.
   if (onBadRow === 'stop' && errors.length) return invalid(errors)
 

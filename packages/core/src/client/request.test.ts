@@ -3,8 +3,7 @@ import { RequestError, request } from './utils'
 
 /**
  * `request()` used to throw a bare `Error` carrying only the envelope's
- * `message` on a non-2xx response, so the `data` half of the JSON envelope —
- * a 409's conflict list, a 400's per-field issues — was unreachable, and
+ * `message` on a non-2xx response, so the `data` half of the JSON envelope ( * a 409's conflict list, a 400's per-field issues) was unreachable, and
  * callers dropped to raw `fetch` exactly where the envelope mattered most.
  *
  * `fetch` is swapped for a stub and restored, in the `withEnvFlag` spirit:
@@ -21,7 +20,7 @@ function respondWith(body: unknown, httpStatus = 200) {
 }
 
 beforeAll(() => {
-  // Nothing here — each test installs its own stub — but the symmetric
+  // Nothing here (each test installs its own stub), but the symmetric
   // afterAll below is the part that matters.
 })
 

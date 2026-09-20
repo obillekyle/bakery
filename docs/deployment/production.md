@@ -33,7 +33,7 @@ four entry chains from the flags:
 | `bakery --threads N` | `index.ts` → `threads.ts` → N × `worker.ts` | cluster |
 
 In production, `prod.ts` loads the config, runs plugin `setup()`, builds the
-import maps, then calls `initDB()` — and **exits 1** if any of that fails
+import maps, then calls `initDB()`, and **exits 1** if any of that fails
 (`packages/cli/src/prod.ts`). A production process that cannot reach its
 database does not start half-working.
 
@@ -64,7 +64,7 @@ bunx bakery --threads 4
 
 - Workers share one `SharedArrayBuffer`, passed at spawn
   (`packages/cli/src/threads.ts`). Rate-limit buckets and request counters
-  are therefore **process-wide**, not per worker — the budget you configure is
+  are therefore **process-wide**, not per worker: the budget you configure is
   the budget across the cluster.
 - Worker `0` prints the startup banner; the rest are silent
   (`packages/core/src/startup.ts`).
@@ -77,7 +77,7 @@ bunx bakery --threads 4
   15 instead of 50, SQLite page cache smaller
   (`packages/core/src/cache/tiered.ts`, `cache/shared-db.ts`).
 
-**On any platform other than Linux, `--threads N` becomes 1** — kernel-level
+**On any platform other than Linux, `--threads N` becomes 1**: kernel-level
 `SO_REUSEPORT` load balancing is Linux-only, so on Windows and macOS the master
 logs a warning naming the platform and runs the server in-process
 (`threads.ts`). A cluster of one is deliberately identical to plain `bakery`:
@@ -101,7 +101,7 @@ page.
 
 The visible one is the precious one, deliberately: the framework deletes
 `.cache/` wholesale on its own, so the directory it can never reach is the one
-that is *not* hidden — a `rm -rf .*` or a "clean the dotfiles" sweep cannot
+that is *not* hidden, a `rm -rf .*` or a "clean the dotfiles" sweep cannot
 touch your database (`packages/core/src/core/bakery.ts`). Both paths are
 resolved against the working directory, and both are in the default blocked-path
 list so neither is ever served
@@ -111,7 +111,7 @@ list so neither is ever served
 framework version changes
 (`packages/core/src/core/cache-version.ts`), so a stale cache after a deploy is
 not a failure mode you have to plan for. The wipe is per entry and the
-"cache is current" marker is written **only if nothing survived** — a success
+"cache is current" marker is written **only if nothing survived**: a success
 marker after a partial delete is what once made a retryable problem permanent.
 The process does need write access: a fully read-only filesystem will not work.
 
@@ -121,7 +121,7 @@ and `backups/`, so it must persist either way.
 ## Docker
 
 The volume goes on **`/app/bakery`**. Not `/app/.server`, not
-`/app/.server/database` — those paths do not exist and mounting them does
+`/app/.server/database`: those paths do not exist and mounting them does
 nothing, which means the database gets baked into the image layer and is
 **destroyed on every redeploy**.
 
@@ -159,7 +159,7 @@ volumes:
   bakery-data:
 ```
 
-Do not mount a volume over `/app` itself — that hides the application.
+Do not mount a volume over `/app` itself: that hides the application.
 
 Verify it once, on a throwaway deploy, before you need it:
 
@@ -187,7 +187,7 @@ export default defineConfig({
 `trustProxy: true` makes three things read forwarded headers: the client IP
 (which the rate limiter keys on), the hostname (which multi-host routing uses),
 and `x-forwarded-proto` (which marks the session cookie `Secure`). Only turn it
-on when the proxy is the sole path to the process — otherwise any client can
+on when the proxy is the sole path to the process: otherwise any client can
 forge all three. Binding `host: '127.0.0.1'` is how you guarantee that.
 
 ```nginx
@@ -206,9 +206,9 @@ location / {
 
 The `Upgrade` lines are needed for WebSocket routes.
 
-**Rate limiting is already on** (100 burst, 10/s refill, per client IP) — the
+**Rate limiting is already on** (100 burst, 10/s refill, per client IP): the
 startup banner says so whenever the default is in effect. Do not
-add a second layer at the proxy without checking what the first one is doing —
+add a second layer at the proxy without checking what the first one is doing:
 the knob you want is in `server.config.ts`. See
 [Server config](../configuration/server-config.md#rate-limiting).
 
@@ -222,9 +222,9 @@ bun run db:sync --dry-run    # show the plan, change nothing
 bun run db:sync --choose=db  # regenerate schema.ts from the database
 ```
 
-With `NODE_ENV=production`, a plan containing anything destructive — dropped or
+With `NODE_ENV=production`, a plan containing anything destructive: dropped or
 renamed tables, dropped or renamed columns, SQLite table rebuilds, view updates,
-dropped indexes — **refuses to run** and exits 1 unless you pass `--force-sync`
+dropped indexes: **refuses to run** and exits 1 unless you pass `--force-sync`
 (`packages/orm/src/sync/engine.ts`). Outside production it prompts
 instead.
 
@@ -245,7 +245,7 @@ step.
 every `Bakery.onShutdown` hook, then plugin `onShutdown` hooks, then exit 0.
 
 The app hook goes first deliberately. It is the only participant that might
-still *need* the framework intact — step two flushes the tiered caches and
+still *need* the framework intact: step two flushes the tiered caches and
 closes the cache database, so an app writing a last session value has to run
 before that. It also mirrors startup exactly in reverse: plugins start first and
 the app hook last, so last up is first down. Each step is isolated, because a
@@ -260,7 +260,7 @@ Give containers a real stop timeout rather than the default 10 seconds if your
 shutdown hooks do work.
 
 In cluster mode the master asks every worker to run its shutdown sequence and
-waits — up to 5 seconds — for each to acknowledge before terminating it
+waits (up to 5 seconds) for each to acknowledge before terminating it
 (`packages/cli/src/threads.ts`). A wedged worker delays shutdown, never
 prevents it; only a worker that misses that deadline can lose buffered writes.
 
@@ -268,17 +268,17 @@ prevents it; only a worker that misses that deadline can lose buffered writes.
 
 - [ ] `bakery` is on a persistent volume, and you have verified it survives a
       redeploy.
-- [ ] `NODE_ENV=production` set in the process environment — it is the only
+- [ ] `NODE_ENV=production` set in the process environment: it is the only
       thing that arms the destructive-sync guard
       (`packages/orm/src/sync/engine.ts`).
-- [ ] `PORT` set if your platform assigns one — it overrides `port` in the
+- [ ] `PORT` set if your platform assigns one: it overrides `port` in the
       config (`packages/cli/src/worker.ts`).
 - [ ] `trustProxy` on **only** if a proxy is the only way in, with `host` bound
       to loopback.
 - [ ] Rate limit reviewed rather than duplicated.
-- [ ] Dashboard plugin either removed, or given an `authorize` predicate — see
+- [ ] Dashboard plugin either removed, or given an `authorize` predicate. See
       [Security](security.md).
 - [ ] Database explorer either removed, or given users whose access levels you
-      can defend — see [Database Explorer](../plugins/db-explorer.md).
+      can defend. See [Database Explorer](../plugins/db-explorer.md).
 - [ ] Migrations run as an explicit step, with a verified backup.
 - [ ] A stop timeout long enough for shutdown hooks.

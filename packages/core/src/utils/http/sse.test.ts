@@ -36,7 +36,7 @@ describe('encodeSSE', () => {
   test('undefined still produces a data line', () => {
     // JSON.stringify(undefined) is undefined. A frame with no `data:` line at
     // all reads as a comment, so the event would vanish rather than arrive
-    // empty — a silent drop is the worse failure.
+    // empty: a silent drop is the worse failure.
     expect(encodeSSE({ data: undefined })).toBe('data: \n\n')
   })
 
@@ -58,7 +58,7 @@ describe('sse', () => {
     )
     expect(res.headers.get('Cache-Control')).toContain('no-cache')
     // nginx buffers proxied responses by default, holding every event until the
-    // buffer fills — works in development, hangs in production.
+    // buffer fills, works in development, hangs in production.
     expect(res.headers.get('X-Accel-Buffering')).toBe('no')
     await drain(res)
   })

@@ -16,7 +16,7 @@ const ENTRY = join(CLIENT_DIR, '..', 'client.ts')
  *
  * Not cosmetic: `dom.ts`'s header explains *why* nothing writes `innerHTML`,
  * and a raw text grep flags the explanation as the violation. Stripping first
- * is also the honest reading of the rule — it is about what the code does, and
+ * is also the honest reading of the rule: it is about what the code does, and
  * a rule that cannot be described in a comment is a rule nobody will keep.
  */
 function stripComments(source: string): string {
@@ -34,8 +34,8 @@ function clientSources(): { file: string; source: string }[] {
 }
 
 /**
- * Every value this client renders is a database row — whatever the last writer
- * put there — and the operator's origin owns `/api/_db/rows`. A string reaching
+ * Every value this client renders is a database row (whatever the last writer
+ * put there), and the operator's origin owns `/api/_db/rows`. A string reaching
  * the DOM as markup is therefore stored XSS to arbitrary row writes, which is
  * the exact shape of the dashboard grid's defect. `textContent` everywhere is
  * not a style choice, and this is the check that keeps it true.
@@ -70,11 +70,11 @@ describe('the client has no markup sink', () => {
  * (`packages/core/src/compiler/compiler.ts:316`), so a framework import
  * survives into the emitted bundle as a bare specifier. The browser then tries
  * to fetch `@bakery-framework/core/cache/lru` as a URL, fails, and the whole
- * module never executes — the page sits on "loading…" forever.
+ * module never executes: the page sits on "loading…" forever.
  *
  * This is worth a grep rather than trust because of *how* it fails. Typecheck
  * passes, every unit test passes, `bun test` is green, and Chrome reports
- * "Failed to fetch dynamically imported module: …/app.js" — naming the entry
+ * "Failed to fetch dynamically imported module: …/app.js", naming the entry
  * rather than the import that broke. Two such imports (`Try` and `LRUCache`,
  * both perfectly reasonable-looking) shipped through a full green suite and
  * were only caught by opening the page.
@@ -112,8 +112,8 @@ describe('the browser bundle imports nothing from the framework', () => {
 })
 
 /**
- * The friction ladder is policy — the answer to "how bad is this if it was a
- * mis-click" — so it is asserted rather than left inside a click handler.
+ * The friction ladder is policy (the answer to "how bad is this if it was a
+ * mis-click"), so it is asserted rather than left inside a click handler.
  */
 describe('frictionFor', () => {
   test('one row is immediate, because it has an undo', () => {

@@ -5,7 +5,7 @@ import { handleSchema, handleTableData } from './endpoints/read'
 import { __resetTestAccess, __setTestAccess, DbExplorerHandler } from './setup'
 
 /**
- * A database stand-in that records what it was asked and does none of it —
+ * A database stand-in that records what it was asked and does none of it:
  * same factory pattern as the dashboard's fixture, reduced to the explorer's
  * surface.
  *
@@ -14,12 +14,12 @@ import { __resetTestAccess, __setTestAccess, DbExplorerHandler } from './setup'
  * was none. It now enumerates a **bounded** one: four introspection reads,
  * `getData`, `query` and a `transaction`. There is deliberately no `drop`, no
  * `truncate`, no `syncSchema`, no `remove`, and no `update(table, rowid, row)`
- * — an endpoint reaching for any of those fails here with a TypeError naming
+ *: an endpoint reaching for any of those fails here with a TypeError naming
  * the capability it wanted, which is the property this fixture is for.
  *
- * The write endpoints' own behaviour lives in `crud.test.ts`; this file is the
- * explorer's wiring — which paths it claims, which door admits, and what an
- * unauthorised answer looks like.
+ * The write endpoints' own behavior lives in `crud.test.ts`; this file is the
+ * explorer's wiring, which paths it claims, which door admits, and what an
+ * unauthorized answer looks like.
  */
 function createStubDb() {
   const calls: string[] = []
@@ -55,7 +55,7 @@ function createStubDb() {
     },
     getIndexes: async () => {
       calls.push('getIndexes')
-      // Keyed by index name, `table` and `cols` camel-cased — the shape the
+      // Keyed by index name, `table` and `cols` camel-cased: the shape the
       // adapters actually report.
       return {
         ix_picked: {
@@ -109,7 +109,7 @@ afterAll(() => {
 const req = (path: string, init: RequestInit = {}) =>
   new Request(`http://localhost${path}`, init)
 
-// The predicate itself — isLoopback, isAuthorized, defaultAuthorize — is
+// The predicate itself (isLoopback, isAuthorized, defaultAuthorize) is
 // core's now (`utils/http/authorize.ts`) and is tested there, against the
 // mode flags directly. The four cases that used to sit here were assertions
 // about that shared guard, not about the explorer; duplicating them in each
@@ -126,7 +126,7 @@ describe('routing and the auth split', () => {
     expect(DbExplorerHandler.canHandle('/db')).toBe(false)
   })
 
-  test('unauthorised page requests 404, api requests 401', async () => {
+  test('unauthorized page requests 404, api requests 401', async () => {
     __setTestAccess({})
 
     const page = (await DbExplorerHandler.handle(
@@ -143,7 +143,7 @@ describe('routing and the auth split', () => {
     expect(calls).not.toContain('getSchema')
   })
 
-  test('an unauthorised write is 401 before anything else is decided', async () => {
+  test('an unauthorized write is 401 before anything else is decided', async () => {
     __setTestAccess({})
     const res = (await DbExplorerHandler.handle(
       '/api/_db/rows',
@@ -158,7 +158,7 @@ describe('routing and the auth split', () => {
     expect(res.status).toBe(401)
   })
 
-  test('authorised requests reach the endpoints', async () => {
+  test('authorized requests reach the endpoints', async () => {
     __setTestAccess({ authorize: () => 'read' })
 
     const schema = (await DbExplorerHandler.handle(
@@ -176,7 +176,7 @@ describe('routing and the auth split', () => {
     expect(calls).toContain('getData:parcels:2')
   })
 
-  test('an unknown path under the namespace is 404, authorised or not', async () => {
+  test('an unknown path under the namespace is 404, authorized or not', async () => {
     __setTestAccess({ authorize: () => 'read' })
     const res = (await DbExplorerHandler.handle(
       '/api/_db/execute-action',
@@ -186,14 +186,14 @@ describe('routing and the auth split', () => {
   })
 })
 
-describe('no raw SQL and no DDL — structurally, not by configuration', () => {
+describe('no raw SQL and no DDL: structurally, not by configuration', () => {
   test('the write endpoints the dashboard used to have do not exist here', async () => {
     __setTestAccess({ authorize: () => 'write' })
 
     // The shapes these paths name are the ones this plugin refuses to have:
     // a raw-SQL prompt, a generic action dispatcher, and a write to another
     // plugin's namespace. Requested with the *highest* level this plugin
-    // grants, every one must be a 404 — a route that is not there, rather than
+    // grants, every one must be a 404: a route that is not there, rather than
     // a route refusing.
     //
     // The dashboard's own versions of the first two are now deleted rather
@@ -214,7 +214,7 @@ describe('no raw SQL and no DDL — structurally, not by configuration', () => {
 
   test('the route table is exactly the eleven keys, six of them writes', async () => {
     // The bounded-write-surface claim, stated as the enumeration it is. The
-    // assertion that used to sit here — "no non-`get*` DB call" — is false by
+    // assertion that used to sit here ("no non-`get*` DB call") is false by
     // design now, so the boundary has to be drawn somewhere it is still true:
     // the set of routes, and the fact that nothing in it takes SQL or DDL.
     const { explorerRoutes } = await import('./setup')
@@ -235,7 +235,7 @@ describe('no raw SQL and no DDL — structurally, not by configuration', () => {
       ].sort(),
     )
 
-    // Reads bare, writes method-qualified — `guardFor` in `plugins/routes.ts`
+    // Reads bare, writes method-qualified: `guardFor` in `plugins/routes.ts`
     // reads exactly this distinction, so it is policy rather than style.
     const qualified = keys.filter(k => k.includes(' '))
     expect(qualified.length).toBe(5)
@@ -340,7 +340,7 @@ describe('no raw SQL and no DDL — structurally, not by configuration', () => {
  *
  * The direction is the whole point: the ORM *drops* an operator it does not
  * know (`filterClause` in `orm/src/adapters/base.ts`), and a dropped filter
- * **widens** the result — on the very view the Delete button acts on. So the
+ * **widens** the result, on the very view the Delete button acts on. So the
  * endpoint refuses rather than forwards, and that refusal has to reach the
  * adapter as "no query at all" rather than "an unfiltered one".
  */
@@ -397,9 +397,8 @@ describe('table-data filters', () => {
 })
 
 /**
- * Which door admits, and what a level means once inside. The doors themselves —
- * constant-time comparison, the three credential spellings, `true` being a
- * denial, higher-wins — are `access.test.ts`'s subject and are not repeated
+ * Which door admits, and what a level means once inside. The doors themselves ( * constant-time comparison, the three credential spellings, `true` being a
+ * denial, higher-wins) are `access.test.ts`'s subject and are not repeated
  * here; copying a shared guard's assertions into every consumer is how the
  * three plugin copies drifted in the first place.
  */

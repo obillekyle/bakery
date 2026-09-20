@@ -48,8 +48,8 @@ function switchTab(tabId: string) {
   const label = document.querySelector(`.tab-btn.active span:last-child`)
   if (crumb && label) crumb.textContent = label.textContent
 
-  // No `database` entry: that panel is static markup now — a link to the
-  // explorer at `/_db` — so there is nothing to fetch when it is shown.
+  // No `database` entry: that panel is static markup now (a link to the
+  // explorer at `/_db`), so there is nothing to fetch when it is shown.
   match(tabId, {
     sessions: loadSessions,
     logs: initLogsWebSocket,

@@ -20,7 +20,7 @@ export const RATE_LIMIT_SLOTS = 1024
  * left 100 reachable buckets out of 1024 with **83% of all keys in bucket 0**.
  * Rate limiting is on by default at `{max: 100, refill: 10}`, so in practice
  * most clients shared one bucket with a sustained ceiling of 10 requests per
- * second — one busy client 429'd everyone else, and an ordinary page load
+ * second, one busy client 429'd everyone else, and an ordinary page load
  * (many requests inside a single refill tick) tripped it on its own.
  *
  * Taking the modulo in bigint space and converting the small result keeps the
@@ -55,13 +55,13 @@ const logState = new LRUCache<string, { last: number; suppressed: number }>(
  *
  * The constraint is availability under flood: stdout writes are effectively
  * synchronous on Windows, so one log line per rejected request hands the flood
- * the limiter just absorbed straight to the logger — the 429 path becomes as
+ * the limiter just absorbed straight to the logger, the 429 path becomes as
  * expensive as the work it was refusing. At most one line per key per
  * `RATE_LIMIT_LOG_WINDOW_MS` instead.
  *
  * Returns `null` when the line must be suppressed, otherwise the number of
  * rejections suppressed since the key's previous line (0 for a first
- * offender). Bounded per convention 6 — the key derives from client-controlled
+ * offender). Bounded per convention 6: the key derives from client-controlled
  * data (IP, or `rateLimit.keyBy`), so the state lives in an LRU and an evicted
  * key simply logs again as if new. Over-logging is the safe direction to be
  * wrong in.
@@ -88,7 +88,7 @@ export function __resetRateLimitLogState(): void {
 
 /**
  * Seconds until the bucket holds a token again, for the 429's `Retry-After`
- * header. Whole seconds per RFC 9110, and never less than 1 — "0" would tell
+ * header. Whole seconds per RFC 9110, and never less than 1: "0" would tell
  * the client to retry immediately, which is the opposite of the point.
  */
 export function retryAfterSeconds(refill: number): number {

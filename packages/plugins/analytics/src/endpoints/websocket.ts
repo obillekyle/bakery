@@ -7,7 +7,7 @@ export const connectedAnalyticsClients = new Set<any>()
 export class AnalyticsWSHandler extends WebSocketHandler {
   // The upgrade is dispatched before any plugin hook runs, so the auth check
   // has to live here. Without it this socket served the same payload the HTTP
-  // stats endpoint guards — and pushed it live every second.
+  // stats endpoint guards, and pushed it live every second.
   static async canHandle(path: string, req?: Request): Promise<boolean> {
     if (path !== '/_analytics_ws') return false
     // Async because the auth may run an `authorize` predicate; the registry

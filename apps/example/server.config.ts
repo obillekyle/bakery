@@ -10,7 +10,7 @@ export default defineConfig({
     // The app decides who may use the console; the console does not ask.
     dashboardPlugin({ authorize: () => true }),
     // Both doors, so the example exercises both, and they are deliberately
-    // not set to the same level — that is the whole point of the model.
+    // not set to the same level: that is the whole point of the model.
     //
     // The predicate grants **read** to anyone, so opening `/_db` in a browser
     // shows the grid with no edit affordances. Writing needs the `ops` key.

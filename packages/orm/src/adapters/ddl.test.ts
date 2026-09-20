@@ -13,20 +13,20 @@ import { SQLiteAdapter } from './sqlite'
  * `contract.test.ts` covers identifier quoting and the Postgres placeholder
  * scanner. This file covers the two surfaces above them: the DDL each adapter
  * *writes*, and the introspection queries it *reads back*. Those are where a
- * dialect bug actually lives — a wrong type mapping, an `information_schema`
+ * dialect bug actually lives: a wrong type mapping, an `information_schema`
  * column that does not exist, a clause in the wrong order.
  *
  * There is no MySQL or Postgres server here, and there does not need to be for
  * most of it. Every adapter funnels its SQL through `this.sql.unsafe(sql,
  * params)`, so replacing that one handle with a recorder captures the exact
- * text the server would have received — after Postgres normalisation, after
+ * text the server would have received: after Postgres normalization, after
  * `RETURNING *` injection, with the real parameter list. What that cannot check
  * is whether the server accepts it; those assertions are marked as such, and
  * SQLite runs for real instead.
  *
- * A handful of tests are named `BUG:`. They pin behaviour that is *wrong* so
+ * A handful of tests are named `BUG:`. They pin behavior that is *wrong* so
  * that it is visible and greppable rather than silently shipped; each says what
- * the correct behaviour would be. Fixing one should break its test.
+ * the correct behavior would be. Fixing one should break its test.
  */
 
 interface Recorded {
@@ -130,12 +130,12 @@ describe('colDef maps the schema type set onto each dialect', () => {
     ])
   })
 
-  test('an unrecognised type falls back to TEXT, not to nothing', () => {
+  test('an unrecognized type falls back to TEXT, not to nothing', () => {
     // The fallback matters: an empty type string produces `"col"  NOT NULL`,
     // which every dialect rejects.
     const db = new SQLiteAdapter(':memory:')
     recorded.push(db)
-    // Not 'json' — that is a real schema type now, mapping to JSON/JSONB. This
+    // Not 'json'. That is a real schema type now, mapping to JSON/JSONB. This
     // needs a name the map genuinely does not know.
     expect(db.colDef({ type: 'geometry' })).toBe('TEXT NOT NULL')
     expect(new MySQLAdapter().colDef({ type: 'geometry' })).toBe(
@@ -149,7 +149,7 @@ describe('colDef emits each dialect s auto-increment spelling', () => {
   const def = { type: 'integer', primary: true, autoIncrement: true }
 
   test('SQLite puts AUTOINCREMENT after PRIMARY KEY', () => {
-    // Order is not cosmetic — SQLite only accepts AUTOINCREMENT immediately
+    // Order is not cosmetic: SQLite only accepts AUTOINCREMENT immediately
     // after PRIMARY KEY, and MySQL only accepts AUTO_INCREMENT before it.
     const db = new SQLiteAdapter(':memory:')
     recorded.push(db)
@@ -231,7 +231,7 @@ describe('colDef renders defaults per dialect', () => {
 /**
  * Most DDL lives on the base class, so the only thing that should differ
  * between dialects is the quote character. The expected quote is written as a
- * literal in the table below rather than read off the adapter — otherwise a
+ * literal in the table below rather than read off the adapter: otherwise a
  * wrong `quoteChar` would agree with itself and the test would pass.
  */
 describe('shared DDL differs only in the quote character', () => {
@@ -401,7 +401,7 @@ describe('row identity differs per dialect', () => {
 
   test('MySQL looks the key up with one targeted query, not a whole-schema scan', async () => {
     // `remove`/`update` used to call getSchema(), which lists every table and
-    // then issues COUNT(*) plus two information_schema queries *per table* — so
+    // then issues COUNT(*) plus two information_schema queries *per table*, so
     // deleting one row from a 20-table database ran 61 statements, 20 of them
     // full row counts, to learn one column name. The pk is one lookup.
     const db = new MySQLAdapter()
@@ -809,7 +809,7 @@ describe('MySQL introspection queries', () => {
 
   test('getSchema without the option issues no COUNT and reports null', async () => {
     // The count is a full table scan on SQLite and Postgres, and `getSchema()`
-    // sits on the explorer's write path — so it is opt-in, and the honest
+    // sits on the explorer's write path, so it is opt-in, and the honest
     // assertion is the statement list: a fixture would keep answering a COUNT
     // nobody should send. `null`, not 0, so a count that was never taken
     // cannot read as an empty table.
@@ -851,7 +851,7 @@ describe('MySQL introspection queries', () => {
     //
     // `ESCAPE '!'` rides along on every LIKE now. `%` and `_` are wildcards, so
     // without it a filter for `50%` matched every row and one for `a_b` matched
-    // `axb` — the old code passed user input into the pattern untouched. The
+    // `axb`: the old code passed user input into the pattern untouched. The
     // escape character is `!` rather than a backslash on purpose; see
     // `likeEscape` in `adapters/base.ts` for why a backslash cannot survive
     // `normalizePostgresSQL`.
@@ -867,7 +867,7 @@ describe('MySQL introspection queries', () => {
   /**
    * Operators. A filter used to be a column and a substring, which is why the
    * dashboard's operator dropdown sends `is_null`/`>`/`<` that the server has
-   * always ignored — it flattened them to `{column: value}` and LIKEd the
+   * always ignored: it flattened them to `{column: value}` and LIKEd the
    * literal string `"is_null"`.
    *
    * The bare-scalar form still means `contains`, because `getData` is public
@@ -935,7 +935,7 @@ describe('MySQL introspection queries', () => {
 })
 
 describe('Postgres introspection queries', () => {
-  test('hasCol binds both names and is normalised to $n', async () => {
+  test('hasCol binds both names and is normalized to $n', async () => {
     const db = new PGAdapter()
     const calls = record(db, () => [{ '?column?': 1 }])
     expect(await db.hasCol('app_users', 'nick_name')).toBe(true)
@@ -1031,7 +1031,7 @@ describe('Postgres introspection queries', () => {
     }
     expect(map('integer')).toBe('integer')
     // `bigint` is its own schema type now, and is matched *before* the generic
-    // 'int' rule precisely so it does not collapse back into 'integer' — which
+    // 'int' rule precisely so it does not collapse back into 'integer', which
     // would rebuild every BIGINT column on every sync.
     expect(map('bigint')).toBe('bigint')
     expect(map('jsonb')).toBe('json')
@@ -1095,7 +1095,7 @@ describe('Postgres introspection queries', () => {
     // assertion pinned it happily for months. `::regclass` casts a *string*;
     // a double-quoted identifier is a column reference, so the real server
     // answered `column "app_users" does not exist` and **`getSchema()` threw
-    // for every table on this dialect** — the db-explorer plugin did not work
+    // for every table on this dialect**: the db-explorer plugin did not work
     // on Postgres at all.
     //
     // Worth sitting with, because the file says so three lines below its own
@@ -1182,8 +1182,8 @@ describe('SQLite: DDL round-trips through introspection', () => {
   let db: SQLiteAdapter
 
   beforeAll(async () => {
-    // A file, not :memory:, so the on-disk path — directory creation, the
-    // startup PRAGMAs — is exercised alongside the DDL.
+    // A file, not :memory:, so the on-disk path (directory creation, the
+    // startup PRAGMAs) is exercised alongside the DDL.
     db = new SQLiteAdapter(dbFile)
     await db.createTable('app_users', [
       `${db.quote('id')} ${db.colDef({ type: 'integer', primary: true, autoIncrement: true })}`,
@@ -1236,7 +1236,7 @@ describe('SQLite: DDL round-trips through introspection', () => {
     })
   })
 
-  test('the %dateNow% default is written and recognised again', async () => {
+  test('the %dateNow% default is written and recognized again', async () => {
     // The stored text is dialect-specific; `%dateNow%` is the schema-level
     // token, and the trip out and back has to preserve it or every sync
     // rebuilds the table.
@@ -1285,7 +1285,7 @@ describe('SQLite: DDL round-trips through introspection', () => {
     // index that cannot be dropped.
     const names = Object.keys(await db.getIndexes())
     expect(names.some(n => n.toLowerCase().includes('autoindex'))).toBe(false)
-    // getSchema does show it — that view is the dashboard's, not the planner's.
+    // getSchema does show it: that view is the dashboard's, not the planner's.
     const schema = await db.getSchema({ rowCounts: true })
     const users = schema.find(t => t.name === 'app_users')
     expect(users?.indexes.map(i => i.name)).toContain(
@@ -1314,7 +1314,7 @@ describe('SQLite: DDL round-trips through introspection', () => {
   })
 
   test('AUTOINCREMENT creates sqlite_sequence, and it stays out of the schema', async () => {
-    // It really is there — if it leaked into getSchema/getConstraints the sync
+    // It really is there: if it leaked into getSchema/getConstraints the sync
     // engine would plan to drop a table SQLite owns.
     const master = (await db
       .query("SELECT name FROM sqlite_master WHERE name = 'sqlite_sequence'")
@@ -1334,7 +1334,7 @@ describe('SQLite: DDL round-trips through introspection', () => {
   })
 
   /**
-   * `hasCol` built `PRAGMA table_info('${table}')` by interpolation — a second
+   * `hasCol` built `PRAGMA table_info('${table}')` by interpolation: a second
    * SQL identifier writer on a public adapter method, outside the `qId`/`qRef`/
    * `safeColumn` guards convention 8 makes the only ones. MySQL and Postgres
    * already bound theirs; SQLite now uses the `pragma_table_info` table-valued
@@ -1380,7 +1380,7 @@ describe('SQLite: DDL round-trips through introspection', () => {
   })
 
   test('a table name carrying a quote no longer breaks the statement', async () => {
-    // Reached only from the sync engine today, with schema-derived names — but
+    // Reached only from the sync engine today, with schema-derived names, but
     // it is a public method, so the argument is treated as untrusted. Under the
     // interpolated form this closed the string literal and SQLite answered
     // `near "ird": syntax error`.
@@ -1521,8 +1521,8 @@ describe('SQLite: mutating DDL applied and read back', () => {
 /**
  * Defects, pinned so they are visible.
  *
- * Each of these asserts behaviour that is wrong. They are here because the
- * alternative — a comment nobody greps for — is how they survived this long.
+ * Each of these asserts behavior that is wrong. They are here because the
+ * alternative (a comment nobody greps for) is how they survived this long.
  * Fixing one is expected to break its test; the comment says what the fix is.
  */
 describe('dialect defects, fixed and pinned', () => {
@@ -1530,8 +1530,8 @@ describe('dialect defects, fixed and pinned', () => {
     // `dateNowDefaults` was doing two jobs. isDateNowDefault() matches an
     // introspected default with `includes`, so a prefix works there;
     // formatDefault() *emitted* dateNowDefaults[0], where a prefix is fatal.
-    // Postgres got `DEFAULT (EXTRACT(EPOCH FROM)` — unbalanced, a syntax
-    // error — and `createdAt: value('integer', dateNow)` ships in
+    // Postgres got `DEFAULT (EXTRACT(EPOCH FROM)` (unbalanced, a syntax
+    // error), and `createdAt: value('integer', dateNow)` ships in
     // schema.example.ts, so it fired on the first db:sync against Postgres.
     // The emitted text is now `dateNowExpression`, separate from the patterns.
     const lite = new SQLiteAdapter(':memory:')
@@ -1557,7 +1557,7 @@ describe('dialect defects, fixed and pinned', () => {
     }
   })
 
-  test('an emitted %dateNow% is still recognised when read back', () => {
+  test('an emitted %dateNow% is still recognized when read back', () => {
     // The emit and match halves have to agree or the column diffs dirty on
     // every sync forever. Postgres stores a parsed expression rather than DDL
     // text and re-renders it, so the read-back is never what we emitted: PG
@@ -1592,7 +1592,7 @@ describe('dialect defects, fixed and pinned', () => {
 
   test('MySQL reports a tinyint(1) as boolean, and a wider tinyint as integer', async () => {
     // mysqlTypes tests for 'tinyint(1)', but parseConstraints fed it
-    // `data_type` first — and data_type is 'tinyint', without the display
+    // `data_type` first, and data_type is 'tinyint', without the display
     // width. column_type is the one carrying 'tinyint(1)', so the boolean
     // branch was unreachable through getConstraints and SchemaBuilder emitted
     // value('integer') for every boolean.
@@ -1632,7 +1632,7 @@ describe('dialect defects, fixed and pinned', () => {
 
   test('Postgres detects both identity and legacy serial columns', async () => {
     // colDef emits `INTEGER GENERATED BY DEFAULT AS IDENTITY`. An identity
-    // column has column_default NULL — the sequence shows up in is_identity,
+    // column has column_default NULL: the sequence shows up in is_identity,
     // which the columns query did not select. parseConstraints looked only for
     // 'nextval' in column_default, so a Bakery-created Postgres table reported
     // its own primary key as not auto-incrementing. Both styles now resolve:
@@ -1686,7 +1686,7 @@ describe('dialect defects, fixed and pinned', () => {
     // formatDefault writes `DEFAULT 'it''s fine'`; parseDefault stripped the
     // outer quotes with slice(1, -1) but never collapsed '' back to '. The
     // schema said "it's fine", the database reported "it''s fine", and
-    // diffColumnMismatch marked the column changed — so every db:sync rebuilt
+    // diffColumnMismatch marked the column changed, so every db:sync rebuilt
     // the table, forever, for any default containing an apostrophe.
     const db = new SQLiteAdapter(':memory:')
     recorded.push(db)

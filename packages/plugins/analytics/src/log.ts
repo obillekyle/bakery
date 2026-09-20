@@ -5,7 +5,7 @@ import { Logger, messageLogger } from '@bakery-framework/core/logger'
  *
  * Declared here rather than added to core's `pluginLog`, on the same reasoning
  * the ORM uses for `sync/engine.ts` and `backup.ts`: a message belongs to the
- * package that emits it. `ANALYTICS_STORE_ERR` still lives in core's table —
+ * package that emits it. `ANALYTICS_STORE_ERR` still lives in core's table:
  * moving it is a change to `@bakery-framework/core`, not to this plugin.
  */
 const analyticsMsgs = {

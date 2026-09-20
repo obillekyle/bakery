@@ -3,7 +3,7 @@ import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
 // init is what installs the mode accessors on `process.env`, so capturing one
 // before it runs captures nothing and the restore then deletes the accessor
 // init installs later. Every server entry imports it first for the same reason
-// — `defaultAuthorize` reads `import.meta.env.PROD`, which does not exist until
+//: `defaultAuthorize` reads `import.meta.env.PROD`, which does not exist until
 // this module has run.
 import '../../core/init'
 import {
@@ -26,7 +26,7 @@ const req = (url = 'http://localhost/_admin', headers?: HeadersInit) =>
 /**
  * `trustProxy` is the one supported way to reach `getClientIp`'s header path
  * without a live server, and it is what a reverse-proxied deployment actually
- * runs. Every test that sets it clears it on the hook below — the config seam
+ * runs. Every test that sets it clears it on the hook below: the config seam
  * is process state, and a leaked override is the `ip.test.ts` failure mode.
  */
 const behindProxy = () => __setTestConfig({ trustProxy: true })
@@ -73,7 +73,7 @@ describe('isAuthorized', () => {
   test('a truthy non-boolean is DENIED, not coerced', async () => {
     // The regression test for the divergence this module exists to settle. The
     // dashboard's copy read `Boolean(await authorize(req))`, which admits every
-    // truthy value — so a predicate answering with a status string *granted* on
+    // truthy value, so a predicate answering with a status string *granted* on
     // "no", and one answering with a count granted on any non-zero. The
     // predicate is application code and its declared return type is only
     // advice; an untyped or transpiled one can hand back anything at all.
@@ -101,7 +101,7 @@ describe('isAuthorized', () => {
 
   test('a throwing predicate denies rather than granting', async () => {
     // An authorization check that errors is indeterminate, and indeterminate
-    // must fail closed — convention 2.
+    // must fail closed, convention 2.
     const sync = resolveAuthorize(() => {
       throw new Error('identity service down')
     })
@@ -143,7 +143,7 @@ describe('isLoopback', () => {
     expect(isLoopback(req('http://example.com/_admin'))).toBe(false)
   })
 
-  test('loopback is recognised from the peer address', () => {
+  test('loopback is recognized from the peer address', () => {
     behindProxy()
 
     expect(
@@ -165,7 +165,7 @@ describe('isLoopback', () => {
     behindProxy()
 
     // A peer address is never the hostname `localhost`. Accepting it would mean
-    // `X-Forwarded-For: localhost` counted as loopback under trustProxy — a
+    // `X-Forwarded-For: localhost` counted as loopback under trustProxy, a
     // header the requester writes.
     expect(
       isLoopback(req('http://localhost/_admin', { 'x-real-ip': 'localhost' })),
@@ -193,7 +193,7 @@ describe('isLoopback', () => {
     // getClientIp reads config and the live server, either of which may be
     // absent (tests, early boot). This stands in for that: a request whose
     // headers cannot be read at all. The guard must answer `false`, not
-    // propagate — an indeterminate address is a denial.
+    // propagate: an indeterminate address is a denial.
     const hostile = {
       url: 'http://localhost/_admin',
       headers: {
@@ -251,7 +251,7 @@ describe('defaultAuthorize', () => {
     behindProxy()
     const local = req('http://localhost/_admin', { 'x-real-ip': '127.0.0.1' })
 
-    // Same function, same request, opposite answers — which is only possible if
+    // Same function, same request, opposite answers, which is only possible if
     // `import.meta.env.DEV` is consulted inside the call. A copy that captured
     // the flag in a module-level const would return one value both times.
     const inProd = await withEnvFlag('DEV', false, () =>
@@ -274,7 +274,7 @@ describe('defaultAuthorize', () => {
     //
     // It read `PROD !== false` while the flags were booleans. They are
     // `'1'`/`''` strings since Bun 1.4 stopped allowing accessors on
-    // `process.env`, and `!== false` would be true for every one of them —
+    // `process.env`, and `!== false` would be true for every one of them,
     // including the `''` a development server sets, which would have denied on
     // loopback in development while still looking like a correct gate.
     //
@@ -292,7 +292,7 @@ describe('defaultAuthorize', () => {
 
   test('an unconfigured plugin is closed under the ambient test flags', async () => {
     // `bun test` runs with DEV false and PROD true, so the shipped default with
-    // nothing configured admits nobody — which is the whole safety claim.
+    // nothing configured admits nobody, which is the whole safety claim.
     behindProxy()
     expect(import.meta.env.PROD).toBeTruthy()
     expect(

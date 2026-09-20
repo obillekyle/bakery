@@ -5,7 +5,7 @@ import type { MapOf } from './types'
  *
  * These used to be declared twice, verbatim, in `global.d.ts` and
  * `client/globals.d.ts`. Nothing caught it: `skipLibCheck: true` suppresses
- * errors *inside* .d.ts files — including this project's own — so four TS2300
+ * errors *inside* .d.ts files (including this project's own), so four TS2300
  * duplicate-identifier errors sat there invisibly, and every tsconfig excluded
  * `src/client/**` on top of that.
  *
@@ -16,7 +16,7 @@ import type { MapOf } from './types'
  * declared in two ambient files again.
  *
  * `MapOf` and `Wrapped` have since moved out of the global scope entirely,
- * into `types.d.ts` — their names are generic enough to collide with a
+ * into `types.d.ts`: their names are generic enough to collide with a
  * consuming app's own. What stays global here is framework-specific enough
  * not to, and is needed by browser globals that are bound at runtime rather
  * than imported.
@@ -27,12 +27,12 @@ import type { MapOf } from './types'
 declare global {
   /**
    * Bound by `client/utils.ts` in the browser and `core/init.ts` on the
-   * server — the same isomorphic implementation either side, so code moving
+   * server: the same isomorphic implementation either side, so code moving
    * between an SFC browser script and a server block keeps the name.
    */
   var randomId: typeof import('./utils/isomorphic/misc').randomId
 
-  /** The one JSON envelope — see convention 7. */
+  /** The one JSON envelope. See convention 7. */
   type JsonResponse<T = any> = {
     time: number
     status: number
@@ -52,7 +52,7 @@ declare global {
     (value: any, type: 'undefined'): value is undefined
     // `Function` is the type being narrowed to, and there is no narrower
     // spelling of "callable" a predicate can promise. `noBannedTypes` is off
-    // repo-wide, so this needs no suppression — see MONOREPO.md for why.
+    // repo-wide, so this needs no suppression. See MONOREPO.md for why.
     (value: any, type: 'function'): value is Function
     (value: any, type?: string): boolean
     string(value: any): value is string

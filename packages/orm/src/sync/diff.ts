@@ -34,7 +34,7 @@ function diffColumnMismatch(
   // TEXT trap that made this dangerous to add blind.
   //
   // Driven by the *schema* side only. When the schema declares a width, any
-  // other answer from the database differs — including no width at all, which
+  // other answer from the database differs, including no width at all, which
   // is a real `TEXT` column that should become `VARCHAR(n)`. Requiring both
   // sides to be sized meant sizing an existing TEXT column silently did
   // nothing, and `db:sync` then reported a perfectly synced database whose
@@ -44,16 +44,16 @@ function diffColumnMismatch(
   // (measured, see `SQLAdapter.sizedTextLength`): after one rebuild the two
   // agree. A column that reports *no* width really is unsized.
   //
-  // When the schema declares no width, nothing differs — `Field.Text()` against
+  // When the schema declares no width, nothing differs: `Field.Text()` against
   // an existing `VARCHAR` is not a request to shrink it.
   const lengthDiffers =
     typeof tsCol.length === 'number' && tsCol.length !== dbCol.length
 
   // Enum members join the diff, so changing them migrates instead of silently
-  // doing nothing — but **only when the current state came from the ledger**.
+  // doing nothing, but **only when the current state came from the ledger**.
   //
   // `_enum` is emitted as an inline `CHECK (col IN (...))` by all three
-  // dialects, and all three *will* report that constraint back — in three
+  // dialects, and all three *will* report that constraint back: in three
   // incompatible shapes. Measured:
   //
   //   sqlite  CHECK (status IN ('draft','live'))            in the table DDL
@@ -61,14 +61,14 @@ function diffColumnMismatch(
   //   pgsql   CHECK (((status)::text = ANY ((ARRAY[...])))    re-rendered
   //
   // Postgres does not store the text it was given, it re-renders a parsed
-  // expression — the same trap that turned `EXTRACT` into `date_part` and
+  // expression: the same trap that turned `EXTRACT` into `date_part` and
   // rebuilt a table on every sync forever. Three parsers, each an opportunity
   // for that bug, is the wrong trade when the ledger already holds the members
   // exactly as declared.
   //
   // So under introspection this stays out of the diff. A schema-side-only
   // comparison would find `_enum` on one side and nothing on the other, differ
-  // every time, and rebuild the table on every sync — which is precisely what
+  // every time, and rebuild the table on every sync, which is precisely what
   // the `length` note above says it waited to rule out before shipping.
   const enumDiffers =
     plan.ledgerSource === 'ledger' &&
@@ -238,12 +238,12 @@ function diffViewStrings(
   constraints: any,
   database?: string,
 ): boolean {
-  // Both sides through the same canonicaliser, which is the only thing that
+  // Both sides through the same canonicalizer, which is the only thing that
   // makes a text comparison viable: you write `SELECT id FROM users` and MySQL
   // returns it fully qualified, fully quoted and aliased column by column.
   //
-  // Symmetry is the whole requirement. Normalising the *generated file* while
-  // comparing raw — or stripping the schema on one side only — recreates the
+  // Symmetry is the whole requirement. Normalizing the *generated file* while
+  // comparing raw (or stripping the schema on one side only) recreates the
   // view on every sync, which is the same churn the column diff has hit twice.
   const tsViewStr = normalizeViewBody(
     String(constraints[camelTable]._view || ''),
@@ -265,7 +265,7 @@ function diffViewStrings(
  * The view lifecycle: create, recreate, drop.
  *
  * Views were invisible to the planner. `initDbTablesMap` skips `_view` entries,
- * and every existing comparison iterates that map — so a declared view never
+ * and every existing comparison iterates that map, so a declared view never
  * reached `diffViewStrings`, and nothing about a view ever reached
  * `hasChanges`. The consequences, all three measured:
  *
@@ -279,11 +279,11 @@ function diffViewStrings(
  * reported a perfectly synced database and left the view alone.
  *
  * Bodies are compared through `normalizeViewBody` on both sides. That converges
- * on SQLite, which stores the text verbatim, and via the ledger everywhere —
+ * on SQLite, which stores the text verbatim, and via the ledger everywhere:
  * the ledger records what was *applied*, so it holds the authored SELECT.
  * Diffing against live introspection on MySQL or Postgres will still see a
  * difference, because both re-render the body (MySQL re-qualifies every column,
- * Postgres adds parentheses), and no amount of text normalisation short of a
+ * Postgres adds parentheses), and no amount of text normalization short of a
  * parser fixes that. It costs a recreate, and a view holds no data.
  */
 export function diffViews(

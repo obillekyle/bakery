@@ -1,7 +1,7 @@
 /**
  * Steps two and three: how the file was parsed, and where each column goes.
  *
- * Nothing here inspects a `<select>` to work out what the mapping is — the
+ * Nothing here inspects a `<select>` to work out what the mapping is: the
  * mapping *is* the model, and every control writes a whole new one through
  * `update`. `csv-model.ts` holds all of it and is pure.
  */
@@ -32,7 +32,7 @@ export interface Reparse {
 /**
  * Delimiter and header, both sniffed and both overridable.
  *
- * Re-parsing needs the original text, which the model does not keep — so the
+ * Re-parsing needs the original text, which the model does not keep, so the
  * source is rebuilt from the parsed rows. That is lossless for the purpose:
  * changing the delimiter after the fact re-splits fields that the wrong
  * delimiter merged, and the merged text is exactly what was in the file.
@@ -134,8 +134,8 @@ export function paintMapping(
 /**
  * One CSV column: its name, three samples, and where it goes.
  *
- * Re-picking a database column already taken **moves** it — `reassign` clears
- * the previous holder — so a duplicate mapping cannot be expressed here at all,
+ * Re-picking a database column already taken **moves** it (`reassign` clears
+ * the previous holder), so a duplicate mapping cannot be expressed here at all,
  * rather than being flagged after the fact.
  */
 function mappingRow(
@@ -148,8 +148,8 @@ function mappingRow(
   const row = box('map-row')
 
   const options = [
-    { value: SKIP_VALUE, label: '— skip —' },
-    { value: CONST_VALUE, label: '— constant… —' },
+    { value: SKIP_VALUE, label: '(skip)' },
+    { value: CONST_VALUE, label: '(constant…)' },
     ...ctx.columns.map(column => ({
       value: column.name,
       label: `${column.name} · ${column.type}`,
@@ -200,7 +200,7 @@ function constantControls(
 ): HTMLElement[] {
   const target = select(
     [
-      { value: SKIP_VALUE, label: '— into which column —' },
+      { value: SKIP_VALUE, label: '(into which column)' },
       ...ctx.columns.map(column => ({
         value: column.name,
         label: column.name,

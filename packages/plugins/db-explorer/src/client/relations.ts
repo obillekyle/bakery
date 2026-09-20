@@ -20,7 +20,7 @@ import type { ForeignKeyInfo, SchemaGraph } from './meta'
 import { sameTable } from './meta'
 
 export interface Relation {
-  /** The columns on the near side — this table's, for `outgoing`. */
+  /** The columns on the near side: this table's, for `outgoing`. */
   cols: string[]
   /** The table at the other end. */
   table: string
@@ -43,10 +43,10 @@ export interface Relations {
  * programming: `getForeignKeys()` reports whatever the database calls a table
  * while `getConstraints()` is camel-keyed, and the graph endpoint passes both
  * through untouched. Comparing literally makes every foreign key on a
- * `snake_case` schema invisible — the whole feature silently absent, which is
+ * `snake_case` schema invisible: the whole feature silently absent, which is
  * exactly what `meta.ts`'s own note on `sameTable` records.
  *
- * A self-reference — a `manager_id` pointing at the same table's `id` — appears
+ * A self-reference (a `manager_id` pointing at the same table's `id`) appears
  * in **both** lists, which is correct: it is genuinely a key this table
  * declares and genuinely a key that points here.
  */
@@ -189,7 +189,7 @@ function incomingRow(ctx: RelationsContext, relation: Relation): HTMLElement {
  * The filters that open the rows of `relation.table` pointing at one row.
  *
  * Exported for the row panel, which is where "referenced by *this row*" lives.
- * `eq` per column, so the count and the page are exact — this used to be a
+ * `eq` per column, so the count and the page are exact: this used to be a
  * substring `LIKE` and the panel had to label its counts "approximate".
  */
 export function filtersForIncoming(

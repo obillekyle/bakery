@@ -1,14 +1,14 @@
 /**
  * The import wizard's state, with no DOM anywhere in it.
  *
- * The wizard has five steps and the interesting behaviour is all in the
- * transitions between them — a re-pick *moves* a database column rather than
+ * The wizard has five steps and the interesting behavior is all in the
+ * transitions between them: a re-pick *moves* a database column rather than
  * duplicating it, an unmapped NOT NULL column blocks, `empty → NULL` defaults
  * differently per kind, and the preview recomputes from the mapping every
  * time. None of that is testable through a rendered `<select>`, so none of it
  * lives there. `csv.ts` is the view; this is the machine.
  *
- * Parsing, coercion and mapping are **not reimplemented** — `shared/csv.ts`,
+ * Parsing, coercion and mapping are **not reimplemented**: `shared/csv.ts`,
  * `shared/coerce.ts` and `shared/plan.ts` are the same modules the server runs,
  * which is the only way the preview and the outcome agree.
  */
@@ -58,7 +58,7 @@ export function targetOf(assignment: Assignment): string | null {
 /**
  * Does row 0 name the columns?
  *
- * Non-empty, unique, and not a number — the three properties a header row has
+ * Non-empty, unique, and not a number: the three properties a header row has
  * and a data row almost never does. Deliberately conservative in the direction
  * of *yes*: guessing "header" for a data file loses one row in a preview the
  * user is looking at, while guessing "data" for a header file maps nothing and
@@ -91,8 +91,8 @@ function square(fields: string[], width: number): string[] {
 /**
  * Empty means NULL by default for everything except text.
  *
- * `''` in a numeric or date column is never a value — `coerceValue` refuses it
- * outright with `empty_string` — so defaulting the toggle off there guarantees
+ * `''` in a numeric or date column is never a value (`coerceValue` refuses it
+ * outright with `empty_string`), so defaulting the toggle off there guarantees
  * a failure the user then has to diagnose. In a text column `''` *is* a value,
  * and silently turning every blank cell into NULL would be the dashboard's bug
  * with a checkbox on it.
@@ -161,7 +161,7 @@ export function buildModel(
  *
  * Any other header holding the same database column falls back to skip. That
  * makes a duplicate mapping impossible to express, which is a stronger promise
- * than `blockingIssues`' `duplicate_target` — that check stays as the
+ * than `blockingIssues`' `duplicate_target`: that check stays as the
  * server-side guarantee, because the server accepts a mapping this UI did not
  * build.
  */

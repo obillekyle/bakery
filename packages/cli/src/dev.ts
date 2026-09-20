@@ -22,7 +22,7 @@ try {
 
   config = await initConfig()
   // Still before initImportMap(): a plugin's setup() may contribute entries.
-  // setupPlugins() memoises, so setupServer()'s later call is a no-op here.
+  // setupPlugins() memoizes, so setupServer()'s later call is a no-op here.
   await setupPlugins()
   await initImportMap()
   initHostImportMaps()
@@ -74,7 +74,7 @@ if (hasORM()) {
       serveLog.SCHEMA_SYNC_SKIP()
       // Only on the skip path. When a sync runs it reports drift itself, from
       // the plan it just built; here nothing else would ever look. Measured at
-      // 2.7ms median against apps/example (4 tables) — it is one introspection
+      // 2.7ms median against apps/example (4 tables): it is one introspection
       // pass, so it grows with table count, which is why it is not on the path
       // that is about to introspect anyway.
       const { initDB, connection } = await import(

@@ -68,8 +68,8 @@ describe('resolveHostConfig', () => {
   })
 })
 
-describe('resolveHostConfig — hostname case', () => {
-  // Hostnames are case-insensitive and nothing normalises the Host header, so
+describe('resolveHostConfig: hostname case', () => {
+  // Hostnames are case-insensitive and nothing normalizes the Host header, so
   // `EXAMPLE.com` used to miss an `example.com` entry and quietly serve the
   // base config instead.
   const HEAD = '<meta name="host-probe" content="example">'
@@ -104,7 +104,7 @@ describe('resolveHostConfig — hostname case', () => {
   test('unknown hostnames are still not cached', () => {
     // Caching misses would let any client grow the map one made-up hostname at
     // a time. Under __setTestConfig, getConfig() builds a fresh frozen object
-    // per call — so a cached miss would return the *same* object twice, and a
+    // per call, so a cached miss would return the *same* object twice, and a
     // genuine miss returns two different ones.
     const first = resolveHostConfig('nonsense-1.invalid')
     const second = resolveHostConfig('nonsense-1.invalid')
@@ -115,7 +115,7 @@ describe('resolveHostConfig — hostname case', () => {
 
   test('a prototype member is not mistaken for a host entry', () => {
     // A bare `hosts[hostname]` lookup returns a truthy prototype member for
-    // `Host: constructor`, which then gets merged as if it were a host entry —
+    // `Host: constructor`, which then gets merged as if it were a host entry,
     // and cached, since only real entries are. Merging a function contributes
     // no keys, so `head` alone cannot see the difference; the cache can.
     const first = resolveHostConfig('constructor')
@@ -129,11 +129,11 @@ describe('resolveHostConfig — hostname case', () => {
 
 describe('clearHostConfigCache', () => {
   // `expect(true).toBe(true)` used to stand here, which asserted that the call
-  // did not throw and nothing else — a function that had quietly stopped
+  // did not throw and nothing else: a function that had quietly stopped
   // clearing anything would still have passed. The cache is observable through
-  // object identity: a configured host is memoised, so the entry before the
+  // object identity: a configured host is memoized, so the entry before the
   // clear and the entry after must not be the same object.
-  test('drops memoised host entries', async () => {
+  test('drops memoized host entries', async () => {
     const HEAD = '<meta name="clear-probe" content="1">'
     clearHostConfigCache()
     await initConfig()

@@ -22,7 +22,7 @@ import DB from '@bakery-framework/orm'
 const q = DB.from('posts').select({ title: 'posts.title', id: 'posts.id' })
 ```
 
-Not an object, not a builder call — a string. Both halves are validated against
+Not an object, not a builder call, a string. Both halves are validated against
 an identifier pattern and quoted for the active dialect, and they are
 snake-cased on the way out, so `'posts.createdAt'` emits `"posts"."created_at"`.
 
@@ -36,7 +36,7 @@ Rows come back with both spellings: the driver's key plus a camelCase alias. A
 ```ts
 import DB from '@bakery-framework/orm'
 
-// column, value — the operator defaults to `=`
+// column, value: the operator defaults to `=`
 const q = DB.from('users').where('users.id', 42)
 ```
 
@@ -46,7 +46,7 @@ There is no three-argument form. The signature is
 
 If you write the SQL-looking version out of habit:
 
-```ts no-check — deliberately wrong; kept out of the compile because it is the bug being described
+```ts no-check: deliberately wrong; kept out of the compile because it is the bug being described
 DB.from('users').where('users.id', '=', 42)
 ```
 
@@ -54,7 +54,7 @@ DB.from('users').where('users.id', '=', 42)
 is `WHERE "users"."id" = ?` bound to the string `'='`. Valid SQL, wrong
 question, zero rows, no error at any layer.
 
-`tsc` does catch it — *Expected 1-2 arguments, but got 3* — but Bun strips types
+`tsc` does catch it (*Expected 1-2 arguments, but got 3*), but Bun strips types
 without checking them, so `bun run dev` runs it happily. If you never run
 `bun run typecheck`, nothing tells you. That is how this survived ~25 times in
 the documentation these pages replace. Anything comparing against a literal
@@ -103,7 +103,7 @@ interpolated. Nothing crosses from one category to the other.
 
 ## Comparing two columns
 
-A bare string in the value position is a *value*, not a column — that is what
+A bare string in the value position is a *value*, not a column: that is what
 keeps user input from becoming SQL. Wrap a column reference in `DB.col()` when
 you mean the other thing:
 
@@ -120,7 +120,7 @@ const q = DB.from('users')
 ## Combining conditions
 
 `.and()` and `.or()` take the same two arguments as `.where()`. They append in
-call order and are not grouped — there is no parenthesised builder API. Use
+call order and are not grouped: there is no parenthesized builder API. Use
 `DB.raw` if you need explicit grouping.
 
 ```ts
@@ -187,13 +187,13 @@ const q = DB.from('campuses')
 // … LEFT JOIN "teachers" AS "t" ON "campuses"."id" = "t"."campus_id"
 ```
 
-Pass a **dotted** right-hand column. The type requires it — `rightCol` is
-typed `\`${string}.${string}\`` — so an undotted argument is a compile error, and
+Pass a **dotted** right-hand column. The type requires it: `rightCol` is
+typed `\`${string}.${string}\``, so an undotted argument is a compile error, and
 it now resolves to that table's `id` rather than emitting a malformed `ON`
 clause if you reach the runtime path from JavaScript.
 
 The alias becomes the name every later column qualifies against, and the
-unaliased table name drops out of scope — after `as 't'`, write `'t.surname'`,
+unaliased table name drops out of scope: after `as 't'`, write `'t.surname'`,
 not `'teachers.surname'`.
 
 To join a table to itself, alias it. To do the same in a *schema* declaration,
@@ -204,7 +204,7 @@ SQLite (3.39+) and Postgres do. Calling it on MySQL throws at the call site
 rather than emitting SQL the server rejects, because MySQL's own message for it
 is "You have an error in your SQL syntax" pointing at the whole statement. The
 standard workaround is a `LEFT JOIN` unioned with a `RIGHT JOIN`, which is a
-different query rather than a flag — so the builder does not rewrite it for you.
+different query rather than a flag, so the builder does not rewrite it for you.
 
 ## Set operations
 
@@ -221,8 +221,8 @@ const everyone = DB.from('students')
   .limit(50)
 ```
 
-What comes back has `orderBy`, `limit`, `offset` and `paginate` — what SQL
-allows after the last operand — and nothing else. `where` and `select` are gone
+What comes back has `orderBy`, `limit`, `offset` and `paginate` (what SQL
+allows after the last operand), and nothing else. `where` and `select` are gone
 because they would have to mean "on which branch?"; put them on the branch.
 
 Chaining a third operand extends the set rather than nesting it, matching SQL's
@@ -238,8 +238,8 @@ const q = DB.from('a').union(DB.from('b')).except(DB.from('c'))
 Two things the dialects disagree about, both handled for you:
 
 - **A branch with its own `ORDER BY` or `LIMIT`** cannot sit bare in a compound.
-  Parenthesising it is the documented fix and works on MySQL and Postgres —
-  *SQLite rejects a parenthesised operand outright*. So the builder wraps that
+  Parenthesizing it is the documented fix and works on MySQL and Postgres:
+  *SQLite rejects a parenthesized operand outright*. So the builder wraps that
   branch as a derived table instead, which all three accept.
 - **`INTERSECT ALL` and `EXCEPT ALL`** (pass `true` as the second argument)
   exist on MySQL 8.0.31+ and Postgres. SQLite has neither, and reports
@@ -262,7 +262,7 @@ const q = DB.from('students').select({
 })
 ```
 
-`DB.rowNumber()`, `DB.rank()` and `DB.denseRank()` take only the window — the
+`DB.rowNumber()`, `DB.rank()` and `DB.denseRank()` take only the window: the
 window *is* their argument:
 
 ```ts
@@ -290,7 +290,7 @@ const q = DB.from('orders').select({
 
 Arguments follow the same rule as everywhere else in the builder: a bare value
 binds as a parameter, `DB.col(…)` references a column. The function name is
-checked against an allow-list — it is interpolated, not bound.
+checked against an allow-list: it is interpolated, not bound.
 
 Window functions work on all three dialects (SQLite 3.25+, MySQL 8.0+,
 Postgres). Frame clauses (`ROWS BETWEEN …`) are **not** offered; every call gets
@@ -323,13 +323,13 @@ const page = DB.from('products')
 ```
 
 `limit(count, offset?)` is the explicit form. All three are legal straight off a
-table — no `where` or `select` needed first.
+table: no `where` or `select` needed first.
 
 `LIMIT`, `OFFSET` and the sort direction are interpolated, not bound, so both
 are validated at the call site: a direction other than `ASC`/`DESC` throws
 `Invalid sort direction`, and a non-numeric or negative limit throws
 `Invalid limit`. Numeric strings are coerced. **Never pass a raw request value
-as a column name or a direction** — the `'ASC' | 'DESC'` union is erased at
+as a column name or a direction**: the `'ASC' | 'DESC'` union is erased at
 runtime, and the column allow-list is the only thing standing between a query
 string and your SQL.
 
@@ -350,8 +350,8 @@ const next = await DB.from('posts')
 ```
 
 `null` (or `undefined`) means the first page, so one call site handles both
-without a branch. `seek()` sets the ordering itself — a cursor is a position in
-an order — and prepends it, so an explicit `orderBy()` still breaks ties after
+without a branch. `seek()` sets the ordering itself (a cursor is a position in
+an order), and prepends it, so an explicit `orderBy()` still breaks ties after
 it. Pass `'DESC'` as the fourth argument to walk backwards.
 
 It also does not skip or repeat rows when the table is written to mid-scan,
@@ -359,8 +359,8 @@ which offset paging does by construction: delete one row from page 1 and every
 later page shifts by one, so a row is never seen.
 
 The trade-offs are real, and both are consequences of how it works rather than
-gaps to be filled later. Pages are reachable **only in order** — there is no
-"jump to page 500" — and the cursor column must be **unique and ordered**, in
+gaps to be filled later. Pages are reachable **only in order** (there is no
+"jump to page 500"), and the cursor column must be **unique and ordered**, in
 practice a primary key or something monotonic. A non-unique column silently
 drops rows that tie on the boundary value, which is why `seek()` takes one
 column rather than appearing to sort by several.
@@ -384,7 +384,7 @@ const rows = await DB.from('posts')
 ```
 
 The reasoning: a relation API's whole value is deciding *for* you how related
-rows are fetched — one query with a join, or two queries stitched in memory,
+rows are fetched, one query with a join, or two queries stitched in memory,
 or N+1 without telling you which. Getting that wrong is the most common
 performance problem in every ORM that has one, and it is invisible at the call
 site. An explicit join is longer to type and there is never a question about
@@ -394,7 +394,7 @@ The cost is honest too: **loading children per parent in a loop is N+1 queries,
 and nothing will warn you.** Fetch them in one query with a join, or with a
 single `inList()` over the parent ids, and group in JavaScript.
 
-If you want relations, this is the wrong library — that is a fair conclusion to
+If you want relations, this is the wrong library: that is a fair conclusion to
 reach from this page, and a better outcome than discovering it three months in.
 
 ## Subqueries
@@ -456,7 +456,7 @@ identifiers.
 | `.column<T>()` | the first column of every row |
 | `.exists()` | `boolean`, via `SELECT 1 FROM (…) LIMIT 1` |
 | `.iterable()` | an async iterable, a chunk at a time |
-| `.parse()` | `{ sql, params }` — builds nothing, runs nothing |
+| `.parse()` | `{ sql, params }`: builds nothing, runs nothing |
 
 ```ts
 import DB from '@bakery-framework/orm'
@@ -469,11 +469,11 @@ const any = await DB.from('posts').where('posts.authorId', 7).exists()
 ```
 
 The builder is also a thenable: `await DB.from('posts')` runs `.array()`. Prefer
-the explicit call — it is clearer, and it is the only way to get anything other
+the explicit call: it is clearer, and it is the only way to get anything other
 than an array.
 
 `.fetch()` appends `LIMIT 1` when the query does not already have one. Without
-that, "give me one row" scanned the whole table and materialised every row
+that, "give me one row" scanned the whole table and materialized every row
 before discarding all but the first.
 
 Use `.iterable()` for result sets you do not want in memory at once:
@@ -487,8 +487,8 @@ export async function eachPost(fn: (row: unknown) => void) {
 ```
 
 **It pages; it is not a server-side cursor.** Bun's `SQL` has no streaming API
-at all — a query is a thenable, and every method on it resolves the whole
-result — so the ORM wraps your statement in a derived table and walks it 500
+at all (a query is a thenable, and every method on it resolves the whole
+result), so the ORM wraps your statement in a derived table and walks it 500
 rows at a time:
 
 ```sql
@@ -501,12 +501,12 @@ Three consequences worth knowing before you use it:
   reach for it, and it holds.
 - **Chunk boundaries are only stable under a total order.** The statement is
   re-executed per chunk, so rows inserted or deleted while you walk can be seen
-  twice or missed — the same hazard `LIMIT`/`OFFSET` paging has. Add an
+  twice or missed: the same hazard `LIMIT`/`OFFSET` paging has. Add an
   `ORDER BY` on a unique column, as above. If the table is being written to
   concurrently and you cannot tolerate a skip, [`seek()`](#cursor-paging-with-seek)
   is the construct that does not have this property.
 - **It is slower than `.all()`, and how much slower is up to you.** Every chunk
-  is a statement, so the cost is the chunk count times what one window costs —
+  is a statement, so the cost is the chunk count times what one window costs,
   and that depends on whether the database can serve your `ORDER BY` from an
   index. If it cannot, each window sorts the whole result and discards the
   offset. Measured on 100,000 rows at the default chunk size of 500, so 200
@@ -559,11 +559,11 @@ await DB.transaction(async () => {
 ```
 
 The callback also receives the transaction adapter directly, for raw statements.
-Work started but not awaited inside the callback escapes the transaction — await
+Work started but not awaited inside the callback escapes the transaction, await
 everything.
 
 ## Next
 
-- [Mutations](mutations.md) — insert, update, delete
-- [Schema](schema.md) — what makes these queries typed
-- [Adapters](adapters.md) — how the SQL differs per dialect
+- [Mutations](mutations.md): insert, update, delete
+- [Schema](schema.md): what makes these queries typed
+- [Adapters](adapters.md): how the SQL differs per dialect

@@ -4,7 +4,7 @@
  * The panels were built independently and each grew its own copy of the same
  * four things: an element-text setter, a `results-empty` block, a
  * fetch/`.json()` pair, and a prev/next pager. They are declared once here
- * because this file is compiled into the shipped bundle — a duplicated string
+ * because this file is compiled into the shipped bundle: a duplicated string
  * literal is duplicated bytes, the minifier does not merge them.
  *
  * Shrank when the database editor was retired: `executeAction`, `getJson`,
@@ -26,7 +26,7 @@ export function setText(id: string, value: string) {
  * caller happened to pass a literal or escape first, which is exactly the state
  * a codebase is in right before it stops being true. Every XSS found in this
  * repo came from hand-built DOM strings in these panel files, including a
- * stored-XSS to arbitrary-SQL chain through the database grid — which is gone
+ * stored-XSS to arbitrary-SQL chain through the database grid, which is gone
  * now, but the escaping default it argued for is not, because the sessions and
  * stats panels build markup the same way from data they did not write.
  */
@@ -45,8 +45,8 @@ export function setEmpty(
 
 /**
  * Inline SVGs, built from the path data alone. Every hand-written copy in the
- * panels carried `width="1em" height="1em"` twice — a duplicate attribute the
- * parser silently drops — and the same ~380-byte markup was pasted once per
+ * panels carried `width="1em" height="1em"` twice (a duplicate attribute the
+ * parser silently drops), and the same ~380-byte markup was pasted once per
  * use site.
  */
 export function icon(d: string, size: string): string {
@@ -58,7 +58,7 @@ export function icon(d: string, size: string): string {
 }
 
 // `ICON_EDIT` was here. It drew the pencil on the session key editor's Edit
-// button, and that button went with the editor it could not open — see the
+// button, and that button went with the editor it could not open. See the
 // note in `sessions.ts`. The path data has no other caller.
 export const ICON_DELETE =
   'M7 21q-.825 0-1.412-.587T5 19V6H4V4h5V3h6v1h5v2h-1v13q0 .825-.587 1.413T17 21zM17 6H7v13h10zM9 17h2V8H9zm4 0h2V8h-2zM7 6v13z'

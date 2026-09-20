@@ -13,11 +13,11 @@ export class MySQLAdapter extends SQLAdapter {
         ? connectionTarget.toString().replace(/^(mysqli?s?:\/\/)/, 'mysql://')
         : undefined
     super('mysql', undefined, target)
-    // `isOpenConnection`, not `instanceof SQL` — see the helper for why the
+    // `isOpenConnection`, not `instanceof SQL`. See the helper for why the
     // latter throws rather than answering.
     //
     // Pool options apply only when this opens its own connection. A handle
-    // handed in is already someone else's pool — notably a transaction's, where
+    // handed in is already someone else's pool: notably a transaction's, where
     // re-sizing anything would be meaningless.
     this.sql = isOpenConnection(connectionTarget)
       ? (connectionTarget as SQL)
@@ -40,7 +40,7 @@ export class MySQLAdapter extends SQLAdapter {
         // `affectedRows` first, and the order is the whole fix.
         //
         // Bun's MySQL driver sets `count` to **0** for every write and puts the
-        // real number in `affectedRows` — the reverse of SQLite, where `count`
+        // real number in `affectedRows`: the reverse of SQLite, where `count`
         // is authoritative and `affectedRows` is null. Reading `count` first
         // through a `??` chain therefore never fell through: zero is not
         // nullish, so it was taken and returned. Every insert, update and
@@ -251,7 +251,7 @@ export class MySQLAdapter extends SQLAdapter {
   /**
    * MySQL binds a view's tables at query time, not at `CREATE VIEW`, so a table
    * can be dropped and rebuilt underneath a view that names it. SQLite and
-   * Postgres both refuse — see the base declaration for the two messages.
+   * Postgres both refuse. See the base declaration for the two messages.
    */
   override get viewsBlockTableRebuild(): boolean {
     return false
@@ -363,7 +363,7 @@ export class MySQLAdapter extends SQLAdapter {
    *
    * This deliberately does *not* go through `getSchema()`. That lists every
    * table in the database and then issues `COUNT(*)` plus two
-   * information_schema queries per table — so deleting one row from a
+   * information_schema queries per table, so deleting one row from a
    * twenty-table schema ran sixty-one statements, twenty of them full row
    * counts, to learn one column name. The pk is one lookup against the same
    * `column_key = 'PRI'` that getSchema itself derived the flag from, in the
@@ -411,8 +411,8 @@ export class MySQLAdapter extends SQLAdapter {
    * Every information_schema column is aliased to its own lowercase name, and
    * the aliases are load-bearing despite looking redundant.
    *
-   * MySQL 8 returns information_schema field names **uppercase** — a bare
-   * `SELECT table_name` yields a row keyed `TABLE_NAME` — while an alias is
+   * MySQL 8 returns information_schema field names **uppercase** (a bare
+   * `SELECT table_name` yields a row keyed `TABLE_NAME`), while an alias is
    * returned exactly as written. Without them `t.table_name` is `undefined`
    * and this method throws `undefined is not an object` inside `Case.camel`,
    * which takes `db:sync` against MySQL down entirely. Postgres was never
@@ -524,7 +524,7 @@ export class MySQLAdapter extends SQLAdapter {
   // Match pattern only. MySQL re-renders an expression default before storing
   // it in information_schema (`unix_timestamp()`, case and parens not
   // guaranteed), and isDateNowDefault() strips parens and uppercases before
-  // comparing — so the bare prefix is the right entry here. It is *not*
+  // comparing, so the bare prefix is the right entry here. It is *not*
   // emittable SQL; see below.
   override readonly dateNowDefaults: string[] = ['UNIX_TIMESTAMP']
 
@@ -551,7 +551,7 @@ export class MySQLAdapter extends SQLAdapter {
       ),
     }
     // `column_type` ('varchar(64)'), not `data_type` ('varchar'), so the guard
-    // sees the same string a human would read — and so TEXT, whose
+    // sees the same string a human would read, and so TEXT, whose
     // character_maximum_length MySQL reports as 65535, is excluded.
     const length = this.sizedTextLength(
       String(col.column_type || col.data_type || ''),

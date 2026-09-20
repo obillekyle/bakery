@@ -1,7 +1,7 @@
 /**
  * The filter vocabulary, written once and read by both halves.
  *
- * **Pure, and deliberately in `shared/`** — the client builds filters and the
+ * **Pure, and deliberately in `shared/`**: the client builds filters and the
  * endpoint validates them, and a vocabulary that lived on only one side would
  * drift. Like the rest of `shared/`, this is compiled into the browser bundle,
  * so it imports nothing from `@bakery-framework/*` (see `client/safety.test.ts`).
@@ -14,7 +14,7 @@
  *
  * This is that caller. Validating matters more than it looks: a *dropped*
  * filter widens the result set, so a typo'd operator would silently show more
- * rows than were asked for — and the explorer's Delete acts on a selection made
+ * rows than were asked for, and the explorer's Delete acts on a selection made
  * from exactly that view. Failing the request is the only safe direction
  * (convention 2).
  */
@@ -51,7 +51,7 @@ export const FILTER_OPS: readonly FilterOp[] = [
  * The two operators that bind nothing.
  *
  * `IS NULL` has no parameter, which is the whole reason a filter cannot be
- * modelled as a plain column/value pair — the value input is *hidden* for
+ * modeled as a plain column/value pair: the value input is *hidden* for
  * these rather than ignored, because an input whose contents do nothing is a
  * lie about what the query will do.
  */
@@ -107,7 +107,7 @@ export function filter(
 /**
  * Filters as `getData` wants them: keyed by column.
  *
- * **The wire shape is a record, so a column can carry only one filter** — the
+ * **The wire shape is a record, so a column can carry only one filter**: the
  * ORM iterates `Object.entries(options.filters)`. Two chips on one column
  * therefore cannot both be sent, and the last one wins rather than the first,
  * because the last is the one the user just touched. `duplicateColumns` exists
@@ -132,7 +132,7 @@ export function toWire(filters: readonly Filter[]): Record<string, WireFilter> {
   return wire
 }
 
-/** Columns named by more than one filter — the ones the wire cannot carry. */
+/** Columns named by more than one filter: the ones the wire cannot carry. */
 export function duplicateColumns(filters: readonly Filter[]): string[] {
   const seen = new Set<string>()
   const twice = new Set<string>()
@@ -189,7 +189,7 @@ function parseOne(
   const { op, value: operand } = value as { op?: unknown; value?: unknown }
   if (!isFilterOp(op)) {
     return {
-      error: `unknown filter operator ${JSON.stringify(op)} on ${column} — expected one of ${FILTER_OPS.join(', ')}`,
+      error: `unknown filter operator ${JSON.stringify(op)} on ${column}: expected one of ${FILTER_OPS.join(', ')}`,
     }
   }
   if (!opTakesValue(op)) return { filter: { op } }

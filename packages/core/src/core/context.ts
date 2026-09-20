@@ -12,12 +12,12 @@ export type HostContext = {
    * `hostStore.run` in the tree wraps a single request, WebSocket event or
    * error dispatch, so the map dies with the store. That is what keeps this
    * distinct from the cross-request cache `fs.isForbidden`'s regression test
-   * forbids — see the block comment there. Bounded (convention 6) by request
+   * forbids. See the block comment there. Bounded (convention 6) by request
    * lifetime: one request touches a handful of paths, each of bounded depth.
    */
   forbiddenProbes?: Map<string, boolean>
   /**
-   * Per-request memo of `matchBlocked` verdicts keyed by request path — the
+   * Per-request memo of `matchBlocked` verdicts keyed by request path: the
    * router runs the check before dispatch and `StaticHandler.handle` must
    * keep its own (direct callers bypass the router gate), so without this the
    * same globs matched the same path twice per static request. Sound to key
@@ -33,7 +33,7 @@ export const hostStore = new AsyncLocalStorage<HostContext>()
  * The two runtime directories, defined here rather than on `Bakery`.
  *
  * `Bakery.cacheDir` / `Bakery.dataDir` remain the way application and framework
- * code reads them — these are the single definition those two forward to, and
+ * code reads them: these are the single definition those two forward to, and
  * still the only writer of either path. They live in this module because it is
  * low enough to be imported without pulling in `core/config`, and therefore
  * without pulling in the logger: `compiler/prompt-tracker.ts` needs the cache
@@ -43,7 +43,7 @@ export const hostStore = new AsyncLocalStorage<HostContext>()
  * **Functions, not constants, and that is not a style choice.** `utils/fs.ts`
  * imports this module for `hostStore`, so the two are themselves a cycle: a
  * top-level `` `${fs.cwd}/.cache` `` here is evaluated with `fs` still
- * uninitialised whenever `core/context` is reached first, and throws
+ * uninitialized whenever `core/context` is reached first, and throws
  * `TypeError: undefined is not an object`. Reading `fs.cwd` at call time is
  * what makes the order irrelevant.
  *
@@ -53,7 +53,7 @@ export const hostStore = new AsyncLocalStorage<HostContext>()
  * bump and dev<->prod switch, so a `rm -rf .*` or a "clean out the dotfiles"
  * sweep does exactly what the framework already does. The database is not
  * disposable, so it does not live behind a leading dot where such a sweep can
- * reach it, and never under `.cache` — clearing a cache must not destroy data.
+ * reach it, and never under `.cache`: clearing a cache must not destroy data.
  */
 export function cacheDir(): string {
   return `${fs.cwd}/.cache`
@@ -67,7 +67,7 @@ export function dataDir(): string {
  * `matchBlocked`, deduplicated within the current request.
  *
  * Outside a request store (tests, direct handler calls) this is exactly
- * `matchBlocked` — no caching, fail closed on nothing, because nothing is
+ * `matchBlocked`: no caching, fail closed on nothing, because nothing is
  * skipped. See `HostContext.blockedPaths` for the scoping argument.
  */
 export function matchBlockedCached(
@@ -92,7 +92,7 @@ export function matchBlockedCached(
  * and both halves are load-bearing. Distinct, because the two readers exist to
  * be different files and a shared fallback would let one silently stand in for
  * the other. Impossible, because they used to be plain `'1.0.0'` and `'0.0.0'`
- * — and when the framework was renumbered to 1.0.0 for its first publish, the
+ *, and when the framework was renumbered to 1.0.0 for its first publish, the
  * app fallback became a legitimate framework version. Nothing broke at runtime,
  * but `cache-version.test.ts` could no longer tell "read the manifest" from
  * "fell back to the other one", so the guard was disarmed by a version bump.
@@ -108,7 +108,7 @@ let _appVersion: string | null = null
 /**
  * The **application's** version, from `<cwd>/package.json`.
  *
- * Not the framework's — this reads the manifest of whatever is being served.
+ * Not the framework's: this reads the manifest of whatever is being served.
  * The distinction is load-bearing for cache invalidation; see
  * {@link getFrameworkVersion}.
  */

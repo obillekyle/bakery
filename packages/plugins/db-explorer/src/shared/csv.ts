@@ -1,7 +1,7 @@
 /**
  * CSV, RFC 4180-ish, with the delimiter sniffed rather than assumed.
  *
- * **Pure** — see the note at the top of `coerce.ts` — and, unlike the rest of
+ * **Pure**. See the note at the top of `coerce.ts`, and, unlike the rest of
  * `shared/`, **browser-only**. It was written when the server re-parsed the
  * text it was sent; `endpoints/import.ts` takes records that are already mapped
  * and coerced, so no CSV text ever reaches it. `client/csv-model.ts` is the
@@ -19,7 +19,7 @@
  *    `if (c === '"') inQuotes = true` with no check that the field is empty.
  *    RFC 4180 only gives `"` meaning at the start of a field.
  * 2. **No BOM handling.** A file saved by Excel begins `﻿`, so the first
- *    header comes back as `﻿id` and matches no column — the single most
+ *    header comes back as `﻿id` and matches no column: the single most
  *    common import failure there is.
  * 3. Comma only. A European export is `;`-delimited and a database dump is
  *    often tab-delimited; both parse as one column per row and then fail with
@@ -28,7 +28,7 @@
  *    (`row.length === 1 && row[0] === ''`), which also drops a legitimate
  *    single-column row whose value is empty.
  *
- * Fixing it in place would change `importCSV`'s behaviour for every existing
+ * Fixing it in place would change `importCSV`'s behavior for every existing
  * caller of the ORM, which is a separate decision from adding an importer to
  * the explorer. This parser is the explorer's; if the ORM's is ever replaced,
  * this is the implementation to move.
@@ -112,7 +112,7 @@ function countPerLine(text: string, delimiter: string, max: number): number[] {
  * No trimming and no type guessing: `"01"` and `01` are both the three-, then
  * two-character strings they look like, and turning either into a number is
  * `coerce.ts`'s job once a column is known. A field is only ever `''` when the
- * file said so — this parser has no concept of NULL.
+ * file said so: this parser has no concept of NULL.
  */
 export function parseCSVRows(text: string, delimiter = ','): string[][] {
   const csv = stripBOM(text)
@@ -137,7 +137,7 @@ export function parseCSVRows(text: string, delimiter = ','): string[][] {
     endField()
     // A blank line is not a row: it is what a trailing newline, or a stray one
     // in the middle of a file, leaves behind. One field, empty, and never
-    // quoted is the only shape it can take — a line reading `""` is a real row
+    // quoted is the only shape it can take: a line reading `""` is a real row
     // holding one empty value, which is why `rowQuoted` is tracked.
     const blank = row.length === 1 && row[0] === '' && !rowQuoted
     if (!blank) rows.push(row)

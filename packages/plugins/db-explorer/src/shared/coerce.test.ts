@@ -48,7 +48,7 @@ describe('the three wire states', () => {
     expect(value('', meta({ kind: 'date' }))).toBe('!empty_string')
   })
 
-  test('"" is refused even where the column is nullable — it is not a null', () => {
+  test('"" is refused even where the column is nullable: it is not a null', () => {
     expect(value('', meta({ kind: 'integer', nullable: true }))).toBe(
       '!empty_string',
     )

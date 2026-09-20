@@ -7,13 +7,13 @@ import { VueHandler } from './handler'
 /**
  * Template shapes that must either compile or fail *loudly*.
  *
- * Started as a chase for an app report — a multi-line `@click` allegedly
- * emitting a stray `;)` — which never reproduced: every multi-line handler
+ * Started as a chase for an app report (a multi-line `@click` allegedly
+ * emitting a stray `;)`), which never reproduced: every multi-line handler
  * form here compiles, through `compileVueFile` directly and through
  * `parseVueFile`'s `;`-appending preprocessor. What the chase found instead
  * was the mechanism such reports come from: a template Vue cannot compile
  * used to be *logged and served anyway*, broken JS behind a 200. These pin
- * both halves — the shapes that work keep working, and the shapes Vue itself
+ * both halves: the shapes that work keep working, and the shapes Vue itself
  * rejects surface as reported errors rather than served modules.
  */
 async function compiled(handler: string): Promise<string> {
@@ -111,8 +111,8 @@ describe('multi-line inline template handlers', () => {
     // `{{ total // pesos }}` is invalid *upstream*: bare `compileTemplate`
     // reports the same SyntaxError and emits the raw broken expression, so
     // there is nothing to repair here. What Bakery owes the author is the
-    // error in `result.errors` — the handler turns that into a 500 naming the
-    // file — instead of the old behavior, which logged it server-side and
+    // error in `result.errors` (the handler turns that into a 500 naming the
+    // file) instead of the old behavior, which logged it server-side and
     // served a module that failed to parse in the browser behind a 200.
     const sfc = [
       '<script setup lang="ts">',
@@ -165,7 +165,7 @@ describe('multi-line inline template handlers', () => {
 
 /**
  * `parseVueFile` runs a regex over multi-line event attributes *before* the
- * SFC compiler sees them, appending `;` when the value has none — my first
+ * SFC compiler sees them, appending `;` when the value has none: my first
  * repro pass missed this layer entirely by calling `compileVueFile` directly.
  * These push the preprocessed output through the full compile.
  */

@@ -2,9 +2,9 @@ import { Fragment, HTMLBody } from '@bakery-framework/core'
 import { CardHeader, HeroHeader, Layout } from '../Layout.tsx'
 
 // A catch-all segment: this one file answers /wiki/<anything>, however deep.
-// `body.page` is the rest of the path **as an array** — ['guides', 'routing']
-// for /wiki/guides/routing. More specific routes always win — a sibling
-// [id].tsx, a child index.tsx, or a deeper catch-all all outrank it — and
+// `body.page` is the rest of the path **as an array**: ['guides', 'routing']
+// for /wiki/guides/routing. More specific routes always win: a sibling
+// [id].tsx, a child index.tsx, or a deeper catch-all all outrank it, and
 // /wiki itself is NOT claimed (a catch-all needs at least one rest segment).
 export default HTMLBody<{ page: string[] }>((_req, body) => {
   const crumbs = body.page

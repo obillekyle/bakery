@@ -57,7 +57,7 @@ const RX_SERVER_DATA_TOKEN = new RegExp(`\\b${VUE_SERVER_DATA_TOKEN}\\b`, 'g')
 /**
  * Compiled module code with the server-data token still in place. Components
  * with a `<script server>` block get per-request data, so the code cannot be
- * cached on disk with the data baked in — but the expensive compile can be.
+ * cached on disk with the data baked in, but the expensive compile can be.
  */
 const tokenizedModuleCache = new LRUCache<
   string,
@@ -84,10 +84,10 @@ function buildActionStub(fn: string, relPath: string) {
 
 /**
  * Route path of the nearest `layout.vue`, walking from the page **file** up
- * to the serve root — the file, not the URL, so a catch-all page
+ * to the serve root, the file, not the URL, so a catch-all page
  * (`admin/[...slug!].vue`) is wrapped by `admin/layout.vue` no matter how
  * deep the request path goes. Null when nothing is found, when the page
- * opted out with `<meta no-layout />`, or when the page *is* a layout —
+ * opted out with `<meta no-layout />`, or when the page *is* a layout:
  * layouts do not nest in v1, deliberately: nesting needs an ordering story
  * (which slot, whose styles win) that should be designed, not implied.
  */
@@ -114,7 +114,7 @@ function findLayoutRoute(filePath: string, meta: VueMeta): string | null {
 
 /**
  * Does `dir` hold a file this handler routes, at any depth? A sibling
- * directory claims its first segment only when it does — the claim exists for
+ * directory claims its first segment only when it does: the claim exists for
  * `faculty/[id].vue`-shaped subtrees, and a directory of assets or helpers
  * routes nowhere more specific than the catch-all, so stamping its name would
  * disclose it for no navigational gain. Files at each level are checked
@@ -127,7 +127,7 @@ function containsRouteFile(dir: string, exts: string[]): boolean {
   try {
     entries = readdirSync(dir, { withFileTypes: true })
   } catch {
-    // Unreadable: treated as holding no routes — same reasoning as the catch
+    // Unreadable: treated as holding no routes, same reasoning as the catch
     // in claimedBeside below.
     return false
   }
@@ -146,20 +146,20 @@ function containsRouteFile(dir: string, exts: string[]): boolean {
  *
  * A catch-all owns only *what nothing else claims*: with
  * `admin/[...slug].vue` beside `admin/faculty/[id].vue`, the URL
- * `/admin/faculty/7` is under the base but belongs to `[id].vue` — so the
+ * `/admin/faculty/7` is under the base but belongs to `[id].vue`, so the
  * client-side router must yield it to a real navigation, or a soft-nav shows
  * the catch-all's rendering where a hard reload shows a different page.
  *
  * First-level granularity is exactly the server's precedence boundary: every
- * more-specific route — an exact sibling file, a child index, a deeper
- * catch-all — lives inside some sibling entry, so excluding the entry
+ * more-specific route (an exact sibling file, a child index, a deeper
+ * catch-all) lives inside some sibling entry, so excluding the entry
  * excludes the whole claim. A `[param]` sibling claims *every* single-segment
  * path, which is what `claimedSingle` carries. `layout.vue` claims nothing (it
  * is not routable), and the catch-all file itself is the page being served.
  *
  * Only entries the handler's own extension table routes are claims. The stamp
  * is serialized into the HTML of every served page, so each name in it is
- * published to any visitor — and this function used to list *every* sibling
+ * published to any visitor, and this function used to list *every* sibling
  * stem, which put non-route file names (`sample.bin`, `script.ts`,
  * `index.tsx`) from the source directory into production responses: a
  * directory listing of `src/`, observed in a smoke test of the published
@@ -170,11 +170,11 @@ function containsRouteFile(dir: string, exts: string[]): boolean {
  * served by core's real-file-beats-catch-all rule (`findDynamicRoute`), and
  * the stamp no longer names it, so a plain anchor to one soft-navigates into
  * the catch-all's view. An anchor carrying `target` or `download` is never
- * intercepted — that is the spelling for linking a raw file out of a
+ * intercepted: that is the spelling for linking a raw file out of a
  * catch-all's subtree, and what `docs/plugins/vue.md` prescribes.
  *
  * Computed per page request in development, so a file added or removed is
- * seen on the next load without cache ceremony. **Memoised in production**,
+ * seen on the next load without cache ceremony. **Memoized in production**,
  * where it cannot change: there is no watcher, and the `SIGHUP` handler in
  * `core/init.ts` is a deliberate no-op, so the only way the page tree changes
  * is a restart.
@@ -202,8 +202,8 @@ const claimedCache = new LRUCache<
  * Test seam (convention 9).
  *
  * **A test process reports `PROD === '1'`**, so this memo is *on* by default
- * under `bun test` — a test that writes into a page directory between two
- * calls is running against the production behaviour whether it meant to or
+ * under `bun test`: a test that writes into a page directory between two
+ * calls is running against the production behavior whether it meant to or
  * not. Clear it between such calls, or ask for development explicitly with
  * `withEnvFlag('PROD', false, …)`.
  */
@@ -236,7 +236,7 @@ export function claimedBeside(catchAllFile: string): {
     entries = readdirSync(dir, { withFileTypes: true })
   } catch {
     // Unreadable directory: no visible siblings means nothing extra claimed,
-    // and a hard load still routes correctly — the stamp is an optimisation
+    // and a hard load still routes correctly. The stamp is an optimization
     // of honesty, not the source of it. Remembered like any other answer, so
     // an unreadable directory does not re-throw on every request.
     const empty = { claimed: [], claimedSingle: false }
@@ -262,7 +262,7 @@ export function claimedBeside(catchAllFile: string): {
     }
 
     claimed.add(name)
-    // `reports.vue` also claims `/base/reports` — the extensionless spelling
+    // `reports.vue` also claims `/base/reports`: the extensionless spelling
     // is the one links actually use.
     const stem = name.replace(/\.[^.]+$/, '')
     if (stem && stem !== name) claimed.add(stem)
@@ -355,11 +355,11 @@ export class VueHandler extends DynamicHandler {
         // render blank: the injected block above has no `export default`, so
         // `assembleComponent` had nothing to rewrite into `const __sfc__ =`
         // and the module died with `ReferenceError: __sfc__ is not defined`.
-        // The documented workaround was a setup block — so inject one. The
+        // The documented workaround was a setup block, so inject one. The
         // comment inside is load-bearing: the SFC parser *discards* a block
         // whose content is only whitespace, which is also why the workaround
         // had to be a non-empty block. It also makes the server exports
-        // template-visible — compileScript only records plain-script bindings
+        // template-visible: compileScript only records plain-script bindings
         // when a setup block exists.
         if (!/<script\s[^>]*\bsetup\b|<script\s+setup/i.test(cleanContent)) {
           cleanContent += `\n<script setup${langAttr}>\n// injected: carries the server-data bindings above\n</script>\n`
@@ -421,7 +421,7 @@ export class VueHandler extends DynamicHandler {
     if (compiled.errors.length) {
       // Thrown, not logged-and-served: a template Vue could not compile has
       // the raw unparseable expression in its render function, so serving it
-      // is a browser-side SyntaxError behind a 200 and an empty page — the
+      // is a browser-side SyntaxError behind a 200 and an empty page, the
       // report that surfaced this described exactly that. The throw lands in
       // the error registry as a 500 that names the file and the error.
       throw new Error(
@@ -472,7 +472,7 @@ export class VueHandler extends DynamicHandler {
       // Root scripts carry the build variant in their name for the same reason
       // the chunk does (`vueChunkPath`): the cache is keyed on the *source's*
       // mtime, and flipping `build` in server.config.ts touches no source file
-      // — measured serving a root compiled under 'runtime' after the flip to
+      //, measured serving a root compiled under 'runtime' after the flip to
       // 'full', missing the isCustomElement bridge the full build exists for.
       // Only roots: the variant changes nothing in a subcomponent's output.
       // The layout joins the name for the same reason the variant does: the
@@ -586,7 +586,7 @@ export class VueHandler extends DynamicHandler {
 
     // The route's shape, for `defineLayout()` (`client.ts`): the guard that
     // restricts it to catch-all pages reads `catchAll` from here, so the
-    // stamp is the enforcement, not a convenience. Stamped on every page —
+    // stamp is the enforcement, not a convenience. Stamped on every page:
     // a non-catch-all page carries `catchAll: false`, which is what makes
     // the client-side error message possible instead of a bare undefined.
     const routeDecl = route
@@ -598,7 +598,7 @@ export class VueHandler extends DynamicHandler {
       () => serverDecl + routeDecl,
     )
 
-    // Static markup, injected verbatim — see parseSkeleton for why it is
+    // Static markup, injected verbatim. See parseSkeleton for why it is
     // never rendered. mount() replaces the container children, so it
     // disappears the moment the real component is up.
     if (parsed.skeleton) {
@@ -663,8 +663,8 @@ function asDirectResponse(value: any) {
  * Serve `value` if the server script already produced a complete response,
  * otherwise `null` so the caller treats it as page data.
  *
- * Both paths through `sharedHandler` — the `__vue_action` call and the ordinary
- * page render — need exactly this, and each carried its own verbatim copy. A
+ * Both paths through `sharedHandler` (the `__vue_action` call and the ordinary
+ * page render) need exactly this, and each carried its own verbatim copy. A
  * `BunFile` goes through `ETag.sendFile` so a conditional request can 304; the
  * `new Response` is the fallback for the un-cacheable case.
  */
@@ -677,7 +677,7 @@ async function serveIfDirect(value: any, req: Request) {
   return (await ETag.sendFile(direct, req)) || new Response(direct as any)
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: request handler — one branch per SFC render path
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: request handler, one branch per SFC render path
 async function sharedHandler(
   this: typeof DynamicHandler | typeof DynamicErrorHandler,
   path: string,
@@ -720,7 +720,7 @@ async function sharedHandler(
   }
 
   // A layout is scaffolding, not a destination: /admin/layout must not render
-  // as a page. Script and css requests pass — they are how the root script of
+  // as a page. Script and css requests pass: they are how the root script of
   // every page under it imports the thing.
   if (routePath.endsWith('/layout.vue') && !isScript && !isCss) {
     return response.error('Not Found', 404)
@@ -767,7 +767,7 @@ async function sharedHandler(
     }
 
     // The gates above ran against the route. This one runs against whatever
-    // `__vue_file` chose, which is the thing that is about to execute — and it
+    // `__vue_file` chose, which is the thing that is about to execute, and it
     // runs before the body is read, so a rejected request costs a parse it
     // never needed.
     const denied = validateActionTarget(
@@ -801,7 +801,7 @@ async function sharedHandler(
     return response.json.success('OK', actionResult)
   }
 
-  // Root scripts and stylesheets carry no per-request data — running the server
+  // Root scripts and stylesheets carry no per-request data: running the server
   // block for them would re-execute every top-level query on each sub-request.
   const needsServerData = !isCss && vueScriptParam !== 'root'
 

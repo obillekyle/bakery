@@ -12,15 +12,15 @@ troubleshooting note is usually the mechanism rather than the fix.
 framework or any repo root (`packages/core/src/core/config.ts`). So is `root`,
 so are `bakery` and the cache directory, and so is the schema. Running the CLI
 from a parent directory instead of the application directory silently gives you
-a *different application* — one with no config at all. That is why a generated
+a *different application*: one with no config at all. That is why a generated
 app's scripts invoke the `bakery` bin bare, and why this repo's root scripts
 `cd apps/example` first.
 
 Absence is tolerated on purpose: zero-config boot is a supported feature, and
 the defaults (`root: 'src'`, port 3000, host `0.0.0.0`) are a working config. So
-a config in the wrong place produces no error, only different behaviour.
+a config in the wrong place produces no error, only different behavior.
 
-### `server.config.ts exists but failed to import — refusing to start on the default config`
+### `server.config.ts exists but failed to import: refusing to start on the default config`
 
 The file is there and does not parse or does not evaluate. This is treated as
 distinct from absence, and the two modes differ
@@ -28,8 +28,7 @@ distinct from absence, and the two modes differ
 
 - **Production throws**, and the entry's catch logs `Config init failed: …` and
   exits 1.
-- **Development boots anyway**, loudly — a crash would just loop the watcher —
-  and the startup banner restates the error.
+- **Development boots anyway**, loudly (a crash would just loop the watcher),   and the startup banner restates the error.
 
 It used to log one line and boot on `defaultConfig` in both modes, which meant
 port 3000, no plugins and no hosts while the developer debugged the vanished
@@ -69,7 +68,7 @@ Three things restart the worker, and only three
 
 The third is the surprising one. Bun caches the directory listing it resolved an
 import against, so a page that did not exist when the worker booted cannot be
-imported at any specifier — including a freshly cache-busted one — and the page
+imported at any specifier (including a freshly cache-busted one), and the page
 500s with `Cannot find module` until the process restarts. `isCreatedRouteModule`
 detects this from the watcher's `rename` event plus the file still existing.
 
@@ -86,7 +85,7 @@ editor's atomic-save setting before you look anywhere else.
 Only the route file's own mtime is cache-busted
 (`packages/core/src/handlers/assets/tsx.ts`). A `Layout.tsx` your page imports
 stays in Bun's module registry until the process restarts. That is the trade for
-making the common loop — editing the page itself — instant.
+making the common loop (editing the page itself) instant.
 
 Touching `server.config.ts` is the cheapest way to force it, since that is a
 restart trigger.
@@ -102,7 +101,7 @@ whose URL is same-origin and whose `pathname` is **exactly** the changed path
 reload:
 
 - CSS inside a `<style>` block, or imported from another stylesheet with
-  `@import` — there is no `<link>` for it.
+  `@import`: there is no `<link>` for it.
 - A `<link href>` that does not resolve to the same pathname the watcher
   reported.
 
@@ -116,7 +115,7 @@ It should, but by a different route than a normal reload. A backend change exits
 the worker; the live-reload socket closes; the client backs off and reconnects,
 and on reconnect it reloads the page outright
 (`packages/core/src/client/livereload.ts`). If the page never reloads, the
-worker did not come back — check the terminal for the startup error.
+worker did not come back. Check the terminal for the startup error.
 
 After about seven seconds of downtime the page shows a "dev server disconnected"
 overlay rather than sitting silent. Errors the server pushes over the same
@@ -129,13 +128,13 @@ Two separate syncs touch it on every dev boot
 
 - `syncTSConfigPaths` writes `compilerOptions.paths` from `config.importMap`. It
   writes **only** when the computed paths differ from disk, so a repeated
-  `TSConfig paths synced` line means something is genuinely flapping — usually an
+  `TSConfig paths synced` line means something is genuinely flapping: usually an
   `importMap` entry computed from a path that moves. `paths` is **replaced**, not
   merged, so hand-written aliases there are removed; put them in a base config
   the app's `tsconfig.json` extends. `compilerOptions.baseUrl` is deleted
   unconditionally.
 - `syncTSConfigProjects` writes `.cache/tsconfig/{server,client,…}.json`. It
-  adds nothing to the root config; the one edit it can make is a repair — if an
+  adds nothing to the root config; the one edit it can make is a repair: if an
   earlier release wired the generated projects in as `references`, those
   entries are removed (once, with a `Removed generated references` line).
   References you wrote yourself, and every other key, are preserved.
@@ -146,17 +145,17 @@ TypeScript reports TS6306/TS6310 for each referenced project and TS6305 for
 every file both projects claim. If your CI typecheck fails that way, boot the
 dev server once (or delete the `references` array) and it stays fixed.
 
-An older sibling of that bug is worth recognising by symptom: the sync used to
+An older sibling of that bug is worth recognizing by symptom: the sync used to
 replace the root with a references-only stub, which removed the `jsx`,
-`jsxFactory` and `jsxFragmentFactory` options — and **Bun's runtime reads those
+`jsxFactory` and `jsxFragmentFactory` options, and **Bun's runtime reads those
 from the root `tsconfig.json`**. Every `.tsx` page then transpiled against the
 automatic JSX runtime. The symptom is not a 500: the page answers **200** with
 a JSON body like `{"type":"html","props":{…},"_owner":null,"_store":{}}`,
 because the handler received a React element tree where it expects a rendered
-string. If you see that, your root config lost its JSX options — restore the
+string. If you see that, your root config lost its JSX options. Restore the
 three and the page renders again.
 
-Comments and trailing commas are fine — the file is read with a JSONC parser.
+Comments and trailing commas are fine: the file is read with a JSONC parser.
 Failures are logged as `TSConfig sync error: …` and never abort the boot.
 
 ### Checking browser code against browser rules
@@ -165,7 +164,7 @@ The per-concern split lives in the generated projects, invoked directly:
 `.cache/tsconfig/server.json` carries `bun-types`; `client.json` does not, so
 `bunx tsc -p .cache/tsconfig/client.json` makes `Bun.hash()` in a file bound
 for the browser a type error rather than a runtime one. `importMap` aliases
-only reach `client.json`, because an import map is resolved *by the browser* —
+only reach `client.json`, because an import map is resolved *by the browser*:
 an alias that typechecked in server code would be an import the server cannot
 satisfy. The projects are standalone by design: your own `tsconfig.json` does
 not reference them, because a `references` entry to an unbuilt `noEmit`
@@ -180,7 +179,7 @@ A plugin can contribute a project of its own; `@bakery-framework/plugin-vue` own
 ### My `.tsx` page returns 404
 
 There is no route table and no route listing in the startup banner, so there is
-nothing to check for a "registered" route — resolution happens per request
+nothing to check for a "registered" route: resolution happens per request
 against the filesystem. In order of likelihood:
 
 1. **No `default` export.** A module without one resolves to `null`, which every
@@ -194,7 +193,7 @@ against the filesystem. In order of likelihood:
 3. **A bracketed path was requested literally.** `DynamicHandler.canHandle`
    refuses any path spelled like a route template, so `/blog/[id]` and
    `/docs/[...slug]` are 404 by design (`$dynamic.ts`).
-4. **A bracket-named directory.** Discovery never descends them — neither
+4. **A bracket-named directory.** Discovery never descends them, neither
    `[id]/[...slug].tsx` nor `[category]/[slug].tsx` is reachable. Params work
    within the final *filename* only.
 
@@ -206,7 +205,7 @@ specificity: see
 
 Three separate mechanisms, each with a different response:
 
-- **Blocked globs** — `403 Forbidden` as plain text, applied after routing and
+- **Blocked globs**: `403 Forbidden` as plain text, applied after routing and
   only when the winning handler serves files off disk. The full pattern list is
   in [Server config → Blocked paths](../configuration/server-config.md#blocked-paths).
   Matching folds case and Win32 trailing dots, so `/PACKAGE.JSON` is refused
@@ -214,7 +213,7 @@ Three separate mechanisms, each with a different response:
 - **A `.forbidden` marker.** Any directory between the target and the serve root
   containing a file named `.forbidden` makes everything below it unreachable
   (`packages/core/src/utils/fs.ts`). The probe is not cached across requests, on
-  purpose — dropping the marker takes effect on the next request, and removing
+  purpose: dropping the marker takes effect on the next request, and removing
   it likewise.
 - **Containment.** A resolved path that lands outside the root it was resolved
   against is `403`, before any handler runs.
@@ -234,7 +233,7 @@ about a legitimately cross-origin client, is in
 
 ### `429 Too Many Requests` from my own machine
 
-The per-IP rate limit is **on by default** — a 100-request burst refilling at 10
+The per-IP rate limit is **on by default**: a 100-request burst refilling at 10
 per second (`packages/cli/src/worker.ts`). The startup banner announces it
 whenever the default is in effect. A page that fans out to many assets or a load
 test will hit it. Set `rateLimit` in `server.config.ts`, or `rateLimit: false`
@@ -244,7 +243,7 @@ per worker.
 ### `body` is empty or missing fields
 
 `processBody` (`packages/core/src/utils/http/body.ts`) branches on method and
-content type, and **swallows parse failures into `{}`** — so malformed JSON
+content type, and **swallows parse failures into `{}`**, so malformed JSON
 looks identical to no body at all:
 
 | Request | What `body` contains |
@@ -274,7 +273,7 @@ By design, and it depends on exactly one thing:
 `process.env.NODE_ENV === 'production'` (`isProductionSync` in
 `packages/orm/src/sync/engine.ts`). With it set, a plan that drops or renames a
 table or column, rebuilds a table, updates a view or drops an index exits 1
-unless you pass `--force-sync`. Without it, you get an interactive prompt — and
+unless you pass `--force-sync`. Without it, you get an interactive prompt, and
 a non-TTY declines rather than treating an unanswerable prompt as consent.
 
 If a production host is prompting instead of refusing, `NODE_ENV` is not set.
@@ -301,11 +300,11 @@ Say it in the schema instead, with `old()`. See
 ### Resetting the database
 
 Stop the server and delete the SQLite file from the application's data directory
-(`Bakery.dataDir` — see
+(`Bakery.dataDir`. See
 [Project structure](../getting-started/project-structure.md#generated-directories)).
 The next boot creates an empty database; `db:sync` applies the schema to it.
 
-Deleting the cache directory is always safe and never affects data — the two are
+Deleting the cache directory is always safe and never affects data: the two are
 deliberately not nested for exactly this reason. Note that the session store
 lives with the data, not with the cache, so a reset logs everyone out even when
 the ORM points at MySQL or Postgres.
@@ -315,7 +314,7 @@ the ORM points at MySQL or Postgres.
 ### Does Bakery do React?
 
 No. `.tsx` pages are rendered to an HTML string on the server by Bakery's own
-JSX runtime (`packages/core/src/core/jsx.ts`) — there is no virtual DOM, no
+JSX runtime (`packages/core/src/core/jsx.ts`): there is no virtual DOM, no
 hydration and no client-side component model. Children are escaped unless they
 came from `createElement` itself, so interpolating user data is safe by default.
 
@@ -330,7 +329,7 @@ Vue *components* are supported, but through a plugin rather than in core: see
 
 Not usefully. Bakery is a long-running stateful process: it owns a `Bun.serve`,
 WebSocket connections, an in-memory cache tier flushed to SQLite on a 30-second
-timer, and — by default — an embedded database on local disk. A VPS, a container
+timer, and (by default) an embedded database on local disk. A VPS, a container
 host, or anything that gives you a persistent volume and a process that stays
 up. The volume requirement is the hard one; see
 [Production → Directories](../deployment/production.md#directories-what-must-persist).
@@ -338,11 +337,11 @@ up. The volume requirement is the hard one; see
 ### Why not just use Express or Hono?
 
 Different job. Those are routers you assemble a stack around. Bakery is opinionated
-about the whole surface — filesystem routing, server-rendered JSX, sessions, an
-ORM with schema sync, a dev loop — and the parts are designed against each other
+about the whole surface (filesystem routing, server-rendered JSX, sessions, an
+ORM with schema sync, a dev loop), and the parts are designed against each other
 rather than composed. If you want to pick your own pieces, pick your own pieces.
 
 ## Next
 
-- [CLI reference](cli.md) — every flag, exit code and environment variable.
-- [Architecture](architecture.md) — the request pipeline end to end.
+- [CLI reference](cli.md): every flag, exit code and environment variable.
+- [Architecture](architecture.md): the request pipeline end to end.

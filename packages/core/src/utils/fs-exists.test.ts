@@ -6,7 +6,7 @@ import { fs } from './fs'
 /**
  * `exists` used to take the path back off a `BunFile` and build a second one
  * to stat it. A `BunFile` caches its own stat, so the instance the caller
- * already holds is free to read and the fresh one is a syscall — every caller
+ * already holds is free to read and the fresh one is a syscall: every caller
  * that asks both "is it there" and "how old is it" paid two.
  *
  * Counting syscalls directly would need `node:fs` module-mocking, which is

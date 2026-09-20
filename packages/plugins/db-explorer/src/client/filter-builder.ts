@@ -36,7 +36,7 @@ const OPTIONS = FILTER_OPS.map(op => ({ value: op, label: OP_LABELS[op] }))
  * The bar.
  *
  * Every control writes a **whole new list** through `onChange` rather than
- * mutating the one it was given — same discipline as the CSV wizard's model,
+ * mutating the one it was given: same discipline as the CSV wizard's model,
  * and the reason a chip's state can never disagree with the URL.
  */
 export function filterBar(ctx: FilterBuilderContext): HTMLElement {
@@ -54,7 +54,7 @@ export function filterBar(ctx: FilterBuilderContext): HTMLElement {
  *
  * The wire shape is a record keyed by column, so only the last filter on a
  * column is sent. Rendering both chips and silently dropping one would be a
- * screen that disagrees with the query — the one failure mode a filter builder
+ * screen that disagrees with the query: the one failure mode a filter builder
  * must not have.
  */
 function clashNote(columns: readonly string[]): HTMLElement {
@@ -130,9 +130,9 @@ function nextOnOp(entry: Filter, op: FilterOp): Filter {
 }
 
 /**
- * The operand — **absent** for `null` and `notnull`.
+ * The operand: **absent** for `null` and `notnull`.
  *
- * Not disabled, not hidden by CSS: not built at all. A greyed-out box still
+ * Not disabled, not hidden by CSS: not built at all. A grayed-out box still
  * says "there is a value here", and there is not one.
  */
 function valueInput(
@@ -169,7 +169,7 @@ function removeButton(
  *
  * Exported because they are the two operations the chip callbacks are made of,
  * and an off-by-one in either would present as "removing one filter removed a
- * different one" — a bug worth a test rather than a careful read.
+ * different one": a bug worth a test rather than a careful read.
  */
 export function withAt(
   filters: readonly Filter[],
@@ -186,7 +186,7 @@ export function withoutAt(filters: readonly Filter[], index: number): Filter[] {
 /**
  * The filter a foreign-key jump becomes.
  *
- * One `eq` per referenced column, which is exactly a row identity — this is the
+ * One `eq` per referenced column, which is exactly a row identity: this is the
  * function that replaced `ViewState.focus`. Values stringify because the wire
  * carries text and the ORM binds it as a parameter; the comparison happens in
  * the database, against the column's own type.

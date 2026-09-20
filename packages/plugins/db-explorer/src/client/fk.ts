@@ -15,7 +15,7 @@
  *    per-row and therefore unbounded in principle; the bound is what makes that
  *    safe.
  *
- * The pure half — which column points where, and what key a row implies — is
+ * The pure half (which column points where, and what key a row implies) is
  * separated out so the graph reasoning can be read without the timers.
  */
 
@@ -25,8 +25,8 @@ import { type ForeignKeyInfo, type SchemaGraph, sameTable } from './meta'
 /**
  * A least-recently-used map, in nine lines.
  *
- * Core has `LRUCache` and this is not a preference for a private copy —
- * `bundleModule` externalises every installed package, so importing it leaves
+ * Core has `LRUCache` and this is not a preference for a private copy:
+ * `bundleModule` externalizes every installed package, so importing it leaves
  * `@bakery-framework/core/cache/lru` as a bare specifier in the emitted bundle
  * and the browser cannot resolve it. Client code imports nothing from
  * `@bakery-framework/*`; see the header of `shared/coerce.ts`.
@@ -101,7 +101,7 @@ export function fkForColumn(
  * Every foreign-key column of one table, resolved once.
  *
  * `fkForColumn` is a linear scan of the whole graph, and the grid asked it per
- * cell, per paint — a fifty-row page of twenty columns against forty foreign
+ * cell, per paint: a fifty-row page of twenty columns against forty foreign
  * keys is forty thousand comparisons, each of which had `sameTable` allocate
  * two lowercased strings, and `repaintRow`/`repaintCell` run it again. The scan
  * does not depend on the row, so it happens once when the grid is built.
@@ -139,7 +139,7 @@ export function reverseFks(
 /**
  * The referenced row's identity, as this row names it.
  *
- * `null` when any participating column is NULL — an optional foreign key with
+ * `null` when any participating column is NULL: an optional foreign key with
  * no value points at nothing, and a predicate containing `NULL` matches no row
  * anyway, so issuing the lookup would spend a request to learn that.
  */
@@ -156,7 +156,7 @@ export function fkKeyOf(
   return key
 }
 
-/** `table|col|value` — stable across pages, which is what makes caching pay. */
+/** `table|col|value`: stable across pages, which is what makes caching pay. */
 export function cacheKey(
   refTable: string,
   key: Record<string, unknown>,
@@ -171,8 +171,8 @@ export function cacheKey(
  * What to show for a resolved row: the label column if the table has one, the
  * identity otherwise.
  *
- * `graph.labels` is the server's pick — the first text column that is not part
- * of the identity — so a `users` row reads as `ada` rather than `41`.
+ * `graph.labels` is the server's pick (the first text column that is not part
+ * of the identity), so a `users` row reads as `ada` rather than `41`.
  */
 export function fkLabel(
   graph: SchemaGraph | null,
@@ -197,7 +197,7 @@ export type Resolved = Record<string, unknown> | null
  */
 export class FkResolver {
   /**
-   * 500 entries — ten pages of a fifty-row grid with a foreign key on every
+   * 500 entries: ten pages of a fifty-row grid with a foreign key on every
    * row. Past that the earliest are the ones the user has scrolled away from.
    */
   private readonly cache = new BoundedCache<Resolved>(500)

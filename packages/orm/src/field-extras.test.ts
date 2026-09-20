@@ -10,7 +10,7 @@ import type { ExtractOptionals, ExtractTableTypes } from './schema-util'
 const MYSQL_URL = process.env.MYSQL_TEST_URL
 const PGSQL_URL = process.env.PGSQL_TEST_URL
 
-/** See adapters/nested-tx.test.ts — Bun's MySQL driver needs a pending timer. */
+/** See adapters/nested-tx.test.ts: Bun's MySQL driver needs a pending timer. */
 function alive<T>(promise: T | Promise<T>): Promise<T> {
   const timer = setTimeout(() => {}, 30_000)
   return Promise.resolve(promise).finally(() => clearTimeout(timer))
@@ -20,7 +20,7 @@ function alive<T>(promise: T | Promise<T>): Promise<T> {
  * Type-level assertions, checked by `bun run typecheck` rather than at runtime.
  *
  * `Field.Foreign` used to return `as any`, so every foreign-key column inferred
- * as `any` and nothing noticed — a row type that silently gives up is worse than
+ * as `any` and nothing noticed: a row type that silently gives up is worse than
  * one that is wrong, because nothing downstream complains. These fail to
  * *compile* if that regresses.
  */
@@ -78,7 +78,7 @@ void [
  */
 const SHAPE = {
   t: {
-    // A type `TypeMap` cannot express at all — the case that previously needed
+    // A type `TypeMap` cannot express at all: the case that previously needed
     // `_enum` to be read *before* `type`, or the union widened back to `string`.
     status: Field.Enum(['draft', 'published'] as const, 'draft'),
     // Optional despite being neither nullable nor defaulted by the caller: the
@@ -114,7 +114,7 @@ void [
 ]
 
 describe('the descriptor carries the row type, not a dialect name', () => {
-  test('the runtime object is unchanged — `type` is still the dialect name', () => {
+  test('the runtime object is unchanged: `type` is still the dialect name', () => {
     // The entire safety argument for the reshape: adapters, generated files and
     // stored ledger payloads see exactly what they saw before.
     const asRuntime = (d: unknown) => d as Record<string, unknown>
@@ -225,7 +225,7 @@ describe('Field.Enum accepts a TypeScript enum', () => {
   })
 
   test('produces the same column as the equivalent array', () => {
-    // The two spellings must not drift — one is sugar for the other.
+    // The two spellings must not drift: one is sugar for the other.
     const fromEnum: any = Field.Enum(Status, Status.Draft)
     const fromArray: any = Field.Enum(['draft', 'published'] as const, 'draft')
     expect(fromEnum).toEqual(fromArray)
@@ -243,7 +243,7 @@ describe('Field.Enum accepts a TypeScript enum', () => {
   })
 
   test('a numeric enum is refused, by name, rather than half-stored', () => {
-    // Object.values(Priority) is ['Low','High',0,1] — a CHECK built from that
+    // Object.values(Priority) is ['Low','High',0,1]: a CHECK built from that
     // would permit the member names and reject the values actually stored.
     expect(() => Field.Enum(Priority as any)).toThrow(/numeric enum/)
   })
@@ -377,7 +377,7 @@ describe('pool options', () => {
   })
 
   test('drops what Bun would take and misbehave on', () => {
-    // Unset must stay unset — an omitted option is Bun's default, which is not
+    // Unset must stay unset: an omitted option is Bun's default, which is not
     // the same as passing it a zero or a NaN.
     expect(poolOptionsFromEnv({ DB_POOL_MAX: 'lots' })).toEqual({})
     expect(poolOptionsFromEnv({ DB_POOL_MAX: '0' })).toEqual({})
@@ -387,7 +387,7 @@ describe('pool options', () => {
   })
 
   test('forwards only known keys', () => {
-    // Bun accepts an unrecognised option silently, so a stray key would
+    // Bun accepts an unrecognized option silently, so a stray key would
     // configure nothing and report nothing.
     const merged: any = withPoolOptions({ a: 1 }, { max: 3 })
     expect(merged).toEqual({ a: 1, max: 3 })
@@ -400,7 +400,7 @@ describe('pool options', () => {
  * builders emit actually execute, and does the default read back as the marker
  * it was written from?
  *
- * A failure of the second is not cosmetic — it is the perpetual-rebuild bug,
+ * A failure of the second is not cosmetic: it is the perpetual-rebuild bug,
  * where the schema and the database disagree forever and every sync rewrites
  * the table.
  */
@@ -469,7 +469,7 @@ describe('live round-trip', () => {
         }
         expect(rejected).toBe(true)
 
-        // And the default reads back as the marker it was written from — this is
+        // And the default reads back as the marker it was written from: this is
         // the assertion that stands between here and a table rebuilt forever.
         const constraints: any = await alive(db.getConstraints())
         const key = Object.keys(constraints).find(
@@ -490,7 +490,7 @@ describe('live round-trip', () => {
         // look unmapped and it stops to ask what to drop.
         //
         // Feeding it exactly what it just read is the self-comparison that
-        // matters — if a column differs from itself, it lands in `tablesToRebuild`
+        // matters: if a column differs from itself, it lands in `tablesToRebuild`
         // and every sync from here to eternity rewrites the table.
         const { buildSyncPlan } = await import('./sync/plan')
         const { Logger, messageLogger } = await import(

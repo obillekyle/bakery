@@ -9,7 +9,7 @@
  * shipping a second, weaker copy.
  *
  * Rendered **only when nothing serves `/_db`**. With the explorer mounted the
- * nav entry links straight to it and this panel never appears — a tab whose
+ * nav entry links straight to it and this panel never appears: a tab whose
  * whole content is "go there" is a click of ceremony in front of going there.
  * Without it, this is what explains where the editor went.
  *

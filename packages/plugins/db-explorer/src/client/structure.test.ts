@@ -35,14 +35,14 @@ describe('a column as the Structure view shows it', () => {
 
   test('nullable is read, not `!notnull`', () => {
     // The server sends both, from two different introspection calls, and
-    // `nullable` is the richer one — it is what the editors obey, so it is
+    // `nullable` is the richer one: it is what the editors obey, so it is
     // what the view must show.
     const row = structureRow(column({ nullable: true, notnull: true }), [])
     expect(row.nullable).toBe('NULL')
   })
 
   test('auto-increment is reported as AUTO, not as a default', () => {
-    // They are different facts and differ where it matters —
+    // They are different facts and differ where it matters:
     // `omittableOnInsert`. Conflating them teaches the wrong model.
     const row = structureRow(
       column({ autoIncrement: true, hasDefault: false }),

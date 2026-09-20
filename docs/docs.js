@@ -2,7 +2,7 @@
    `pages.json`, not a literal here: the sidebar has to be able to describe a
    version other than the one this shell was served from.
 
-   It stays explicit rather than derived from the files on disk — the order is an
+   It stays explicit rather than derived from the files on disk: the order is an
    editorial decision, and deriving it would make a rename silently reshuffle the
    site. Adding a page still means adding a line, just in a file that ships at
    every ref instead of one that only exists at `main`.
@@ -29,8 +29,8 @@ const REPO = 'https://github.com/obillekyle/bakery'
 document.getElementById('gh-link').href = REPO
 
 /* ------------------------------------------------------------------ markdown
-   Small on purpose. It covers what these docs actually use — headings, fenced
-   code, tables, nested lists, blockquotes, inline spans — and nothing else. */
+   Small on purpose. It covers what these docs actually use (headings, fenced
+   code, tables, nested lists, blockquotes, inline spans), and nothing else. */
 const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 /** GitHub's heading-slug rules, so an existing `#anchor` link still lands. */
@@ -41,7 +41,7 @@ const slug = s => s.toLowerCase().replace(/`/g, '').replace(/[^\w\s-]/g, '')
  * A version as an anchor: `0.1.0-beta.2` becomes `0-1-0-beta-2`.
  *
  * The dots are turned into separators rather than dropped. Plain `slug` deletes
- * them — it follows GitHub's rules, where punctuation vanishes — which would
+ * them (it follows GitHub's rules, where punctuation vanishes), which would
  * make `0.1.2` into `012`, unreadable in a URL and ambiguous besides: `2.30`
  * and `23.0` both come out `230`.
  */
@@ -52,12 +52,12 @@ const versionSlug = v => slug(String(v).replace(/\./g, '-'))
  *
  * **Two headings with the same words used to get the same id.** Every release
  * body carries a `Fixes`, so on the changelog all twenty-seven of them were
- * `#fixes` and every link went to the first — the page jumped somewhere
+ * `#fixes` and every link went to the first: the page jumped somewhere
  * plausible and wrong, which is worse than not moving at all. Ordinary pages
  * have the same problem wherever a word repeats.
  *
  * Two mechanisms, because the two cases want different answers. Inside a scope
- * — one release — the heading hangs off the version, so `Fixes` under `0.1.2`
+ * (one release) the heading hangs off the version, so `Fixes` under `0.1.2`
  * is `#0-1-2-fixes`: stable across releases being added above it, and legible.
  * Without a scope, a repeat takes a counter the way GitHub's do, `#header` then
  * `#header-1`, so the first of them keeps the id any existing link already uses.
@@ -112,7 +112,7 @@ function inline(s, page) {
   s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
   // `[0-9]` rather than `\d`: this file is written by tooling more than once,
   // and a lone backslash in a regex literal is exactly the thing that gets
-  // eaten in transit — it already was, turning this into a match for "d+".
+  // eaten in transit. It already was, turning this into a match for "d+".
   return s.replace(/@@CODE([0-9]+)@@/g, (_, i) => `<code>${esc(codes[i])}</code>`)
 }
 
@@ -121,8 +121,8 @@ function inline(s, page) {
  *
  * Three cases, and the middle one is the whole reason this function exists:
  * a doc-to-doc `../guides/routing.md#anchor` has to become a hash route, or
- * every internal link on the site 404s. Links that leave `docs/` — into
- * `packages/`, or a gitignored maintainer file — go to GitHub instead, since
+ * every internal link on the site 404s. Links that leave `docs/` (into
+ * `packages/`, or a gitignored maintainer file) go to GitHub instead, since
  * there is nothing here to serve them.
  */
 function resolveHref(href, page) {
@@ -207,7 +207,7 @@ function render(src, page, scope) {
       continue
     }
 
-    // list — indentation decides nesting, two spaces per level
+    // list: indentation decides nesting, two spaces per level
     if (/^\s*([-*+]|\d+\.)\s+/.test(line)) {
       const items = []
       while (i < lines.length) {
@@ -259,7 +259,7 @@ function buildList(items, start, page) {
 
 /* ------------------------------------------------------------- versioned docs
  *
- * `?v=` reads the docs at another point in the project's history — a version,
+ * `?v=` reads the docs at another point in the project's history: a version,
  * a tag, or a branch:
  *
  *     ?v=1.1.0        the docs as they shipped with 1.1.0
@@ -269,7 +269,7 @@ function buildList(items, start, page) {
  * **Fetched from raw.githubusercontent at that ref, not built.** Publishing a
  * copy of the site per release would multiply every page by the number of
  * versions and still only cover the ones someone remembered to build. Every tag
- * already contains its own `docs/`, so the content exists for free — including
+ * already contains its own `docs/`, so the content exists for free, including
  * for branches, which no build could have anticipated.
  *
  * The query survives hash navigation on its own: changing `location.hash` never
@@ -290,7 +290,7 @@ function requestedRef() {
  * **Pages serves `docs/` from the default branch, and that is not the same as
  * the released documentation.** A project developing 2.0 on `main` publishes a
  * site describing 2.0 while every reader who has not opted in is running 1.2.3
- * — so the default landing page documents features they do not have, and the
+ *, so the default landing page documents features they do not have, and the
  * badge over it names a version the page is not about.
  *
  * Only the markdown moves. The shell, `versions.json` and this file are always
@@ -308,8 +308,8 @@ function effectiveRef() {
  * Resolve it once, before the first route.
  *
  * **Probed rather than assumed, because a tag has to be able to serve itself.**
- * `pages.json` is newer than most tags in every repository that has one — the
- * sidebar used to be a literal in this file — so pointing at a release that
+ * `pages.json` is newer than most tags in every repository that has one (the
+ * sidebar used to be a literal in this file), so pointing at a release that
  * predates it would fetch a 404, fall back to *this* shell's sidebar, and list
  * pages that version does not have. Every link would then land on an apology.
  *
@@ -347,7 +347,7 @@ async function resolveDefaultRef() {
 /**
  * The git ref for what someone typed.
  *
- * A bare `1.2.0` means the tag `v1.2.0` — that is how versions are written in
+ * A bare `1.2.0` means the tag `v1.2.0`: that is how versions are written in
  * this project and how anyone would type one from a changelog heading. Anything
  * else is passed through untouched, which is what makes a branch name work with
  * no extra syntax.
@@ -359,7 +359,7 @@ function refFor(v) {
 /**
  * The sidebar for whatever version is being read.
  *
- * **The point of the file.** Before it, the sidebar was always this shell's —
+ * **The point of the file.** Before it, the sidebar was always this shell's,
  * so reading `?v=0.1.0-beta.5` listed `reference/config`, which had not been
  * written yet, and clicking it produced an apology. The list now comes from the
  * ref itself, so a version's sidebar describes that version.
@@ -370,7 +370,7 @@ function refFor(v) {
  * an unnavigable one. Those still land on the "not in this version" page, which
  * is why it survives this change rather than being replaced by it.
  *
- * Any failure falls back the same way — 404, a network error, a `pages.json`
+ * Any failure falls back the same way: 404, a network error, a `pages.json`
  * that does not parse. A malformed file at some tag is not a reason to serve a
  * broken site today.
  */
@@ -408,7 +408,7 @@ async function loadNav() {
    published prose and the file is its source.
 
    **One request, and usually not even that.** `/releases?per_page=100` returns
-   every release with its body inline — this is not a request per tag. The
+   every release with its body inline: this is not a request per tag. The
    result is then cached against the newest version out of `versions.json`,
    which is a local file the page can read for free, so a returning visitor
    makes no API call at all until a release actually appears. That turns
@@ -440,7 +440,7 @@ const CHANGELOG_FORMAT = 3
  * it current.
  *
  * `versions.json` cannot carry a release cut on another branch. The file is
- * written by the branch that releases and the site is served from one branch —
+ * written by the branch that releases and the site is served from one branch,
  * so a channel shipping thirty alphas leaves the deployed copy insisting the
  * stable line is all there is, the picker never offers them, and the changelog
  * cache, keyed on that same file, never notices a reason to refresh.
@@ -449,7 +449,7 @@ const CHANGELOG_FORMAT = 3
  * makes asking affordable: GitHub does not count a `304 Not Modified` against
  * the rate limit, so revalidating with the stored `ETag` is free every time
  * nothing has changed. The request only costs quota at the moment a release
- * has actually appeared — once per release, not per visitor.
+ * has actually appeared: once per release, not per visitor.
  */
 const RELEASES_ETAG = 'bakery-docs-rel-etag'
 const NEWEST_SEEN = 'bakery-docs-newest'
@@ -458,7 +458,7 @@ const NEWEST_SEEN = 'bakery-docs-newest'
  * The versions the API reported, stored beside the ETag they came with.
  *
  * Stored because of what a `304` means: "what you have is current", where what
- * we have is this list — not the file. The first build kept the merged list in
+ * we have is this list, not the file. The first build kept the merged list in
  * session state that the next boot overwrote from `versions.json`, so a warm
  * reload revalidated, was told nothing changed, and painted the stale file
  * anyway: the top-up only survived one page load.
@@ -489,12 +489,12 @@ async function newestVersion() {
 
 /**
  * Releases into one markdown document, so the page reuses the renderer every
- * other page uses — and gets the on-page contents, the anchors and the search
+ * other page uses, and gets the on-page contents, the anchors and the search
  * index out of it for nothing.
  *
- * The date is its own emphasised line rather than part of the heading: the
+ * The date is its own emphasized line rather than part of the heading: the
  * heading becomes a table-of-contents entry and an anchor, and `2.3.0` is what
- * somebody links to and searches for, not `2.3.0 — 2026-08-18`.
+ * somebody links to and searches for, not `2.3.0, 2026-08-18`.
  */
 function releasesToMarkdown(list) {
   const entries = list
@@ -503,7 +503,7 @@ function releasesToMarkdown(list) {
       const version = String(r.tag_name || r.name || '').replace(/^v/, '')
       const when = r.published_at ? r.published_at.slice(0, 10) : ''
       // The renderer does no inline HTML, and release notes written for
-      // GitHub contain a little of it — cutver puts its own diff line in a
+      // GitHub contain a little of it: cutver puts its own diff line in a
       // `<sub>`. Escaped, that reaches the reader as literal angle brackets,
       // which is worse than either rendering it or dropping it. The tags go
       // and their text stays.
@@ -568,7 +568,7 @@ async function changelogMarkdown() {
  * Top the version list up from the releases API, when it has actually moved.
  *
  * Runs once per page load, after the picker has painted from `versions.json`,
- * and does nothing visible unless the API knows releases the file does not —
+ * and does nothing visible unless the API knows releases the file does not,
  * which is exactly the state a channel branch puts the deployed site in. On a
  * `304` it cost nothing, changed nothing, and the file's answer stands.
  *
@@ -578,14 +578,14 @@ async function changelogMarkdown() {
  * remembered as the validator the caches key on.
  *
  * Failures change nothing. Offline, blocked, or rate-limited by sixty cold
- * visitors behind one NAT, the site keeps saying what `versions.json` says —
+ * visitors behind one NAT, the site keeps saying what `versions.json` says,
  * which is true, just not complete.
  */
 async function refreshReleases(serving, fileVersions) {
   try {
     const headers = { Accept: 'application/vnd.github+json' }
     // The validator is only sent while the data it validates is still here. A
-    // 304 means "what you stored is current" — with the list missing (evicted,
+    // 304 means "what you stored is current", with the list missing (evicted,
     // or stored by a build that kept the ETag alone), that answer pins the
     // picker to the stale file until the ETag happens to change upstream.
     const etag = localStorage.getItem(RELEASES_ETAG)
@@ -613,7 +613,7 @@ async function refreshReleases(serving, fileVersions) {
     if (tag) localStorage.setItem(RELEASES_ETAG, tag)
     localStorage.setItem(NEWEST_SEEN, merged[0])
 
-    // The same bytes are the changelog, so cache them while they are here —
+    // The same bytes are the changelog, so cache them while they are here:
     // otherwise the changelog page would spend a second, counted request on
     // what this one already carried.
     const md = releasesToMarkdown(list)
@@ -641,7 +641,7 @@ async function refreshReleases(serving, fileVersions) {
  *
  * So the document is split per version and rendered a batch at a time. The
  * split runs on the compiled markdown rather than on the API response, which
- * means the `CHANGELOG.md` fallback gets the same treatment for free — it is
+ * means the `CHANGELOG.md` fallback gets the same treatment for free: it is
  * the same shape, one `##` per version.
  *
  * **The contents panel still lists every version.** It is built from the split,
@@ -700,8 +700,8 @@ function startChangelogFeed(content, entries, page, anchor) {
    * Keep going while the sentinel is still within reach, not once per event.
    *
    * The observer reports *changes* in intersection, so one batch per crossing.
-   * A reader who jumps to the end — End, a long fling, a scroll restored on
-   * reload — lands past everything rendered, gets a single batch, and then has
+   * A reader who jumps to the end (End, a long fling, a scroll restored on
+   * reload) lands past everything rendered, gets a single batch, and then has
    * to nudge the page to ask for the next. Filling until the sentinel is out of
    * range makes the jump behave like the scroll.
    */
@@ -714,7 +714,7 @@ function startChangelogFeed(content, entries, page, anchor) {
   }
 
   // A margin, so the next batch is built before its space is reached rather
-  // than after — the reader should never arrive at a gap.
+  // than after: the reader should never arrive at a gap.
   observer = new IntersectionObserver(
     hits => { if (hits.some(h => h.isIntersecting)) fill() },
     { rootMargin: `${REACH}px 0px` },
@@ -724,7 +724,7 @@ function startChangelogFeed(content, entries, page, anchor) {
   more()
 
   // A link to a version that has not been rendered yet is still a link that has
-  // to work — every entry in the contents panel is one of those on arrival.
+  // to work: every entry in the contents panel is one of those on arrival.
   // Render on until it exists, then let the caller scroll to it.
   if (anchor) {
     let guard = 0
@@ -774,8 +774,8 @@ async function load(page) {
 
    The shape is deliberate on two counts. It differs from the old form by one
    character, so the redirect below is exact and every existing link survives.
-   And it leaves the fragment free for what a fragment is actually for — an
-   anchor within the page — so `?/guides/commits#writing-them` behaves the way
+   And it leaves the fragment free for what a fragment is actually for (an
+   anchor within the page), so `?/guides/commits#writing-them` behaves the way
    that URL looks like it should.
 
    `v` keeps its own key alongside: `?/guides/commits&v=2.1.0` is a query with
@@ -796,8 +796,7 @@ function currentRoute() {
  * A link to a page on this site, carrying the pinned version through.
  *
  * Every internal link is built here. Threading `?v=` by hand at each site is
- * what the old form got for free — changing a fragment cannot touch the query —
- * and losing it silently drops the reader back onto the current release
+ * what the old form got for free (changing a fragment cannot touch the query),  * and losing it silently drops the reader back onto the current release
  * mid-navigation, which is the one bug this scheme could plausibly introduce.
  */
 function routeHref(page, anchor) {
@@ -821,7 +820,7 @@ function migrateHashUrl() {
   history.replaceState(null, '', routeHref(path || 'README', anchor))
 }
 
-/** This page with no version pinned — what "read the current release" means. */
+/** This page with no version pinned: what "read the current release" means. */
 function currentHrefWithoutVersion() {
   const { page, anchor } = currentRoute()
   return `?/${page === 'README' ? '' : page}${anchor ? `#${anchor}` : ''}`
@@ -866,7 +865,7 @@ addEventListener('click', event => {
   // link that changes only the version: "read it in the current release" points
   // at the page being read, minus `?v=`, so the page matched, the fragment was
   // scrolled to instead of the content being rebuilt, and clicking it did
-  // visibly nothing — the URL lost its version and the screen kept the old ref's
+  // visibly nothing, the URL lost its version and the screen kept the old ref's
   // markdown, including the banner offering the link again.
   const before = routeKey()
   history.pushState(null, '', href)
@@ -887,7 +886,7 @@ function routeKey() {
  * release is what a canonical is for: it folds the old copies into the live one
  * instead of competing with it.
  *
- * No fragment either — an anchor names a place inside a page, not another page.
+ * No fragment either: an anchor names a place inside a page, not another page.
  */
 function canonicalUrl() {
   const { page } = currentRoute()
@@ -901,7 +900,7 @@ function canonicalUrl() {
  * The document is one file serving every route, so everything in its head that
  * names a page starts out naming the wrong one. Written from the shell rather
  * than baked in by the generator, because only the running page knows its own
- * URL — and Google renders JavaScript before deciding what a page is.
+ * URL, and Google renders JavaScript before deciding what a page is.
  */
 function setPageMeta(title) {
   const set = (selector, attribute, value) => {
@@ -936,12 +935,12 @@ async function route() {
     // Reachable in two ways, and both are ordinary. A ref that predates
     // `pages.json` borrows this shell's sidebar, which lists pages it does not
     // have; and a link typed or bookmarked from a newer version does not care
-    // what the sidebar says. Saying "no page" is true and useless — saying
+    // what the sidebar says. Saying "no page" is true and useless: saying
     // which version was asked is the answer.
     const missing = requestedRef()
     content.innerHTML = missing
       ? `<h1>Not in ${esc(refFor(missing))}</h1>
-         <p>There is no <code>${esc(page)}.md</code> at <code>${esc(refFor(missing))}</code> — the
+         <p>There is no <code>${esc(page)}.md</code> at <code>${esc(refFor(missing))}</code>: the
             page may not have existed yet, or may have been named something else.</p>
          <p><a href="${currentHrefWithoutVersion()}">Read it in the current release</a>.</p>`
       : `<h1>Not found</h1><p>No page at <code>${esc(page)}.md</code>.</p><p><a href="${routeHref('README')}">Back to the introduction</a></p>`
@@ -961,7 +960,7 @@ async function route() {
     : headings
   // Said on every page, not once on entry. Someone arriving from a search
   // result lands mid-site, and a banner they never saw is a banner that did not
-  // work — this is the state where every instruction on screen may be wrong for
+  // work: this is the state where every instruction on screen may be wrong for
   // the version they are actually running.
   const ref = requestedRef()
   content.innerHTML = ref
@@ -981,7 +980,7 @@ async function route() {
   // The title is the one link in the static shell rather than in generated
   // markup, so it is the one `routeHref` never got to build. Left as written it
   // sends a reader pinned to an old version back to the current release without
-  // saying so — the same silent unpinning the query-string scheme exists to
+  // saying so: the same silent unpinning the query-string scheme exists to
   // prevent everywhere else.
   document.querySelector('.brand')?.setAttribute('href', routeHref('README'))
 
@@ -1007,7 +1006,7 @@ async function route() {
       ${prev ? `<a href="${routeHref(prev[0])}"><span class="p-dir">Previous</span>${prev[1]}</a>` : '<span style="flex:1"></span>'}
       ${next ? `<a class="next" href="${routeHref(next[0])}"><span class="p-dir">Next</span>${next[1]}</a>` : '<span style="flex:1"></span>'}
     </div>` : '') +
-    // The changelog has no source file to open — it is the releases, compiled
+    // The changelog has no source file to open: it is the releases, compiled
     // here. Offering to edit `docs/CHANGELOG.md` would send a reader who wanted
     // to fix a typo to GitHub's create-a-file screen for a path the site does
     // not read, and the change would never appear.
@@ -1046,8 +1045,7 @@ function syncAside() {
 /**
  * Scroll the contents panel so the entry it just highlighted is in it.
  *
- * The panel is its own scroll box — `overflow-y: auto` under a `max-height` —
- * so on a long page the highlight moves out of view and the reader is left
+ * The panel is its own scroll box (`overflow-y: auto` under a `max-height`),  * so on a long page the highlight moves out of view and the reader is left
  * looking at a list of headings with no indication of where they are. Short
  * pages never showed it: the list fits, nothing scrolls, and the bug does not
  * exist. The changelog, at one entry per release, does not fit.
@@ -1058,7 +1056,7 @@ function syncAside() {
  *
  * Adjusting `scrollTop` rather than calling `scrollIntoView`: that moves every
  * scrollable ancestor, so it would drag the page itself to bring an entry into
- * view — the reader would find themselves somewhere they did not navigate to,
+ * view. The reader would find themselves somewhere they did not navigate to,
  * which then picks a different heading, which scrolls again.
  */
 /**
@@ -1085,7 +1083,7 @@ function keepVisible(link) {
   const a = link.getBoundingClientRect()
   const p = panel.getBoundingClientRect()
   // The heading is sticky and opaque, so the top of the box is not where an
-  // entry becomes visible — anything above its lower edge is behind it.
+  // entry becomes visible: anything above its lower edge is behind it.
   const head = panel.querySelector('.aside-title')
   const top = head ? head.getBoundingClientRect().bottom : p.top
   const margin = 8
@@ -1123,7 +1121,7 @@ document.getElementById('scrim').onclick = () => document.body.classList.remove(
  * Collapsed search, for the narrow layout where the field does not fit.
  *
  * `search-open` is only consulted by the mobile media query, so leaving it set
- * when the viewport grows is harmless — the field is visible at that width
+ * when the viewport grows is harmless: the field is visible at that width
  * regardless, and forcing it closed on resize would clear a query mid-typing on
  * a phone that merely rotated.
  */
@@ -1142,7 +1140,7 @@ function closeSearch() {
   results.classList.remove('open')
   // Must blur, not just hide. The field keeps focus after it goes
   // `display: none`, which leaves keystrokes going into an invisible input and
-  // makes the `/` shortcut a no-op — its guard sees the box already focused and
+  // makes the `/` shortcut a no-op, its guard sees the box already focused and
   // returns without expanding anything.
   box.blur()
 }
@@ -1157,17 +1155,17 @@ document.addEventListener('click', e => {
   setTimeout(() => { btn.textContent = 'Copy' }, 1400)
 })
 
-/* search — the index is built on first use, not on load, so the page paints
+/* search: the index is built on first use, not on load, so the page paints
    without waiting on 28 fetches nobody may want. */
 let index = null
 const box = document.getElementById('search')
 const results = document.getElementById('results')
 
 /**
- * Markdown source reduced to the words a reader would recognise.
+ * Markdown source reduced to the words a reader would recognize.
  *
  * The index stores prose, not syntax. Without this a snippet reads
- * `- [CLI](reference/cli.md) - [Architecture](reference/arch…` — the link
+ * `- [CLI](reference/cli.md) - [Architecture](reference/arch…`: the link
  * targets crowd out the sentence, and a search for a word in a URL matches text
  * nobody can see on the page.
  */
@@ -1184,7 +1182,7 @@ function plain(line) {
 async function buildIndex() {
   if (index) return index
   index = []
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: search index build — one branch per field weight
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: search index build, one branch per field weight
   await Promise.all(FLAT.map(async ([page, label]) => {
     let src
     try { src = await load(page) } catch { return }
@@ -1231,7 +1229,7 @@ async function search() {
   selected = -1
   results.innerHTML = hits.length
     ? hits.map(({ e }) => {
-        // Window around the first hit, then advance to a word boundary —
+        // Window around the first hit, then advance to a word boundary:
         // slicing at a fixed offset otherwise opens the snippet mid-word
         // ("ation-supplied authorization predicate"), which reads as corruption.
         const pos = e.text.toLowerCase().indexOf(terms[0])
@@ -1282,14 +1280,14 @@ addEventListener('keydown', e => {
 
    The tags are the better source, and not only because they are what `?v=`
    resolves against. A registry answer ties the badge to having published a
-   package at all — which a Rust workspace shipping binaries has not — and npm
+   package at all (which a Rust workspace shipping binaries has not), and npm
    pins `latest` on a package's first publish whatever `--tag` said, so a
    project that opened with a prerelease shows a stable release it left behind.
    Reading the tags at page load would mean GitHub's API and its 60 requests an
    hour per IP, shared by every reader behind one NAT.
 
    Committing them costs neither. The workflow already knows every tag at the
-   moment it writes one, so it writes the list too — the same trick as
+   moment it writes one, so it writes the list too: the same trick as
    `pages.json`, and it needs no build step for this site, which is still served
    straight out of `docs/`.
 
@@ -1302,7 +1300,7 @@ addEventListener('keydown', e => {
  * Setting the query reloads the page, which is exactly what is wanted: the
  * markdown cache is keyed by ref, the banner is rendered per page, and a reload
  * makes both correct with no state to reconcile. A picker is used once or twice
- * in a session — spending a reload to avoid a class of stale-state bug is a
+ * in a session: spending a reload to avoid a class of stale-state bug is a
  * good trade.
  */
 function fillPicker(latest, versions = []) {
@@ -1313,13 +1311,13 @@ function fillPicker(latest, versions = []) {
 
   // **The button's label is written, not mirrored.** `<selectedcontent>` is the
   // spec's way to clone the selected option into the button, and it stayed
-  // empty here — injecting the whole control with `innerHTML` gives it nothing
-  // to react to — which collapsed the badge to a 24px stub showing only its
+  // empty here (injecting the whole control with `innerHTML` gives it nothing
+  // to react to), which collapsed the badge to a 24px stub showing only its
   // arrow. This control re-renders on load and navigates on change, so it never
   // needs to mirror anything live; the label is just set.
   const label = current ? (versions.includes(current) ? `v${current}` : current) : `v${latest}`
 
-  // The empty value is the live docs, labelled with the version they are —
+  // The empty value is the live docs, labeled with the version they are:
   // "latest" as a word tells a reader nothing they can check, and this control
   // is also the version badge. Selecting it clears `?v=` and goes home.
   const options = [
@@ -1327,15 +1325,15 @@ function fillPicker(latest, versions = []) {
     `<option value=""${current ? '' : ' selected'}>v${esc(latest)}</option>`,
     // **Not reversed.** The packument this used to read returns versions in
     // publish order, so the list arrived oldest-first and had to be flipped.
-    // `versions.json` is written newest-first — sorted properly, since git's
-    // own `-v:refname` puts a prerelease above the release it precedes — and
+    // `versions.json` is written newest-first (sorted properly, since git's
+    // own `-v:refname` puts a prerelease above the release it precedes), and
     // flipping it again put v2.2.0 at the top with every beta climbing under it.
     ...versions
       .filter(v => v !== latest)
       .map(v => `<option value="${esc(v)}"${v === current ? ' selected' : ''}>v${esc(v)}</option>`),
   ]
 
-  // A ref typed by hand — a branch, or a tag with no published package — keeps
+  // A ref typed by hand (a branch, or a tag with no published package) keeps
   // its own entry rather than silently resetting the control to the latest
   // version, which would tell the reader they are somewhere they are not.
   if (current && !versions.includes(current)) {
@@ -1346,7 +1344,7 @@ function fillPicker(latest, versions = []) {
 
   // **Set explicitly, because a browser restores a select across a reload.**
   // Form-state restoration puts back whatever index was chosen last time and
-  // wins over the `selected` attribute — so after picking 1.1.1 and coming
+  // wins over the `selected` attribute, so after picking 1.1.1 and coming
   // back, the control claimed 1.1.1 while the page showed the latest docs. The
   // query string is the only thing that decides what is being read; the control
   // is told, not asked.
@@ -1376,7 +1374,7 @@ function fillPicker(latest, versions = []) {
     // **The tags, committed rather than asked for.**
     //
     // The tags are what `?v=` resolves against, so they are the honest source
-    // — but reading them at page load means GitHub's tags API, which allows 60
+    //, but reading them at page load means GitHub's tags API, which allows 60
     // unauthenticated requests an hour *per IP*, shared by every reader behind
     // one corporate NAT. The registry packument had no such limit and was the
     // first answer here; it also tied a docs site to having published a
@@ -1391,7 +1389,7 @@ function fillPicker(latest, versions = []) {
     const doc = await res.json()
 
     // Newest tag, prerelease or not. A project living on `2.0.0-alpha.9` should
-    // say so rather than showing a stable release it left behind — which is the
+    // say so rather than showing a stable release it left behind, which is the
     // case npm's `latest` gets wrong, since it is pinned on first publish
     // whatever `--tag` said.
     const version = doc.latest
@@ -1402,14 +1400,14 @@ function fillPicker(latest, versions = []) {
 
     // **The badge names what is being served, not what was hoped for.**
     // `latest` is the newest stable, and that is the default *when its tag can
-    // serve itself* — a tag predating `pages.json` cannot, so the default falls
-    // back to the branch. Labelling that fallback `v1.2.3` while showing the
+    // serve itself*: a tag predating `pages.json` cannot, so the default falls
+    // back to the branch. Labeling that fallback `v1.2.3` while showing the
     // branch's unreleased pages is the disagreement the default was meant to
     // remove, so the label follows the ref that actually won.
     await resolveDefaultRef()
     const serving = DEFAULT_REF ?? versions[0] ?? version
 
-    // Painted with everything already known — the file, topped up with what a
+    // Painted with everything already known: the file, topped up with what a
     // previous visit learned from the API. A reload that revalidates to a 304
     // does no repaint, so the paint has to start complete.
     const known = mergedVersions(versions)
@@ -1417,11 +1415,11 @@ function fillPicker(latest, versions = []) {
     sessionStorage.setItem(LIST, JSON.stringify(known))
     fillPicker(serving, known)
 
-    // After the file has painted, ask whether it is the whole story — a
+    // After the file has painted, ask whether it is the whole story: a
     // release cut on another branch never reaches this branch's copy.
     refreshReleases(serving, versions)
   } catch {
-    // Offline or blocked. The control keeps the cached list, or stays hidden —
+    // Offline or blocked. The control keeps the cached list, or stays hidden:
     // no version at all is true, and a guessed one is a lie. The API top-up
     // still runs: a missing versions.json is the other state it covers.
     refreshReleases(

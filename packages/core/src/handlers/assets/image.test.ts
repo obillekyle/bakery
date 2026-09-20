@@ -20,7 +20,7 @@ import { ImageHandler } from './image'
  * full WebP encodes from a single image, reachable by anyone who can type a
  * URL, and no eviction anywhere because these are files rather than an LRU.
  *
- * `clampSize` — `Math2.clamp(Math2.step(size, 32), 16, maxImageSize)` — is what
+ * `clampSize`: `Math2.clamp(Math2.step(size, 32), 16, maxImageSize)`: is what
  * bounds it, and this file pins it from the outside: the observable is the
  * cache *filename*, because that is the thing the cache is keyed by and the
  * thing an attacker would be multiplying. Asserting the private helper's return
@@ -73,7 +73,7 @@ describe('ImageHandler', () => {
     // Same swap-and-restore as `nm.test.ts`: `root` and `cacheDir` are plain
     // writable properties on the service locator (readonly in the ambient type
     // only), and `serveRoot` reads `config.root`, which is what the config seam
-    // is for. No module mocks — convention 9.
+    // is for. No module mocks, convention 9.
     __setTestConfig({ root: dir })
     ;(Bakery as any).root = dir
     ;(Bakery as any).cacheDir = join(dir, '.cache')
@@ -89,7 +89,7 @@ describe('ImageHandler', () => {
   test('canHandle answers a long non-matching path in linear time', () => {
     // The denial of service this regex used to be. Two greedy groups that could
     // each match `/` meant every separator doubled the splits the engine had to
-    // try, and a *failing* match is the one that tries them all — so an
+    // try, and a *failing* match is the one that tries them all, so an
     // unauthenticated request for a path that is not an image stalled the whole
     // event loop. Measured before the fix: 1030 characters took 512 ms, and
     // `canHandle` runs on every route-cache miss.
@@ -108,7 +108,7 @@ describe('ImageHandler', () => {
 
   test('the bounded regex claims exactly what the unbounded one did', () => {
     // Bounding the filename group is only safe if it changed no answer. The
-    // original, kept here as the oracle it is — not as a second implementation
+    // original, kept here as the oracle it is, not as a second implementation
     // anything calls.
     const unbounded = /(.*)\/(.*)(;(\d+))?\.(png|jpg|jpeg|webp|gif|bmp)$/i
     const corpus = [
@@ -205,7 +205,7 @@ describe('ImageHandler', () => {
   })
 
   /**
-   * The floor. `Math2.step(1, 32)` is 0 — a zero-pixel resize — so the clamp is
+   * The floor. `Math2.step(1, 32)` is 0 (a zero-pixel resize), so the clamp is
    * doing real work here and not just tidying the range.
    *
    * The list stops at 15 on purpose: `step` rounds to *nearest*, and 16 is
@@ -251,7 +251,7 @@ describe('ImageHandler', () => {
    * only captures `;(\d+)`, and a `;` that is not followed by digits ends up
    * inside the *directory* part of the match, so the file simply does not
    * resolve. Worth pinning because "parse the size" is the obvious place for a
-   * `NaN` to slip past a clamp — `Math2.clamp(NaN, 16, 4096)` is `NaN`, and a
+   * `NaN` to slip past a clamp: `Math2.clamp(NaN, 16, 4096)` is `NaN`, and a
    * `-NaN.webp` cache entry would be one per distinct spelling.
    */
   test('a non-numeric size resolves nothing rather than escaping the clamp', async () => {
@@ -265,7 +265,7 @@ describe('ImageHandler', () => {
   })
 
   /**
-   * The cache id is hashed from the *resolved source*, not the request path —
+   * The cache id is hashed from the *resolved source*, not the request path:
    * the fix the comment in `image.ts` records. Every entry above therefore
    * shares one id, and the whole directory after all of this is one master plus
    * one file per surviving bucket.

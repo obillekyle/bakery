@@ -14,7 +14,7 @@ import { computeSchemaHash } from './schema-hash'
 /**
  * `computeSchemaHash` is the whole input to `classifySchemaSync`: an unchanged
  * hash means the dev boot skips the schema sync entirely. So there are two
- * failure directions — a hash that moves when nothing did (a full sync on every
+ * failure directions: a hash that moves when nothing did (a full sync on every
  * reload) and, the expensive one, a hash that holds still when the schema
  * changed, which boots the app against a stale database and logs nothing.
  *
@@ -126,7 +126,7 @@ describe('determinism', () => {
 
   test('a rename moves the hash even with identical content', async () => {
     // The path is hashed alongside the bytes, so two files swapping names is a
-    // change. It also means moving the app directory re-syncs once —
+    // change. It also means moving the app directory re-syncs once:
     // over-syncing, which is the safe direction to be wrong in.
     const dir = await app('rename')
     await mkdir(join(dir, 'orm'))
@@ -161,7 +161,7 @@ describe('determinism', () => {
 describe('file ordering', () => {
   /**
    * `Bun.Glob.scan` order is the filesystem's, and on NTFS it is already
-   * alphabetical — so no arrangement of files on *this* machine can distinguish
+   * alphabetical, so no arrangement of files on *this* machine can distinguish
    * "sorted" from "whatever readdir said". Asserting against an independent
    * oracle can: it states the exact digest the implementation must produce for
    * a known tree, and states it for the sorted order specifically.
@@ -187,7 +187,7 @@ describe('file ordering', () => {
     // Native separators: the scanned branch hashes `Bun.Glob`'s absolute
     // output verbatim, which is backslashed on Windows. (The configured-*file*
     // branch pushes an `fs.resolve` result instead, which is always
-    // forward-slashed — so the same file hashes differently depending on which
+    // forward-slashed, so the same file hashes differently depending on which
     // branch found it. Harmless, since a hash is only ever compared with the
     // previous hash from the same machine, but it is why this cannot use
     // `fs.resolve` as its oracle.)
@@ -289,7 +289,7 @@ describe('the probe', () => {
 
   test('a configured path suppresses the default probe entirely', async () => {
     // Configured is not a hint (see `resolveConfigured`'s docstring), so the
-    // defaults must not be mixed in — a hash that also covered `orm/` would
+    // defaults must not be mixed in: a hash that also covered `orm/` would
     // re-sync on edits the sync is never going to read.
     const dir = await app('configured-suppresses')
     await mkdir(join(dir, 'db'))
@@ -335,7 +335,7 @@ describe('known divergences from what the sync actually reads', () => {
   /**
    * The probe here is a *filesystem* probe; `loadSchema`'s is a *module graph*
    * walk out of an entry file. Two cases where they disagree, and in both the
-   * hash holds still while the schema changes — `classifySchemaSync` returns
+   * hash holds still while the schema changes: `classifySchemaSync` returns
    * 'skip' and the app boots against a stale database with no log line.
    *
    * Pinned rather than fixed: these are reported, not repaired, so that the fix
@@ -344,7 +344,7 @@ describe('known divergences from what the sync actually reads', () => {
 
   test('KNOWN BUG: a configured orm/index.ts hashes only that one file', async () => {
     // The sharp one, because it is the documented folder layout addressed by
-    // its entry file — `resolveConfigured` explicitly treats a path ending in
+    // its entry file, `resolveConfigured` explicitly treats a path ending in
     // `index.ts` as the folder, loads the re-exported siblings, and generates
     // back into `tables.ts`. This hashes `index.ts` alone, so every edit to
     // `tables.ts` is invisible to it.

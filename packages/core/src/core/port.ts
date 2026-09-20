@@ -10,7 +10,7 @@
  *
  * They drifted on two axes. `parseInt` (startup, dev-service) reads `3000x` as
  * `3000`; `Number` (worker) reads it as `NaN`, and `Bun.serve({port: NaN})`
- * quietly binds an **ephemeral** port — so `PORT=3000x` printed
+ * quietly binds an **ephemeral** port, so `PORT=3000x` printed
  * `http://localhost:3000/` while the server was listening on 51570. And the
  * final fallbacks differed (`Bakery.server?.port || 0` against a literal
  * `3000`), so the two survivors of a bad parse disagreed again.
@@ -24,7 +24,7 @@
  * the variable and its value while the operator is still looking at the
  * terminal.
  *
- * `0` is deliberately *not* an error — it is the documented "let the OS pick
+ * `0` is deliberately *not* an error: it is the documented "let the OS pick
  * one" port, and `startup.ts` prefers `Bakery.server.port` precisely so the
  * banner prints the port that was picked rather than the `0` that was asked
  * for.
@@ -76,7 +76,7 @@ export function resolvePort(configPort?: number | null): number {
  * `--port 8080`, `--port=8080`, `-p 8080`, `-p=8080`.
  *
  * Returns the raw string so the caller can validate it through the one rule
- * above rather than a second one — a flag that accepted `0x1f` where `PORT`
+ * above rather than a second one: a flag that accepted `0x1f` where `PORT`
  * rejects it would be exactly the drift this module exists to end.
  */
 function portFlagValue(argv: string[]): string | null {
@@ -95,10 +95,10 @@ function portFlagValue(argv: string[]): string | null {
  * **Why the env rather than a parameter.** The port is read in three places
  * (see the note at the top of this file) across up to three *processes*: the
  * dev master, the dev worker it spawns, and N cluster workers. The spawn sites
- * pass `env: {...process.env}` and build their argv explicitly — `dev-service`
- * forwards `--dev`, `--dev-worker` and `--sync`, and nothing else — so a flag
+ * pass `env: {...process.env}` and build their argv explicitly (`dev-service`
+ * forwards `--dev`, `--dev-worker` and `--sync`, and nothing else), so a flag
  * would have to be threaded through each of them and kept in step forever,
- * while an environment variable already propagates to all of them. Normalising
+ * while an environment variable already propagates to all of them. Normalizing
  * once, in the entry, means every existing reader is already correct.
  *
  * **Precedence: flag beats `PORT` beats config.** That is what `--port` means

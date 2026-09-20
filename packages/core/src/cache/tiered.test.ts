@@ -117,7 +117,7 @@ describe('TieredCache persistence', () => {
 
   test('a cache with no shouldPersist keeps values across a memory flush', () => {
     // `shouldPersist` is optional, and `!opts.shouldPersist?.(v)` is `true`
-    // when it is absent — so commitKey took the *delete* branch and every
+    // when it is absent, so commitKey took the *delete* branch and every
     // flush (and every memory eviction, which also commits) silently destroyed
     // the value. Absence of the option has to mean "persist everything".
     cache.set('keep-me', { n: 1 })
@@ -161,7 +161,7 @@ describe('TieredCache persistence', () => {
     dropping.close()
   })
 
-  test('flushAllToDisk honours shouldPersist, exactly as the interval flush does', () => {
+  test('flushAllToDisk honors shouldPersist, exactly as the interval flush does', () => {
     // The shutdown flush was the one write path that bypassed `commitKey` and
     // inserted every in-memory entry verbatim. Same cache, same predicate, two
     // different results depending on *how* it was flushed: the interval left
@@ -192,11 +192,11 @@ describe('TieredCache persistence', () => {
     cache.close()
   })
 
-  test('the search flush honours shouldPersist too', () => {
+  test('the search flush honors shouldPersist too', () => {
     // The twin of the test above, for the third flush routine. `search()` has
     // to get the dirty memory tier onto disk before it can page over it in
     // SQL, and that flush was written as a raw `stmt.insert` loop rather than
-    // through `commitKey` — so the same predicate that the interval and
+    // through `commitKey`, so the same predicate that the interval and
     // shutdown flushes obey was ignored here. Consequence for the session
     // tier, whose predicate is "has persisted keys or has data": opening the
     // dashboard's session list wrote every empty session to disk and inflated
@@ -265,8 +265,8 @@ describe('cache shutdown', () => {
    * `Bakery.shutdownHooks` runs in registration order, and this module is
    * evaluated long before any plugin registers, so its hook is index 0. When
    * that hook also called `db.close()`, every plugin that writes on the way out
-   * — analytics flushes page hits and a history delta through this same handle
-   * — found the database shut and threw into a catch that swallowed it. Nothing
+   * (analytics flushes page hits and a history delta through this same handle
+   *) found the database shut and threw into a catch that swallowed it. Nothing
    * was logged and nothing was persisted.
    *
    * The registry is detached so this exercises the hook against a throwaway

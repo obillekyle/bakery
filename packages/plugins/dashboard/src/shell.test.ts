@@ -7,18 +7,18 @@ import { Bakery } from '@bakery-framework/core/core/bakery'
 import Dashboard from './shell'
 
 /**
- * The console's Database entry is a way *out* of the console — the explorer owns
+ * The console's Database entry is a way *out* of the console: the explorer owns
  * row editing now. Whether it is a link or a tab depends on whether anything
  * declares the `/_db` namespace (`Handler.namespace`), which the shell reads
  * from the registry rather than by importing db-explorer: a plugin-to-plugin
  * import is a package-graph edge and `tests/conventions.test.ts` allows
  * exactly one (dashboard → analytics).
  *
- * These fixtures used to *behave* like the handlers they stand for — the shell
- * probed `canHandle('/_db')` against a control path — and now they *declare*,
+ * These fixtures used to *behave* like the handlers they stand for (the shell
+ * probed `canHandle('/_db')` against a control path), and now they *declare*,
  * because that is what the shell reads. The cases keep their old names on
  * purpose: each one pins the same question as before, asked of the declaration
- * instead of the behaviour.
+ * instead of the behavior.
  */
 
 class ExplorerLike {
@@ -29,8 +29,8 @@ class ExplorerLike {
 }
 
 /**
- * The priority-0 fallback: claims every path behaviourally and declares no
- * namespace — which is precisely why the declaration mechanism exists. Under
+ * The priority-0 fallback: claims every path behaviorally and declares no
+ * namespace, which is precisely why the declaration mechanism exists. Under
  * the old probe this needed a control path to exclude; now it is excluded by
  * saying nothing.
  */
@@ -79,7 +79,7 @@ describe('the Database nav entry', () => {
     const html = render()
 
     expect(html).toContain('id="panel-database"')
-    // `&#39;`, not `'` — JSX escapes attribute values, which is the behaviour
+    // `&#39;`, not `'`: JSX escapes attribute values, which is the behavior
     // worth having and the reason this asserts the rendered form rather than
     // the source form.
     expect(html).toContain('switchTab(&#39;database&#39;)')
@@ -88,8 +88,8 @@ describe('the Database nav entry', () => {
   /**
    * The case the old probe needed a control path for.
    *
-   * `StaticHandler.canHandle()` returns `true` unconditionally — it is the
-   * priority-0 fallback and claims everything — so any *behavioural* "does
+   * `StaticHandler.canHandle()` returns `true` unconditionally (it is the
+   * priority-0 fallback and claims everything), so any *behavioral* "does
    * something claim `/_db`" is always yes. Under the declaration it is
    * excluded by declaring nothing, and this pins that a registered catch-all
    * still does not put the link in the nav.
@@ -114,7 +114,7 @@ describe('the Database nav entry', () => {
 
 describe('the footer version', () => {
   test('is the framework version, not a literal', () => {
-    // It read `v3` — never any version of anything, and hardcoded where an id
+    // It read `v3`, never any version of anything, and hardcoded where an id
     // suggested something would fill it in. Nothing ever did.
     const html = render()
 

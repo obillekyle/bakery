@@ -19,11 +19,11 @@ src/api/[...path].ts      →  /api/<anything deeper nothing else claims>
 A terminal `[...name]` segment is a catch-all: it matches one or more remaining
 segments and binds them as an array (`path = ["users", "42", "posts"]`). The
 `[...name!]` spelling also claims its bare directory, binding `[]` there. Every
-more specific route — exact files, `[param]` siblings, child indexes, deeper
-catch-alls — wins first; see the routing guide for the precedence ladder.
+more specific route (exact files, `[param]` siblings, child indexes, deeper
+catch-alls) wins first; see the routing guide for the precedence ladder.
 
 There is no root-level `api/` directory. If you put one there it will never be
-found — it is outside the serve root, and the containment check in
+found: it is outside the serve root, and the containment check in
 `handleRequest` refuses to look.
 
 The prefix test is `path.startsWith('/api/')` (`handlers/routes/api.ts`), with
@@ -34,16 +34,15 @@ page handlers.
 
 The typed contract lives in `@bakery-framework/core` (`packages/core/src/types.d.ts`):
 
-```ts no-check — a type signature, not runnable code
+```ts no-check: a type signature, not runnable code
 type RouteHandler<P = {}> = (
   req: Request,
-  body: RouteBody<P>, // P & MapOf<any> — declared params over a permissive base
+  body: RouteBody<P>, // P & MapOf<any>, declared params over a permissive base
   server?: Bun.Server<any>,
 ) => RouteResponse
 ```
 
-**The parsed body is the second parameter.** `req.body` is a `ReadableStream` —
-the raw web-standard property — and reading `req.body.user` gets you `undefined`,
+**The parsed body is the second parameter.** `req.body` is a `ReadableStream` (the raw web-standard property), and reading `req.body.user` gets you `undefined`,
 not your JSON.
 
 `defineRoute` is an identity function whose only job is inference: declare the
@@ -66,7 +65,7 @@ export default defineRoute<{ title?: string }>(async (req, body) => {
 ```
 
 Route params land in the same `body`, so a dynamic route declares them the
-same way — one type argument stating what the file name promises. For
+same way: one type argument stating what the file name promises. For
 `src/api/[region]/[warehouse]/[...rest].ts`:
 
 ```ts
@@ -84,15 +83,15 @@ export default defineRoute<{
 })
 ```
 
-There is no filename inference — `[region].ts` does not conjure
-`{ region: string }` on its own — the contract is that you declare what you
+There is no filename inference: `[region].ts` does not conjure
+`{ region: string }` on its own. The contract is that you declare what you
 expect, once, and the compiler holds you to it everywhere in the handler. A
 route over mixed or unknown segments can write `defineRoute<MapOf<RouteParam>>`
 instead of hand-writing `string | string[]`.
 
 `body.title` is `string | undefined` inside the handler; keys you did not
 declare stay reachable as `any`, because the parse rules below mean the
-framework cannot enumerate every key. Declaring a shape states your contract —
+framework cannot enumerate every key. Declaring a shape states your contract:
 it does not validate the request, so validate anyway, either by hand or with the
 two-argument form below. There is no filename-based inference: `[id].ts` does not
 conjure `{ id: string }` on its own.
@@ -101,19 +100,19 @@ conjure `{ id: string }` on its own.
 
 Pass a validator and the handler only runs on a body that satisfies it:
 
-```ts no-check — `mySchema` stands in for a Standard Schema the reader supplies
+```ts no-check: `mySchema` stands in for a Standard Schema the reader supplies
 import { defineRoute, response } from '@bakery-framework/core'
 
 export default defineRoute({ body: mySchema }, async (req, body) => {
-  // `body` is the *parsed* value — whatever the schema produced, not the raw
-  // input — and a rejection answered 400 before you got here.
+  // `body` is the *parsed* value (whatever the schema produced, not the raw
+  // input), and a rejection answered 400 before you got here.
   return response.json.success('ok', body)
 })
 ```
 
 `body` accepts either shape:
 
-- **A [Standard Schema](https://standardschema.dev)** — the common interface zod,
+- **A [Standard Schema](https://standardschema.dev)**: the common interface zod,
   valibot and arktype all implement. Bakery bundles none of them and depends on
   none of them; it reads the `~standard` property they each expose, so any
   library implementing that spec works without an adapter.
@@ -151,7 +150,7 @@ Nested paths render as `user.address.city`, and array indices as `items.0.id`.
 
 **The one-argument form is unchanged**, and the two forms cannot be confused:
 `defineRoute(fn)` types the body, `defineRoute({ body }, fn)` validates it. Both
-are identity functions at runtime — the second returns a wrapped handler, the
+are identity functions at runtime: the second returns a wrapped handler, the
 first returns yours untouched.
 
 Validation runs on the already-parsed body, so it sees the same merged object
@@ -163,7 +162,7 @@ calling convention, untyped.
 
 The third parameter is `Bakery.server`, passed by the module's only call site
 (`packages/core/src/handlers/core/$dynamic.ts`). `RouteHandler` declares it
-optional because `Bakery.server` is itself unset until `Bun.serve` has started —
+optional because `Bakery.server` is itself unset until `Bun.serve` has started:
 if you need the server, `Bakery.server` is always the safer reach.
 
 ## What `body` actually contains
@@ -180,7 +179,7 @@ if you need the server, `Bakery.server` is always the safer reach.
 | `application/*`, `image/*`, `audio/*`, `video/*`, `model/*` | `{ file: Blob }` |
 | anything else | `{ data: string }` |
 
-A parse failure is swallowed and yields `{}` (`body.ts`) — a malformed JSON
+A parse failure is swallowed and yields `{}` (`body.ts`): a malformed JSON
 POST reaches your handler with an empty body rather than a 400. Validate.
 
 For a dynamic route, the bracket segments are merged in afterwards and win over
@@ -196,7 +195,7 @@ export default defineRoute<{ id: string }>(async (_req, body) => {
 ```
 
 A bracket param is always a string when the route matches, so `{ id: string }`
-(non-optional) is the honest declaration here — unlike body fields, which the
+(non-optional) is the honest declaration here, unlike body fields, which the
 client controls.
 
 ## CSRF: why your POST returns 403
@@ -226,14 +225,14 @@ it.
 
 Things that trip it in practice:
 
-- Calling your API from a different port during development —
+- Calling your API from a different port during development:
   `http://localhost:5173` posting to `http://localhost:3000` is cross-origin, and
   the `Origin` header will not match.
 - Posting from a page served on a different hostname in a multi-host setup.
 - A `fetch` with `mode: 'no-cors'` from another origin.
 
 There is no configuration switch to disable it. If a third party genuinely needs
-to POST to you, give them an endpoint that does not rely on cookie auth — that
+to POST to you, give them an endpoint that does not rely on cookie auth: that
 is what makes it safe to expose, and it is why the guard can stay unconditional.
 
 **Configuring [`cors`](cors.md) does not turn this off, and is not meant to.**
@@ -246,7 +245,7 @@ Note the check is not applied to page routes, only to `/api/`.
 ## Responses
 
 Return anything `processResponse` understands (`packages/core/src/router.ts`):
-a `Response`, a `BunFile`, a string, a plain object, or — preferably — one of the
+a `Response`, a `BunFile`, a string, a plain object, or (preferably) one of the
 `response.json.*` helpers.
 
 Every JSON body the server emits uses one envelope:
@@ -255,7 +254,7 @@ Every JSON body the server emits uses one envelope:
 { "time": 1, "status": 200, "message": "created", "data": { "title": "hi" } }
 ```
 
-`time` is filled in with the elapsed request time at serialisation. The helpers
+`time` is filled in with the elapsed request time at serialization. The helpers
 (`packages/core/src/utils/http/response.ts`):
 
 ```ts
@@ -271,7 +270,7 @@ export default function handler() {
 
 `response.json.error` clamps a nonsensical status to 400 and accepts a
 string-first form (`response.json.error('bad input')` → 400). A plain object
-returned from a handler is `JSON.stringify`d as-is, without the envelope — use
+returned from a handler is `JSON.stringify`d as-is, without the envelope. Use
 the helpers unless you specifically want a bare payload.
 
 A handler that runs and returns nothing produces a **404**, not a 204:
@@ -292,14 +291,14 @@ export default function handler() {
 }
 ```
 
-A request to a path under `/api/` with no matching file is also a 404 — but from
+A request to a path under `/api/` with no matching file is also a 404, but from
 `response.error('No API handler found')` (`api.ts`), because
 `ApiHandler.canHandle` only tests the prefix and never checks that the route
 exists.
 
 ## Errors
 
-A throw inside your handler is not caught by the framework's import guard — it
+A throw inside your handler is not caught by the framework's import guard: it
 propagates to the worker, which routes it through `handleRequestError`
 (`packages/cli/src/worker.ts`). For an `/api/` path the `error` registry's
 top entry is `ApiErrorHandler` (priority 30), which answers with the envelope:
@@ -325,7 +324,7 @@ export default function handler(req: Request) {
 
 A **syntax or import error** in the route file is a server fault, not a missing
 route: it is logged as `API_IMPORT_ERR` with the file path and rethrown, so the
-request becomes a **500** — with the failure detail shown in development and
+request becomes a **500**, with the failure detail shown in development and
 redacted in production (`$dynamic.ts`). It used to be a 404, which sent the
 developer hunting for a missing file instead of reading the error.
 
@@ -336,7 +335,7 @@ specifier (`handlers/routes/api.ts`) so that saving a file invalidates the ES
 module cache; editing anything under the configured api directory additionally
 restarts the dev worker (`compiler/dev-service.ts`), which is what picks up
 changes to a route's *imports*. In production the bare specifier is imported
-once and served from the module registry — route files cannot change under a
+once and served from the module registry: route files cannot change under a
 process that runs no watcher, and the per-request stat would be pure waste.
 
 Because each distinct mtime is a distinct module identity, module-level state in
@@ -354,6 +353,6 @@ export default { version: 1, features: ['a', 'b'] }
 
 ## Reserved namespace
 
-`/api/_*` is reserved for the framework and its plugins — `/api/_dashboard/*` is
+`/api/_*` is reserved for the framework and its plugins: `/api/_dashboard/*` is
 in use today. Plugin endpoint tables go through `routeTable()`
 (`packages/core/src/plugins/routes.ts`), not through this directory.

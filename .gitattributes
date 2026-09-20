@@ -1,7 +1,7 @@
 # Check every text file out with LF, on every platform.
 #
 # Without this, a clone on Windows with the default `core.autocrlf=true` gets a
-# CRLF working tree while the committed content is LF — and biome's formatter
+# CRLF working tree while the committed content is LF, and biome's formatter
 # defaults to `lineEnding: "lf"`, so `bunx biome check` reports **every file**
 # as unformatted. 319 of them, on a tree that is byte-identical to one the same
 # command called clean.

@@ -5,12 +5,12 @@ import { resolve } from 'node:path'
  * Core's public entry points must be importable **first**, in a cold process.
  *
  * `@bakery-framework/core@1.2.3` was not. `logger/serve-log.ts` runs
- * `new Logger('serve')` at module scope, and this cycle —
+ * `new Logger('serve')` at module scope, and this cycle,
  *
  *     logger.ts -> compiler/prompt-tracker.ts -> core/bakery.ts
  *       -> core/config.ts -> logger/serve-log.ts -> logger.ts
  *
- * — meant that whichever import arrived first found `Logger` still in its
+ *: meant that whichever import arrived first found `Logger` still in its
  * temporal dead zone. `import '@bakery-framework/core'` threw
  * `ReferenceError: Cannot access 'Logger' before initialization` from a clean
  * install, so every consumer's `server.config.ts` failed to load and the server
@@ -18,7 +18,7 @@ import { resolve } from 'node:path'
  *
  * **Nothing in the suite could see it, and the reason is why this file spawns
  * processes.** Inside an already-running test the modules are loaded in an order
- * that happens to work, and so is the CLI's — `core/init` first, subpaths after.
+ * that happens to work, and so is the CLI's: `core/init` first, subpaths after.
  * The failure needs a process whose *first* import is the entry under test.
  * `apps/example` and `apps/starter` both booted green throughout.
  *

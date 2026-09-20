@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { SQLiteAdapter } from './sqlite'
 
 /**
- * The journal mode used to be picked by platform — `DELETE` on win32, `WAL`
- * everywhere else — for a reason nobody wrote down. It is now an attempt with
+ * The journal mode used to be picked by platform (`DELETE` on win32, `WAL`
+ * everywhere else) for a reason nobody wrote down. It is now an attempt with
  * a checked fallback, and this is the end-to-end proof of the attempt half:
  * an ordinary file-backed database runs WAL.
  *

@@ -15,14 +15,14 @@ export type RouteScanOptions = {
 }
 
 // `[!.]` keeps catch-alls (`[...name]`) out of the single-param globs: they
-// are matched separately, and last — a catch-all is the weakest route form,
+// are matched separately, and last. A catch-all is the weakest route form,
 // consulted only after specific files, single-param siblings and child-index
 // descent have all missed.
 const catchAllGlob = (ext: string) => new Bun.Glob(`[[]...*${ext || '.*'}`)
 
 // The single-param route forms, in the order they are tried: `[name].ext`
 // first, then the literal-asterisk `*.ext`. Built here rather than twice inside
-// `routeGlobs` — the `dynamicOnly` branch and the combined branch returned
+// `routeGlobs`: the `dynamicOnly` branch and the combined branch returned
 // character-identical pairs, and the two must stay in step or a route form
 // resolves under one caller and not the other. A function, not a hoisted
 // constant: `ext` varies per handler, and `staticOnly` returns before it needs
@@ -33,22 +33,22 @@ const catchAllGlob = (ext: string) => new Bun.Glob(`[[]...*${ext || '.*'}`)
 // a path separator: Bun read `\*.*` as a drive-absolute pattern, ignored the
 // `cwd` in `GETFILE` entirely, and matched files at `C:\`. A route lookup under
 // a serve root six levels down returned `C:\$WINRE_BACKUP_PARTITION.MARKER`,
-// and `fs.isForbidden` — whose walk is bounded by `startsWith(root)` — waved it
+// and `fs.isForbidden` (whose walk is bounded by `startsWith(root)`) waved it
 // through because an out-of-root path skipped the loop and answered "allowed".
 // That clamp now fails closed, so this is belt and braces; both halves are
 // pinned, and neither test can see the other's bug.
 //
 // Measured with a scan whose cwd was a temp directory holding one file: `[*]`
 // yields nothing, `\*` yields four files from the drive root. The escape is
-// also unreachable on Windows in the direction it was meant for — `*` is a
+// also unreachable on Windows in the direction it was meant for: `*` is a
 // reserved character in a Windows filename, so a route file literally named
 // `*.ts` can only exist on POSIX, where both spellings match it identically
 // (verified on Linux). The character class costs nothing and means the same
 // thing on both platforms.
 //
 // Exported only as a test seam: with the clamp in place no test driving
-// `getRoute` can tell the two spellings apart — verified by reverting this line
-// and watching all 17 pass — so the pattern has to be asserted directly.
+// `getRoute` can tell the two spellings apart (verified by reverting this line
+// and watching all 17 pass), so the pattern has to be asserted directly.
 export const dynamicGlobs = (ext: string) => [
   new Bun.Glob(`[[][!.]*${ext || '.*'}`),
   new Bun.Glob(`[*]${ext || '.*'}`),
@@ -88,8 +88,7 @@ const routeGlobs = (
  * The catch-all fallback for one directory level: `dir/[...name].ext`,
  * containment-checked like every other candidate. Skipped for `staticOnly`
  * (the caller wants a literal file), and it *yields to any real file*: when
- * the request's remaining segments name an existing file under `dir` —
- * whatever its extension — the catch-all declines, so a lower-priority
+ * the request's remaining segments name an existing file under `dir` ( * whatever its extension) the catch-all declines, so a lower-priority
  * handler (TSHandler, StaticHandler) can serve the file itself. A directory
  * is not a file and does not trigger the yield. `findDynamicRoute` applies
  * the same rule on the cached path; the two must agree.
@@ -102,7 +101,7 @@ const routeGlobs = (
  * `provides.ts` at `/teacher/provides` and `/teacher/provides.js`, so neither
  * spelling named a file on disk and a Vue catch-all above it (priority 58 vs
  * 50) served HTML to a browser that asked for a module. The probe now also
- * tries the registered dynamic extensions against the extensionless base —
+ * tries the registered dynamic extensions against the extensionless base:
  * the same mapping the serving handlers apply, read from the live registry so
  * a plugin's extension (`.vue`) counts without core naming it.
  *
@@ -118,7 +117,7 @@ export function servedSourceExists(target: string): boolean {
     try {
       exts = (handler as { config?: { ext?: unknown } }).config?.ext
     } catch {
-      // A config getter that needs state this process lacks — a handler with
+      // A config getter that needs state this process lacks: a handler with
       // no ext table cannot claim a source file either way.
       continue
     }
@@ -147,13 +146,13 @@ async function getCatchAllRoute(
     const target = fs.resolve(dir, restSegments.join('/'))
     // Stat only inside `dir`. A rest containing `..` resolves outside it, and
     // statting there would make this yield a boolean existence probe for any
-    // path on the filesystem — the 404-vs-render difference is observable.
-    // URL parsing normalises `..` and `%2e%2e` away, so no HTTP request
+    // path on the filesystem: the 404-vs-render difference is observable.
+    // URL parsing normalizes `..` and `%2e%2e` away, so no HTTP request
     // reaches here with one; this closes the door for any caller that skips
-    // that normalisation. An escape skips the yield rather than refusing, so
+    // that normalization. An escape skips the yield rather than refusing, so
     // the catch-all answers exactly as it did before the yield rule existed.
     // `dir` comes from `fs.resolve`, so the separator-suffixed prefix test is
-    // exact — plain `startsWith(dir)` would also accept a sibling directory
+    // exact: plain `startsWith(dir)` would also accept a sibling directory
     // whose name merely begins with it.
     if (
       (target === dir || target.startsWith(`${dir}/`)) &&
@@ -169,7 +168,7 @@ async function getCatchAllRoute(
 
   // A bare-directory request (`/docs` with no index) reaches here with no
   // rest segments, and only the `[...name!]` spelling opted into claiming
-  // it — the plain form keeps requiring at least one segment.
+  // it: the plain form keeps requiring at least one segment.
   if (!restSegments.length && !info.optionalCatchAll) return null
 
   return info
@@ -183,7 +182,7 @@ export async function getRoute(
   root?: fs.AbsolutePath,
   options: RouteScanOptions = {},
 ): Promise<Handler.Route.Info | null> {
-  // Both used to default to `Bakery.serveRoot` independently — two reads of
+  // Both used to default to `Bakery.serveRoot` independently. Two reads of
   // the config getter (an AsyncLocalStorage getStore each) when a caller
   // omits both. One read now covers whichever is missing; the values are
   // unchanged.
@@ -234,7 +233,7 @@ export async function getRoute(
     // statement is `isForbidden(dir, root)` with these exact arguments, and its
     // `null` reaches the same `return null` this function ends on. Checking
     // here as well made every level of a nested route pay two identical
-    // directory tree-walks — and `isForbidden` walks from the file to the root
+    // directory tree-walks, and `isForbidden` walks from the file to the root
     // doing an existsSync at each level, so that is the most expensive thing
     // this function does. `src/tests/forbidden.test.ts` pins both branches.
     if (first !== 'index') {
@@ -246,7 +245,7 @@ export async function getRoute(
     // `first === 'index'` is the bare-directory request (`/docs` arrives here
     // as an injected 'index' segment, after no index file matched). The plain
     // `[...name]` pattern requires at least one rest segment and cannot claim
-    // it; `[...name!]` exists to — `getCatchAllRoute` tells them apart.
+    // it; `[...name!]` exists to: `getCatchAllRoute` tells them apart.
     if (!options.staticOnly) {
       return await getCatchAllRoute(
         ext,
@@ -263,7 +262,7 @@ export async function getRoute(
     if (route) return route
 
     // The walk above descends one real segment at a time and dead-ends when
-    // the next directory does not exist — which for a catch-all request
+    // the next directory does not exist, which for a catch-all request
     // (`/docs/a/b/c` against `docs/[...slug].tsx`) is the common case. Each
     // level unwinds through here, so the deepest existing directory gets the
     // first chance to claim the rest.

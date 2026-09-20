@@ -17,7 +17,7 @@ const RE_TRAILING_WILDCARD = /\/?\*?$/
 const RE_ABSOLUTE = /^([A-Za-z]:)?[\\/]/
 
 // The application's tsconfig, resolved against its cwd. This used to write into
-// a tsconfig *inside the framework* — app-specific paths mutating a shipped
+// a tsconfig *inside the framework*: app-specific paths mutating a shipped
 // package file, which is also why running the test suite dirtied the tree.
 const APP_CONFIG_PATH = fs.resolve(process.cwd(), 'tsconfig.json')
 const APP_DIR = process.cwd()
@@ -66,7 +66,7 @@ const PROJECT_DIR = fs.resolve(APP_DIR, '.cache/tsconfig')
  * concern, pointed at directly (`tsc -p .cache/tsconfig/client.json`), and
  * subtracting the app's include would gut them into projects that check
  * nothing. What must never come back is the `references` wiring that composed
- * them with the app project — see {@link syncTSConfigProjects}.
+ * them with the app project. See {@link syncTSConfigProjects}.
  *
  * Globs are app-relative here and rewritten to be relative to the generated
  * file, which sits two levels down.
@@ -100,7 +100,7 @@ export function coreProjects(): PluginTsProject[] {
       include: [`${root}/**/*.ts`],
       exclude: [`${root}/**/api/**/*.ts`],
       // The only project that gets `importMap` aliases, because the import map
-      // is a browser mechanism — see `importMapPaths` on `PluginTsProject`.
+      // is a browser mechanism. See `importMapPaths` on `PluginTsProject`.
       importMapPaths: true,
     },
   ]
@@ -115,7 +115,7 @@ export function coreProjects(): PluginTsProject[] {
 export function fromProjectDir(pathOrGlob: string): string {
   // **`Bakery.config.root` is absolute**, so globs built from it arrive here as
   // full paths. Prefixing `../../` to one yields
-  // `../../C:/WebDAV/.../src/**/*.ts`, which matches nothing — and a project
+  // `../../C:/WebDAV/.../src/**/*.ts`, which matches nothing, and a project
   // that matches nothing typechecks clean, so the mistake presents as success.
   // That is exactly how the first version of this passed with zero files.
   if (RE_ABSOLUTE.test(pathOrGlob)) {
@@ -128,8 +128,8 @@ export function fromProjectDir(pathOrGlob: string): string {
 /**
  * Resolve a `files` entry to something TypeScript will actually load.
  *
- * A package specifier is the useful form for a plugin to write — it does not
- * know where it was installed — but `files` is resolved as a path, so
+ * A package specifier is the useful form for a plugin to write (it does not
+ * know where it was installed), but `files` is resolved as a path, so
  * `@scope/pkg/x.d.ts` would simply be missing. Resolution failure is not fatal:
  * a plugin whose declaration cannot be found should degrade to "no types" and
  * say so, not stop the dev server from booting.
@@ -152,16 +152,16 @@ function resolveFilesEntry(entry: string): string | null {
  *
  * **TypeScript's rule is that a child's `files` *replaces* the parent's, and
  * that rule silently disarmed every project a plugin contributes.**
- * `tsconfig.vue.json` lists core's three ambient declarations — `global.d.ts`,
- * `shared.d.ts`, `types.d.ts` — which is where `Bakery`, `AppConfig`, the JSX
+ * `tsconfig.vue.json` lists core's three ambient declarations: `global.d.ts`,
+ * `shared.d.ts`, `types.d.ts`, which is where `Bakery`, `AppConfig`, the JSX
  * namespace and `Request.session` come from. `@bakery-framework/plugin-vue`
  * declares one `files` entry of its own for `vue.d.ts`, and that one entry
  * replaced all three: measured on a real app, the generated `vue` project loaded
  * **zero** of them.
  *
  * It hid because `vue.d.ts` happens to declare `req` and `body` itself, so the
- * globals an SFC reaches for most still resolved. Everything else — `Bakery`,
- * `MapOf`, the JSX namespace — was quietly missing.
+ * globals an SFC reaches for most still resolved. Everything else (`Bakery`,
+ * `MapOf`, the JSX namespace) was quietly missing.
  *
  * So the base's list is read and merged rather than inherited. Paths inside it
  * are relative to *that* file, which is the property the whole arrangement rests
@@ -181,7 +181,7 @@ function readBase(extendsSpecifier: string): string[] {
     })
   } catch {
     // A base that cannot be read is not fatal: the project still compiles, it
-    // just loses the ambients — which is the status quo this repairs, not a
+    // just loses the ambients, which is the status quo this repairs, not a
     // regression. Assume client-side, which is the conservative half.
     return []
   }
@@ -194,12 +194,12 @@ function readBase(extendsSpecifier: string): string[] {
  * it reached exactly one project: `server`, because that is the only one whose
  * `include` covers `orm/**`. Everywhere else `SchemaRegistry` stayed empty,
  * `Registered` resolved to `never`, and every table fell back to
- * `MapOf<MapOf<any>>` — the ORM's documented untyped mode, arrived at by
+ * `MapOf<MapOf<any>>`: the ORM's documented untyped mode, arrived at by
  * accident. It does not error; it just stops checking.
  *
  * **Server-side projects only.** The client project deliberately does not get
  * it: the ORM is server-only, so a browser file importing `DB` should fail to
- * typecheck rather than be helpfully typed. That is not only a preference —
+ * typecheck rather than be helpfully typed. That is not only a preference:
  * `@bakery-framework/orm` ships TypeScript source that calls `Bun.*`, so pulling
  * it into a config without `bun-types` produces errors from inside the package
  * rather than types for the app. Measured when this was applied to every
@@ -283,7 +283,7 @@ export async function writeProjects(paths: MapOf<string[]>): Promise<string[]> {
       project.server && registrationFile ? [registrationFile] : []
 
     // The base's own `files` are merged back in whenever this project declares
-    // any of its own, because a child's `files` *replaces* the parent's — see
+    // any of its own, because a child's `files` *replaces* the parent's. See
     // `readBase`. Left entirely empty, TypeScript inherits correctly and there
     // is nothing to repair.
     const declared = [...own, ...registration]
@@ -299,7 +299,7 @@ export async function writeProjects(paths: MapOf<string[]>): Promise<string[]> {
         ...(project.compilerOptions ?? {}),
         // Only projects that opt in. `importMap` is served to the browser as
         // `<script type="importmap">`, so its specifiers are resolved there and
-        // nowhere else — writing them into the server project made an import
+        // nowhere else: writing them into the server project made an import
         // that cannot work on the server typecheck as though it could.
         ...(project.importMapPaths && Object.keys(paths).length
           ? { paths: mapPaths(paths) }
@@ -353,18 +353,18 @@ function isGeneratedReference(entry: unknown): boolean {
  *
  * - `tsc -p` verifies every referenced project whenever the referencing
  *   program has input files of its own: a reference to a non-composite
- *   project is TS6306 and to a `noEmit` one TS6310 — **even when the
+ *   project is TS6306 and to a `noEmit` one TS6310, **even when the
  *   referenced project's include is disjoint from the root's, and even when
  *   it matches zero files**. No include shape survives.
  * - Each root file a referenced project also claims is redirected to that
  *   project's declaration output, which `noEmit` guarantees was never built:
- *   TS6305, once per overlapping file — `src/**`, `server.config.ts`, every
+ *   TS6305, once per overlapping file: `src/**`, `server.config.ts`, every
  *   `.tsx` page.
  *
  * The generated projects extend `noEmit` bases and rely on
  * `allowImportingTsExtensions`, so they are unbuildable by design. Making them
  * `composite` instead would trade the errors above for a `tsc -b` build-order
- * requirement no consumer runs — and TS6305 would still fire for any root file
+ * requirement no consumer runs, and TS6305 would still fire for any root file
  * importing into one while unbuilt. The only reference shape `tsc -p`
  * tolerates from a root that has files of its own is no reference at all, so
  * the projects stand alone now and this strips what previous releases wrote.
@@ -375,8 +375,8 @@ function isGeneratedReference(entry: unknown): boolean {
  * every entry in it.
  *
  * Pure, and exported, so the repair can be tested without a function that
- * writes to `process.cwd()`. The property that matters is negative — *no key
- * the developer wrote is lost* — which a shape assertion on the source cannot
+ * writes to `process.cwd()`. The property that matters is negative (*no key
+ * the developer wrote is lost*), which a shape assertion on the source cannot
  * check.
  */
 export function stripGeneratedReferences(
@@ -397,9 +397,9 @@ export function stripGeneratedReferences(
 /**
  * The root config written when the app has none at all.
  *
- * The generated projects do not help Bun's runtime — it reads
+ * The generated projects do not help Bun's runtime: it reads
  * `compilerOptions.jsx*` from the root `tsconfig.json` and follows `extends`
- * only into a relative path, never a package specifier — so the file this
+ * only into a relative path, never a package specifier, so the file this
  * writes has to carry the JSX options itself, inline, exactly as the
  * scaffolder spells them.
  */
@@ -415,7 +415,7 @@ export function defaultRootConfig(): Record<string, unknown> {
 }
 
 /**
- * Generate the project configs, and keep the app's root tsconfig viable —
+ * Generate the project configs, and keep the app's root tsconfig viable:
  * created with the runtime JSX options when the app has none, and stripped of
  * the `references` a previous release wrote into it.
  *
@@ -428,22 +428,22 @@ export function defaultRootConfig(): Record<string, unknown> {
  * each covers: `vue-tsc -p .cache/tsconfig/vue.json` is the only way an SFC
  * typechecks at all, `tsc -p .cache/tsconfig/client.json` proves browser code
  * clean of `Bun.*`, and a plugin's project carries its own ambients the same
- * way. Their `include` deliberately overlaps the app's own project — they are
+ * way. Their `include` deliberately overlaps the app's own project: they are
  * alternate projections of the same files, used *instead of* the root for
  * their slice, never composed with it. Wiring them in as `references` broke
- * `tsc -p <app>` for any consumer who had booted once (TS6305/6306/6310 — the
+ * `tsc -p <app>` for any consumer who had booted once (TS6305/6306/6310: the
  * measurements are on {@link stripGeneratedReferences}), and what the wiring
  * bought was less than it looked: tsserver routes a file to the project whose
- * `include` claims it, so for everything a scaffolded root claims — `src/**`,
- * `server.config.ts`, `orm/**` — the reference walk never ran anyway.
+ * `include` claims it, so for everything a scaffolded root claims, `src/**`,
+ * `server.config.ts`, `orm/**`, the reference walk never ran anyway.
  *
  * Two earlier lessons still bind the root-config half. It used to be
  * *replaced* with a references-only stub, which silently broke every `.tsx`
  * page: Bun's runtime reads `compilerOptions.jsx*` from the root and does not
  * follow `references`, so pages transpiled against the automatic JSX runtime
  * and `GET /` answered 200 with a JSON-encoded React element tree. Hence
- * {@link defaultRootConfig} when no root exists, and surgical repair — never
- * wholesale rewrite — when one does. And a boot that dirties git every time
+ * {@link defaultRootConfig} when no root exists, and surgical repair (never
+ * wholesale rewrite) when one does. And a boot that dirties git every time
  * trains people to ignore the diff, so an already-clean root is not rewritten.
  */
 export async function syncTSConfigProjects(): Promise<void> {

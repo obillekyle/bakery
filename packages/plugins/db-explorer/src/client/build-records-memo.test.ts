@@ -12,7 +12,7 @@ import {
 
 /**
  * The import footer shows "N rows ready · M bad", and it recomputed that by
- * coercing every row of the file each time anything in the wizard changed —
+ * coercing every row of the file each time anything in the wizard changed,
  * including the bad-row policy dropdown sitting next to the number, which
  * cannot alter it. Measured at 153-250 ms per change on 50,000 rows of four
  * columns, on the main thread.

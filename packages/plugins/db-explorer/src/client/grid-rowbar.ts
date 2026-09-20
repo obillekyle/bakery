@@ -4,7 +4,7 @@
  * Under the row rather than in a toolbar, because "which row is this Save for"
  * has exactly one unambiguous answer and it is proximity. It carries the
  * changed-column list, the two buttons, and the place a failed save reports
- * itself — a 409 belongs next to the row it is about, not in a toast.
+ * itself: a 409 belongs next to the row it is about, not in a toast.
  */
 
 import { append, box, button, el } from './dom'

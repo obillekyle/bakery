@@ -114,9 +114,9 @@ type RenderFn<P = {}> = (
 ) => string | Promise<string> | Promise<Response> | Response
 
 /**
- * `<P>` is type-level only — declare the route's params once and `body` is
+ * `<P>` is type-level only. Declare the route's params once and `body` is
  * typed inside the render function: `html<{ id: string }>((req, body) => …)`.
- * `RouteBody<{}>` is `MapOf<any>`, so an unparameterised call is unchanged.
+ * `RouteBody<{}>` is `MapOf<any>`, so an unparameterized call is unchanged.
  */
 export function html<P = {}>(render: RenderFn<P>) {
   return async (req: Request, body: RouteBody<P>) => {

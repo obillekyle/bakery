@@ -15,7 +15,7 @@ import { getStatic } from '../core/$static'
  * the separator, so every `/` in the path doubled the ways the engine could
  * split it. The work is superlinear and it is paid by paths that do **not**
  * match, because a failing match is the one that has to try every split before
- * it can say no — and `canHandle` runs on every route-cache miss, above the
+ * it can say no, and `canHandle` runs on every route-cache miss, above the
  * handlers that serve ordinary pages.
  *
  * Measured on Bun 1.4.0, one call, path of `/` + `a/` × n + `x.txt`:
@@ -31,7 +31,7 @@ import { getStatic } from '../core/$static'
  * filename cannot contain a separator, so the second group never should have
  * been able to: bounding it removes the ambiguity and the cost with it.
  *
- * The captures are gone because nothing read them — `canHandle` only calls
+ * The captures are gone because nothing read them: `canHandle` only calls
  * `.test()`, and `IMAGE_CAPTURE` below is what parses the parts. The trailing
  * `(;(\\d+))?` was dead for the same reason: `.*` already covered `;800`.
  *
@@ -86,7 +86,7 @@ export class ImageHandler extends Handler {
     const rel = `${dir.slice(1)}/${name}.${ext}`
 
     // This handler outranks PublicHandler, so the containment and `.forbidden`
-    // checks must still apply — otherwise a protected image under public/ is
+    // checks must still apply: otherwise a protected image under public/ is
     // served anyway, despite PublicHandler correctly refusing it. getStatic
     // carries those checks so all the file-serving handlers share one spelling.
     const resolved = await getStatic(`/${rel}`, [
@@ -120,7 +120,7 @@ export class ImageHandler extends Handler {
       const cacheDir = fs.resolve(Bakery.cacheDir, 'images')
       // Key on the resolved source, not the request path. The path carries the
       // caller's raw `;NNN` size suffix *before* clamping, so `;16`, `;17`, `;18`…
-      // each produced a distinct id and re-encoded the whole source to WebP —
+      // each produced a distinct id and re-encoded the whole source to WebP:
       // an unbounded cache and unbounded CPU from one image URL.
       const imageCacheId = Bun.hash(hostKey(source)).toString(36)
 

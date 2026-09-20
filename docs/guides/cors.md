@@ -2,7 +2,7 @@
 
 Cross-origin resource sharing: what lets a browser page on `https://app.example`
 read a response from `https://api.example`. Bakery ships the pieces of an API
-server — `ApiHandler`, sessions, CSRF, rate limiting — and `cors` is what makes
+server (`ApiHandler`, sessions, CSRF, rate limiting), and `cors` is what makes
 one reachable from a browser somewhere else.
 
 ```ts
@@ -25,7 +25,7 @@ own default and the safe one.
 
 That is a deliberate refusal of the usual convenience. A framework that quietly
 allows every origin in development teaches people it works, and then surprises
-them the first time they deploy — or, worse, does not surprise them, because
+them the first time they deploy, or, worse, does not surprise them, because
 they shipped the permissive setting.
 
 ## Where it runs
@@ -37,7 +37,7 @@ other response does
 1. **Preflight**, answered inside `handleRequest` **before routing** and before
    the forbidden-path check. The browser will not send the real request until
    this is answered, and there is no route to answer it.
-2. **Headers**, appended in `processResponse` — the one funnel every response
+2. **Headers**, appended in `processResponse`: the one funnel every response
    passes through, so a page, an API route, a static file, a proxied response
    and an error all get the same treatment.
 
@@ -81,12 +81,11 @@ export default defineConfig({
 })
 ```
 
-Write that predicate carefully. `o.endsWith('example.com')` — without the dot —
-also matches `https://notexample.com`, which is the classic way this goes wrong.
+Write that predicate carefully. `o.endsWith('example.com')` (without the dot) also matches `https://notexample.com`, which is the classic way this goes wrong.
 
 **`origin: '*'` with `credentials: true` is refused, not downgraded.** The pair
 returns no headers at all, so the request is denied. The browser rejects that
-combination anyway, so honouring it would produce a request that fails in the
+combination anyway, so honoring it would produce a request that fails in the
 client while the server believes it allowed the call; echoing the origin instead
 would be a quiet *widening* of what you asked for. A visibly denied request is
 the direction a security control should fail in.
@@ -94,13 +93,13 @@ the direction a security control should fail in.
 ### `credentials`
 
 Sends `Access-Control-Allow-Credentials: true`, which is what lets the browser
-attach cookies to a cross-origin request — and therefore what a cross-origin
+attach cookies to a cross-origin request, and therefore what a cross-origin
 session needs. It requires a specific `origin`, never `'*'`.
 
 ### `exposeHeaders`
 
 Cross-origin JavaScript can read only a handful of response headers by default.
-Anything of your own — a pagination cursor, a request id — has to be named here
+Anything of your own (a pagination cursor, a request id) has to be named here
 or `res.headers.get()` returns `null` in the browser with no error.
 
 ### `maxAge`
@@ -117,7 +116,7 @@ serve one origin's response to another. Preflights additionally vary on
 `Access-Control-Request-Headers`.
 
 If a response already carries a `Vary` from ETag negotiation, the value is
-**appended** rather than replaced — whichever ran second does not drop the
+**appended** rather than replaced: whichever ran second does not drop the
 other's.
 
 ## CORS is not the CSRF guard
@@ -133,7 +132,7 @@ does not affect the other.
   origin.
 
 So configuring `cors` does not open your API to cross-origin `POST`s from a
-browser session — the CSRF guard still refuses those. A cross-origin client
+browser session: the CSRF guard still refuses those. A cross-origin client
 that needs to write should authenticate with something other than a cookie,
 which is also what makes it safe.
 
@@ -149,7 +148,7 @@ which is also what makes it safe.
 
 ## Next
 
-- [API routes](api-routes.md) — the CSRF guard and what it does instead.
-- [Security](../deployment/security.md) — what the framework does and does not do for you.
-- [server.config.ts](../configuration/server-config.md) — every option.
+- [API routes](api-routes.md): the CSRF guard and what it does instead.
+- [Security](../deployment/security.md): what the framework does and does not do for you.
+- [server.config.ts](../configuration/server-config.md), every option.
 </content>

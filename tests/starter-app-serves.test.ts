@@ -19,7 +19,7 @@ import {
  *
  * The cause is worth restating because it is entirely invisible to a
  * typechecker. Bun's *runtime* does not follow tsconfig `extends` into a
- * **package specifier**, only a relative path — so starter's `jsx`,
+ * **package specifier**, only a relative path, so starter's `jsx`,
  * `jsxFactory` and `jsxFragmentFactory`, inherited from
  * `@bakery-framework/core/tsconfig.server.json`, never reached it. Every
  * `.tsx` route transpiled against Bun's default automatic JSX runtime instead
@@ -61,7 +61,7 @@ describe('the starter app serves what it ships', () => {
 
   test('the JSX page renders through Bakery, not a React runtime', async () => {
     // The historical bug, asserted on its symptom rather than its cause. A
-    // status check alone is most of it — the failure was a 500 — but the
+    // status check alone is most of it (the failure was a 500), but the
     // content check is what would also catch a JSX factory that resolved to
     // something else and quietly produced the wrong markup.
     const res = await fetch(`${server!.base}/`)
@@ -76,7 +76,7 @@ describe('the starter app serves what it ships', () => {
   }, 30_000)
 
   test('its API route answers', async () => {
-    // The `.ts` half of the app, which the JSX bug never touched — so this is
+    // The `.ts` half of the app, which the JSX bug never touched, so this is
     // what tells a JSX regression apart from the app simply being down.
     const res = await fetch(`${server!.base}/api/notes`)
     await res.arrayBuffer()

@@ -17,7 +17,7 @@ header; rejection logging is sampled per key so a flood cannot become a logging
 flood. The startup banner announces the limiter whenever the default value is
 in effect.
 
-Default: `{ max: 100, refill: 10 }` — burst 100, then 10 per second, keyed by
+Default: `{ max: 100, refill: 10 }`, burst 100, then 10 per second, keyed by
 client IP. Buckets live in a shared 1024-slot buffer
 (`packages/core/src/utils/shared-pool.ts`), so the budget is shared
 across cluster workers and two clients can hash into the same slot. It is a
@@ -28,21 +28,21 @@ Configure it in `server.config.ts`; see
 
 ### Blocked paths
 
-A glob list is checked against every file-serving handler's path — route-only
+A glob list is checked against every file-serving handler's path: route-only
 handlers (middleware, proxy, API) are exempt, since for them a path is a route
-name, not a file — and again in the static fallback
+name, not a file, and again in the static fallback
 (`packages/core/src/router.ts`,
 `packages/core/src/handlers/assets/static.ts`), returning `403`. The built-in
 list (`packages/core/src/utils/constants.ts`) covers `.env`, `*.db`,
 `*.sql`, `*.yaml`, `*.lock`, the project-describing JSON files
-(`package.json`, `tsconfig.json` and variants — deliberately not every
+(`package.json`, `tsconfig.json` and variants: deliberately not every
 `.json`), `.git/`, `node_modules/`, `.cache/`, `bakery/`, `server.config.ts`
 and `schema.ts`. Matching folds case and Win32 trailing dots, so shift-key
 variants are refused too. Your `blocked` entries are added to it, never
 replace it.
 
 Separately, static resolution refuses any path that escapes its root after
-resolution, and honours a `.forbidden` marker file in any parent directory
+resolution, and honors a `.forbidden` marker file in any parent directory
 (`packages/core/src/handlers/core/$static.ts`,
 `packages/core/src/utils/fs.ts`).
 
@@ -54,7 +54,7 @@ before your handler runs (`packages/core/src/handlers/routes/api.ts`).
 same-origin `Sec-Fetch-Site` or a matching `Origin`
 (`packages/core/src/utils/http/csrf.ts`).
 
-`SameSite=Lax` alone does not cover this — a cross-site form POST is a
+`SameSite=Lax` alone does not cover this: a cross-site form POST is a
 CORS-simple request and arrives with the cookie attached. Details and the
 `fetch` patterns that satisfy it are in
 [API routes](../guides/api-routes.md).
@@ -70,7 +70,7 @@ and `curl`/server-to-server callers send neither.
 (`packages/core/src/session.ts`).
 
 `Secure` is set over https, or with `trustProxy` and
-`x-forwarded-proto: https`, or **whenever the process is in production** — so a
+`x-forwarded-proto: https`, or **whenever the process is in production**, so a
 TLS terminator that forgets the header cannot downgrade the cookie. You do not
 need middleware for this flag.
 
@@ -85,7 +85,7 @@ that writes caller-supplied keys must refuse the prefix with
 ### Proxying
 
 `Cookie`, `Authorization`, `Host` and `Sec-Fetch-Site` are stripped before the
-upstream request, and redirects are not followed — following one would re-attach
+upstream request, and redirects are not followed: following one would re-attach
 those headers to whatever host the upstream names, including link-local
 addresses (`packages/core/src/handlers/routes/proxy.ts`).
 
@@ -94,12 +94,12 @@ addresses (`packages/core/src/handlers/routes/proxy.ts`).
 JSX escapes text children and attribute values by default
 (`packages/core/src/core/jsx.ts`). Opt out only through the `html` helper, which
 marks a string as already-safe. `head` and `body` from `server.config.ts` are
-injected verbatim — keep request data out of them.
+injected verbatim. Keep request data out of them.
 
 ### SQL
 
-Values bind as parameters. Identifiers go through exactly one writer —
-`qId`/`qRef`/`qRaw` (`packages/orm/src/schema-util.ts`) — plus
+Values bind as parameters. Identifiers go through exactly one writer:
+`qId`/`qRef`/`qRaw` (`packages/orm/src/schema-util.ts`): plus
 `safeColumn`'s function allow-list for `orderBy`/`groupBy`
 (`packages/orm/src/orm/query.ts`). String interpolation next to SQL is a
 review flag in this codebase, not a style preference.
@@ -112,13 +112,13 @@ where security bugs hide:
 - A middleware that throws produces `500`; the request does not continue
   (`packages/core/src/handlers/core/$middleware.ts`).
 - An `authorize` predicate that throws is a denial, and so is one that returns
-  anything other than exactly `true` — a truthy non-boolean does not admit
+  anything other than exactly `true`: a truthy non-boolean does not admit
   (`packages/core/src/utils/http/authorize.ts`).
 - With no `authorize` configured, the dashboard allows loopback in development
   and **nothing in production**. "Development" means `PROD` explicitly `false`;
   an unset flag is not evidence of development and also denies.
 - The database explorer admits nobody until an application configures it, and
-  what it grants is an access *level* rather than a yes — a caller with `read`
+  what it grants is an access *level* rather than a yes: a caller with `read`
   has no path to a write, and no caller has a path to raw SQL or DDL, because
   no such endpoint exists. See
   [Database Explorer](../plugins/db-explorer.md).
@@ -126,7 +126,7 @@ where security bugs hide:
   The dashboard used to carry its own database editor and SQL console behind a
   single `DASHBOARD_ALLOW_WRITES` environment variable. Both are gone and so is
   the variable; setting it now does nothing. If you have it in a deployment
-  environment, delete it — it is the kind of leftover that reads as a control
+  environment, delete it: it is the kind of leftover that reads as a control
   still being in force.
 
 ### Request size
@@ -136,7 +136,7 @@ where security bugs hide:
 
 ## Provided, but off until you configure them
 
-Neither has a default, deliberately — a permissive default teaches people it
+Neither has a default, deliberately: a permissive default teaches people it
 works and then surprises them in production.
 
 - **CORS.** `cors` in `server.config.ts`. Preflights are answered before routing
@@ -144,7 +144,7 @@ works and then surprises them in production.
   Absent, no `Access-Control-Allow-*` header is ever written. See
   [CORS](../guides/cors.md).
 - **Request body validation.** `defineRoute({ body: schema }, handler)`, taking
-  any [Standard Schema](https://standardschema.dev) — zod, valibot, arktype — or
+  any [Standard Schema](https://standardschema.dev) (zod, valibot, arktype), or
   a plain function. Bakery bundles and depends on none of them. Without it a
   body reaches your handler as parsed data with no schema check, and the type
   parameter states a contract it does not enforce. See
@@ -166,9 +166,9 @@ Bakery does not do these. If you need them, they are yours to add.
 - **Encryption at rest.** The SQLite database and the session store are plain
   files under `bakery/`.
 - **Authentication on WebSocket upgrades.** Cross-origin handshakes *are*
-  refused — `upgradeWebsocket` compares the handshake's `Origin` hostname
+  refused: `upgradeWebsocket` compares the handshake's `Origin` hostname
   against the request's own before consulting the registry
-  (`packages/core/src/utils/http/csrf.ts`, `router.ts`) — but that only stops
+  (`packages/core/src/utils/http/csrf.ts`, `router.ts`), but that only stops
   another *site*; a non-browser client sends no `Origin` and passes. Sockets
   carrying anything sensitive still authenticate inside their own `canHandle`.
   See [WebSockets](../guides/websockets.md#cross-origin-handshakes-are-refused-before-dispatch).
@@ -199,7 +199,7 @@ client.
 ## Adding what is missing
 
 Security headers belong in middleware, which runs before routing. **CORS does
-not** — it has a config option now, and hand-rolling it in middleware will not
+not**: it has a config option now, and hand-rolling it in middleware will not
 answer preflights before the forbidden-path check the way `cors` does:
 
 ```ts
@@ -209,7 +209,7 @@ export default defineConfig({
   middleware: [
     async (req, server) => {
       // Middleware returns a Response to stop the chain, or nothing to
-      // continue — so headers on the *outgoing* response are set by wrapping
+      // continue, so headers on the *outgoing* response are set by wrapping
       // a preflight answer here and using a plugin or a proxy for the rest.
       if (req.method === 'OPTIONS') {
         return new Response(null, {
@@ -240,16 +240,16 @@ back with credentials enabled is the same as having no check.
 
 - [ ] Dashboard plugin removed in production, or given a real `authorize`.
 - [ ] Database explorer removed in production, or given users whose access
-      levels you can defend — `write` is row editing on the live database.
+      levels you can defend: `write` is row editing on the live database.
 - [ ] `trustProxy` matches the deployment, with `host` bound to loopback if it
       is on.
-- [ ] Rate limit tuned rather than duplicated — or deliberately disabled with
+- [ ] Rate limit tuned rather than duplicated, or deliberately disabled with
       something else doing the job.
 - [ ] Security headers added if you need them; nothing sets them for you.
-- [ ] `cors` configured if a browser on another origin calls you — and not
+- [ ] `cors` configured if a browser on another origin calls you, and not
       configured at all if none does.
 - [ ] Request bodies validated, with `defineRoute({ body })` or by hand. A
       `defineRoute<T>` type parameter is a contract, not a check.
-- [ ] `bakery/` not web-reachable (it is blocked by default — do not remove that
+- [ ] `bakery/` not web-reachable (it is blocked by default. Do not remove that
       pattern) and not in a public volume.
 - [ ] WebSocket handlers authenticate their own connections.

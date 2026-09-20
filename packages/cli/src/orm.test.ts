@@ -3,7 +3,7 @@ import { hasORM, ORM_MISSING } from './orm'
 
 /**
  * These run in-repo, where `@bakery-framework/orm` is always present through the
- * workspace symlink — so they cannot test the absent case, and pretending
+ * workspace symlink, so they cannot test the absent case, and pretending
  * otherwise is the trap. The absent case is verified by packing the tarballs
  * and booting outside the repo; see the CLI docs and the two `conventions`
  * tests that keep the preconditions true.
@@ -15,8 +15,8 @@ describe('optional ORM', () => {
   test('the probe agrees with a real import of the same specifier', async () => {
     // The one that would hurt. `hasORM()` asks the resolver about
     // `@bakery-framework/orm/connection`; every guarded call site then imports it. If
-    // that subpath ever leaves orm's export map — or the string here picks up
-    // a typo — the probe goes permanently false and every guard silently
+    // that subpath ever leaves orm's export map (or the string here picks up
+    // a typo) the probe goes permanently false and every guard silently
     // skips. No error, no log: apps that *do* have a database just quietly
     // stop getting one, which is indistinguishable from working until
     // something reads from it.
@@ -32,7 +32,7 @@ describe('optional ORM', () => {
     })
   })
 
-  test('the probe is memoised', () => {
+  test('the probe is memoized', () => {
     // Called on the boot path and again during shutdown. Cheap to assert, and
     // it pins that the second call cannot disagree with the first.
     expect(hasORM()).toBe(hasORM())

@@ -2,14 +2,14 @@
 
 Three builders, each entered by a different static method:
 
-```ts no-check — signatures, not runnable code
+```ts no-check: signatures, not runnable code
 DB.Insert.into(table).values(…)      // INSERT
 DB.Update.table(table).set(…).where(…) // UPDATE
 DB.Delete.from(table).where(…)       // DELETE
 ```
 
 `DB.Insert`, `DB.Update` and `DB.Delete` are re-exports of `Mutation.Insert`,
-`Mutation.Update` and `Mutation.Delete` — the same classes under two names.
+`Mutation.Update` and `Mutation.Delete`: the same classes under two names.
 There is no `Mutation.insert()`, `.update()` or `.delete()`.
 
 ```ts
@@ -34,7 +34,7 @@ const result = await DB.Insert.into('posts')
 // { lastInsertRowid: 12, changes: 1 }
 ```
 
-`.values()` is variadic — pass several records for a multi-row insert. The
+`.values()` is variadic. Pass several records for a multi-row insert. The
 column list is the union of every record's keys, and a record missing one binds
 `null` for it:
 
@@ -49,7 +49,7 @@ await DB.Insert.into('posts')
   .run()
 ```
 
-Columns that are nullable, defaulted or auto-incrementing may be omitted — that
+Columns that are nullable, defaulted or auto-incrementing may be omitted: that
 is what `InferOptionals` computes from the schema. Inserting no records at all
 throws `Empty insert`.
 
@@ -65,7 +65,7 @@ const created = await DB.Insert.into('posts')
 ```
 
 The string passed to `.returning()` is interpolated into the SQL as written. It
-is not validated and not quoted — pass a literal, never anything derived from a
+is not validated and not quoted. Pass a literal, never anything derived from a
 request.
 
 ## Update
@@ -81,7 +81,7 @@ const result = await DB.Update.table('posts')
 // { lastInsertRowid: …, changes: 1 }
 ```
 
-`.set()` takes a partial record. `.where()` is required to reach an executable —
+`.set()` takes a partial record. `.where()` is required to reach an executable:
 `Update.table(t).set({…})` has no `.run()` until a condition is attached, so
 there is no way to write an unconditional `UPDATE` by omission.
 
@@ -119,12 +119,12 @@ Same shape as update: `.where()` is the only way to get an executable, so a
 | `.run()` | `{ lastInsertRowid, changes }` |
 | `.fetch()` / `.first()` | the first returned row, with `.returning()` |
 | `.array()` | every returned row, with `.returning()` |
-| `.exists()` | `boolean` — does the `WHERE` match anything? (update/delete) |
+| `.exists()` | `boolean`: does the `WHERE` match anything? (update/delete) |
 | `.parse()` | `{ sql, params }`, without running it |
 
 `changes` is the affected-row count. `lastInsertRowid` is the new id after an
 insert; Postgres has no such concept natively, so its adapter adds
-`RETURNING *` to every insert and reads the first column back — see
+`RETURNING *` to every insert and reads the first column back. See
 [Adapters](adapters.md).
 
 Each builder is a thenable whose default is `.run()`, so `await` alone works:
@@ -144,11 +144,11 @@ and the explicit call makes that obvious in review.
 ([`orm/mutation.ts`](../../packages/orm/src/orm/mutation.ts)). Every warning
 from [Queries](queries.md#where-takes-two-arguments) applies:
 
-```ts no-check — deliberately wrong; kept out of the compile because it is the bug being described
+```ts no-check: deliberately wrong; kept out of the compile because it is the bug being described
 DB.Delete.from('sessions').where('userId', '=', 5)
 ```
 
-That deletes the rows whose `user_id` equals the string `'='` — normally none,
+That deletes the rows whose `user_id` equals the string `'='`: normally none,
 which reads as "it did nothing" rather than as a bug. On an `UPDATE` the same
 mistake is worse in the other direction: a condition that matches nothing is
 silent, and a condition you *thought* you narrowed may not be narrowed at all.
@@ -182,14 +182,14 @@ export default defineRoute<{ title: string; slug: string; body: string }>(
 )
 ```
 
-`defineRoute` is an identity function — it exists so the declared body shape
+`defineRoute` is an identity function: it exists so the declared body shape
 types `body.title` and friends without annotating the whole signature. See
 [API routes](../guides/api-routes.md) for the handler contract and the JSON
 envelope.
 
 ## Transactions
 
-Mutations inside `DB.transaction()` use the transaction automatically — the
+Mutations inside `DB.transaction()` use the transaction automatically: the
 active connection is per-async-context, not per-argument:
 
 ```ts
@@ -211,6 +211,6 @@ forget to `await` runs outside it.
 
 ## Next
 
-- [Queries](queries.md) — reading data
-- [Schema](schema.md) — where the column types come from
+- [Queries](queries.md): reading data
+- [Schema](schema.md): where the column types come from
 - [Schema sync](sync.md)

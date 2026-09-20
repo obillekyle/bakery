@@ -70,7 +70,7 @@ describe('chips to the wire', () => {
   })
 
   test('a nullary operator carries NO value key at all', () => {
-    // Not `value: ''` and not `value: undefined` — the ORM binds nothing for
+    // Not `value: ''` and not `value: undefined`, the ORM binds nothing for
     // `IS NULL`, and a stray parameter is how a placeholder count drifts from
     // its arguments.
     const wire = toWire([filter('note', 'null', 'ignored')])
@@ -85,7 +85,7 @@ describe('chips to the wire', () => {
   })
 
   test('a half-built chip is not sent', () => {
-    // An empty operand under `contains` would be `LIKE '%%'` — every row, while
+    // An empty operand under `contains` would be `LIKE '%%'`: every row, while
     // looking like a filter.
     expect(toWire([filter('a', 'contains', '')])).toEqual({})
     expect(toWire([filter('', 'eq', 'x')])).toEqual({})
@@ -138,7 +138,7 @@ describe('what the endpoint accepts', () => {
 
   test('an unknown operator is REFUSED, not dropped', () => {
     // The direction matters: the ORM drops what it does not know, and a
-    // dropped filter shows more rows than were asked for — on the view the
+    // dropped filter shows more rows than were asked for, on the view the
     // Delete button acts on.
     const parsed = parseFilters({ a: { op: 'regex', value: '.*' } })
     expect(parsed.ok).toBe(false)

@@ -3,7 +3,7 @@
  *
  * `/api/_db/graph` is the map, fetched once: every declared foreign key, every
  * table's identity, and the column worth showing instead of an id.
- * `/api/_db/lookup` resolves actual references — **batched, one query per
+ * `/api/_db/lookup` resolves actual references: **batched, one query per
  * table**, because the shape this replaces is a `fetch` per visible cell, and a
  * fifty-row page with three foreign keys is a hundred and fifty round trips.
  */
@@ -23,7 +23,7 @@ export async function handleGraph(): Promise<JsonResponseData<unknown>> {
       const [tables, foreignKeys] = await Promise.all([
         introspect(),
         // Composites are already grouped by the adapter, keyed by the tuple
-        // rather than by constraint name — SQLite reports no name at all.
+        // rather than by constraint name: SQLite reports no name at all.
         connection.getForeignKeys(),
       ])
 
@@ -111,7 +111,7 @@ export async function handleLookup(
         for (const index of indexes) {
           const key = parsed[index]!.key
           // A ref whose key does not name exactly the identity is skipped
-          // rather than widened — a partial key is a predicate over more than
+          // rather than widened: a partial key is a predicate over more than
           // one row, which is the bug `validateKey` refuses for a write and
           // there is no reason to accept it for a read.
           if (cols.some(col => !(col in key))) continue

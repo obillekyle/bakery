@@ -8,14 +8,14 @@ import { ApiHandler } from '../handlers/routes/api'
  *
  * Deliberately not named `*.test.ts`: nothing here runs on its own, and Bun
  * would collect it as an empty suite. Everything in it existed as two or three
- * verbatim copies before, and the copies had already drifted — see `asProd`.
+ * verbatim copies before, and the copies had already drifted. See `asProd`.
  */
 
 /**
  * Run `fn` with one `import.meta.env` flag forced to `value`.
  *
  * The mode flags are accessors that `core/init.ts` installs on `process.env`,
- * so they are saved and put back by value — not module-mocked, which never
+ * so they are saved and put back by value, not module-mocked, which never
  * unwinds (see the `ip.test.ts` note in CLAUDE.md).
  *
  * The swap used to go through property descriptors, because the flags were
@@ -24,12 +24,12 @@ import { ApiHandler } from '../handlers/routes/api'
  * save/restore is an ordinary read and write. `setModeFlag` still does the
  * writing: it is what encodes a boolean `false` as `''` rather than letting it
  * stringify to the truthy `"false"`, which is the trap this whole helper
- * family exists for. Restoring by value is safe for the same reason — there is
+ * family exists for. Restoring by value is safe for the same reason: there is
  * no longer a closure for a restored getter to capture.
  *
  * Async on purpose, and this is the half that is easy to get wrong. The
  * handlers under test read these flags *after* several awaits, so a synchronous
- * wrapper restores the descriptor before the code it wraps ever looks — and
+ * wrapper restores the descriptor before the code it wraps ever looks, and
  * then silently tests the ambient mode instead of the requested one. Awaiting
  * inside the swap is what makes the wrapper mean anything. Of the three copies
  * this replaces, only one was async.
@@ -52,21 +52,21 @@ export async function withEnvFlag<T>(
 }
 
 /**
- * Set a mode flag and keep its type, for the cases `withEnvFlag` cannot cover —
+ * Set a mode flag and keep its type, for the cases `withEnvFlag` cannot cover:
  * a flag that has to stay set across several tests and be put back on a hook.
  *
  * The indirection is not ceremony. Bun's `process.env` is a proxy that
  * **stringifies on write but not on read**, so the obvious round trip silently
  * changes the type:
  *
- * ```ts no-check — demonstrates the bug this helper exists to avoid
- * const saved = process.env.PROD   // boolean true — reads pass through
- * process.env.PROD = saved         // string "true" — writes do not
+ * ```ts no-check: demonstrates the bug this helper exists to avoid
+ * const saved = process.env.PROD   // boolean true: reads pass through
+ * process.env.PROD = saved         // string "true": writes do not
  * ```
  *
  * That is not cosmetic. `bundleModule` hands the flag straight to `Bun.build`
  * as `minify`, and Bun rejects a non-boolean with "Expected minify to be a
- * boolean or an object" — so a test file that saved and restored `PROD`
+ * boolean or an object", so a test file that saved and restored `PROD`
  * correctly by every appearance still broke two NMHandler tests in a *different
  * file*, and only under full-suite ordering.
  *
@@ -75,7 +75,7 @@ export async function withEnvFlag<T>(
  */
 export function setModeFlag(flag: string, value: unknown): void {
   // The flags are `'1'`/`''` strings on `process.env` since Bun 1.4 stopped
-  // accepting accessor descriptors there — see the block in `core/init.ts`.
+  // accepting accessor descriptors there. See the block in `core/init.ts`.
   // Encoding a boolean the way init encodes it is what keeps a fixture's
   // `false` falsy: a plain assignment stores `"false"`, which is truthy, and
   // that is the bug this helper existed to prevent when the flags were
@@ -101,7 +101,7 @@ export const asDev = <T>(fn: () => T | Promise<T>) =>
  *
  * There were two incompatible `asProd`s: one forced `DEV=false`, the other
  * `PROD=true, TEST=false`. Neither was wrong so much as partial, because the
- * code under test gates on both spellings — `ErrorHandler.publicBody` asks
+ * code under test gates on both spellings: `ErrorHandler.publicBody` asks
  * `DEV`, while the route cache-buster (`bustInDev`) asks `PROD && !TEST`. That
  * `!TEST` is load-bearing: `init.ts` defaults `PROD` to true whenever `--dev`
  * is absent, and `bun test` genuinely sets `TEST`, so a bare `PROD` gate is

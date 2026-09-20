@@ -178,7 +178,7 @@ describe('root emission with a layout', () => {
 })
 
 /**
- * A server block with no `<script setup>` used to render blank — the injected
+ * A server block with no `<script setup>` used to render blank, the injected
  * data block has no `export default`, so `assembleComponent` never declared
  * `__sfc__` and the module threw on load. The empty setup block that was the
  * documented workaround is injected automatically now. A layout is the shape
@@ -217,7 +217,7 @@ describe('a server block without <script setup>', () => {
 })
 
 /**
- * `defineLayout()` — the catch-all guard and the pure path helpers. The DOM
+ * `defineLayout()`: the catch-all guard and the pure path helpers. The DOM
  * half (click interception, popstate) has no DOM to run against here; it is
  * verified in a live browser against the scratch app, and the helpers below
  * are the logic it dispatches on.
@@ -257,7 +257,7 @@ describe('defineLayout', () => {
     expect(seen).toEqual([['setup', 'mysql']])
     expect(layout.segments.value).toEqual(['setup', 'mysql'])
 
-    // A cancelling listener stops the navigation.
+    // A canceling listener stops the navigation.
     layout.on(() => false)
     layout.navigate(['blocked'])
     expect(layout.segments.value).toEqual(['setup', 'mysql'])
@@ -294,7 +294,7 @@ describe('handleHtml stamps and links', () => {
     expect(html).toContain('"param":"slug"')
   })
 
-  test('no route argument, no stamp — old callers stay byte-identical', async () => {
+  test('no route argument, no stamp: old callers stay byte-identical', async () => {
     const parsed = await parse('site/reports.vue')
     const res = await VueHandler.handleHtml(
       'st-2',
@@ -327,7 +327,7 @@ describe('handleHtml stamps and links', () => {
 })
 
 describe('navigate() path forms', () => {
-  test('segments, relative and absolute all normalise under the base', () => {
+  test('segments, relative and absolute all normalize under the base', () => {
     ;(globalThis as any).__vue_route = {
       catchAll: true,
       base: '/wiki',
@@ -360,7 +360,7 @@ describe('navigate() path forms', () => {
  *   admin/faculty/[id].vue
  *
  * `/admin/faculty/7` is under the base but belongs to `[id].vue` on the
- * server, so the client-side router must yield it to a real navigation — a
+ * server, so the client-side router must yield it to a real navigation: a
  * soft-nav would render the catch-all where a hard reload renders a
  * different page. The stamp carries what the siblings claim; the client
  * refuses to soft-nav into it.
@@ -440,7 +440,7 @@ describe('defineLayout yields to more specific routes', () => {
  * The stamp is serialized into the HTML of every served page, so each name in
  * it is published to any visitor. A smoke test of the published alpha read
  * `sample.bin`, `script.ts` and `index.tsx` out of a page's
- * `__vue_route.claimed` — every sibling stem, route or not, was enumerated
+ * `__vue_route.claimed`: every sibling stem, route or not, was enumerated
  * into the response: a directory listing of `src/`, in production. The stamp
  * carries route claims only, measured against the handler's own extension
  * table; a directory claims only when a route file exists somewhere under it.
@@ -462,7 +462,7 @@ describe('the stamp names routes, not the directory', () => {
     const stamp = claimedBeside(`${ROOT}/depot/[...slug].vue`)
 
     // Routes claim: the sibling page in both spellings, and the directory
-    // holding a page below it — however deep.
+    // holding a page below it, however deep.
     expect(stamp.claimed).toContain('prices')
     expect(stamp.claimed).toContain('prices.vue')
     expect(stamp.claimed).toContain('parts')

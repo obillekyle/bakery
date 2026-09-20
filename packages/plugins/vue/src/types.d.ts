@@ -79,8 +79,8 @@ export interface ParsedCacheEntry {
   meta: VueMeta
   /**
    * Inner markup of a `<template skeleton>` block, or null. Static by
-   * construction — extracted before compilation, never rendered on the
-   * server — so nothing request- or user-derived can reach it.
+   * construction (extracted before compilation, never rendered on the
+   * server), so nothing request- or user-derived can reach it.
    */
   skeleton: string | null
   /**
@@ -113,7 +113,7 @@ export interface VuePluginOptions {
    * normally needs: SFC templates are compiled to render functions on the
    * server, and `customElements` is applied there too, so the browser never
    * compiles a template. Opt into `'full'` only for components that hand Vue a
-   * raw `template:` string at runtime — those are compiled in the browser and
+   * raw `template:` string at runtime: those are compiled in the browser and
    * fail on the runtime build with Vue's "runtime compilation is not
    * supported" error.
    */

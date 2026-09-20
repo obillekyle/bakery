@@ -73,7 +73,7 @@ describe('match', () => {
     test('default is callable', () => {
       // Explicit K: inference gets one candidate from `a: 1` and another from
       // the default's string return, and picks neither. The object form cannot
-      // express heterogeneous case values without being told the union — a
+      // express heterogeneous case values without being told the union: a
       // limitation of the Match type, not of the runtime, which handles this.
       const result = match<'zz', string | number>('zz', {
         a: 1,

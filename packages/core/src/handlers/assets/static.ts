@@ -22,7 +22,7 @@ export class StaticHandler extends Handler {
     // without the router gate. `matchBlockedCached` makes the overlap cost a
     // per-request map hit rather than a second pair of glob matches.
     // One read of the config getter: `blocked` and the serve root come from
-    // the same snapshot — getStatic's default `roots` would re-read it.
+    // the same snapshot. GetStatic's default `roots` would re-read it.
     const cfg = Bakery.config
     if (matchBlockedCached(cfg.blocked, path)) {
       return response.error('Forbidden', 403)
@@ -54,25 +54,25 @@ export class DefaultErrorHandler extends ErrorHandler {
   /**
    * This is the fallback for every path with no more specific error handler,
    * so it renders through the inherited `publicBody` like the rest of the
-   * error surface — `errorBody` carries the thrown error's stack (that is
+   * error surface: `errorBody` carries the thrown error's stack (that is
    * what the log wants), and handing it to the client verbatim gave any
    * anonymous request source paths and query text in PROD.
    *
    * Two pages, split on the same gate `publicBody` uses, failing the same
    * direction: only an explicit DEV gets the diagnostics page, so an
    * indeterminate mode discloses nothing. DEV keeps the branded title, the
-   * body in a `<pre>`, and the requester/date footer — and `processResponse`
+   * body in a `<pre>`, and the requester/date footer, and `processResponse`
    * injects the import map and live reload into it like any page, which is
    * what makes the overlay work on an error. The production page is the
    * status line and the public body, nothing else: the footer echoed the
    * requester's own IP and a server timestamp to anyone who triggered an
    * error, and the page is branded with `injectBrand` because the injected
-   * import map names every installed package — see the note on the export.
+   * import map names every installed package. See the note on the export.
    */
   static handle(_path: string, req: Request, error?: Handler.Error.Data) {
     error ||= this.DEFAULT_ERROR
 
-    // No separator without text to separate — an empty-message denial used to
+    // No separator without text to separate: an empty-message denial used to
     // render `<h1>403 - </h1>`. Same rule for the body below: empty renders
     // as no element, not as a dangling `<pre></pre>`.
     const heading = Bun.escapeHTML(
@@ -106,7 +106,7 @@ export class DefaultErrorHandler extends ErrorHandler {
       return response.html(errorPage, error.errorCode)
     }
 
-    // `<p>`, not `<pre>`: outside DEV the body is prose by construction —
+    // `<p>`, not `<pre>`: outside DEV the body is prose by construction,
     // `publicBody` replaces a 5xx stack with the generic sentence, and a 4xx
     // body is authored text.
     const errorPage = `

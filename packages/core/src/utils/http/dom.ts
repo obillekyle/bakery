@@ -7,7 +7,7 @@ import { Try } from '../common/try'
 import { fs } from '../fs'
 import { escapeScriptJson } from '../isomorphic/escape'
 
-// Keyed by hostname, which comes from the Host header — bounded so a client
+// Keyed by hostname, which comes from the Host header: bounded so a client
 // cannot grow it without limit by varying that header per request.
 const headBodyCache = new LRUCache<string, { head: string; body: string }>(64)
 
@@ -22,12 +22,12 @@ let depMap = ''
 const hostDepMaps = new Map<string, string>()
 
 /**
- * Normalise one import-map entry, for both the process-level map and the
+ * Normalize one import-map entry, for both the process-level map and the
  * per-host maps.
  *
  * One helper, two callers, deliberately: they used to be separate copies that
- * had drifted into testing different things — one switched on the entry key,
- * the other on the entry value — so the same input normalised two ways
+ * had drifted into testing different things (one switched on the entry key,
+ * the other on the entry value), so the same input normalized two ways
  * depending on which path saw it.
  *
  * `@client/utils` is keyed on the *key*: it is a live alias, the default
@@ -75,12 +75,12 @@ let installedCache: Promise<string[]> | null = null
  *
  * Read from `node_modules` rather than from `dependencies`, and the difference
  * is the whole point: a package can be installed and imported without being
- * declared — a transitive one, or a dependency someone forgot to add — and the
+ * declared (a transitive one, or a dependency someone forgot to add), and the
  * browser's failure for a specifier the map misses names its own rule rather
  * than the missing entry: *"Failed to resolve module specifier 'pkg'. Relative
  * references must start with either "/", "./", or "../"."*
  *
- * Cheap — one `readdir` per scope, no `package.json` reads — and memoised per
+ * Cheap: one `readdir` per scope, no `package.json` reads, and memoized per
  * process besides: the import map reads it at boot, `bundleModule` on every
  * bundle (as its `external` list), and a `readdir` sweep per bundle is pure
  * waste. A dev restart is a new process, so an install still shows up.
@@ -122,7 +122,7 @@ async function readInstalledPackages(): Promise<string[]> {
  *
  * **Resolution happens at the other end of the URL, and rewriting happens
  * nowhere.** An entry maps a package to `/_nm/<name>`; `NMHandler` hands that to
- * `Bun.build`, which applies real browser resolution — `exports` maps,
+ * `Bun.build`, which applies real browser resolution: `exports` maps,
  * conditions, the `browser` field. Naming an entry file here instead would mean
  * reimplementing all of that, badly.
  *
@@ -168,7 +168,7 @@ export namespace DOMTools {
 
     // Was a hand-rolled `JSON.stringify(...).replace(/</g, ...)`, which is the
     // same job `escapeScriptJson` already does for every other inline-script
-    // payload — its docstring even said "Mirrors utils/http/dom.ts". The two
+    // payload: its docstring even said "Mirrors utils/http/dom.ts". The two
     // had drifted: this copy never escaped U+2028/U+2029.
     return `<script>window.__PAGE_PARAMS__ = ${escapeScriptJson(newParams)}</script>`
   }
@@ -190,7 +190,7 @@ export namespace DOMTools {
   }
 
   /**
-   * ResponseInit carrying `data`'s status and headers, minus Content-Length —
+   * ResponseInit carrying `data`'s status and headers, minus Content-Length:
    * injection changes the body length, so a stale value must not survive into
    * the rebuilt Response. Shared by the buffered and streamed injection paths
    * so the two cannot drift on which headers survive.

@@ -1,7 +1,7 @@
 name: Version
 
 # Computes the next version from the commit messages, commits the bump, and
-# pushes a tag. **It does not publish** — `publish.yml` does, and only when a
+# pushes a tag. **It does not publish**: `publish.yml` does, and only when a
 # `v*` tag appears. That split is the whole safety model: npm never allows a
 # version number to be reused, so the irreversible step gets its own trigger
 # rather than happening because someone merged a PR.
@@ -9,7 +9,7 @@ on:
   push:
     branches:
       # Every branch cutver.yml claims, and nothing else. A channel declared
-      # there but missing here never triggers anything — the push is simply
+      # there but missing here never triggers anything: the push is simply
       # ignored, with no error to notice. `cutver doctor` compares the two.
       - main
       # Branch-declared versions: a branch called `1.2.0-beta` publishes betas
@@ -34,7 +34,7 @@ concurrency:
 permissions:
   contents: write
   # To dispatch publish.yml. A tag pushed with the default GITHUB_TOKEN cannot
-  # start a workflow — GitHub blocks that to prevent recursion — so the tag
+  # start a workflow (GitHub blocks that to prevent recursion), so the tag
   # alone is not enough and this has to ask explicitly.
   actions: write
 
@@ -45,7 +45,7 @@ jobs:
 
     # The bump commit is itself a push to this branch, which would re-trigger
     # this workflow. It would then find a tag at HEAD, correctly report
-    # "nothing to release", and exit 1 — a red X on every release. Skipped by
+    # "nothing to release", and exit 1: a red X on every release. Skipped by
     # its own subject line instead.
     if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
 
@@ -66,8 +66,8 @@ jobs:
       # **The gates, and they are steps here on purpose.**
       #
       # `scripts/release.ts` ran typecheck and test itself, so this workflow had
-      # none of its own. cutver deliberately runs no gates — it cannot know what
-      # a given repository's are — so they moved here in the same commit that
+      # none of its own. cutver deliberately runs no gates (it cannot know what
+      # a given repository's are), so they moved here in the same commit that
       # removed the script. Take them out and releases get cut from a tree that
       # never passed, silently, with the workflow still green.
       - run: bun run typecheck
@@ -83,12 +83,12 @@ jobs:
       #
       # **`stage` is the verb since cutver 2.0.** A bare `cutver` prints help
       # and exits 1 outside a terminal, so the old shape would not have failed
-      # loudly here — it would have released nothing while looking busy. The
+      # loudly here: it would have released nothing while looking busy. The
       # devDependency is pinned to a major, so this and the pin move together.
       - name: Compute the version and bump every manifest
         run: bunx cutver stage --if-needed --branch '${{ github.ref_name }}'
 
-      # **Whether the version moved is the signal — not whether the tree is
+      # **Whether the version moved is the signal, not whether the tree is
       # dirty.** `git status` was the obvious check and it was wrong twice
       # over: it reports any unrelated change (a stray formatter edit, a file a
       # test wrote) as "a release happened", and it reported exactly that on the
@@ -105,7 +105,7 @@ jobs:
             echo "$BEFORE -> $after"
           else
             echo "released=false" >> "$GITHUB_OUTPUT"
-            echo "still $after — no release warranted by these commits"
+            echo "still $after, no release warranted by these commits"
           fi
 
       - name: Commit and tag

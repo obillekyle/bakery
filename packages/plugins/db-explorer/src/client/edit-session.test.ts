@@ -15,7 +15,7 @@ const row = { id: 7, courier: 'dhl', paid: 1, meta: '{"a":1}' }
 describe('rowId', () => {
   test('a composite identity is one stable string in declared order', () => {
     expect(rowId({ a: 1, b: 2 }, ['a', 'b'])).toBe('[1,2]')
-    // Declared order, not object order — the server sends `identity.cols`.
+    // Declared order, not object order: the server sends `identity.cols`.
     expect(rowId({ b: 2, a: 1 }, ['a', 'b'])).toBe('[1,2]')
   })
 
@@ -85,7 +85,7 @@ describe('plan', () => {
     session.stage('r', row, 'id', 8)
     const plan = session.plan('r', ['id'], kindOf)!
     expect(plan.set).toEqual({ id: 8 })
-    // The old value — an UPDATE keyed on 8 would find no row.
+    // The old value: an UPDATE keyed on 8 would find no row.
     expect(plan.where).toEqual({ id: 7 })
   })
 

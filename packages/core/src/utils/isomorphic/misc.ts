@@ -20,7 +20,7 @@ export function any<T = any>(value: any): T {
  *
  * Isomorphic, and moving it here is what made it so: it lived in
  * `client/utils.ts` as a browser global only, so the same call in a server
- * block was a ReferenceError — reported from an app. `crypto` is a global in
+ * block was a ReferenceError, reported from an app. `crypto` is a global in
  * both runtimes; nothing here is browser-specific.
  */
 export function randomId(length = 8) {

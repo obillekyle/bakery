@@ -9,8 +9,8 @@ import { formatViewBody } from './view-sql'
 /**
  * Names that cannot bind a `const` in a module (modules are always strict), so
  * they cannot be used as the export name for a generated `table()`. The export
- * name is cosmetic — `InferConstraints` and `collectConstraints` both key off
- * the string passed to `table()`, not the binding — so renaming one is safe.
+ * name is cosmetic (`InferConstraints` and `collectConstraints` both key off
+ * the string passed to `table()`, not the binding), so renaming one is safe.
  */
 const RESERVED_WORDS = new Set([
   'await',
@@ -84,7 +84,7 @@ export class SchemaBuilder {
         // Fall back to what introspection reported, not to `false`.
         //
         // The old `: false` flattened every view column to NOT NULL whenever
-        // there was no previous schema to copy from — which is exactly the
+        // there was no previous schema to copy from, which is exactly the
         // seeding path, the one a project with an existing database takes. On
         // a real view that made `category` and `images` non-nullable in the
         // generated interface while the database reports both nullable, so the
@@ -120,7 +120,7 @@ export class SchemaBuilder {
 
     // **A null default is only spellable on a nullable column**, and conflating
     // the two turned every NOT NULL column without a default into a nullable
-    // one. `Field`'s convention — stated in `asFieldCall` below — is that a null
+    // one. `Field`'s convention (stated in `asFieldCall` below) is that a null
     // default *means* nullable, so `Field.Int(null)` does not describe
     // `author_id integer NOT NULL`; it redefines it.
     //
@@ -158,7 +158,7 @@ export class SchemaBuilder {
     const named = SchemaBuilder.asFieldCall(cons, d, n)
     if (named) return `${indent}${colName}: ${named},\n`
 
-    // Nothing in the `Field` vocabulary spells this column — nullable *and*
+    // Nothing in the `Field` vocabulary spells this column, nullable *and*
     // defaulted to something other than null, or an explicit `primary` that is
     // not auto-increment.
     //
@@ -168,7 +168,7 @@ export class SchemaBuilder {
     // column, rather than dropping one it cannot spell.
     const parts = [`type: '${cons.type}'`]
     if (typeof cons.length === 'number') parts.push(`length: ${cons.length}`)
-    // `d` is already source text from `getDefaultValue` — a quoted literal, a
+    // `d` is already source text from `getDefaultValue`, a quoted literal, a
     // bare number, `null`, or the identifier `dateNow`. The marker is spelled
     // out here instead so the emitted file needs no import for it.
     if (d !== undefined) {
@@ -187,10 +187,10 @@ export class SchemaBuilder {
     // `as const`, and without it the folder layout loses these columns' types.
     //
     // `table()` takes `C extends ColumnMap`, which is `Record<string, unknown>`
-    // — a constraint that does not preserve literals, so `{ type: 'integer' }`
+    //: a constraint that does not preserve literals, so `{ type: 'integer' }`
     // widens to `{ type: string }` and `InferSchema` has no `'integer'` left to
-    // match. Every column the `Field` vocabulary cannot name — which since
-    // foreign keys round-trip includes *every referencing column* — then infers
+    // match. Every column the `Field` vocabulary cannot name (which since
+    // foreign keys round-trip includes *every referencing column*), then infers
     // as a string.
     //
     // Invisible in the single-file layout, where `DBInfo.constraints` is already
@@ -204,14 +204,14 @@ export class SchemaBuilder {
    * Copy introspected foreign keys onto the columns that carry them.
    *
    * `getConstraints()` describes columns and `getForeignKeys()` describes
-   * references, and the generator only ever read the first — so a database whose
+   * references, and the generator only ever read the first, so a database whose
    * `posts.author_id` references `users.id ON DELETE CASCADE` regenerated as a
    * plain integer. The constraint stayed in the database, the schema stopped
    * mentioning it, and the next sync therefore planned to rebuild the table to
    * *remove* a key nobody asked to remove.
    *
    * Single-column keys only. A composite key cannot be a property of one column
-   * — it is declared with `foreign()` alongside the indexes — and inventing a
+   * (it is declared with `foreign()` alongside the indexes), and inventing a
    * per-column half of one would be worse than omitting it, so it is counted and
    * reported rather than silently dropped.
    */
@@ -265,7 +265,7 @@ export class SchemaBuilder {
    * anything else falls through to `value()` above rather than being
    * approximated into a column that means something slightly different.
    *
-   * `_enum` is deliberately absent — the members are not part of the column diff
+   * `_enum` is deliberately absent: the members are not part of the column diff
    * and are not introspected, so the database cannot tell us an enum from a
    * `VARCHAR`, and guessing would silently invent a constraint.
    */
@@ -277,7 +277,7 @@ export class SchemaBuilder {
   ): string | null {
     if (cons.primary || cons.autoIncrement) return null
     // A referencing column has no `Field.*` spelling that also carries the
-    // reference — `Field.Foreign` needs the parent table's column *value* in
+    // reference, `Field.Foreign` needs the parent table's column *value* in
     // scope, which the generated file cannot guarantee (introspection order is
     // not declaration order, and the single-file layout has no table values at
     // all). Fall through to the object literal, which spells `_references`
@@ -335,7 +335,7 @@ export class SchemaBuilder {
    * The TypeScript type of a column, for a generated view interface.
    *
    * A view has no column DDL, so this is the only place its columns appear.
-   * Straight through `TypeMap`'s mapping, with `| null` for a nullable column —
+   * Straight through `TypeMap`'s mapping, with `| null` for a nullable column:
    * introspection reports that faithfully for a view's projected columns.
    */
   private static tsTypeFor(cons: any): string {
@@ -365,13 +365,13 @@ export class SchemaBuilder {
    *       `SELECT ...`,
    *     )
    *
-   * The interface is what a view *is* — `CREATE VIEW` declares no column types,
+   * The interface is what a view *is*, `CREATE VIEW` declares no column types,
    * so emitting `Field.Varchar(64)` here would state a width the database
    * neither stores nor enforces. It is also the thing worth exporting: the row
    * type gets a name you can use in a signature.
    *
    * Both type arguments are written out because TypeScript stops inferring the
-   * rest once one is supplied, and the *name* has to stay a literal — it is
+   * rest once one is supplied, and the *name* has to stay a literal: it is
    * what the schema map is keyed on. Generated code, so the repetition is free.
    */
   private static buildViewModule(
@@ -406,14 +406,14 @@ export class SchemaBuilder {
  *
  * A view is a stored SELECT; it has no column DDL, so each one is described by
  * an interface rather than by column builders. Edit the SELECT here and the
- * next sync recreates the view — views hold no data, so there is nothing to
+ * next sync recreates the view: views hold no data, so there is nothing to
  * migrate.
  *
  * **This file is yours from now on. The generator writes it once and never
  * overwrites it**, because the interfaces are the part worth editing by hand:
  * introspection can only report a JSON column as \`unknown\`, and the shape it
- * actually holds — \`{ id: number; name: string }[]\` for a
- * \`json_arrayagg(json_object(...))\` — is knowledge only you have. Regenerating
+ * actually holds: \`{ id: number; name: string }[]\` for a
+ * \`json_arrayagg(json_object(...))\`. Is knowledge only you have. Regenerating
  * over that would throw away the reason for writing it down.
  *
  * A view added to the database later will not appear here on its own; add it,
@@ -472,7 +472,7 @@ ${body}`
     return `/**
  * Generated from the database by \`db:sync\`.
  *
- * Seeded once and never overwritten — unlike \`tables.ts\`. An index this file
+ * Seeded once and never overwritten, unlike \`tables.ts\`. An index this file
  * does not declare is dropped by the next TS-wins sync, so add new ones here
  * rather than only in the database.
  *
@@ -495,7 +495,7 @@ ${body}`
       // `Field.Index` / `Field.Unique`, capitalised from the stored `index` /
       // `unique` type. This emitted the bare `index(…)` / `unique(…)` names
       // until they were removed, at which point the generated file referenced
-      // two identifiers it did not import — invisible here because the *tables*
+      // two identifiers it did not import: invisible here because the *tables*
       // are what the round-trip test imports, not the index block.
       const fn = idx.type === 'unique' ? 'Field.Unique' : 'Field.Index'
       result += `    ${idxName}: ${fn}('${idx.table}', ${colsStr}),\n`
@@ -523,7 +523,7 @@ ${body}`
    *
    * A depth-first walk with a visiting set, which is also the cycle break: a
    * table already on the stack is left where it is, and the column pointing back
-   * at it falls through to the object literal — correct, just not pretty.
+   * at it falls through to the object literal, correct, just not pretty.
    * Circular references between tables are legal SQL and this must not fail on
    * them or, worse, emit a forward reference that is `undefined` at module
    * evaluation.
@@ -561,7 +561,7 @@ ${body}`
   /**
    * `Field.Foreign(parent.column, …)` when the parent is already in scope.
    *
-   * Returns null when it is not — the cycle case above — so the caller falls
+   * Returns null when it is not (the cycle case above), so the caller falls
    * back to the literal rather than emitting a reference to a `const` declared
    * further down the file, which is a TDZ error at import time.
    */
@@ -630,7 +630,7 @@ ${body}`
               colName,
               cons,
               adapter,
-              // Never a view here — those were skipped above.
+              // Never a view here. Those were skipped above.
               false,
               '  ',
             )
@@ -653,7 +653,7 @@ ${body}`
  *
  * Tables only. In the orm/ folder layout \`index.ts\` owns the re-exports and
  * the schema registration, \`indexes.ts\` owns the index and unique
- * declarations, and \`views.ts\` owns the views — none of which is written here.
+ * declarations, and \`views.ts\` owns the views: none of which is written here.
  *
  * The cost of that separation, worth knowing: an index or a view the database
  * has and its file does not declare is dropped by the next TS-wins sync. It
@@ -672,7 +672,7 @@ ${body}`
    *
    * `Field` is imported from the package root and the types from
    * `schema-util`, in two statements rather than one, because `schema-util`
-   * cannot re-export `Field` without closing a cycle — `field.ts` calls
+   * cannot re-export `Field` without closing a cycle: `field.ts` calls
    * `value`/`primary`/`index`/`unique`, and this repo has already paid once for
    * a cycle that typechecked and then failed at runtime.
    */
@@ -733,7 +733,7 @@ declare module '@bakery-framework/orm/schema-registry' {
     messages.GEN_TYPES()
 
     // Stripped, or `--choose=db` writes `__bakery_schema` into the app's own
-    // schema as an ordinary table — after which sync manages the ledger, the
+    // schema as an ordinary table, after which sync manages the ledger, the
     // ledger records itself, and the shape check never matches again. The diff
     // path strips it in `resolveCurrentState`; this path reads the adapter
     // directly and was missing it.
@@ -768,7 +768,7 @@ declare module '@bakery-framework/orm/schema-registry' {
 
     await Bun.write(schemaPath, source)
 
-    // `views.ts` beside `tables.ts`, and only in the folder layout — the
+    // `views.ts` beside `tables.ts`, and only in the folder layout: the
     // single-file layout already carries views inside its `DBInfo` namespace.
     //
     // Written only when the database *has* views: creating an empty file, and
@@ -781,7 +781,7 @@ declare module '@bakery-framework/orm/schema-registry' {
       )
       if (viewsSource) {
         const viewsPath = `${schemaPath.replace(/[^/\\]+$/, '')}views.ts`
-        // Seeded once, then never overwritten — unlike `tables.ts`, which the
+        // Seeded once, then never overwritten, unlike `tables.ts`, which the
         // generator owns outright.
         //
         // The interfaces are the part worth editing by hand. Introspection can
@@ -804,7 +804,7 @@ declare module '@bakery-framework/orm/schema-registry' {
       // way the single-file layout is not: `DBInfo` carries an `indexes` block,
       // so `--choose=db` there round-trips them, while the folder layout left
       // every index undeclared. A TS-wins sync then drops what the schema does
-      // not mention — so regenerating a folder-layout schema from a database
+      // not mention, so regenerating a folder-layout schema from a database
       // armed the *next* sync to delete every index in it.
       const indexes = await adapter.getIndexes()
       if (Object.keys(indexes).length) {
@@ -828,13 +828,13 @@ declare module '@bakery-framework/orm/schema-registry' {
    * Copy the current schema aside before it is overwritten.
    *
    * `--choose=db` regenerates the schema wholesale, and anything hand-written
-   * in it — a comment, a `_view`, an `old()` rename wrapper — is gone. The
+   * in it (a comment, a `_view`, an `old()` rename wrapper) is gone. The
    * database is backed up before a destructive sync; the schema, which is
    * source, was not. It is also gitignored, so `git checkout` cannot recover
    * it either: this is the one file with no other safety net.
    *
    * Stored under `bakery/backups` (`Bakery.dataDir`) rather than the cache,
-   * because a cache is defined as safe to delete and this is not — the
+   * because a cache is defined as safe to delete and this is not: the
    * framework itself deletes the cache directory on every version bump.
    */
   private static async preserveExisting(

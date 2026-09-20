@@ -1,5 +1,5 @@
 /**
- * `Case` moved to `utils/isomorphic/case` — the client bundle carried an
+ * `Case` moved to `utils/isomorphic/case`: the client bundle carried an
  * identical copy. `toHash` stays here: it calls `Bun.hash`, so it is server-only
  * and must not be pulled into the isomorphic layer.
  */

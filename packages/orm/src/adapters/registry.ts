@@ -6,11 +6,11 @@ import type { SQLAdapter } from './base'
  * add its own.
  *
  * A union type cannot be extended from outside the package, and widening it to
- * `string` would give up every place the compiler currently catches a typo — so
+ * `string` would give up every place the compiler currently catches a typo, so
  * this is an interface and a new name arrives by declaration merging, the same
  * mechanism `DBSchema` already uses for an app's tables:
  *
- * ```ts no-check — a third-party package's own declaration file
+ * ```ts no-check: a third-party package's own declaration file
  * declare module '@bakery-framework/orm/adapters' {
  *   interface DriverRegistry {
  *     mssql: true
@@ -18,7 +18,7 @@ import type { SQLAdapter } from './base'
  * }
  * ```
  *
- * `@bakery-framework/orm/adapters` — the public subpath — and not this file, which is
+ * `@bakery-framework/orm/adapters` (the public subpath), and not this file, which is
  * private and does not resolve from outside the package. The merge reaches
  * through the barrel's `export *`; aiming it at an unresolvable specifier
  * instead declares a second, unrelated interface and leaves every driver name
@@ -47,14 +47,14 @@ export interface AdapterSpec {
   /**
    * URL schemes this adapter answers to, without `://`.
    *
-   * Checked first and exactly — `mysql://…` reaches the adapter that listed
+   * Checked first and exactly: `mysql://…` reaches the adapter that listed
    * `mysql`, and nothing else is consulted. List every spelling you accept;
    * the built-in MySQL adapter lists four.
    */
   protocols?: readonly string[]
 
   /**
-   * Last resort, for a target no scheme matched — a bare file path, say.
+   * Last resort, for a target no scheme matched: a bare file path, say.
    *
    * Consulted in reverse registration order, so an adapter registered later can
    * claim a target one of the built-ins would otherwise have taken. Return
@@ -66,7 +66,7 @@ export interface AdapterSpec {
    * Open a connection. `target` is the raw `DB_URL`, or `undefined` when none
    * was set and this adapter is the default.
    *
-   * Async so the implementation can `await import()` its own driver module —
+   * Async so the implementation can `await import()` its own driver module,
    * which is how the three built-ins stay lazy: registering all of them costs
    * three object literals, and only the one that wins is ever loaded.
    */
@@ -77,7 +77,7 @@ export interface AdapterSpec {
 }
 
 /**
- * What to fall back to when the target names no adapter — split in two because
+ * What to fall back to when the target names no adapter: split in two because
  * the two cases have never had the same answer. See {@link resolveDriver}.
  */
 export interface DriverFallback {
@@ -96,8 +96,8 @@ export const DEFAULT_FALLBACK: DriverFallback = {
  * A stack per driver name, not one entry per name.
  *
  * Registering over an existing driver is temporary far more often than it is
- * permanent — a test swapping in a fake, an app overriding a built-in for one
- * environment — so "undo" has to give back exactly what was displaced. One
+ * permanent (a test swapping in a fake, an app overriding a built-in for one
+ * environment), so "undo" has to give back exactly what was displaced. One
  * entry per name cannot: release two registrations out of order and the second
  * disposer restores the first's spec, quietly leaving a stub adapter installed
  * for the rest of the process. A stack makes the order irrelevant, which is the
@@ -149,14 +149,14 @@ export function listAdapters(): AdapterSpec[] {
  * 1. **No target at all** → `fallback` (`sqlite`), so a fresh app with no
  *    `DB_URL` gets a file database rather than an error.
  * 2. **A URL scheme** that some adapter declared → that adapter, exactly.
- * 3. **`matches()`**, in reverse registration order — later registrations get
+ * 3. **`matches()`**, in reverse registration order: later registrations get
  *    first refusal, which is what makes overriding a built-in possible.
  * 4. **`fallback`** otherwise, which for a target that looked like a host is
- *    `postgres`. Long-standing behaviour, kept deliberately: a bare
+ *    `postgres`. Long-standing behavior, kept deliberately: a bare
  *    `db.internal:5432/app` has been read as Postgres since before the
  *    registry existed.
  *
- * Throws only if the resolved driver has no adapter registered — which means
+ * Throws only if the resolved driver has no adapter registered, which means
  * something registered a `protocols` entry and then unregistered itself, not
  * anything a user can reach by typing a URL.
  */
@@ -175,7 +175,7 @@ export function resolveAdapter(
   return spec
 }
 
-/** Step 1–4 of {@link resolveAdapter}, without the lookup. */
+/** Step 1 to 4 of {@link resolveAdapter}, without the lookup. */
 export function resolveDriver(
   target: string,
   fallback: DriverFallback = DEFAULT_FALLBACK,

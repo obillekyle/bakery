@@ -15,7 +15,7 @@ import { gzip as zlibGzip } from 'node:zlib'
 import { LRUCache } from '../cache/lru'
 // A cycle on paper (`core/context` imports this file for `getAppVersion`),
 // harmless in practice: neither module touches the other's bindings during
-// evaluation — `hostStore` is only read inside `isForbidden`, at request time.
+// evaluation. `hostStore` is only read inside `isForbidden`, at request time.
 import { hostStore } from '../core/context'
 import type { MixedPromise } from '../types'
 import { is, Try } from './common'
@@ -42,7 +42,7 @@ const gzipAsync = promisify(zlibGzip) as (
  *   1MB   |   5804us  |    6480us  |  14469us  |  17114us
  *   (32KB gzip: median of 5 x 200-iteration runs; single runs were noisy)
  *
- * At 32KB the sync cost crosses the dispatch overhead for zstd — the
+ * At 32KB the sync cost crosses the dispatch overhead for zstd, the
  * first-preference codec. gzip's raw-latency break-even sits nearer 64KB,
  * but the sync figure is a *stall* shared by every concurrent request while
  * the async figure is latency private to one caller, so the tie goes to
@@ -54,8 +54,8 @@ export const ASYNC_COMPRESSION_MIN = 32 * 1024
  * `compress` is the sync variant (blocks the event loop for the durations
  * above); `compressAsync` runs on a worker pool and only parks the caller.
  * zstd: `Bun.zstdCompress` (native async, Bun >= 1.1.21). gzip: Bun 1.3.14
- * has no async `Bun.gzip`, so `node:zlib`'s callback `gzip` — which runs on
- * the libuv pool — is promisified instead. Both async variants were verified
+ * has no async `Bun.gzip`, so `node:zlib`'s callback `gzip` (which runs on
+ * the libuv pool) is promisified instead. Both async variants were verified
  * byte-identical to their sync counterparts on this Bun, so either path
  * yields the same cached artifacts and the same response bodies.
  */
@@ -82,13 +82,13 @@ function toArray<T>(val?: MixedArray<T>): T[] {
 }
 
 /**
- * Memoised: `resolve` measures ~16-20us on Bun/Windows (see `isForbidden`) and
+ * Memoized: `resolve` measures ~16-20us on Bun/Windows (see `isForbidden`) and
  * a CPU profile of the request path put `safeResolve` + `path.resolve` at over
  * 40% of per-request self time. Caching is safe because the function is purely
- * lexical — `path.resolve` reads no filesystem state, only `process.cwd()`.
+ * lexical: `path.resolve` reads no filesystem state, only `process.cwd()`.
  * Relative arguments make entries cwd-dependent, and while nothing in the
  * runtime calls `chdir`, tests do (config.broken.test.ts boots from temp
- * fixture dirs) — so the cache is invalidated wholesale when cwd moves. The
+ * fixture dirs), so the cache is invalidated wholesale when cwd moves. The
  * check is one `process.cwd()` read per call, measured at 12ns in Bun (it is
  * cached natively), against the ~16us a resolve costs. The cache is an LRU,
  * not a Map, because arguments derive from request paths (convention 6);
@@ -238,7 +238,7 @@ export namespace Glob {
 }
 
 export namespace FileSystem {
-  // Naming, not constraint — `string & {}` is `string`. These document what a
+  // Naming, not constraint: `string & {}` is `string`. These document what a
   // parameter means at its declaration, which earns their keep. Four more
   // (`RequestPath`, `DirectoryPath`, `FileName`, `FileExtension`) documented
   // nothing, because nothing ever referenced them.
@@ -267,7 +267,7 @@ export namespace FileSystem {
 
   /**
    * Reads as UTF-8 text. Without the encoding this returns a Buffer, which
-   * every caller then hands to `JSON.parse` — legal at runtime because it
+   * every caller then hands to `JSON.parse`: legal at runtime because it
    * coerces, but a type error at each call site, papered over in one of them
    * with `as any`.
    */
@@ -313,7 +313,7 @@ export namespace FileSystem {
   }
 
   /**
-   * True only for an existing regular *file* — a directory answers false.
+   * True only for an existing regular *file*: a directory answers false.
    * Sync because `findDynamicRoute` (a sync hot-path scan) is a caller; one
    * stat, no BunFile allocation.
    */
@@ -322,12 +322,12 @@ export namespace FileSystem {
   }
 
   /**
-   * Parent directory of an **already-normalised** absolute path — the output
+   * Parent directory of an **already-normalized** absolute path: the output
    * shape `safeResolve` produces: forward slashes, no `.`/`..` segments, no
    * trailing slash except at a root.
    *
    * Only correct for that input shape, which is why it is not exported.
-   * `isForbidden` is the sole caller and it normalises before the first call.
+   * `isForbidden` is the sole caller and it normalizes before the first call.
    */
   function parentOf(path: string): string {
     const idx = path.lastIndexOf('/')
@@ -339,7 +339,7 @@ export namespace FileSystem {
     // Both of these branches are defensive rather than covered. `isForbidden`
     // stops as soon as the walk leaves `root`, and every root it is called
     // with is a real serve directory well below a filesystem root, so the walk
-    // never reaches one — dropping them both leaves the equivalence test in
+    // never reaches one: dropping them both leaves the equivalence test in
     // `fs.test.ts` green. They are kept so `parentOf` is correct as written
     // rather than correct only for its current caller.
     if (path.charCodeAt(idx - 1) === 58 /* ':' */) return path.slice(0, idx + 1)
@@ -350,7 +350,7 @@ export namespace FileSystem {
    * True when `pathToCheck`, or any directory between it and `root`, holds a
    * `.forbidden` marker.
    *
-   * This is a security guard, and it runs several times per request — from
+   * This is a security guard, and it runs several times per request, from
    * `router.ts` before anything else, then again from `getStatic`, `getRoute`
    * (once per level of a nested route) and the dynamic-route cache. Each call
    * walks every directory between the target and the serve root, so the
@@ -358,26 +358,26 @@ export namespace FileSystem {
    *
    * The walk used to call `safeResolve` twice per level, once to build
    * `<dir>/.forbidden` and once to step to the parent. Both are `node:path`
-   * `resolve`, which on Bun/Windows measures **~16-20us** — roughly 100x
+   * `resolve`, which on Bun/Windows measures **~16-20us**: roughly 100x
    * `path.dirname` (~0.2us), independent of the filesystem and of where the
    * cwd lives, and not explained by native-call overhead (`Bun.nanoseconds()`
    * is 0.045us). A depth-4 walk therefore paid ten `resolve` calls.
    *
-   * Since `curr` is normalised once on entry, every value it takes afterwards
+   * Since `curr` is normalized once on entry, every value it takes afterwards
    * is already in `resolve`'s own output shape, so both operations are exact
    * string edits. That takes a depth-4 walk from ten `resolve` calls to two
    * and leaves one `existsSync` per level as the only remaining syscall.
    * `fs.test.ts` pins the two implementations as equivalent.
    *
-   * The entry normalisation stays: `pathToCheck` reaches here straight from a
+   * The entry normalization stays: `pathToCheck` reaches here straight from a
    * URL pathname in `router.ts`, before any containment check, and collapsing
    * its dot segments is what makes the rest of the walk safe.
    *
-   * The remaining `existsSync` per level is deliberately **not** memoised
+   * The remaining `existsSync` per level is deliberately **not** memoized
    * *across requests*, which is the opposite call to the one `getMimeType`
-   * below makes. The difference is not the key — both are ultimately derived
+   * below makes. The difference is not the key: both are ultimately derived
    * from a request path and both would need an `LRUCache` to stay bounded
-   * under convention 6 — it is what a stale entry costs. A stale MIME type
+   * under convention 6: it is what a stale entry costs. A stale MIME type
    * serves the wrong `Content-Type`; a stale *negative* here serves a file an
    * operator has marked forbidden, which is the exact outcome the marker
    * exists to prevent.
@@ -387,7 +387,7 @@ export namespace FileSystem {
    * a cached "not forbidden" would persist for the life of the process; a TTL
    * would only bound that window, not close it, and an operator dropping a
    * `.forbidden` file to pull content offline has no way to learn how long the
-   * window is. The LRU also fails exactly when it would matter — a client
+   * window is. The LRU also fails exactly when it would matter: a client
    * requesting varied paths evicts the useful upper-level entries, so the
    * hit rate collapses under the load that motivated caching in the first
    * place. `fs.test.ts` has a regression test that fails if this is added.
@@ -396,8 +396,8 @@ export namespace FileSystem {
    * 4-6x per request over overlapping subtrees (router, `getStatic`, every
    * level of `getRoute`, the dynamic-route cache), each walk re-stating the
    * same directories at ~50us per miss on Bun/Windows. A marker dropped
-   * *mid-request* has no meaningful semantics — the operator's guarantee is
-   * "the next request sees it" — so the raw probe results live on the current
+   * *mid-request* has no meaningful semantics (the operator's guarantee is
+   * "the next request sees it"), so the raw probe results live on the current
    * `hostStore` value (`HostContext.forbiddenProbes`), which worker.ts creates
    * per request and never reuses. No store (tests, direct calls, startup)
    * means no caching, bit-for-bit today's behavior.
@@ -419,7 +419,7 @@ export namespace FileSystem {
     //
     // The walk below is bounded by `curr.startsWith(normalizedRoot)`, so an
     // out-of-root path skipped the loop body entirely and fell through to
-    // `return false` — "not forbidden". That is a guard failing *open* on the
+    // `return false`, "not forbidden". That is a guard failing *open* on the
     // one input it most needs to refuse, and it made every caller that relied
     // on this for containment (all of them: `constants.ts` said so in as many
     // words) incapable of catching an escape.
@@ -429,12 +429,12 @@ export namespace FileSystem {
     // read the pattern as drive-absolute, ignored `cwd`, and matched files at
     // `C:\`. `getRoute` resolved one, asked this function, was told "allowed",
     // and returned an `Info` pointing six levels above the serve root. The glob
-    // is fixed too, but the glob was only how it was reached — a resolved file
+    // is fixed too, but the glob was only how it was reached: a resolved file
     // outside the root has to be refused here whatever produced it.
     //
     // The separator suffix matters: a bare `startsWith` would also accept a
     // sibling directory whose name merely begins with the root's. A root that
-    // is already a filesystem root ends in `/` and must not gain a second one —
+    // is already a filesystem root ends in `/` and must not gain a second one:
     // `C://` matches nothing, which would make every path under `C:/` read as
     // an escape. `fs.test.ts` drives both through its root corpus.
     const rootPrefix = normalizedRoot.endsWith('/')
@@ -491,7 +491,7 @@ export namespace FileSystem {
    * false` suppresses **ENOENT only**, so a directory the process cannot stat
    * still throws EACCES or EPERM where `existsSync` answers false - and a
    * throw here would escape through `isForbidden` into the request. Answering
-   * false matches the behaviour this replaces exactly; the two forms agree on
+   * false matches the behavior this replaces exactly; the two forms agree on
    * a missing marker, a present one, a marker that is a *directory*, a path
    * several levels below anything that exists, a directory, and the empty
    * string.
@@ -511,7 +511,7 @@ export namespace FileSystem {
   /**
    * Test seam (convention 9): lets `fs.test.ts` count the syscalls the
    * per-request dedup above is supposed to be saving, without module-mocking
-   * `node:fs` — which is process-global and never unwinds.
+   * `node:fs`, which is process-global and never unwinds.
    */
   export function __setForbiddenProbe(fn: (path: string) => boolean) {
     probeForbidden = fn
@@ -579,11 +579,11 @@ export namespace FileSystem {
    * so N concurrent first-hits on a cold cache each saw "not cached", each ran
    * `compiler()`, and each wrote the same three paths. Measured: 8 concurrent
    * callers produced 8 compiler invocations. Every `.ts`/`.tsx`/`.vue` asset
-   * goes through here, so a traffic burst on a cold cache — or a cluster whose
-   * workers share one cache directory — paid the full transpile *plus* gzip
+   * goes through here, so a traffic burst on a cold cache (or a cluster whose
+   * workers share one cache directory) paid the full transpile *plus* gzip
    * *and* zstd once per concurrent request.
    *
-   * Same memoised-promise idiom as `initDB`, `setupPlugins` and
+   * Same memoized-promise idiom as `initDB`, `setupPlugins` and
    * `getTranspiler`, keyed rather than singular, and deleted in a `finally` so
    * a failed build is retried by the next caller rather than remembered. It is
    * bounded by construction (convention 6): an entry exists only while its own
@@ -591,7 +591,7 @@ export namespace FileSystem {
    *
    * The key is the path alone, not the path plus `sourceMtime`. A caller that
    * joins mid-build can therefore receive a build started for a marginally
-   * older mtime — a window only as wide as one compile, which the next request
+   * older mtime: a window only as wide as one compile, which the next request
    * re-validates and rebuilds. Including the mtime would close that window by
    * letting two builds of the same file race each other onto the same three
    * output paths, which is the worse trade.
@@ -648,7 +648,7 @@ export namespace FileSystem {
       if (content == null) return null
 
       // Only on the build path: a warm hit was paying this stat on every
-      // request for nothing — the directory necessarily exists if the cached
+      // request for nothing, the directory necessarily exists if the cached
       // file it holds just validated.
       await mkdir(cacheDir)
 
@@ -675,7 +675,7 @@ export namespace FileSystem {
 
     // The mirror of the compressed branch's check above. Without it a
     // non-compressible entry (a .woff2 from the gstatic proxy, say) was
-    // rebuilt — for fonts, re-fetched upstream — on every single request.
+    // rebuilt (for fonts, re-fetched upstream) on every single request.
     if (validCache(rawFile, sourceMtime)) return rawFile
 
     const content = await compiler()
@@ -687,8 +687,8 @@ export namespace FileSystem {
 
   /**
    * The extension→MIME mapping is static, but resolving it allocates a
-   * `Bun.BunFile` every call — ~1.4us, on the path of every static-file and
-   * compressed-asset response. Memoised behind an `LRUCache` rather than a
+   * `Bun.BunFile` every call, ~1.4us, on the path of every static-file and
+   * compressed-asset response. Memoized behind an `LRUCache` rather than a
    * plain Map because `ext` is ultimately derived from the request path, and
    * an unbounded map keyed on client-supplied input is exactly what
    * convention 6 forbids.

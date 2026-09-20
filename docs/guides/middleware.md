@@ -1,11 +1,11 @@
 # Middleware
 
 Middleware in Bakery is a `Handler` like everything else. `MiddlewareHandler`
-sits at priority 100 in the `fetch` registry — the top — and runs the functions
+sits at priority 100 in the `fetch` registry (the top), and runs the functions
 you declared in config (`packages/core/src/startup.ts`).
 
 It runs on **every** request, including ones an earlier request to the same path
-was allowed through — see [the route cache](#the-route-cache-does-not-skip-middleware).
+was allowed through. See [the route cache](#the-route-cache-does-not-skip-middleware).
 
 ## Declaring it
 
@@ -78,24 +78,24 @@ export default defineConfig({
 | `new Response(…)` | stops the chain, status preserved |
 | `response.json.error(401, …)` | stops the chain, `401` + the `{time, status, message, data}` envelope |
 | `response.json.success(…)` | stops the chain, same envelope |
-| a string, a bare object, `true` | **ignored** — the next middleware runs |
+| a string, a bare object, `true` | **ignored**: the next middleware runs |
 | `undefined` / no return | continue |
 
 The ignored row is deliberate. Returning a value is how plenty of ordinary code
-signals nothing at all — an implicit arrow return, an assignment expression, a
-`.map` callback — so only the two shapes that unambiguously mean "I am the
+signals nothing at all: an implicit arrow return, an assignment expression, a
+`.map` callback, so only the two shapes that unambiguously mean "I am the
 response" halt the request.
 
 The envelope used to be in that ignored row, which made an auth guard written
 the documented way fail **open**: the value was not a `Response`, the chain
 carried on, and the protected page was served with a `200`. On a path with no
-route it surfaced instead as a puzzling `404` — the framework's own error page,
+route it surfaced instead as a puzzling `404`: the framework's own error page,
 with the `401` and the message gone. Pinned by `$middleware.test.ts`.
 
 ### A `Response` with a 4xx/5xx status gets the error page
 
-Worth knowing before you debug it. Any `Response` with `status >= 400` — from
-middleware or anywhere else — is routed through `handleRequestError`
+Worth knowing before you debug it. Any `Response` with `status >= 400` (from
+middleware or anywhere else) is routed through `handleRequestError`
 (`packages/cli/src/worker.ts`), which **keeps the status and replaces the
 body** with the app's error page, or the framework's built-in one:
 
@@ -104,8 +104,8 @@ new Response('Unauthorized', { status: 401 })
   →  401, but the body is the Bakery 401 error page, not "Unauthorized"
 ```
 
-A `response.json.*` envelope does not go through that path — `handleRequestError`
-keys on `errorCode`, which an envelope does not carry — so it reaches the client
+A `response.json.*` envelope does not go through that path (`handleRequestError`
+keys on `errorCode`, which an envelope does not carry), so it reaches the client
 exactly as written. If you want your own message on the wire, that is the reason
 to prefer the envelope.
 
@@ -131,7 +131,7 @@ async function lookupSession(_req: Request): Promise<object | null> {
 If `lookupSession` throws, the request gets a 500 and stops
 (`$middleware.ts`). It is not logged-and-ignored. Middleware is where auth
 checks live, and treating a crashed check as "no opinion" would let the request
-through — the framework fails closed instead.
+through: the framework fails closed instead.
 
 This matches the wider convention: guards return the rejection, they do not throw
 for an expected denial, and an indeterminate state is a denial.
@@ -148,7 +148,7 @@ consults every `alwaysResolve` handler before it looks at the cache
 That exemption is load-bearing, because without it the cache would defeat a
 guard in the one direction that matters. `MiddlewareHandler` is only cacheable
 when it actually produces a response, so a guard that rejects would stay cached
-and keep working — and the *first request it let through* would install the page
+and keep working, and the *first request it let through* would install the page
 handler in its place, after which nobody was checked again. A guard that tests
 green, works in staging, and stops the moment one legitimate user signs in.
 
@@ -157,8 +157,8 @@ to a denied path and three to an allowed one increment it six times.
 
 Two things the exemption does not buy you:
 
-- Middleware that wants to run **once** per path — priming a cache, logging a
-  first hit — has to track that itself.
+- Middleware that wants to run **once** per path (priming a cache, logging a
+  first hit) has to track that itself.
 - It costs a `canHandle` per request, which for middleware means running the
   whole chain. Keep the chain cheap; it is on every request including static
   assets.
@@ -170,11 +170,11 @@ registry *before* the plugin hooks and before the `fetch` registry
 (`packages/core/src/router.ts`). Middleware is in the `fetch` registry, so
 it does not run at all for an upgrade.
 
-Authorise the socket in the handler's own `canHandle`. The analytics plugin does
+Authorize the socket in the handler's own `canHandle`. The analytics plugin does
 exactly this, and says why in a comment
 (`packages/plugins/analytics/src/endpoints/websocket.ts`).
 
-Rate limiting *does* apply to upgrades — it runs in `Bun.serve`'s fetch callback,
+Rate limiting *does* apply to upgrades: it runs in `Bun.serve`'s fetch callback,
 above everything (`packages/cli/src/worker.ts`).
 
 ## What middleware can see
@@ -185,10 +185,10 @@ above everything (`packages/cli/src/worker.ts`).
 its `Max-Age`. See [Sessions](sessions.md).
 
 `req.__hostname` is the resolved hostname, and `Bakery.config` inside a
-middleware already reflects the per-host merge — the whole request runs inside
+middleware already reflects the per-host merge: the whole request runs inside
 `hostStore.run(...)`, so config is ambient rather than passed.
 
-For the client address, use `getClientIp`, which honours `config.trustProxy`
+For the client address, use `getClientIp`, which honors `config.trustProxy`
 rather than trusting `X-Forwarded-For` blindly:
 
 ```ts
@@ -210,7 +210,7 @@ const BLOCKLIST = new Set<string>()
 
 ## Per-host middleware
 
-A `hosts` entry replaces the middleware array wholesale for that hostname — it is
+A `hosts` entry replaces the middleware array wholesale for that hostname: it is
 not concatenated with the global one (`packages/core/src/core/config.ts`):
 
 ```ts
@@ -241,7 +241,7 @@ registry is consulted at all. Reach for it when the guard belongs to a
 redistributable plugin rather than to one app's config; for an app's own auth
 check, `config.middleware` is the simpler place and runs just as unconditionally.
 
-Note that a plain `Handler` of your own is **not** an alternative — it lives in
+Note that a plain `Handler` of your own is **not** an alternative: it lives in
 the same registry as everything else and is subject to the route cache, which
 `MiddlewareHandler` is exempt from and yours would not be unless you set
 `alwaysResolve` yourself.
@@ -263,7 +263,7 @@ export const adminGuard = definePlugin({
 })
 ```
 
-```ts no-check — the import path is app-specific; the plugin itself is checked above
+```ts no-check: the import path is app-specific; the plugin itself is checked above
 // server.config.ts
 import { defineConfig } from '@bakery-framework/core'
 import { adminGuard } from './src/plugins/admin-guard'
@@ -277,7 +277,7 @@ export default defineConfig({
 Two things to know about this hook:
 
 - **Return `undefined` to continue.** Any other non-null return is coerced into a
-  response — an object becomes a 200 JSON body, anything else becomes 200 text
+  response: an object becomes a 200 JSON body, anything else becomes 200 text
   (`core/plugins.ts`). Returning `false` would end the request with the
   text `false`.
 - **A throw is a 500** and stops the plugin chain, same fail-closed rule as

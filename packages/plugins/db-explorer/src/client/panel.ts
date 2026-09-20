@@ -1,5 +1,5 @@
 /**
- * The row side panel — one row, as a form.
+ * The row side panel: one row, as a form.
  *
  * Promoted from `drawer.ts`, which did the same job with less of it. The grid
  * is the right shape for scanning and the wrong shape for a forty-column row:
@@ -14,11 +14,11 @@
  *    beats a cell for those two.
  *  - **Both directions of the graph.** "References" jumps to the row this one
  *    points at; "Referenced by" lists the rows pointing here.
- *  - **Exact counts.** They used to be labelled approximate and were: the only
+ *  - **Exact counts.** They used to be labeled approximate and were: the only
  *    filter available was a substring `LIKE`, so a row with id `1` counted `11`
  *    and `21` too. With `eq` the number is the number.
  *
- * "Referenced by" is still **lazy** — one request per referencing table, issued
+ * "Referenced by" is still **lazy**: one request per referencing table, issued
  * when the section is opened. Doing that for every visible row would be the
  * per-cell `fetch` that `fk.ts` exists to avoid, in a different costume.
  */
@@ -103,7 +103,7 @@ function fields(ctx: PanelContext, id: string | null): HTMLElement {
 /**
  * One column: its name, its declared type, and an editor or a read-only value.
  *
- * The same `createEditor` the grid opens in a cell — including the null toggle,
+ * The same `createEditor` the grid opens in a cell, including the null toggle,
  * which is the whole reason a 40-column row is editable here at all: several of
  * those columns are nullable, and a form of plain text inputs cannot say so.
  * `multiline` is the one difference, and it is what makes this the place long
@@ -136,7 +136,7 @@ function field(
     current,
     {
       // In the panel there is no cursor to move, so every change stages
-      // immediately. Same buffer, same Save — the difference is only that the
+      // immediately. Same buffer, same Save: the difference is only that the
       // grid needs a commit key to know where to go next and this does not.
       onInput: value => {
         ctx.session.stage(id, ctx.row, column.name, value)
@@ -178,7 +178,7 @@ function footer(
         ctx.session.drop(id)
         ctx.onDirtyChange()
         message.textContent =
-          'reverted — reopen the row to see the stored values'
+          'reverted: reopen the row to see the stored values'
       },
       { class: 'btn' },
     ),
@@ -187,7 +187,7 @@ function footer(
 }
 
 /**
- * The rows *this* row points at — one link per outgoing foreign key.
+ * The rows *this* row points at: one link per outgoing foreign key.
  *
  * Not lazy, because it costs nothing: the key is already in the row, so the
  * link is built from data in hand and only the click spends a request. A key
@@ -235,7 +235,7 @@ function referenceRow(ctx: PanelContext, relation: Relation): HTMLElement {
 /**
  * Tables that point at this row, resolved when the section is opened.
  *
- * The counts are **exact**. They used to be labelled approximate and were —
+ * The counts are **exact**. They used to be labeled approximate and were:
  * the only filter the table-data endpoint offered was `col LIKE '%value%'`, so
  * a row with id `1` matched `11` and `21` too. `eq` removed the caveat along
  * with the reason for it.

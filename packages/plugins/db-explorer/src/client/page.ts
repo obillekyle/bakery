@@ -6,7 +6,7 @@
  * what stopped the entry module growing back into the 197-line
  * fetch-and-render `renderTable` it replaced.
  *
- * The shape is now three regions rather than two — sidebar, then a column
+ * The shape is now three regions rather than two: sidebar, then a column
  * holding the tab strip, the active view and the status bar. The sidebar and
  * the status bar outlive a tab switch; only `#main` is replaced. The painters
  * take callbacks rather than reaching for the entry's state, so the page has no
@@ -78,7 +78,7 @@ export class Page {
    * The Data view: filters, the bulk toolbar, the grid, the pager.
    *
    * `data` is the page the server just returned and `ms` is what it said it
-   * cost — the status bar's timing is the envelope's own number rather than a
+   * cost: the status bar's timing is the envelope's own number rather than a
    * round trip timed here, so a slow filter is attributable.
    */
   paint(
@@ -232,14 +232,14 @@ export class Page {
   private readOnlyBanner(table: SchemaTable): HTMLElement {
     return el('p', {
       class: 'banner warn',
-      text: `read-only — ${readOnlyReason(this.state, table)}`,
+      text: `read-only: ${readOnlyReason(this.state, table)}`,
     })
   }
 
   /**
    * The filter builder.
    *
-   * A chip per condition — column, operator, value, remove — where there used
+   * A chip per condition (column, operator, value, remove) where there used
    * to be one text box per column that could only ever mean "contains". Any
    * change resets to page 1, because a filtered result has different pages and
    * staying on page 7 of a set that now has two is a blank screen.

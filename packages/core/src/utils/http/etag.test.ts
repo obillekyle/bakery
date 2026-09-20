@@ -69,7 +69,7 @@ describe('ETag.sendFile variant negotiation memo', () => {
   }
 
   /** Callers hand `sendFile` the `.zst` the cache returned, exactly as
-   * `getOrCreateCachedFile`'s callers do — negotiation starts from there. */
+   * `getOrCreateCachedFile`'s callers do: negotiation starts from there. */
   function negotiate(acceptEncoding: string, path = base) {
     return ETag.sendFile(
       Bun.file(`${path}.zst`),
@@ -229,15 +229,15 @@ describe('ETag.sendFile variant negotiation memo', () => {
  * Range handling for file responses is Bun.serve's, not the framework's: the
  * runtime slices any path-backed BunFile body (206 + Content-Range) and
  * appends its own `Accept-Ranges: bytes` to the 206/416 it builds. What it
- * never did was advertise on an ordinary 200 or a HEAD — so players that
+ * never did was advertise on an ordinary 200 or a HEAD, so players that
  * probe HEAD for `Accept-Ranges` before attempting seeks concluded seeking
  * was unsupported and never sent a range. `sendFile` is the one funnel every
  * file-serving handler's BunFile passes through, so the advertisement lives
- * there. The wire-level half of this — what Bun actually emits per request
- * shape — is pinned in `tests/static-range.test.ts`; these pin the header
+ * there. The wire-level half of this (what Bun actually emits per request
+ * shape) is pinned in `tests/static-range.test.ts`; these pin the header
  * decision itself.
  */
-describe('ETag.sendFile — Accept-Ranges advertisement', () => {
+describe('ETag.sendFile: Accept-Ranges advertisement', () => {
   const dir = fs.resolve(import.meta.dir, '__fixtures__', 'ranges')
   const media = fs.resolve(dir, 'clip.mp4')
 
@@ -247,7 +247,7 @@ describe('ETag.sendFile — Accept-Ranges advertisement', () => {
   })
 
   afterAll(async () => {
-    // The negotiate below memoised a variant set for a path this rm deletes.
+    // The negotiate below memoized a variant set for a path this rm deletes.
     // The memo self-heals on a missing base, but the process is shared across
     // test files (convention 9's whole point), so leave no entry behind.
     ETag.__clearNegotiationMemo()
@@ -266,7 +266,7 @@ describe('ETag.sendFile — Accept-Ranges advertisement', () => {
     expect(res.headers.get('Accept-Ranges')).toBe('bytes')
   })
 
-  test('a HEAD response advertises — the probe players actually send', () => {
+  test('a HEAD response advertises: the probe players actually send', () => {
     const res = send({ method: 'HEAD' })
     expect(res.headers.get('Accept-Ranges')).toBe('bytes')
   })
@@ -282,12 +282,12 @@ describe('ETag.sendFile — Accept-Ranges advertisement', () => {
     expect(res.headers.get('Accept-Ranges')).toBeNull()
   })
 
-  test('a HEAD carrying Range keeps the header — Bun ignores Range on HEAD', () => {
+  test('a HEAD carrying Range keeps the header: Bun ignores Range on HEAD', () => {
     const res = send({ method: 'HEAD', headers: { Range: 'bytes=0-99' } })
     expect(res.headers.get('Accept-Ranges')).toBe('bytes')
   })
 
-  test('an in-memory Blob never advertises — Bun serves it whole', () => {
+  test('an in-memory Blob never advertises: Bun serves it whole', () => {
     const blob = new Blob([Buffer.alloc(64, 1)]) as Bun.BunFile
     const res = ETag.sendFile(blob, new Request('http://localhost/x'))
     expect(res.headers.get('Accept-Ranges')).toBeNull()
@@ -420,9 +420,9 @@ describe('ETag.sendText compression offload', () => {
     return out.slice(0, size)
   }
 
-  // Above ASYNC_COMPRESSION_MIN (32KB) — the off-thread path.
+  // Above ASYNC_COMPRESSION_MIN (32KB): the off-thread path.
   const LARGE = payload(96 * 1024)
-  // Above the 1KB compression floor, below the 32KB offload cutoff — the
+  // Above the 1KB compression floor, below the 32KB offload cutoff: the
   // path that stays synchronous.
   const SMALL = payload(4 * 1024)
 
@@ -497,7 +497,7 @@ describe('ETag.sendText compression offload', () => {
 
   test('304 short-circuits before compression, even for an offload-sized body', () => {
     // The etag embeds the negotiated variant ext, computed from headers
-    // alone — so a match must return 304 without compressing. A synchronous
+    // alone, so a match must return 304 without compressing. A synchronous
     // return is the proof: the only compressing path above the cutoff is the
     // Promise-returning one.
     const etag = `${ETag.fromText(LARGE)}.zst`

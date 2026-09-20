@@ -4,14 +4,14 @@
  *
  * One implementation, deliberately in core: the db-explorer and analytics
  * plugins each need it and per-plugin copies of security code drift. It owns
- * *only* the comparison — no logins, no sessions, no backoff.
+ * *only* the comparison: no logins, no sessions, no backoff.
  *
  * A credential is presented three ways, in this order of preference:
  *
  *   - `x-<name>` header (scriptable, never logged by default)
  *   - `Authorization: Bearer <credential>`
  *   - `?<name>=<credential>` query, for a human opening a URL in a browser
- *     who cannot set a header — the caller is expected to strip it from the
+ *     who cannot set a header. The caller is expected to strip it from the
  *     URL client-side; it *does* reach server logs, which is documented, and
  *     the header forms exist for anything automated.
  *
@@ -20,7 +20,7 @@
  * variable unset must mean "off", not "open".
  *
  * The compare is constant-time. A plain `===` on a secret is a timing oracle,
- * and `timingSafeEqual` costs one line — but it throws on length mismatch, so
+ * and `timingSafeEqual` costs one line, but it throws on length mismatch, so
  * the length is checked first (which leaks only the length, never the bytes).
  */
 
@@ -41,7 +41,7 @@ export function credentialMatches(
 /**
  * Pull a presented credential off a request: the `x-<name>` header, a Bearer
  * token, or the `<name>` query parameter, in that order. Returns `null` when
- * none is present. `name` is the header/query key — `db-key`, `analytics-key`.
+ * none is present. `name` is the header/query key: `db-key`, `analytics-key`.
  */
 export function readCredential(req: Request, name: string): string | null {
   const header = req.headers.get(`x-${name}`)

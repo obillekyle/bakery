@@ -7,7 +7,7 @@ import { DEFAULT_SESSION_PERSIST, DEFAULT_SESSION_TTL } from './utils/constants'
 /**
  * Keys under this prefix are framework-internal privilege markers. They share
  * the same bag as application data, so anything that writes a caller-supplied
- * key must refuse this prefix — otherwise a preferences endpoint (or the
+ * key must refuse this prefix: otherwise a preferences endpoint (or the
  * dashboard's own session editor) becomes a privilege-escalation primitive.
  */
 export const RESERVED_SESSION_PREFIX = '__bakery.'
@@ -17,7 +17,7 @@ export function isReservedSessionKey(key: string): boolean {
 }
 
 /**
- * Clock seam — the cookie half-life bookkeeping is time-based, and its tests
+ * Clock seam: the cookie half-life bookkeeping is time-based, and its tests
  * inject a clock instead of sleeping (see `__setTestDb` / `__setTestConfig`
  * for the pattern). Only the cookie-reissue math reads this; `createdAt` and
  * TTL expiry keep `Date.now()`.
@@ -47,7 +47,7 @@ export function newSessionId(): string {
  * The cache key for a session id under the current host.
  *
  * There is one `TieredCache('sessions')` for the whole process, and until this
- * existed every id went into it unqualified — so under a multi-tenant `hosts`
+ * existed every id went into it unqualified, so under a multi-tenant `hosts`
  * config one tenant's dashboard listed, read and deleted every other tenant's
  * sessions. `hostKey()` is the guard the five other per-tenant caches already
  * use; sessions were the one that never got it.
@@ -107,12 +107,12 @@ export class Session<
    *
    * **Takes the `Request`, and that is not incidental.** `getCookie` reads the
    * session through `hasDeferredValue(req, 'session')`, which looks for a
-   * symbol the router installs — so the value has to come from the real
+   * symbol the router installs, so the value has to come from the real
    * request. There used to be an instance form, `session.bind(res)`, that
    * called this with `{ session: this }`: a fake carrying no symbol, so the
    * check failed, `getCookie` returned an empty string, and the cookie was
    * never appended. It was a documented method that could not work, and it is
-   * gone rather than repaired — the session alone does not know whether the
+   * gone rather than repaired: the session alone does not know whether the
    * request it belongs to issued a cookie this turn.
    */
   public static bind(req: Request, response?: Response) {
@@ -129,7 +129,7 @@ export class Session<
     const session = req.session
 
     // Issue only when the session actually changed, or when the read path
-    // flagged a half-life refresh (see `markAccessed`) — not on every read.
+    // flagged a half-life refresh (see `markAccessed`), not on every read.
     // A per-request Set-Cookie made every session-carrying response unique,
     // defeating If-None-Match, and dirtied merely-read sessions into the
     // flush timer's write batch.
@@ -151,7 +151,7 @@ export class Session<
       ? Math.floor(DEFAULT_SESSION_PERSIST / 1000)
       : Math.floor(DEFAULT_SESSION_TTL / 1000)
 
-    // Only believe x-forwarded-proto behind a trusted proxy — the same rule
+    // Only believe x-forwarded-proto behind a trusted proxy: the same rule
     // getHostname and getClientIp already apply. In production default to
     // Secure, so a terminator that omits the header can't downgrade the cookie.
     const trustProxy = Bakery.config.trustProxy
@@ -191,7 +191,7 @@ export class Session<
     session.rawData = { ...metadata.data }
     session.data = session.initProxy()
     // Rows written before the field existed revive as 0 = "unknown", which
-    // `markAccessed` reads as long past half-life — at worst one extra
+    // `markAccessed` reads as long past half-life, at worst one extra
     // reissue, never a cookie that silently expires under an active user.
     session.cookieIssuedAt = metadata.cookieIssuedAt ?? 0
     return session
@@ -222,7 +222,7 @@ export class Session<
         if (existing.isExpired()) {
           Session.cache.delete(sessionKey(sessionId))
         } else {
-          // Accessed, not modified — see `markAccessed`. `touch()` here made
+          // Accessed, not modified. See `markAccessed`. `touch()` here made
           // every session read count as a write.
           existing.markAccessed()
           return existing
@@ -240,7 +240,7 @@ export class Session<
 
   /**
    * Epoch ms when `getCookie` last emitted `Set-Cookie` for this id; 0 means
-   * never (or unknown — a row written before the field existed). Persisted
+   * never (or unknown: a row written before the field existed). Persisted
    * through `toJSON`, so it only costs a write when a write is already
    * happening; while the instance lives in the memory tier it carries across
    * requests for free.
@@ -249,7 +249,7 @@ export class Session<
 
   /**
    * Set by `markAccessed` when the cookie has crossed half its Max-Age;
-   * cleared when `getCookie` issues. Deliberately not persisted — it is
+   * cleared when `getCookie` issues. Deliberately not persisted: it is
    * per-instance request bookkeeping, and losing it costs nothing (the next
    * read recomputes it from `cookieIssuedAt`).
    */
@@ -290,7 +290,7 @@ export class Session<
    * Force the session to count as modified: stored on the next flush and its
    * cookie re-issued. This is the published "force a cookie refresh" surface
    * (docs/guides/sessions.md) and keeps its dirty semantics. It is *not* the
-   * read path — `Session.from` uses `markAccessed`, which slides expiry
+   * read path: `Session.from` uses `markAccessed`, which slides expiry
    * without paying write costs.
    */
   public touch(): this {
@@ -299,18 +299,18 @@ export class Session<
   }
 
   /**
-   * The read-path bump — what `Session.from` does instead of `touch()`.
+   * The read-path bump, what `Session.from` does instead of `touch()`.
    * Reading a session must not dirty it: that made every read-only request
    * pay a JSON.stringify + synchronous SQLite write on the next flush and
    * re-issue Set-Cookie, which defeated If-None-Match caching.
    *
    * Liveness needs no work here: the `Session.cache.get` in `from` has
    * already re-stamped the memory tier's accessedAt. What this method owns is
-   * sliding cookie expiration — once more than half the cookie's Max-Age has
+   * sliding cookie expiration: once more than half the cookie's Max-Age has
    * elapsed since it was last issued, flag a reissue. `getCookie` then emits
    * the cookie *and* re-persists the session, which renews the DB row's
    * accessedAt at a cadence of at most maxAge/2 against the pruner's cutoff
-   * of maxAge — so active sessions never age out server-side either.
+   * of maxAge, so active sessions never age out server-side either.
    */
   private markAccessed(): void {
     const maxAgeMs = this.hasPersistedKeys()
@@ -363,10 +363,10 @@ export class Session<
    *
    * This is the missing anti-fixation primitive. `reset()` clears data but
    * keeps the id, so an app that does `req.session.set('userId', …)` on login
-   * finishes authentication on the *same* id the visitor arrived with —
+   * finishes authentication on the *same* id the visitor arrived with,
    * including one an attacker planted. Call it at the privilege boundary:
    *
-   * ```ts no-check — illustrative call site, not a compiled example
+   * ```ts no-check: illustrative call site, not a compiled example
    * req.session.regenerate().set('userId', user.id, true)
    * ```
    *
@@ -375,7 +375,7 @@ export class Session<
    * the same object `req.session` already holds, so the rest of the request
    * sees the new id.
    *
-   * `createdAt` is deliberately preserved — the session continues, only its
+   * `createdAt` is deliberately preserved: the session continues, only its
    * bearer token is replaced.
    */
   public regenerate(): this {
@@ -463,7 +463,7 @@ export class Session<
 
   /**
    * Every enumeration below filters to the current host and yields the bare
-   * session id, not the cache key — so `Session.keys()` still returns ids the
+   * session id, not the cache key, so `Session.keys()` still returns ids the
    * dashboard can hand back to `Session.get` / `Session.delete`.
    */
   static *entries(): IterableIterator<[string, Session<any>]> {
@@ -496,7 +496,7 @@ export class Session<
     // The check is on `hosts` and not on the scope, deliberately: `hostKey`
     // collapses to '' in the unconfigured case too, so the scope alone cannot
     // tell the two situations apart. This method used to compute one anyway and
-    // never read it — scoping lives in `Session.entries()`, which the slow path
+    // never read it: scoping lives in `Session.entries()`, which the slow path
     // below goes through.
     const hosts = Bakery.config.hosts
     if (!hosts || Object.keys(hosts).length === 0) {
@@ -504,7 +504,7 @@ export class Session<
     }
 
     // Scoped path: `TieredCache.search` pages in SQL across the whole table,
-    // which is every tenant's sessions, and it has no key-prefix predicate — so
+    // which is every tenant's sessions, and it has no key-prefix predicate, so
     // the filter has to happen before paging, in JS. Bounded by the session
     // table, which the pruner holds down to live sessions.
     const needle = options.search?.trim().toLowerCase() || ''
@@ -559,7 +559,7 @@ const sessionPruneTimer = setInterval(
 
 // Unref'd, like the two flush timers in `cache/`. A 15-minute prune is not a
 // reason a process cannot exit, and this one is module-level: importing
-// `session.ts` — which `core/index` does — held the event loop open for the
+// `session.ts` (which `core/index` does) held the event loop open for the
 // life of any process that touched core. The CLI never saw it because every
 // one of its paths ends in `process.exit`; a script, an embedder or a bare
 // `bun -e` that imported the barrel printed its answer and then hung.

@@ -30,8 +30,7 @@ export async function buildSyncPlan(
     dbConstraintsForDiff: {},
   }
 
-  // The one place sync decides what "currently" means. Prefers the ledger —
-  // what Bakery last applied — and falls back to introspection whenever the
+  // The one place sync decides what "currently" means. Prefers the ledger (  // what Bakery last applied), and falls back to introspection whenever the
   // ledger no longer describes the same tables and columns. See sync/ledger.ts
   // for why that fallback is the whole safety argument.
   const current = await resolveCurrentState(adapter, {

@@ -3,7 +3,7 @@
  *
  * `/api/_db/schema` now answers with more than the schema: the caller's own
  * access level, and per table whether it is writable and why not. The client
- * needs its posture *before* it renders — a grid that draws edit affordances
+ * needs its posture *before* it renders: a grid that draws edit affordances
  * and then discovers on save that the table has no primary key has already
  * wasted the user's work.
  */
@@ -19,7 +19,7 @@ import { refuse } from './common'
 
 export interface SchemaColumn {
   name: string
-  /** The database's own type string, unchanged — what the grid shows. */
+  /** The database's own type string, unchanged: what the grid shows. */
   type: string
   notnull: boolean
   pk: boolean
@@ -47,8 +47,8 @@ export interface SchemaTable {
   /**
    * Declared indexes.
    *
-   * `introspect()` has always computed these — it walks them to find a usable
-   * unique key when there is no primary key — and used to throw them away here.
+   * `introspect()` has always computed these (it walks them to find a usable
+   * unique key when there is no primary key), and used to throw them away here.
    * The Structure view is the first thing that shows them, and there is no
    * other endpoint that knows them.
    */
@@ -150,7 +150,7 @@ const RX_TABLE_NAME = /^[a-zA-Z0-9_]+$/
  * filter set: `JSON.parse` throwing on a mangled parameter, and `parseFilters`
  * rejecting an operator the ORM would otherwise drop. A dropped filter *widens*
  * the result, and the explorer's Delete acts on a selection made from this
- * view — see the header of `shared/filters.ts`.
+ * view. See the header of `shared/filters.ts`.
  */
 function readFilters(
   url: URL,

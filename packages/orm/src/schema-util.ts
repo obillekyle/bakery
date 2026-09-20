@@ -24,12 +24,12 @@ export type DataTypes = keyof TypeMap
  * Three parameters, where there were five (`type, default, nullable,
  * autoIncrement, primary`). The two that went were positional booleans nothing
  * outside `Field.Primary()` ever set, and `default` was carried only so
- * nullability and optionality could be *derived* from it — which is why
+ * nullability and optionality could be *derived* from it, which is why
  * "defaulted but not nullable" and "nullable" were indistinguishable to
  * anything downstream.
  *
  * **`T` is the row type, not a dialect name.** `number`, `string | null`, or an
- * enum's own union — so `ExtractTableTypes` is a lookup rather than a mapping
+ * enum's own union, so `ExtractTableTypes` is a lookup rather than a mapping
  * through `TypeMap`, and a type `TypeMap` cannot express (an enum, a branded
  * id) needs no special case.
  *
@@ -61,9 +61,8 @@ export const dateNow = '%dateNow%'
  * The row type of a column descriptor.
  *
  * Two forms reach here. A `Field.*` builder returns `TableDef<T, …>`, whose
- * `type` **is** the row type, so this is a lookup. A hand-written literal —
- * `{ type: 'integer', default: 0, nullable: true }`, the one shape `Field`
- * does not spell — carries a dialect name there instead, which still goes
+ * `type` **is** the row type, so this is a lookup. A hand-written literal ( * `{ type: 'integer', default: 0, nullable: true }`, the one shape `Field`
+ * does not spell) carries a dialect name there instead, which still goes
  * through `TypeMap`.
  *
  * Distinguished by whether `type` is one of `TypeMap`'s keys. That is
@@ -85,12 +84,12 @@ export type ExtractTableTypes<C, K extends keyof C> = {
  * Which columns may be omitted from an `INSERT`.
  *
  * `optional: true` when a `Field.*` builder said so, which is the whole check
- * for anything `Field` produces — it states optionality rather than leaving it
+ * for anything `Field` produces, it states optionality rather than leaving it
  * to be reconstructed. The three derived conditions below it are the fallback
  * for a hand-written literal, which has no `optional` key.
  *
  * Stating it also makes a shape expressible that derivation could not:
- * **optional but neither nullable nor defaulted** — a column the database fills
+ * **optional but neither nullable nor defaulted**: a column the database fills
  * in, such as a generated key.
  */
 export type ExtractOptionals<C, T extends keyof C> = {
@@ -149,7 +148,7 @@ export const SQL_FUNCTIONS = new Set([
  * `ROW_NUMBER()` outside an `OVER` clause is a syntax error on all three
  * dialects, so putting it in the general list would let the builder emit SQL
  * that cannot run. The aggregates in `SQL_FUNCTIONS` work in *both* positions
- * and stay where they are — `evalOperands` accepts either list inside a window.
+ * and stay where they are: `evalOperands` accepts either list inside a window.
  *
  * Verified present on all three servers: SQLite has had window functions since
  * 3.25, MySQL since 8.0, Postgres throughout.
@@ -171,15 +170,15 @@ export const WINDOW_FUNCTIONS = new Set([
 /**
  * A function call with an `OVER (…)` clause.
  *
- * `spec` is the inside of the parentheses — `PARTITION BY "a" ORDER BY "b" ASC`
- * — and arrives **already validated and quoted**, exactly like `_joins[].on`.
+ * `spec` is the inside of the parentheses (`PARTITION BY "a" ORDER BY "b" ASC`
+ *), and arrives **already validated and quoted**, exactly like `_joins[].on`.
  * That is deliberate: `safeColumn` lives in the query builder, and duplicating
  * the identifier rules here would make two writers of the same SQL, which is
  * the thing convention 8 exists to prevent. This class stores; the builder
  * validates.
  *
  * No frame clause (`ROWS BETWEEN …`). It is legal everywhere and would fit, but
- * it has its own grammar and nobody has asked — an empty frame is the SQL
+ * it has its own grammar and nobody has asked: an empty frame is the SQL
  * default and is what every call here gets.
  */
 export class WindowRef {
@@ -205,13 +204,13 @@ function activeQuoteChar(): string {
 
 /**
  * Memo for `Case.snake`, which is the single most expensive step in quoting an
- * identifier — measurably more than the quoting itself — and is re-run for the
+ * identifier (measurably more than the quoting itself), and is re-run for the
  * same handful of table and column names on every clause of every query.
  *
  * A capped `Map` rather than `LRUCache`: an LRU `get` deletes and re-inserts on
  * every hit to maintain recency, which measured ~38x slower than `Map.get` and
  * would cost more than the `Case.snake` call it is meant to replace. Convention
- * 6 asks for bounded, and this is bounded by construction — identifiers are
+ * 6 asks for bounded, and this is bounded by construction: identifiers are
  * schema-derived in practice, but `DB.col()` takes a caller-supplied string, so
  * the bound cannot rest on that. Dropping the whole map on overflow is correct
  * because every entry is recomputable: it is a memo, not state.
@@ -281,7 +280,7 @@ export class OperatorRef<R = any> {
 
 // Convention 8 makes this the single writer of SQL identifiers, so the arms
 // belong together: splitting by operand kind spreads that responsibility.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: recursive operand evaluator — one arm per operand shape
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: recursive operand evaluator, one arm per operand shape
 export function evalOperands(
   where: unknown,
   params: unknown[],
@@ -324,7 +323,7 @@ export function evalOperands(
   if (typeof where === 'object' && where !== null) {
     if (where instanceof WindowRef) {
       // The function half only. `spec` was built by the query builder out of
-      // `safeColumn` output and is inserted as-is — see the class comment.
+      // `safeColumn` output and is inserted as-is. See the class comment.
       let call: string
       if (where.fn instanceof SQLFunctionRef) {
         call = evalOperands(where.fn, params, true)
@@ -348,7 +347,7 @@ export function evalOperands(
       const colArg = where.col
       const extraArgs = where.extraArgs || []
 
-      // fnName is interpolated, not bound — only known functions may pass.
+      // fnName is interpolated, not bound. Only known functions may pass.
       if (!SQL_FUNCTIONS.has(fnName)) {
         throws(`Unsupported SQL function: ${where.fnName}`)
       }
@@ -436,7 +435,7 @@ export function old<TSchema extends SyncTypes.DBConstraints>(
  * position, so it is where the two vocabularies meet: `ColumnConstraint.type`
  * is the dialect name the sync engine reads, while a `Field.*` builder declares
  * `type` as the **row type**. Requiring the sync-side shape here rejected every
- * `Field` value — `old('title', Field.Varchar(255))` stopped compiling.
+ * `Field` value: `old('title', Field.Varchar(255))` stopped compiling.
  *
  * `old()` only copies the object and adds two keys, so it needs no more than
  * "something with a `type`", and returning `T` unchanged means the row type and

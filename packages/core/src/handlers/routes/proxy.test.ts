@@ -8,7 +8,7 @@ import { ProxyHandler } from './proxy'
 
 /**
  * `ProxyHandler` is the one fetch surface that hands a request to a machine the
- * operator does not control, and it sits at priority 95 — above everything
+ * operator does not control, and it sits at priority 95: above everything
  * except middleware. Two properties carry the risk:
  *
  *  1. **It must not forward the caller's credentials.** `cookie` and
@@ -17,13 +17,13 @@ import { ProxyHandler } from './proxy'
  *     over on every request, and nothing downstream could undo it. This file
  *     existed with zero coverage.
  *  2. **The target has to be assembled correctly**, including the query string
- *     — dropped once already, restored in `cb5a379`.
+ *    : dropped once already, restored in `cb5a379`.
  *
  * Both are asserted against a real loopback upstream rather than a stubbed
  * `fetch`. The point of the credential test is what *arrives* at the far end,
  * and only a server can answer that: a stub would pin the `Request` the
  * handler built and still miss anything `fetch` itself re-attaches (`host` is
- * exactly such a header — see below). `Bun.serve` outside `cli/worker.ts` is
+ * exactly such a header. See below). `Bun.serve` outside `cli/worker.ts` is
  * fine here; the "one Bun.serve" convention check excludes test files.
  */
 
@@ -45,7 +45,7 @@ const UNMATCHED = '/definitely-not-proxied/thing'
 
 /**
  * Records what it was sent and answers. Declared as a function so the server
- * handle can be typed by inference — `Bun.Server` is generic over its
+ * handle can be typed by inference: `Bun.Server` is generic over its
  * websocket data and cannot be written bare.
  */
 function startUpstream() {
@@ -96,7 +96,7 @@ describe('ProxyHandler', () => {
 
     upstream = startUpstream()
     // `port: 0` asks the OS for a free one, so the bound port is only known
-    // after the fact — and is optional on the type, since a unix-socket server
+    // after the fact, and is optional on the type, since a unix-socket server
     // has none. Nothing below means anything without it.
     if (!upstream.port) throw new Error('upstream bound no port')
     port = upstream.port
@@ -104,7 +104,7 @@ describe('ProxyHandler', () => {
     __setTestConfig({
       proxy: {
         '/one': `http://127.0.0.1:${port}/up`,
-        // Same upstream, target written with a trailing slash — the branch
+        // Same upstream, target written with a trailing slash, the branch
         // that slices it back off.
         '/two': `http://127.0.0.1:${port}/up/`,
         // Deliberately overlapping, `/pre` declared first. See the ordering
@@ -141,7 +141,7 @@ describe('ProxyHandler', () => {
    * `cookie` is the caller's session for *our* origin and `authorization` is
    * their bearer token; a proxy prefix aimed at any third party would post
    * both to it on every single request, with no way for the user to know and
-   * no way to revoke after the fact. `sec-fetch-site` goes too — it describes
+   * no way to revoke after the fact. `sec-fetch-site` goes too: it describes
    * the browser's relationship to *us*, and forwarding it invites the upstream
    * to treat a cross-site request as same-site.
    *
@@ -163,7 +163,7 @@ describe('ProxyHandler', () => {
     expect(received.headers['sec-fetch-site']).toBeUndefined()
 
     // Belt and braces: not merely absent under those names, but absent from
-    // the request entirely — a rename or a fold into some other header would
+    // the request entirely, a rename or a fold into some other header would
     // leak just as badly and would pass the three checks above.
     const all = JSON.stringify(received.headers)
     expect(all).not.toContain('SUPER_SECRET')
@@ -173,7 +173,7 @@ describe('ProxyHandler', () => {
   /**
    * `host` is the one that cannot be asserted as "absent": `fetch` always sets
    * it from the URL it is dialling. The property is that the value describes
-   * the *target*, not us — the handler deletes ours so fetch derives a fresh
+   * the *target*, not us: the handler deletes ours so fetch derives a fresh
    * one, and an upstream doing virtual-host routing therefore sees itself
    * rather than `caller.example`.
    */
@@ -186,7 +186,7 @@ describe('ProxyHandler', () => {
   /**
    * The other half of the stripping claim, and the half that makes it a
    * *targeted* strip rather than a blanket wipe. A proxy that dropped every
-   * header would be safe and useless — content negotiation, tracing headers
+   * header would be safe and useless: content negotiation, tracing headers
    * and the user agent all have to survive.
    */
   test('every other header survives', async () => {
@@ -204,8 +204,8 @@ describe('ProxyHandler', () => {
   })
 
   /**
-   * Regression for `cb5a379`. The query string is not part of `path` — the
-   * router hands handlers a pathname — so it has to be read back off the
+   * Regression for `cb5a379`. The query string is not part of `path` (the
+   * router hands handlers a pathname), so it has to be read back off the
    * request, and it was once simply lost. A proxied API with pagination or a
    * search term silently returned the unfiltered first page.
    */
@@ -240,7 +240,7 @@ describe('ProxyHandler', () => {
   })
 
   /**
-   * Pinning current behaviour, which is **first match in declaration order**,
+   * Pinning current behavior, which is **first match in declaration order**,
    * not longest match: the loop `break`s on the first `startsWith` hit and
    * `Object.entries` is insertion order. So `/pre/deep/x` is served by `/pre`
    * and the more specific entry never runs.
@@ -256,7 +256,7 @@ describe('ProxyHandler', () => {
 
   test('a path no prefix matches is a 404 rather than a blind fetch', async () => {
     // `handle` is normally only reached after `canHandle`, but it is a public
-    // static and must fail closed on its own — no `proxyUrl` means no request
+    // static and must fail closed on its own: no `proxyUrl` means no request
     // leaves the process.
     seen = null
     const res = await ProxyHandler.handle(

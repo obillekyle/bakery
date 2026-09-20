@@ -4,7 +4,7 @@ import { Field } from './field'
 /**
  * The runtime object, widened.
  *
- * `TableDef` now describes what a column *is* — `type` is the row type — while
+ * `TableDef` now describes what a column *is* (`type` is the row type), while
  * the object it builds still carries the dialect name there for the adapters.
  * The two are deliberately different, so an assertion about the runtime shape
  * has to say it is reading the runtime shape.
@@ -15,8 +15,7 @@ const shape = (d: unknown) => ({ ...(d as Record<string, unknown>) })
  * The exact objects each builder emits.
  *
  * These used to be written as "`Field` is `value()` with names", comparing each
- * builder against the primitive it wrapped. `Field` now *is* the primitive —
- * `value`/`primary`/`index`/`unique`/`foreign` are gone — so there is nothing
+ * builder against the primitive it wrapped. `Field` now *is* the primitive ( * `value`/`primary`/`index`/`unique`/`foreign` are gone), so there is nothing
  * left to compare against and the assertions are the literal shapes instead.
  * That is the stronger form anyway: the sync engine and the type inference
  * consume these objects directly, so their exact keys are the contract.
@@ -58,7 +57,7 @@ describe('Field emits plain column descriptors', () => {
     // Cast on the *expectation*, not the builder: `TableDef` omits `default`
     // from its type when the default is null (the column is nullable instead),
     // so the literal is wider than the computed type even though the runtime
-    // objects match — which is exactly what this asserts.
+    // objects match, which is exactly what this asserts.
     expect(shape(Field.String(null))).toEqual({
       type: 'string',
       default: null,
@@ -103,7 +102,7 @@ describe('Field emits plain column descriptors', () => {
 
   test('BigInt and Json are their own types, not aliases of string', () => {
     // If either collapsed back into an existing type, the adapters would emit
-    // one column type and read another back — a rebuild on every sync.
+    // one column type and read another back: a rebuild on every sync.
     expect(shape(Field.BigInt())).toEqual({ type: 'bigint' } as any)
     expect(shape(Field.Json())).toEqual({ type: 'json' } as any)
     expect(shape(Field.Json(true))).toEqual({

@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { applyJournalMode } from './shared-db'
 
 /**
- * The journal mode used to be chosen by platform — `DELETE` on win32, `WAL`
- * everywhere else — with no recorded reason. These pin the replacement: try
+ * The journal mode used to be chosen by platform (`DELETE` on win32, `WAL`
+ * everywhere else), with no recorded reason. These pin the replacement: try
  * WAL, detect a refusal, fall back.
  *
  * Both assertions fail against the rule they replace. On win32 the first one
@@ -29,7 +29,7 @@ describe('journal mode', () => {
     const db = new Database(`${dir}/wal.db`)
     try {
       expect(applyJournalMode(db, `${dir}/wal.db`)).toBe('wal')
-      // Not just the return value — what the database is actually running.
+      // Not just the return value: what the database is actually running.
       const live = db
         .query<{ journal_mode: string }, []>('PRAGMA journal_mode;')
         .get()
@@ -47,7 +47,7 @@ describe('journal mode', () => {
     try {
       const mode = applyJournalMode(db, ':memory:')
       expect(mode).not.toBe('wal')
-      // The value returned is the effective mode, not the requested one — a
+      // The value returned is the effective mode, not the requested one, a
       // log line naming a mode the database is not running would be worse
       // than no line.
       const live = db

@@ -22,7 +22,7 @@ const dynamicCaches = new Map<any, HandlerCache<RegExp, Route.Info>>()
  *
  * The suffix makes Bun's module registry treat every edit as a new module,
  * which is what lets an edited route (a `.ts` API handler, a `.tsx` page) take
- * the cheap dev path — route-cache flush plus browser reload — instead of the
+ * the cheap dev path (route-cache flush plus browser reload) instead of the
  * full process restart it used to force. It also costs a stat and a string
  * alloc per request and permanently retains each superseded module: acceptable
  * in DEV, pure waste in PROD where route files cannot change. So PROD imports
@@ -31,7 +31,7 @@ const dynamicCaches = new Map<any, HandlerCache<RegExp, Route.Info>>()
  * operationally since PROD runs no watcher.
  *
  * `&& !TEST` is load-bearing: `init.ts` defaults `PROD` to true whenever
- * `--dev` is absent, and `bun test` loads init via the CLI package's tests — so
+ * `--dev` is absent, and `bun test` loads init via the CLI package's tests, so
  * a bare `PROD` gate flipped mid-suite and broke the reload tests in files
  * loaded after it, while passing in isolation.
  *
@@ -40,8 +40,8 @@ const dynamicCaches = new Map<any, HandlerCache<RegExp, Route.Info>>()
  * `docs/getting-started/first-app.md`.
  *
  * One implementation on purpose. `ApiHandler` and `TSXHandler`/`TSXErrorHandler`
- * both need it, and they carried a byte-identical copy each — including this
- * reasoning — which is two places for the `!TEST` clause to be dropped from.
+ * both need it, and they carried a byte-identical copy each (including this
+ * reasoning), which is two places for the `!TEST` clause to be dropped from.
  */
 export function bustInDev(file: fs.AbsolutePath): fs.AbsolutePath {
   if (import.meta.env.PROD && !import.meta.env.TEST) return file
@@ -58,7 +58,7 @@ export class DynamicHandler extends Handler {
   }
 
   static get dynamicCache(): HandlerCache<RegExp, Route.Info> {
-    // Same per-class Map pattern as `Handler.cache` — see the comment there.
+    // Same per-class Map pattern as `Handler.cache`. See the comment there.
     let cache = dynamicCaches.get(this)
     if (!cache) {
       cache = new HandlerCache()
@@ -88,7 +88,7 @@ export class DynamicHandler extends Handler {
     if (this.cache.has(hostKey(path))) return true
     // The dynamic half of the line above. A dynamic route is never written to
     // `this.cache`, so without this every request to one ran `resolveRoute`
-    // twice — once here and once in `handle` — and each run is two globbing
+    // twice (once here and once in `handle`), and each run is two globbing
     // `getRoute` scans. `findDynamicRoute` is a regex test per cached route
     // plus one stat for the match, and a hit here implies `resolveRoute` is
     // about to be truthy too: it consults the same cache and returns that
@@ -107,7 +107,7 @@ export class DynamicHandler extends Handler {
     // A broken route module is a server fault, not a missing route: `null`
     // means 404 to every caller, so after logging the file for context the
     // failure is rethrown. `extractErrorData` turns the throw into a 500 whose
-    // `errorBody` carries the stack — shown in DEV, redacted by `publicBody`
+    // `errorBody` carries the stack: shown in DEV, redacted by `publicBody`
     // in PROD. Only the genuinely-missing cases below return null.
     const [error, mod] = await Try.catch(import(file))
     if (error) {
@@ -137,13 +137,13 @@ export class DynamicHandler extends Handler {
       // Cheapest filter first. `valid` is a stat and `isForbidden` walks every
       // directory between the file and the root doing an existsSync at each
       // level, and both ran for every cached route before anything asked
-      // whether the route even matched the path — so a miss cost one tree-walk
+      // whether the route even matched the path, so a miss cost one tree-walk
       // per entry and a hit cost one per entry ahead of the match. The regex is
       // pure and all four filters still `continue`, so a matching-but-rejected
       // entry does not shadow a later one; `$dynamic.test.ts` pins that.
       if (!info.getParams(path)) continue
       // Every single-segment route outranks every catch-all, whatever order
-      // the cache filled in — so catch-alls are set aside, and their stat and
+      // the cache filled in, so catch-alls are set aside, and their stat and
       // tree-walk filters run only after the loop finds no specific match.
       if (info.catchAll) {
         ;(deferred ??= []).push(info)
@@ -151,20 +151,20 @@ export class DynamicHandler extends Handler {
       }
       if (!info.valid) continue
       // `filePath` is already `fs.resolve`d by the Info constructor; resolving
-      // it again here re-normalised an identical string.
+      // it again here re-normalized an identical string.
       if (!info.filePath!.startsWith(`${root}/`)) continue
       if (fs.isForbidden(info.filePath!, root)) continue
       return info
     }
     if (deferred) {
       // A real file always beats a catch-all, whatever handler would serve
-      // it: when the requested path names an existing file — literally, or
+      // it: when the requested path names an existing file, literally, or
       // through a compiled extension like `provides.ts` at `/provides.js`
-      // (see `servedSourceExists`) — every catch-all declines so the file's
-      // own handler (possibly lower-priority — CSS falls all the way to
+      // (see `servedSourceExists`) (every catch-all declines so the file's
+      // own handler (possibly lower-priority) CSS falls all the way to
       // StaticHandler) gets asked. A handful of stats, paid only when a
       // catch-all is about to answer. `getCatchAllRoute` applies the same
-      // rule on the discovery path; the two must agree — including the
+      // rule on the discovery path; the two must agree, including the
       // containment clamp: `root + path` is unresolved, so a `..` in the
       // path would have `statSync` resolve it outside the root and turn this
       // into an existence probe. See the comment there.
@@ -219,7 +219,7 @@ export class DynamicHandler extends Handler {
    *
    * The deny-list is matched against the *request path* in `router.ts`, but
    * `routeGlobs` deliberately answers a request with a file of a different
-   * extension — `/schema.css` and `/schema` both resolve to `schema.ts` via
+   * extension: `/schema.css` and `/schema` both resolve to `schema.ts` via
    * stem+ext substitution. So the router's check was being asked about a
    * string that named no file: it said "not blocked", and `TSHandler`
    * compiled and served the very file the default list exists to protect.
@@ -228,7 +228,7 @@ export class DynamicHandler extends Handler {
    *
    * Re-running the check against what actually resolved is the fix. It is
    * gated on `servesFiles` so route-only handlers keep their exemption, and
-   * it wraps every branch — cached, static, dynamic, catch-all — rather than
+   * it wraps every branch (cached, static, dynamic, catch-all), rather than
    * each return point, so a future branch cannot forget it.
    */
   static resolveRoute(path: string): Promise<Route.Info | null>
@@ -237,7 +237,7 @@ export class DynamicHandler extends Handler {
   }
 
   /**
-   * Resolve `path` to a **literal file only** — never a dynamic or catch-all
+   * Resolve `path` to a **literal file only**, never a dynamic or catch-all
    * match.
    *
    * For the error handlers, which look up `error` and `error-<code>` pages by
@@ -251,7 +251,7 @@ export class DynamicHandler extends Handler {
    * matched.
    *
    * **And it was most of the cost of a 404.** `DynamicErrorHandler` walks the
-   * path prefixes, so a miss ran two full resolutions per segment — each one a
+   * path prefixes, so a miss ran two full resolutions per segment: each one a
    * glob scan plus an `isForbidden` tree-walk, and each one guaranteed to fail
    * for an app with no error pages. That is why a 404 cost ten to thirty times
    * a served page and grew with depth: 64 segments measured at over ten
@@ -308,14 +308,14 @@ export class DynamicHandler extends Handler {
     }
 
     // A literal file was all that was asked for. The dynamic passes below are
-    // not merely skipped as an optimization — for an error page they would be
+    // not merely skipped as an optimization: for an error page they would be
     // wrong, and `resolveStaticRoute` says why.
     if (staticOnly) return null
 
     // `findDynamicRoute` already required `valid` and `!isForbidden` against
     // `Bakery.serveRoot` before returning, so wrapping it in
-    // `validateCachedRoute` — which asserts exactly those two, against exactly
-    // that root — re-ran a stat and a directory tree-walk on a value that had
+    // `validateCachedRoute` (which asserts exactly those two, against exactly
+    // that root) re-ran a stat and a directory tree-walk on a value that had
     // just passed both, and its eviction branch was unreachable from here.
     // `getCachedRoute` still needs the wrapper; entries read from `this.cache`
     // have not been checked.

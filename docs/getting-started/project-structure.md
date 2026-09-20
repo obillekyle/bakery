@@ -15,7 +15,7 @@ notes/
   server.config.ts      optional; `root` is the only option most apps set
   tsconfig.json         extends @bakery-framework/core/tsconfig.server.json
   orm/
-    tables.ts           table() declarations — the generator owns this file
+    tables.ts           table() declarations: the generator owns this file
     views.ts            view() declarations
     indexes.ts          Field.Index() / Field.Unique() declarations
     index.ts            re-exports the three + the schema type registration
@@ -35,7 +35,7 @@ notes/
 ```
 
 This is what `bun create bakery` writes, minus the routes added to illustrate
-resolution. Only `package.json` is strictly required — with no
+resolution. Only `package.json` is strictly required, with no
 `server.config.ts` at all the app still boots on the defaults.
 
 ## The roots, and where they come from
@@ -47,7 +47,7 @@ working directory, and `root` in `server.config.ts`. All of it lives on the
 
 | Name | Value | Meaning |
 | --- | --- | --- |
-| `Bakery.root` | `process.cwd()` | the app directory — **run the CLI from here** |
+| `Bakery.root` | `process.cwd()` | the app directory: **run the CLI from here** |
 | `Bakery.serveRoot` | `config.root`, default `src` | the only directory routes are resolved in |
 | `Bakery.apiRoot` | `<serveRoot>/api` | JSON endpoints |
 | `Bakery.publicRoot` | `<cwd>/public` | served at `/uploads/`, outside the serve root |
@@ -65,7 +65,7 @@ is a different thing entirely.
 
 **The precious directory is the visible one.** The framework deletes `.cache/`
 wholesale on every version bump and dev/production switch, so the data lives
-where a `rm -rf .*` — or a "clean the dotfiles" habit — cannot reach it.
+where a `rm -rf .*` (or a "clean the dotfiles" habit) cannot reach it.
 
 Because everything resolves against `process.cwd()`, running the CLI from
 somewhere other than the app directory silently gives you a different app. A
@@ -85,7 +85,7 @@ and path. Resolution runs in three stages
 3. **Dynamic segment.** Failing that, a `[param].<ext>` file at that level.
 
 Static always beats dynamic, at every level. `src/blog/existing.tsx` wins over
-`src/blog/[id].tsx` for `/blog/existing` — you do not have to order anything.
+`src/blog/[id].tsx` for `/blog/existing`: you do not have to order anything.
 
 The extension a stage looks for depends on which handler is asking, and handlers
 are tried in priority order:
@@ -102,7 +102,7 @@ So a `.tsx` and an `.html` at the same route name both resolve, and the `.tsx`
 wins. The full table, including the asset and middleware bands, is in
 [Architecture](../reference/architecture.md).
 
-Extensionless URLs are the norm — `/about` serves `about.html` — but an explicit
+Extensionless URLs are the norm: `/about` serves `about.html`, but an explicit
 extension works too. `TSHandler` additionally strips a trailing `.js`, so
 `src/script.ts` is reachable at both `/script.ts` and `/script.js`
 ([packages/core/src/handlers/assets/ts.ts](../../packages/core/src/handlers/assets/ts.ts)).
@@ -112,7 +112,7 @@ Details of dynamic segments, mounts and proxying live in
 
 ## Error pages
 
-`error.html`, `error.tsx`, `error-404.html`, `error-500.tsx` — the name encodes
+`error.html`, `error.tsx`, `error-404.html`, `error-500.tsx`: the name encodes
 the scope. Lookup walks *up* from the requested path, and at each level tries
 `error-<code>` before the generic `error`
 ([packages/core/src/handlers/core/$error.ts](../../packages/core/src/handlers/core/$error.ts)).
@@ -126,10 +126,10 @@ src/error-404           → src/error
 ```
 
 Then the framework's built-in page. Errors under `/api/` never reach any of
-this — `ApiErrorHandler` returns the JSON envelope with the right status code.
+this: `ApiErrorHandler` returns the JSON envelope with the right status code.
 
 Custom HTML and TSX error pages are served with the real error status:
-`applyErrorStatus` stamps the error's code (400–599) onto the rendered response
+`applyErrorStatus` stamps the error's code (400 to 599) onto the rendered response
 ([packages/core/src/router.ts](../../packages/core/src/router.ts)), so an
 `error-404.html` answers with a 404, not a 200.
 
@@ -146,8 +146,8 @@ directory rather than from wherever the URL points
 
 Beyond those, `/_*` and `/api/_*` belong to the framework and its plugins, and
 `__bakery.` prefixes framework session keys. A file of yours at one of those
-paths is unreachable. The complete list of what is claimed today — core and each
-bundled plugin — is in
+paths is unreachable. The complete list of what is claimed today (core and each
+bundled plugin) is in
 [Routing → Reserved paths](../guides/routing.md#reserved-paths); it is kept in
 one place so it cannot drift.
 
@@ -163,18 +163,18 @@ patterns themselves are written out once, in
 [Server config → Blocked paths](../configuration/server-config.md#blocked-paths).
 
 `blocked` in `server.config.ts` **appends** to that list; it cannot shorten it.
-A per-host `blocked` behaves slightly differently — it replaces the app-level
-additions while still inheriting every default — which is covered in
+A per-host `blocked` behaves slightly differently (it replaces the app-level
+additions while still inheriting every default), which is covered in
 [Static assets](../guides/static-assets.md#what-is-never-served).
 
 The check is on the **request path**, applied after routing and only to the
-handlers that serve files off disk — middleware, the proxy and the API handler
+handlers that serve files off disk: middleware, the proxy and the API handler
 are exempt, because for them a path is a route name, not a file
 ([packages/core/src/router.ts](../../packages/core/src/router.ts)). So
 `/api/manifest.json` routes normally, while `/package.json` is a 403 from every
 file-serving handler. Case and Win32 trailing-dot variants are folded before
 matching, so `/PACKAGE.JSON` is refused too. There is deliberately no blanket
-`*.json` ban — a `manifest.json` or `.well-known` document under `src/` is
+`*.json` ban, a `manifest.json` or `.well-known` document under `src/` is
 servable; only the named project files are protected.
 
 Traversal is checked separately: a resolved path must sit inside the root it was
@@ -187,13 +187,13 @@ containing a `.forbidden` marker file
 The ORM probes the app's cwd, in order
 ([packages/orm/src/sync/load.ts](../../packages/orm/src/sync/load.ts)):
 
-1. `schema` in `server.config.ts`, if set — a file or a folder.
-2. `orm/index.ts` — the folder layout.
-3. `schema.ts` — the single-file layout.
+1. `schema` in `server.config.ts`, if set: a file or a folder.
+2. `orm/index.ts`: the folder layout.
+3. `schema.ts`: the single-file layout.
 
 Absence is fine: everything runs and typechecks with no schema at all, and the
 ORM is simply untyped. But a **configured** path that does not exist is a hard
-error that exits 1, deliberately — a silent fallback on a typo would have the
+error that exits 1, deliberately: a silent fallback on a typo would have the
 generator write a fresh schema at the wrong path while your real model sat
 untouched somewhere else.
 
@@ -207,7 +207,7 @@ hand-written declarations survive.
 
 Both are gitignored and neither should be committed.
 
-**`.cache/`** — safe to delete at any time:
+**`.cache/`**: safe to delete at any time:
 
 | Subdirectory | Contents |
 | --- | --- |
@@ -223,12 +223,12 @@ Both are gitignored and neither should be committed.
 That last file is the invalidation key: on boot, if any of the three differs from
 the current process, the cache directory is emptied and recreated
 ([packages/core/src/core/cache-version.ts](../../packages/core/src/core/cache-version.ts)).
-The wipe is per entry and the marker is rewritten **only if nothing survived** —
+The wipe is per entry and the marker is rewritten **only if nothing survived**:
 a success marker written after a partial delete is what once turned a retryable
 problem into a permanent one, because the next boot then believed the cache was
 current.
 
-**`bakery/`** — not disposable:
+**`bakery/`**, not disposable:
 
 | Path | Contents |
 | --- | --- |
@@ -247,7 +247,7 @@ The consequence is that even an app with no ORM creates a `bakery/` directory.
 
 ```
 packages/
-  core/src/            @bakery-framework/core — no runtime dependencies
+  core/src/            @bakery-framework/core: no runtime dependencies
     startup.ts         registry population + the startup banner
     router.ts          handleRequest / handleRequestError / processResponse
     handlers/          every request surface, as a Handler subclass
@@ -256,8 +256,8 @@ packages/
     utils/             server-side helpers (http/, fs, common/)
     client/            the browser runtime
     cache/  logger/  compiler/  plugins/
-  orm/src/             @bakery-framework/orm — adapters/, orm/, sync/, backup
-  cli/src/             @bakery-framework/cli — the `bakery` bin and mode dispatch
+  orm/src/             @bakery-framework/orm (adapters/, orm/, sync/, backup
+  cli/src/             @bakery-framework/cli) the `bakery` bin and mode dispatch
   plugins/{vue,analytics,dashboard,db-explorer}/
 apps/
   example/             the bundled demo and end-to-end target
@@ -273,6 +273,6 @@ from `@bakery-framework/core`, `@bakery-framework/orm` and `@bakery-framework/pl
 
 ## Next
 
-- [Routing](../guides/routing.md) — dynamic segments and priority in full.
-- [server.config.ts](../configuration/server-config.md) — every option.
-- [Architecture](../reference/architecture.md) — the request pipeline.
+- [Routing](../guides/routing.md): dynamic segments and priority in full.
+- [server.config.ts](../configuration/server-config.md), every option.
+- [Architecture](../reference/architecture.md): the request pipeline.

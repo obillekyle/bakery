@@ -3,7 +3,7 @@
  *
  * Split out of `index.ts` so it can be tested: that file is the mode
  * dispatcher, and importing it boots a server. Nothing here reads
- * `process.argv` — the caller passes the slice, which is also what lets a test
+ * `process.argv`: the caller passes the slice, which is also what lets a test
  * state the argv it means.
  */
 
@@ -35,7 +35,7 @@ export function autoThreadCount(): number {
  * `handleThreadsMaster` with one worker.
  *
  * Both spellings of each flag are accepted (`--threads 4`, `--threads=4`, and
- * the `-t` forms). A flag with a non-numeric or absent value is not an error —
+ * the `-t` forms). A flag with a non-numeric or absent value is not an error:
  * it falls back to `autoThreadCount()`, so `--threads --dev` asks for the
  * default rather than rejecting. `Math.max(1, …)` is what keeps `--threads 0`
  * from requesting a cluster with no workers in it.

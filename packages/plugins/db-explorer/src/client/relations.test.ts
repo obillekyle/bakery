@@ -54,7 +54,7 @@ describe('grouping the graph by direction', () => {
   test('a snake_case table still matches a camelCased graph entry', () => {
     // `getForeignKeys()` reports raw names and `getConstraints()` camel-cases;
     // comparing literally makes every foreign key on a snake_case schema
-    // invisible — the whole feature silently absent.
+    // invisible: the whole feature silently absent.
     const relations = relationsFor(
       graph({ one: fk({ table: 'orderItems', refTable: 'productLines' }) }),
       'order_items',
@@ -110,7 +110,7 @@ describe('grouping the graph by direction', () => {
   })
 
   test('no graph is two empty lists, not a throw', () => {
-    // The graph is decoration — a fetch failure must not cost anyone the view.
+    // The graph is decoration: a fetch failure must not cost anyone the view.
     expect(relationsFor(null, 'parcels')).toEqual({
       outgoing: [],
       incoming: [],

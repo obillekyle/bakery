@@ -17,7 +17,7 @@ import { evalOperands, isSafeIdentifier, SQLFunctionRef } from './schema-util'
 /**
  * The runtime object, widened.
  *
- * `TableDef` now describes what a column *is* — `type` is the row type — while
+ * `TableDef` now describes what a column *is* (`type` is the row type), while
  * the object it builds still carries the dialect name there for the adapters.
  * The two are deliberately different, so an assertion about the runtime shape
  * has to say it is reading the runtime shape.
@@ -148,7 +148,7 @@ describe('value', () => {
   test('marks autoIncrement and primary together', () => {
     // Only `Field.Primary()` sets either, and it sets both. They were separate
     // positional booleans on the old `value()`, which is how a column could be
-    // auto-increment without being a key — a shape no dialect wants.
+    // auto-increment without being a key: a shape no dialect wants.
     const def: any = Field.Primary()
     expect(def.autoIncrement).toBe(true)
     expect(def.primary).toBe(true)
@@ -161,7 +161,7 @@ describe('value', () => {
  * This began as a regression guard for `value(type, default, false)`: the check
  * was `n !== undefined`, so *any* third argument made the column nullable,
  * including an explicit `false` that reads as the opposite. That spelling no
- * longer exists — `Field` has no positional booleans — so the bug is now
+ * longer exists (`Field` has no positional booleans), so the bug is now
  * unreachable rather than merely fixed.
  *
  * The invariant it protected is still live and still worth pinning, because
@@ -210,8 +210,8 @@ describe('a default does not make a column nullable', () => {
 
 describe('primary', () => {
   test('creates integer auto-increment primary key', () => {
-    // `shape()` because `def.type` is declared as the *row* type now — `number`
-    // — while the object carries the dialect name the adapters read.
+    // `shape()` because `def.type` is declared as the *row* type now (`number`
+    //), while the object carries the dialect name the adapters read.
     const def = shape(Field.Primary())
     expect(def.type).toBe('integer')
     expect(def.autoIncrement).toBe(true)
@@ -219,8 +219,8 @@ describe('primary', () => {
   })
 
   test('carries no nullable flag', () => {
-    // Harmless in practice — `colDef` and `diffColumnMismatch` both short-circuit
-    // on `primary` — but it made the runtime value contradict the type, and it
+    // Harmless in practice (`colDef` and `diffColumnMismatch` both short-circuit
+    // on `primary`), but it made the runtime value contradict the type, and it
     // was the same defect as above with a different argument.
     expect('nullable' in Field.Primary()).toBe(false)
   })

@@ -10,7 +10,7 @@ import { omittableOnInsert } from './shared/coerce'
 /**
  * `describeIdentity` takes the shapes the adapter reports, camel-cased keys and
  * all, so these fixtures are written the way `getConstraints()` and
- * `getIndexes()` actually spell them — which is the trap the function exists to
+ * `getIndexes()` actually spell them, which is the trap the function exists to
  * absorb, and would be hidden by a fixture that pre-resolved the names.
  */
 
@@ -98,7 +98,7 @@ describe('unique indexes, when there is no primary key', () => {
 
   test('a nullable column disqualifies its index', () => {
     // `NULL = NULL` is unknown, so the predicate would match no row and every
-    // update would report zero changes — indistinguishable from a conflict.
+    // update would report zero changes: indistinguishable from a conflict.
     const identity = describeIdentity(
       table({
         columns: ['address'],
@@ -153,7 +153,7 @@ describe('unique indexes, when there is no primary key', () => {
 
   test('camel-colliding columns are refused, never resolved to the wrong one', () => {
     // `user_id` and `userId` camel-case alike. The retired camel→raw map was
-    // first-wins, so a unique index over `userId` resolved to `user_id` — a
+    // first-wins, so a unique index over `userId` resolved to `user_id`: a
     // write predicate over the *wrong column*, silently updating rows the
     // caller never addressed. With the adapter's `rawCols` the indexed column
     // is named exactly: `userId`, which `isAddressable` then refuses because
@@ -232,7 +232,7 @@ describe('no identity at all', () => {
 
 describe('addressability', () => {
   test('an identifier qId would rewrite is refused rather than guessed at', () => {
-    // `qId` snake-cases before quoting, so `Orders` is written as `orders` —
+    // `qId` snake-cases before quoting, so `Orders` is written as `orders`:
     // a different object on a case-sensitive MySQL install.
     expect(isAddressable('parcel_legs')).toBe(true)
     expect(isAddressable('id')).toBe(true)
@@ -256,13 +256,13 @@ describe('addressability', () => {
 /**
  * `hasDefault` decides, through `omittableOnInsert`, whether the insert form
  * may leave a column out. It was `'default' in constraint`, which reads like
- * the careful choice — `DEFAULT NULL` is a real default and is filed as
+ * the careful choice: `DEFAULT NULL` is a real default and is filed as
  * `default: null`, so testing for the key's presence looks right.
  *
  * It is wrong because `parseConstraints` writes `default` on **every** column.
  * So `hasDefault` was true for all of them, `omittableOnInsert` became
  * `true` unconditionally, and the insert dialog would offer to omit a NOT NULL
- * column with no default — leaving the database to refuse what the form had
+ * column with no default: leaving the database to refuse what the form had
  * every fact needed to refuse itself.
  *
  * Caught by opening the page and reading the Structure view, where every column

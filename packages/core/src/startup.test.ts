@@ -7,7 +7,7 @@ import { __resetPluginSetup, setupPlugins } from './startup'
  *
  * Two call sites both ran it: the CLI entry (`cli/dev.ts` / `cli/prod.ts`) and
  * `setupServer()`. Handler and mount registration is idempotent, which is why
- * nobody noticed — but the analytics plugin registers a shutdown hook and calls
+ * nobody noticed, but the analytics plugin registers a shutdown hook and calls
  * `loadAnalyticsData()` from `setup()`, so it got two of each. Both call sites
  * are legitimate: the entries must run before `initImportMap()`, and
  * `setupServer()` must run because a cluster worker starts at `cli/worker.ts`

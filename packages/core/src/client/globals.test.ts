@@ -11,29 +11,29 @@ import { randomId } from './utils'
  * Compile-time pins for the browser globals declared in `globals.d.ts`.
  *
  * That file used to hand-write each global's shape, and four of them had
- * drifted from the implementation — silently, because a `.d.ts` restating a
+ * drifted from the implementation: silently, because a `.d.ts` restating a
  * signature is never checked against the code it claims to describe. The
  * declarations are now `typeof import(...)` queries, and these pins are what
  * fails if anyone restates one by hand again.
  *
  * Most assertions here are type-level, exactly like `route-types.test.ts`: the
  * file failing to *typecheck* is the failure mode, which is why the negative
- * cases are `// @ts-expect-error` — if the error stops happening, tsc reports
+ * cases are `// @ts-expect-error`, if the error stops happening, tsc reports
  * the unused directive and the core typecheck goes red. The runtime block below
  * pins the one fact the types are derived from: `Try.throw` really is async.
  */
 
-// Never called — these exist to be typechecked, not run. The globals are bound
+// Never called: these exist to be typechecked, not run. The globals are bound
 // by `client/utils.ts` in a browser; this process has no `globalThis.Try`.
 //
 // Every probe goes through `globalThis.` deliberately. Writing bare `Try` here
 // would resolve to the import above and pin the *implementation*, which was
-// never in doubt — the drift was in the ambient declaration, so the ambient
+// never in doubt: the drift was in the ambient declaration, so the ambient
 // declaration is what has to be named.
 function _globalTypeProbes() {
   // --- Try.throw is always a Promise -----------------------------------------
 
-  // @ts-expect-error — tryThrow is `Promise.try(...).catch(...)`; there is no
+  // @ts-expect-error: tryThrow is `Promise.try(...).catch(...)`; there is no
   // synchronous overload, and the declaration used to claim one.
   const sync: number = globalThis.Try.throw(() => 1)
 
@@ -45,7 +45,7 @@ function _globalTypeProbes() {
   const called: string = globalThis.Case('kebab', 'someString')
   const method: string = globalThis.Case.kebab('someString')
 
-  // @ts-expect-error — 'shouty' is not a CaseType
+  // @ts-expect-error: 'shouty' is not a CaseType
   const badCase: string = globalThis.Case('shouty', 'x')
 
   // --- request takes an object init, not just (url, method, body) ------------
@@ -87,7 +87,7 @@ describe('browser globals match their implementations', () => {
     expect(Case('kebab', 'someString')).toBe(Case.kebab('someString'))
   })
 
-  test('randomId honours its length argument', () => {
+  test('randomId honors its length argument', () => {
     expect(randomId(16)).toHaveLength(16)
     expect(randomId()).toHaveLength(8)
   })

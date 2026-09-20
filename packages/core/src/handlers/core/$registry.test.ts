@@ -77,7 +77,7 @@ describe('HandlerMap', () => {
 })
 
 /**
- * `resolve` only awaits a `canHandle` that actually returned a promise — the
+ * `resolve` only awaits a `canHandle` that actually returned a promise: the
  * sync fast path. These pin the two branches and the argument flow the error
  * registry depends on.
  */

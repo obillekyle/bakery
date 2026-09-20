@@ -1,7 +1,7 @@
 /**
- * Canonicalising a view's `SELECT` so the two sides of the diff can be compared.
+ * Canonicalizing a view's `SELECT` so the two sides of the diff can be compared.
  *
- * A view body is compared as **text** — there is no parser here, and there will
+ * A view body is compared as **text**: there is no parser here, and there will
  * not be one. That works only if both sides are spelled the same way, and they
  * are not: you write
  *
@@ -12,7 +12,7 @@
  *     select `p`.`id` AS `id`,`p`.`name` AS `name` from `buzzy`.`users` `p` ...
  *
  * fully qualified, fully quoted, with every alias spelled out. Compare those
- * literally and the view is recreated on every single sync, forever — the same
+ * literally and the view is recreated on every single sync, forever: the same
  * perpetual-churn failure the column diff has hit twice.
  *
  * So everything here must hold two properties, and both are tested:
@@ -20,7 +20,7 @@
  * - **Idempotent**: `f(f(x)) === f(x)`.
  * - **Convergent**: `f(what you wrote) === f(what the server returns)`.
  *
- * Which is why this only removes *noise* — quoting, schema qualification,
+ * Which is why this only removes *noise*: quoting, schema qualification,
  * redundant aliases, whitespace. It never reorders, rewrites or reflows
  * anything semantic, because a transformation the server would not also produce
  * is one that makes the two sides differ rather than agree.
@@ -28,7 +28,7 @@
 
 /**
  * Words that must keep their quoting: unquoting one turns an identifier into
- * syntax. Deliberately small — it only has to cover words a column or table is
+ * syntax. Deliberately small: it only has to cover words a column or table is
  * plausibly *named* after, since anything else was never quoted to begin with.
  */
 const RESERVED = new Set([
@@ -98,7 +98,7 @@ function unquoteIdentifiers(sql: string): string {
  * Drop `db.` from `db.table`, for the database the view lives in.
  *
  * MySQL qualifies every table in a stored view with the schema it was created
- * in, so the body carries a hard-coded database name — and the same schema
+ * in, so the body carries a hard-coded database name, and the same schema
  * deployed against a differently-named database would then compare unequal and
  * be recreated forever. It is also simply wrong to write down: the view already
  * lives in that database.
@@ -116,7 +116,7 @@ function stripOwnSchema(sql: string, database?: string): string {
  * `x AS x` is what MySQL writes for every selected column. It says nothing, and
  * you would not have typed it.
  *
- * Matched on the *last* segment so `p.id AS id` collapses too — the qualifier
+ * Matched on the *last* segment so `p.id AS id` collapses too: the qualifier
  * is part of where the value comes from, not of what the output column is
  * called.
  */
@@ -140,7 +140,7 @@ export function normalizeViewBody(sql: string, database?: string): string {
   out = dropRedundantAliases(out)
   // Qualifier removal can leave `from  products`; alias removal can leave a
   // doubled space too. Collapse once more so the result is stable under a
-  // second pass — which is what makes this idempotent.
+  // second pass, which is what makes this idempotent.
   return out.replace(/\s+/g, ' ').trim()
 }
 
@@ -148,7 +148,7 @@ export function normalizeViewBody(sql: string, database?: string): string {
  * The same body, broken across lines for a generated file.
  *
  * Safe only because the comparison collapses whitespace before comparing: this
- * adds newlines and nothing else, so a normalised pretty body and a normalised
+ * adds newlines and nothing else, so a normalized pretty body and a normalized
  * canonical one are the same string.
  */
 export function formatViewBody(sql: string, database?: string): string {

@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path'
  *
  * Written as shared code on the day the second caller appeared rather than
  * deduplicated afterwards, because the alternative is two implementations of
- * one boot sequence that drift — and a drift here is invisible, since both
+ * one boot sequence that drift, and a drift here is invisible, since both
  * copies would still report green while testing different things.
  *
  * **Production, not `--dev`, and that is the whole point.** CLAUDE.md has
@@ -32,7 +32,7 @@ export interface AppServer {
  * schema before serving".
  *
  * Without it these tests depend on a database somebody happened to leave
- * behind. `apps/<app>/bakery/` is gitignored, so CI starts with none at all — and
+ * behind. `apps/<app>/bakery/` is gitignored, so CI starts with none at all, and
  * production does not sync (only the dev worker does), which is how
  * `apps/starter` reached today answering 500 on `/api/notes` with `no such
  * table: posts` while every gate stayed green. The example app looked fine

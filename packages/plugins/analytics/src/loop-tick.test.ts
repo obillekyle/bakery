@@ -70,7 +70,7 @@ describe('the in-progress aggregation survives a restart', () => {
     const grew = saved.temp1h.count - before
     expect(grew).toBeGreaterThan(0)
 
-    // Serialised, because a JSON column in the `core` row is what holds it.
+    // Serialized, because a JSON column in the `core` row is what holds it.
     const roundTripped = JSON.parse(JSON.stringify(saved))
 
     core.loadTemps({ temp1h: { ...roundTripped.temp1h, count: 7, routeHits: 9 } })

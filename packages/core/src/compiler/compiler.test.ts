@@ -39,8 +39,8 @@ describe('compileText', () => {
  * A compile failure has to survive the trip back to the handler.
  *
  * The pathless branch has always caught the transpiler and logged
- * `COMPILE_SOURCE_FAIL`; the branch *with* a path — the one every `.ts` asset
- * request takes — did not, so the throw escaped `compile()` and unwound past
+ * `COMPILE_SOURCE_FAIL`; the branch *with* a path: the one every `.ts` asset
+ * request takes: did not, so the throw escaped `compile()` and unwound past
  * `TSHandler` into the worker's catch-all. The developer got
  * `Unhandled Server Error: Expected identifier but found end of file`: no file,
  * no line, and a body of `An unexpected error occurred.` Meanwhile
@@ -49,17 +49,17 @@ describe('compileText', () => {
  */
 const BROKEN_ROOT = fs.resolve(process.cwd(), '.cache/__compiler-test__')
 
-describe('compileText — a failure with a path in hand', () => {
+describe('compileText: a failure with a path in hand', () => {
   test('returns null instead of throwing past the caller', async () => {
     const path = fs.resolve(BROKEN_ROOT, 'broken.ts') as fs.AbsolutePath
 
-    // Not `expect(...).rejects` — the point is that it resolves.
+    // Not `expect(...).rejects`: the point is that it resolves.
     const result = await compileText('export default function ( {', path)
     expect(result).toBeNull()
   })
 
   test('a source string with no path still resolves', async () => {
-    // Unchanged behaviour, pinned so the two branches cannot diverge again:
+    // Unchanged behavior, pinned so the two branches cannot diverge again:
     // pathless compiles return the original source.
     const result = await compileText('export default function ( {')
     expect(result).toBe('export default function ( {')
@@ -80,7 +80,7 @@ describe('compileText — a failure with a path in hand', () => {
 /**
  * A bundle that is nothing but an export list names bindings that were never
  * declared, so every one of them is a `ReferenceError` the moment the browser
- * evaluates it — and `Bun.build` reports it as `success: true` with zero
+ * evaluates it, and `Bun.build` reports it as `success: true` with zero
  * diagnostics.
  *
  * Found on `@vue-material/core@1.0.0-alpha.28`, whose barrel re-exports ~200
@@ -123,7 +123,7 @@ describe('isEmptyExportList', () => {
  *
  * The fixture is a real package in a real `node_modules`, because the bug keys
  * on the entry being *inside* a package whose manifest declares
- * `sideEffects: false` — nothing reproduces it from a loose file. `sideEffects`
+ * `sideEffects: false`, nothing reproduces it from a loose file. `sideEffects`
  * is the only difference between the two packages below, which is what makes
  * this a test of the mechanism rather than of one broken library.
  */
@@ -164,7 +164,7 @@ describe('bundleModule repairs a sideEffects tree-shake', () => {
     //
     // with a note saying that if Bun ever stopped producing the husk, this
     // test must fail rather than quietly assert nothing. On 2026-09-19 it
-    // failed, on `bun latest`, on both CI platforms — and re-running the last
+    // failed, on `bun latest`, on both CI platforms, and re-running the last
     // green commit unchanged against the same Bun failed identically, which is
     // what proved it was the runtime rather than the branch. 1.4.1's notes name
     // it: "an entry that only re-exports emitted `export { a }` with no
@@ -198,7 +198,7 @@ describe('bundleModule repairs a sideEffects tree-shake', () => {
     }
   })
 
-  test('the detector still recognises the husk Bun used to emit', () => {
+  test('the detector still recognizes the husk Bun used to emit', () => {
     // The repair is dormant on a fixed Bun, so this keeps the half that
     // decides whether to run it honest. The literal is the shape 1.4.0
     // produced for the fixture above: an export list with nothing behind it.
@@ -218,11 +218,11 @@ describe('bundleModule repairs a sideEffects tree-shake', () => {
 })
 
 /**
- * `compileText` does not rewrite imports — at all. It used to append `/index`
+ * `compileText` does not rewrite imports, at all. It used to append `/index`
  * to a relative import whose target was a directory, which was a regular
  * expression over transpiled JavaScript: the same class that once rewrote
  * bare specifiers inside string literals, corrupting user data. Both halves
- * of its removal are pinned — the handler resolves directory imports in every
+ * of its removal are pinned: the handler resolves directory imports in every
  * spelling (`ts.test.ts`), and the corruption case below fails against the
  * old code, because `./lib` really is a directory next to the file.
  */
@@ -253,7 +253,7 @@ describe('compileText leaves imports exactly as written', () => {
 
 /**
  * The CJS interop chain, in-repo. It was verified end to end against a
- * scratch app when it was built, but nothing in the suite exercised it — the
+ * scratch app when it was built, but nothing in the suite exercised it: the
  * static lexer, the subprocess probe, and the interop shim were all at 0%
  * coverage. These fixtures are the measured shapes from that session.
  */
@@ -301,7 +301,7 @@ describe('CJS interop', () => {
     await rm(CJS_ROOT, { recursive: true, force: true })
   })
 
-  test('isCjsDefaultOnly recognises the broken shape and only it', async () => {
+  test('isCjsDefaultOnly recognizes the broken shape and only it', async () => {
     const cjs = await Bun.build({
       entrypoints: [`${NM}/ledger-pkg/index.js`],
       target: 'browser',
@@ -343,10 +343,10 @@ describe('CJS interop', () => {
   })
 
   /**
-   * The interop has to fire in PROD too — and it did not, for as long as the
+   * The interop has to fire in PROD too, and it did not, for as long as the
    * wrapper check was `content.includes('__commonJS')`: minification
    * renames the helper, so named imports of CJS packages worked all through
-   * dev and broke only in the deployed app. Found by an ordering flake — a
+   * dev and broke only in the deployed app. Found by an ordering flake: a
    * handlers test left PROD set and the static-shape test above met a
    * minified bundle for the first time.
    */

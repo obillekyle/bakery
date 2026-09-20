@@ -37,7 +37,7 @@ describe('syncTSConfigPaths', () => {
  *
  * **The bug these exist for shipped and passed.** `Bakery.config.root` is an
  * absolute path, not the relative `src` it looks like, so the first version
- * emitted `../../C:/WebDAV/.../src/**` — a glob matching nothing. A project
+ * emitted `../../C:/WebDAV/.../src/**`: a glob matching nothing. A project
  * matching nothing typechecks clean, so it reported zero errors and looked
  * perfect; it was caught only by counting the files in the program.
  *
@@ -56,8 +56,8 @@ describe('fromProjectDir', () => {
    *
    * A Windows drive path is only absolute on Windows. On Linux, `C:/…` has no
    * leading slash, so `path.relative` resolves it against the cwd and returns
-   * exactly the `../../C:/…` shape this test forbids — which is correct
-   * behaviour for a nonsense input and a red CI job. These globs come from
+   * exactly the `../../C:/…` shape this test forbids, which is correct
+   * behavior for a nonsense input and a red CI job. These globs come from
    * `Bakery.config.root`, produced by the OS the process is running on, so a
    * drive letter cannot reach a Linux host in the first place.
    *
@@ -83,7 +83,7 @@ describe('fromProjectDir', () => {
       expect(/\.\.\/[A-Za-z]:/.test(out)).toBe(false)
       // Deliberately *not* asserting that `out` no longer contains `abs`. On
       // POSIX the two share no prefix beyond `/`, so relativising `/home/user/x`
-      // correctly yields `../../../../../home/user/x` — which contains it. That
+      // correctly yields `../../../../../home/user/x`, which contains it. That
       // assertion passes on Windows and fails on Linux, which is the same trap
       // this block was rewritten to remove.
     }
@@ -103,7 +103,7 @@ describe('fromProjectDir', () => {
  * `importMap` is a **browser** import map: the framework serves it as
  * `<script type="importmap">` and the browser resolves its specifiers. The
  * generator used to copy the `paths` derived from it into *every* project on the
- * reasoning that an alias is app-wide — so a server file could import an alias
+ * reasoning that an alias is app-wide, so a server file could import an alias
  * only the browser can satisfy, and typecheck clean doing it.
  *
  * That is the same failure the server/client split exists to prevent, one level
@@ -141,10 +141,10 @@ describe('importMap paths are scoped to the client project', () => {
  *
  * - TS6306 ("must have setting composite") and TS6310 ("may not disable
  *   emit") fire for every referenced unbuilt `noEmit` project whenever the
- *   referencing program has input files — a referenced project with a
+ *   referencing program has input files: a referenced project with a
  *   disjoint include fails identically, and so does one matching zero files.
  * - TS6305 ("output file has not been built from source file") fires once per
- *   root file the referenced project also claims — `src/**`,
+ *   root file the referenced project also claims: `src/**`,
  *   `server.config.ts`, every `.tsx` page.
  *
  * So no include shape fixes it and no reference shape survives `tsc -p`; the
@@ -168,7 +168,7 @@ describe('stripGeneratedReferences', () => {
     expect(repaired?.include).toEqual(['src/**/*.ts'])
   })
 
-  test('every spelling of the generated path is recognised', () => {
+  test('every spelling of the generated path is recognized', () => {
     for (const path of [
       './.cache/tsconfig/server.json',
       '.cache/tsconfig/server.json',
@@ -214,13 +214,13 @@ describe('stripGeneratedReferences', () => {
     // The jsx options in particular: Bun's runtime reads them from the root
     // and nowhere else, which is the lesson the replace-not-merge bug taught.
     expect((repaired?.compilerOptions as any).jsxFactory).toBe('createElement')
-    // And no files: [] — that would turn the root into a solution config.
+    // And no files: []. That would turn the root into a solution config.
     expect(repaired?.files).toBeUndefined()
   })
 })
 
 /**
- * An app with no root config still gets one that works at runtime — Bun reads
+ * An app with no root config still gets one that works at runtime: Bun reads
  * `compilerOptions.jsx*` from the root `tsconfig.json` and does not follow
  * `extends` into a package specifier, so the file must carry the options
  * inline. What it must NOT carry any more is `references`.
@@ -236,7 +236,7 @@ describe('defaultRootConfig', () => {
 })
 
 /**
- * The generator writes no `references` — asserted on the source the way the
+ * The generator writes no `references`: asserted on the source the way the
  * `importMapPaths` gate is, because every pure-function test above would still
  * pass if `syncTSConfigProjects` grew the old wiring back.
  */
@@ -254,7 +254,7 @@ describe('the generator never wires the projects into the root config', () => {
 /**
  * The shipped apps carry the repaired shape. This is the assertion that bites
  * at the artifact level: it fails against any tree where a boot re-added the
- * references — which is exactly the file a consumer's `tsc -p .` reads, and
+ * references, which is exactly the file a consumer's `tsc -p .` reads, and
  * how `bunx tsc -p apps/example` came to fail with ten TS6305s plus a
  * TS6306/TS6310 pair per referenced project.
  */
@@ -266,7 +266,7 @@ describe('shipped app tsconfigs reference no generated projects', () => {
     test(rel, async () => {
       const abs = fs.resolve(import.meta.dir, '../../../..', rel)
       const config = (await Bun.file(abs).json()) as Record<string, unknown>
-      // null means "nothing to repair" — the committed file is already the
+      // null means "nothing to repair": the committed file is already the
       // shape the generator now maintains.
       expect(stripGeneratedReferences(config)).toBeNull()
     })
@@ -276,8 +276,8 @@ describe('shipped app tsconfigs reference no generated projects', () => {
 /**
  * The generator end to end: what actually lands in `.cache/tsconfig/`.
  *
- * `writeProjects` only writes that directory — it does not touch the app's root
- * config — so it is safe to call here, and it is the honest place to assert the
+ * `writeProjects` only writes that directory (it does not touch the app's root
+ * config), so it is safe to call here, and it is the honest place to assert the
  * `importMapPaths` gate. Everything above tests the pieces; this tests the file
  * a developer's editor will read.
  */
@@ -343,7 +343,7 @@ describe('writeProjects', () => {
     expect(projects.sfc.compilerOptions.paths).toBeDefined()
 
     // The two that do not. An `importMap` alias here would typecheck an import
-    // the server cannot resolve — the bug this gate closes.
+    // the server cannot resolve: the bug this gate closes.
     expect(projects.server.compilerOptions.paths).toBeUndefined()
     expect(projects.jobs.compilerOptions.paths).toBeUndefined()
   })
@@ -384,7 +384,7 @@ describe('plugin-vue', () => {
  * Measured on a real Vue app with `tsc --listFiles`: **`shared.d.ts` was absent
  * from the program**, so `JsonResponse` and `ISFunction` did not resolve in a
  * `.vue` file. `global.d.ts` and `types.d.ts` survived only because something
- * else imports them transitively — which is luck, not design, and is why the
+ * else imports them transitively, which is luck, not design, and is why the
  * loss went unnoticed.
  */
 describe('generated projects keep the base config files', () => {
@@ -418,7 +418,7 @@ describe('generated projects keep the base config files', () => {
       const config = JSON.parse(await Bun.file(file).text())
 
       expect(names).toContain('sfc')
-      // The base's three, plus the plugin's own — not the plugin's alone.
+      // The base's three, plus the plugin's own, not the plugin's alone.
       expect(config.files.length).toBeGreaterThan(1)
       expect(config.files.some((f: string) => f.includes('shared.d.ts'))).toBe(
         true,
@@ -429,7 +429,7 @@ describe('generated projects keep the base config files', () => {
   })
 
   test('a project declaring none still inherits, and stays untouched', async () => {
-    // `files: []` would be worse than absent — it would tell TypeScript the
+    // `files: []` would be worse than absent. It would tell TypeScript the
     // project contains nothing, rather than letting the base's list stand.
     const names = await writeProjects({})
     const file = fs.resolve(process.cwd(), '.cache/tsconfig', 'server.json')

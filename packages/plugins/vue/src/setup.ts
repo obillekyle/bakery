@@ -20,7 +20,7 @@ export function setupVue() {
   initVueVersion()
   Bakery.handlers.fetch.set(VueHandler, 58)
   Bakery.handlers.error.set(VueErrorHandler, 18)
-  // `vueChunkPath` is the single writer of this URL — it carries the build
+  // `vueChunkPath` is the single writer of this URL: it carries the build
   // variant (`<version>.runtime.js` / `<version>.full.js`), and the serving
   // check in `chunks.ts` reads the same function.
   Bakery.config.importMap.vue = vueChunkPath()

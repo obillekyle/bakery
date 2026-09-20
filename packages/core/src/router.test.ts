@@ -79,11 +79,11 @@ describe('handleRequest', () => {
 /**
  * The blocked globs used to be tested against every request path before any
  * handler ran, which made `/api/anything.json` a 403 that no config could undo
- * — `blocked` only ever appends. The glob below is set explicitly so this is a
+ *: `blocked` only ever appends. The glob below is set explicitly so this is a
  * test of the *scope* of the check, not of which extensions happen to be in
  * DEFAULT_BLOCKED_GLOBS.
  */
-describe('handleRequest — blocked globs are scoped to file-serving handlers', () => {
+describe('handleRequest: blocked globs are scoped to file-serving handlers', () => {
   const blocked = { blocked: new Bun.Glob('{**/*.json,**/*.sql,**/.env}') }
 
   test('an API route is not judged by the blocked globs', async () => {
@@ -93,7 +93,7 @@ describe('handleRequest — blocked globs are scoped to file-serving handlers', 
         new Request('http://localhost:3000/api/manifest.json'),
       )
       expect(res).toBeInstanceOf(Response)
-      // 404 from ApiHandler ("No API handler found") — the point is that it
+      // 404 from ApiHandler ("No API handler found"): the point is that it
       // reached the handler at all instead of being refused before routing.
       expect((res as Response).status).not.toBe(403)
       expect((res as Response).status).toBe(404)
@@ -101,7 +101,7 @@ describe('handleRequest — blocked globs are scoped to file-serving handlers', 
     __resetTestConfig()
   })
 
-  test('a file-serving handler still honours them', async () => {
+  test('a file-serving handler still honors them', async () => {
     __setTestConfig(blocked)
     await run(async () => {
       const res = await handleRequest(
@@ -129,11 +129,11 @@ describe('handleRequest — blocked globs are scoped to file-serving handlers', 
 
 /**
  * `sharedHandler` in routes/html.ts and assets/tsx.ts both end in
- * `injectIfHtml`, which builds its Response with no status — so an app with
+ * `injectIfHtml`, which builds its Response with no status, so an app with
  * `src/error-404.html` answered 404s with `200 OK`. The stub below is that
  * shape exactly; the real handlers differ only in where the markup came from.
  */
-describe('handleRequestError — the error page carries the error status', () => {
+describe('handleRequestError: the error page carries the error status', () => {
   class HtmlPageErrorHandler extends ErrorHandler {
     static canHandle() {
       return true
@@ -201,7 +201,7 @@ describe('processResponse', () => {
 
 /**
  * `upgradeWebsocket` dispatches to `Bakery.handlers.websocket`, whose base
- * `canHandle` returns `true` — so the registry below is the whole framework as
+ * `canHandle` returns `true`, so the registry below is the whole framework as
  * far as an upgrade is concerned. WebSockets are exempt from the same-origin
  * policy, which made `/_livereload` reachable from any page the developer
  * happened to have open.

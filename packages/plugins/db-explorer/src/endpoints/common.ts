@@ -2,11 +2,11 @@
  * The preamble every write endpoint shares, in the order the checks have to
  * happen.
  *
- *   1. **`currentCanWrite()`** — a `read` caller is refused before the body is
+ *   1. **`currentCanWrite()`**: a `read` caller is refused before the body is
  *      even parsed, so nothing about the request can influence the answer.
- *   2. **The body** — JSON, an object, naming a table.
- *   3. **The table** — 404 if it is not there.
- *   4. **The identity** — 409 if the table has none. A table with no primary
+ *   2. **The body**: JSON, an object, naming a table.
+ *   3. **The table**: 404 if it is not there.
+ *   4. **The identity**: 409 if the table has none. A table with no primary
  *      key and no all-NOT-NULL unique index is read-only for everyone,
  *      including a `write` caller, because there is no way to name one of its
  *      rows. See `identity.ts`.
@@ -38,7 +38,7 @@ export function invalid(errors: FieldError[]): Envelope {
  * The request body as an object, or `null`.
  *
  * `req.json()` rather than core's `processBody`, which answers `{}` for a body
- * it could not parse — indistinguishable from an empty one, so a truncated
+ * it could not parse: indistinguishable from an empty one, so a truncated
  * upload would be reported as a missing `table` field.
  */
 export async function readBody(
@@ -56,7 +56,7 @@ export async function readBody(
 /**
  * Find a table by the name the caller used.
  *
- * Raw database name first — that is what `/api/_db/schema` renders and what the
+ * Raw database name first: that is what `/api/_db/schema` renders and what the
  * grid sends back. The camel spelling is accepted as well, because a script
  * written against a typed schema has `orderItems` where the database has
  * `order_items`, and refusing that would be refusing the ORM's own vocabulary.
@@ -132,7 +132,7 @@ export async function beginWrite(req: Request): Promise<WriteStart> {
  * cannot be handed the query text, and none of it helps a client that has
  * already been told its request was invalid.
  *
- * The message still exists — it goes to the server log with the operation that
+ * The message still exists: it goes to the server log with the operation that
  * produced it, which is where an operator can act on it.
  */
 export function refuse(op: string, error: unknown, status = 400): Envelope {

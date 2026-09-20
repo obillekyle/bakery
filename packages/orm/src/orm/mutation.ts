@@ -16,7 +16,7 @@ export namespace Mutation {
    *
    * There used to be a `| (string & {})` member here, for autocomplete on the
    * literals while still accepting any string. It also made the rest of the
-   * type decorative — `Exclude<…, AppViews>` never rejected anything, so a
+   * type decorative: `Exclude<…, AppViews>` never rejected anything, so a
    * `DB.Insert.into('some_view')` compiled and failed at the database instead,
    * and so did a typo'd table name.
    *
@@ -36,7 +36,7 @@ export namespace Mutation {
   export type Prettify<T> = { [K in keyof T]: T[K] } & {}
 
   /**
-   * `RETURNING` takes an identifier list and is interpolated, not bound — the
+   * `RETURNING` takes an identifier list and is interpolated, not bound: the
    * same position `orderBy` and `groupBy` guard with `safeColumn`. It was the
    * one identifier writer on Insert/Update/Delete with no guard at all, so
    * `.returning('* FROM users; DROP TABLE t --')` was emitted verbatim.
@@ -71,10 +71,10 @@ export namespace Mutation {
     : string
 
   /**
-   * What a write returns — the adapter's own result, not a copy of it.
+   * What a write returns: the adapter's own result, not a copy of it.
    *
    * It *was* a copy: an identical `{lastInsertRowid, changes}` declared here as
-   * well as on `SQLAdapter`. Identical today is the whole problem — that is the
+   * well as on `SQLAdapter`. Identical today is the whole problem: that is the
    * state `SQLAdapter.ColumnConstraint` was in before it fell behind
    * `sync/types.ts` and started erasing fields at the cast.
    */
@@ -87,14 +87,14 @@ export namespace Mutation {
     }
 
     /**
-     * The rows to insert — as a spread, or as one array.
+     * The rows to insert: as a spread, or as one array.
      *
      * Both forms exist because the variadic signature alone made the obvious
      * call wrong in a way nothing announced: `values(rows)` bound the *array*
      * as a single record, and the only symptom was
      * `table big has no column named 0`. An array is never a record, so the two
-     * forms cannot be confused, and anything that is neither — a mixed
-     * `values(rows, extra)`, a primitive — is rejected by name rather than
+     * forms cannot be confused, and anything that is neither (a mixed
+     * `values(rows, extra)`, a primitive) is rejected by name rather than
      * turned into columns called `0` and `1`.
      */
     values(records: InsertSchema<T>[]): InsertExecutable
@@ -115,7 +115,7 @@ export namespace Mutation {
             'values() takes records: values(row), values(rowA, rowB) or ' +
               'values(rows). Got a ' +
               (Array.isArray(record) ? 'nested array' : typeof record) +
-              ' — if you meant to pass an array of rows, pass it as the only ' +
+              ': if you meant to pass an array of rows, pass it as the only ' +
               'argument.',
           )
         }
@@ -142,7 +142,7 @@ export namespace Mutation {
     /**
      * Insert, or update the row that is already there.
      *
-     * `cols` names the unique columns that decide "already there" — a primary
+     * `cols` names the unique columns that decide "already there": a primary
      * key or a unique index. Without an upsert the only way to express this is
      * to check and then branch, which is a **race**: two requests both see no
      * row and both insert.
@@ -150,8 +150,8 @@ export namespace Mutation {
      *     DB.Insert.into('users').values({ email, name }).upsert(['email'])
      *
      * By default every inserted column except the conflict columns is
-     * overwritten. Pass a second argument to narrow that — `upsert(['email'],
-     * ['name'])` leaves everything else as it was — or an empty array for
+     * overwritten. Pass a second argument to narrow that (`upsert(['email'],
+     * ['name'])` leaves everything else as it was), or an empty array for
      * insert-if-absent, which becomes `DO NOTHING`.
      *
      * MySQL ignores `cols` because `ON DUPLICATE KEY UPDATE` fires on *any*
@@ -180,7 +180,7 @@ export namespace Mutation {
      * How many records fit in one statement, under the adapter's ceiling.
      *
      * The ceiling comes from the adapter because only it knows its dialect, but
-     * a statement can be *rendered* without a connection — `parse()` is how the
+     * a statement can be *rendered* without a connection: `parse()` is how the
      * tests read the SQL, and the stub adapter in `orm.test.ts` implements two
      * members. An unreachable or silent adapter falls back to the same default
      * the base class publishes rather than making `parse()` require a database.
@@ -222,7 +222,7 @@ export namespace Mutation {
     }
 
     /**
-     * The insert as one statement per batch — the form the executors run.
+     * The insert as one statement per batch: the form the executors run.
      *
      * A single `INSERT … VALUES (…),(…),…` carries three parameters per row, so
      * it stops being a legal statement somewhere around eleven thousand rows.
@@ -233,15 +233,15 @@ export namespace Mutation {
      * like for an arbitrary `rows`.
      *
      * The column list is computed once, across every record, so every batch
-     * inserts the same columns in the same order — a per-batch union would
+     * inserts the same columns in the same order: a per-batch union would
      * change the shape of the statement halfway through the insert.
      *
      * **`RETURNING` is accumulated, not refused.** Refusing is the
      * safe-looking option and the wrong one: the batches run sequentially
      * inside one transaction, so concatenating each batch's rows in batch order
      * reproduces the sequence a single statement would have produced. Ordering
-     * *within* a batch is whatever the dialect gives — Postgres does not
-     * promise `RETURNING` follows `VALUES` order — but that is equally true
+     * *within* a batch is whatever the dialect gives (Postgres does not
+     * promise `RETURNING` follows `VALUES` order), but that is equally true
      * unchunked, so batching neither adds nor removes a guarantee. Refusing
      * would have cost the main reason to write `.values(rows).returning('id')`
      * at all: getting the generated ids of a bulk import back.
@@ -288,7 +288,7 @@ export namespace Mutation {
      *
      * The transaction is what keeps a batched insert meaning what the unbatched
      * one meant: all rows or none. It is opened only when a batch boundary
-     * exists — one statement is already atomic — and only when the caller is
+     * exists (one statement is already atomic), and only when the caller is
      * not already inside `DB.transaction`, where the outer transaction is
      * already the atomic unit.
      *
@@ -329,7 +329,7 @@ export namespace Mutation {
      * Two shapes, not three: Postgres and SQLite share
      * `ON CONFLICT (…) DO UPDATE SET col = excluded.col`, while MySQL spells it
      * `ON DUPLICATE KEY UPDATE col = VALUES(col)` and takes no conflict target
-     * at all — it fires on whichever unique key was violated.
+     * at all, it fires on whichever unique key was violated.
      *
      * Every identifier goes through `qId`, and no value is interpolated: the
      * new row's values are already bound as the INSERT's parameters, and both
@@ -345,7 +345,7 @@ export namespace Mutation {
       ).filter(k => insertedKeys.includes(k))
 
       // The adapter spells it. This used to branch on `driver === 'mysql'`
-      // here, which put one dialect's syntax in the shared query builder — the
+      // here, which put one dialect's syntax in the shared query builder: the
       // thing every other difference (quote character, placeholder ceiling,
       // date expression, foreign-key clause) is kept out of it for.
       return getActiveDb().upsertClause(cols, targets)
@@ -362,7 +362,7 @@ export namespace Mutation {
     }
 
     async fetch<R = any>(): Promise<R | undefined> {
-      // Every batch still runs — `fetch()` means "insert, and hand me a row
+      // Every batch still runs: `fetch()` means "insert, and hand me a row
       // back", not "insert the first batch". `Executor.get` is defined as
       // `all(…)[0]`, so this is the same row it would have produced.
       const rows = await this.array<R>()
@@ -381,7 +381,7 @@ export namespace Mutation {
       const changes = results.reduce((n, r) => n + Number(r?.changes ?? 0), 0)
       // `changes` sums, because it answers "how many rows did this insert
       // write". `lastInsertRowid` cannot sum, and the dialects do not agree
-      // what it means for a multi-row insert — so the adapter says which end of
+      // what it means for a multi-row insert, so the adapter says which end of
       // the batched run carries its answer, rather than this file knowing.
       const pick =
         getActiveDb().batchInsertIdPosition === 'first'
@@ -622,8 +622,8 @@ export namespace Mutation {
       for (let i = 0; i < this._clauses.length; i++) {
         const c = this._clauses[i]!
         const left = evalOperands(c.left, params, true)
-        // `parseWhereArgs` emits `operator: ''` for the one-argument form —
-        // `where(DB.raw`…`)` or `where(<subquery>)` — where the left operand
+        // `parseWhereArgs` emits `operator: ''` for the one-argument form,
+        // `where(DB.raw`…`)` or `where(<subquery>)`, where the left operand
         // is the whole condition and there is no right one. This branch is a
         // copy of `UpdateExecutable.evalWhere` above, which is a copy of
         // `formatClause` in query.ts; it was the copy that never got it. The

@@ -13,7 +13,7 @@ publish: true
 
 # **Without this file every branch was a stable release branch.** The default
 # is `release: ['**']`, so a push to any branch that did not match a channel
-# would have cut a stable version — the alpha work only avoided it because
+# would have cut a stable version, the alpha work only avoided it because
 # `2.0.0-alpha` matches the alpha channel's declaring pattern, and declaring
 # beats a glob. Naming `main` makes that an intention rather than an accident.
 channels:
@@ -39,7 +39,7 @@ channels:
 
 # **Compiled from the commit bodies, and this file is cutver's now.**
 #
-# It is rewritten whole on every release — no `## [Unreleased]`, and edits do
+# It is rewritten whole on every release: no `## [Unreleased]`, and edits do
 # not survive. That is the trade that lets it never parse the file, so a
 # mangled changelog cannot break a release. What makes it worth taking is the
 # commit *body*: each entry is the subject plus the paragraph under it, which
@@ -52,7 +52,7 @@ changelog:
   keep: 10
 
   # The GitHub release body, rewritten to read like something a person wrote.
-  # `CHANGELOG.md` is never summarised — the file keeps exactly what the
+  # `CHANGELOG.md` is never summarised: the file keeps exactly what the
   # commits said, and only the page people land on gets the readable version.
   #
   # No key here on purpose: this file is committed. cutver reads

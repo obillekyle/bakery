@@ -16,8 +16,8 @@ import { __resetTestAccess, __setTestAccess, DbExplorerHandler } from './setup'
  *
  * The stub records **statements**, not just method names, because almost every
  * claim here is about the SQL that was or was not emitted: an identity
- * predicate rather than a rowid, an `expect` appended to it, and — for the
- * bounds — nothing at all.
+ * predicate rather than a rowid, an `expect` appended to it, and (for the
+ * bounds) nothing at all.
  */
 
 const SCHEMA = [
@@ -74,8 +74,7 @@ const CONSTRAINTS: any = {
  * The stub's method list *is* the contract, and it now enumerates a **bounded
  * write surface** rather than none.
  *
- * Four introspection reads, `getData`, and two ways to run a statement —
- * `query()` for the builder and `execute` for a batched insert — inside a
+ * Four introspection reads, `getData`, and two ways to run a statement ( * `query()` for the builder and `execute` for a batched insert) inside a
  * `transaction` that records whether it committed or rolled back. Nothing here
  * can create, drop or alter a table, and nothing takes SQL from a request. An
  * endpoint that reached for `drop`, `truncate`, `syncSchema`, `remove` or the
@@ -182,7 +181,7 @@ beforeEach(() => {
   __setTestAccess({ authorize: () => 'write' })
 })
 
-/** Statements only — the introspection reads are not SQL the stub sees. */
+/** Statements only. The introspection reads are not SQL the stub sees. */
 const emitted = () => stub.statements.map(s => s.sql)
 
 async function call(
@@ -322,7 +321,7 @@ describe('identity decides whether a row can be named at all', () => {
   })
 
   test('a key naming the wrong column set is 400, not a widened predicate', async () => {
-    // Half of a composite key would match every row sharing the other half —
+    // Half of a composite key would match every row sharing the other half:
     // the dashboard's MySQL bug, refused here rather than executed.
     const partial = await call('PATCH', '/api/_db/row', {
       table: 'parcel_legs',
@@ -360,7 +359,7 @@ describe('identity decides whether a row can be named at all', () => {
   })
 })
 
-describe('optimistic concurrency', () => {
+describe('optimiztic concurrency', () => {
   test('expect is appended to the identity predicate', async () => {
     await call('PATCH', '/api/_db/row', {
       table: 'parcels',
@@ -405,7 +404,7 @@ describe('optimistic concurrency', () => {
     expect(emitted().filter(s => s.startsWith('SELECT')).length).toBe(1)
   })
 
-  test('expect on a json column is refused — no dialect can compare one', async () => {
+  test('expect on a json column is refused: no dialect can compare one', async () => {
     const res = await call('PATCH', '/api/_db/row', {
       table: 'parcels',
       key: { id: 1 },
@@ -574,7 +573,7 @@ describe('transactions and dry runs', () => {
     })
     expect(res.status).toBe(200)
     expect(res.data.changed).toBe(2)
-    // Executed — the report is about what the database actually did — and then
+    // Executed (the report is about what the database actually did), and then
     // undone.
     expect(emitted().filter(s => s.startsWith('UPDATE')).length).toBe(2)
     expect(stub.tx.rolledBack).toBe(1)
@@ -614,7 +613,7 @@ describe('transactions and dry runs', () => {
     expect(stub.tx.rolledBack).toBe(0)
   })
 
-  test('one conflict rolls the whole bulk edit back — no partial apply', async () => {
+  test('one conflict rolls the whole bulk edit back: no partial apply', async () => {
     stub.state.changes = 0
     stub.state.row = null
     const res = await call('POST', '/api/_db/rows/bulk', {
@@ -655,7 +654,7 @@ describe('import', () => {
     expect(emitted().filter(s => s.startsWith('INSERT')).length).toBe(1)
   })
 
-  test('onBadRow must be named — the default is not chosen for the caller', async () => {
+  test('onBadRow must be named. The default is not chosen for the caller', async () => {
     const res = await call('POST', '/api/_db/import', {
       table: 'parcels',
       rows: [{ courier: 'dhl' }],
@@ -670,7 +669,7 @@ describe('graph and lookup', () => {
     const res = await call('GET', '/api/_db/graph')
     expect(res.status).toBe(200)
     expect(res.data.identity.parcels).toEqual({ mode: 'pk', cols: ['id'] })
-    // The first non-identity text column — what a foreign-key chip shows.
+    // The first non-identity text column, what a foreign-key chip shows.
     expect(res.data.labels.parcels).toBe('courier')
     expect(res.data.foreignKeys).toEqual({})
   })
@@ -695,8 +694,8 @@ describe('graph and lookup', () => {
 })
 
 /**
- * The write surface is described in prose in three places — `setup.ts`'s header,
- * `index.ts`'s docblock and `docs/plugins/db-explorer.md` — and prose drifts.
+ * The write surface is described in prose in three places: `setup.ts`'s header,
+ * `index.ts`'s docblock and `docs/plugins/db-explorer.md`, and prose drifts.
  * `setup.ts` said "exactly the six keys below" above five keys.
  *
  * A count on its own would be a weak test. What this pins is the *spelling*:
@@ -728,7 +727,7 @@ describe('the write keys, enumerated', () => {
       `${import.meta.dir}/setup.ts`,
     ).text()
     // The literal that was wrong. Spelled out rather than derived, so the test
-    // fails when the prose and the table disagree — which is the only failure
+    // fails when the prose and the table disagree, which is the only failure
     // mode a comment has.
     expect(source).toContain('exactly the five method-qualified')
   })

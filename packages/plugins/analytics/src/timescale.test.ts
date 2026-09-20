@@ -9,7 +9,7 @@ import {
 } from './timescale'
 
 /**
- * There were five copies of this table across two packages — `timescaleToMs`,
+ * There were five copies of this table across two packages: `timescaleToMs`,
  * `getHistoryLimitForTimescale`, the bucket counts inside
  * `pushAnalyticsSnapshot`, and `getTimescaleIntervalMs` / `getTimescaleLimit`
  * in the dashboard's client, the last pair byte-identical to the second.

@@ -5,14 +5,12 @@ import { DOMTools, headBodyCache } from './dom'
 import { ETag } from './etag'
 
 /**
- * Mark `res` as already carrying the head/body injects, so `injectIfHtml` —
- * and therefore `processResponse`, which every response funnels through —
- * hands it back untouched.
+ * Mark `res` as already carrying the head/body injects, so `injectIfHtml` ( * and therefore `processResponse`, which every response funnels through)  * hands it back untouched.
  *
  * Exported for the one caller that means "never", not "already":
  * `DefaultErrorHandler` brands its production error page so the import map is
- * not spliced into it. That map names every installed package — an inventory
- * of the app's module layout — and the page carries no scripts for it (or the
+ * not spliced into it. That map names every installed package (an inventory
+ * of the app's module layout), and the page carries no scripts for it (or the
  * client bundle) to serve anyway.
  */
 export function injectBrand(res: Response) {
@@ -30,7 +28,7 @@ function isInjected(res: Response) {
  * Rebuild `res` with `status`, carrying the injection brand across.
  *
  * `Response.status` is read-only, so changing it means constructing a new
- * Response — and a plain rebuild silently drops the `__injected__` marker,
+ * Response, and a plain rebuild silently drops the `__injected__` marker,
  * which is the only thing stopping `processResponse` running the page through
  * `injectIfHtml` a second time and emitting two import maps and two copies of
  * the client bundle. That is why this lives next to the brand rather than at
@@ -51,7 +49,7 @@ export function withStatus(res: Response, status: number): Response {
 /**
  * Server-controlled markup injected into the document. Deliberately a separate
  * argument from `params`: `params` is request-derived (for GET it is the query
- * string), so `$$head`-style keys arriving from a client must never be honoured.
+ * string), so `$$head`-style keys arriving from a client must never be honored.
  */
 export interface HtmlInjects {
   head?: string
@@ -84,7 +82,7 @@ export interface HtmlInjects {
  *                                       have sent
  *
  * Buffered responses carry a strong content ETag for the 304 machinery.
- * Streamed responses carry none — see `streamedResponse` for why that is not
+ * Streamed responses carry none. See `streamedResponse` for why that is not
  * faked.
  */
 export const STREAM_THRESHOLD_BYTES = 64 * 1024
@@ -96,7 +94,7 @@ export async function injectIfHtml(
 ): Promise<Response | null> {
   if (data instanceof Response && isInjected(data)) return data
 
-  // {{param}} substitution (and only that — the __PAGE_PARAMS__ script is a
+  // {{param}} substitution (and only that: the __PAGE_PARAMS__ script is a
   // head fragment either way) needs the whole document in one string, so a
   // params-bearing call takes the buffered path regardless of size.
   const hasParams = !!params && Object.keys(params).length > 0
@@ -134,7 +132,7 @@ export async function injectIfHtml(
   return bufferedResponse(content, params, injects, responseInit)
 }
 
-/** The one writer of the buffered injection Response — main path and the
+/** The one writer of the buffered injection Response: main path and the
  * streamed path's fallback both come through here. */
 function bufferedResponse(
   content: string,
@@ -189,7 +187,7 @@ function getConfigInjects() {
 /**
  * The final head/body fragments for one document: config injects + the
  * __PAGE_PARAMS__ script + per-call injects, with `<!--prio-->` resolved.
- * Computed once per response, up front — the streamed path must not defer this
+ * Computed once per response, up front: the streamed path must not defer this
  * into a pull callback, where the AsyncLocalStorage host context that
  * `getConfigInjects` and `DOMTools.importMap` read may no longer be live.
  */
@@ -238,7 +236,7 @@ function spliceBodyEnd(html: string, body: string): string {
  * each window and the final carry. */
 function rewriteFontsUrls(html: string): string {
   // Both alternatives in RX_GFONTS require the literal `fonts.goog`, so this
-  // substring check cannot skip a document the regex would have matched — and
+  // substring check cannot skip a document the regex would have matched, and
   // most documents have no Google Fonts link at all.
   if (!html.includes('fonts.goog')) return html
   return html.replace(RX_GFONTS, () => GFONTS_REWRITE)
@@ -272,8 +270,8 @@ export function assembleHtml(
 // The exact same three rewrites as `assembleHtml`, in the same order, without
 // holding the document in memory. The head splice happens on a bounded probe
 // (the tag is near the start of any real document) using the same
-// `spliceHead`; the body-end insert and the fonts rewrite — the two passes
-// that force a scan to the end of the document — run as chunk-boundary-safe
+// `spliceHead`; the body-end insert and the fonts rewrite (the two passes
+// that force a scan to the end of the document) run as chunk-boundary-safe
 // text stages over the same regexes. Content inserted by the body stage flows
 // through the fonts stage but not back through the body stage, which is
 // exactly the buffered path's head → body → fonts ordering.
@@ -283,7 +281,7 @@ export function assembleHtml(
  * that can be left dangling at a chunk boundary. */
 const BODY_END_HOLDBACK = '</body>'.length - 1
 
-/** Longest text RX_GFONTS can match, minus one — any incomplete match prefix
+/** Longest text RX_GFONTS can match, minus one: any incomplete match prefix
  * at a window edge is at most this long, so holding back this many characters
  * guarantees no match is ever split across two windows. */
 const FONTS_HOLDBACK = 'https://fonts.googleapis.com/css2'.length - 1
@@ -292,7 +290,7 @@ const FONTS_HOLDBACK = 'https://fonts.googleapis.com/css2'.length - 1
  * Read the response body until either EOF or enough bytes to commit to
  * streaming. Streaming needs two things the probe establishes: proof the body
  * is actually large (unless Content-Length already said so), and a `<head…>`
- * match — the no-head fallback prepends to the very start of the document,
+ * match, the no-head fallback prepends to the very start of the document,
  * which a stream that has begun emitting can no longer do. Anything that fails
  * those checks is drained and handed to the buffered path, whose output is the
  * long-standing behavior.
@@ -378,7 +376,7 @@ async function* tailText(
     }
   } finally {
     // Reached on normal EOF (no-op) and when the consumer cancels the response
-    // mid-stream — in which case the source must be cancelled too.
+    // mid-stream: in which case the source must be canceled too.
     await Try(() => reader.cancel())
   }
 }
@@ -393,9 +391,9 @@ async function* withPrefix(
 
 /**
  * Streaming equivalent of `spliceBodyEnd`: insert before the first literal
- * `</body>` (in original casing — the insert slices around the match rather
+ * `</body>` (in original casing, the insert slices around the match rather
  * than reconstructing it), else append at the very end. Once inserted the
- * stage is a passthrough, so content it inserted is never rescanned — matching
+ * stage is a passthrough, so content it inserted is never rescanned: matching
  * the buffered path's single non-global replace.
  */
 async function* bodyEndStage(
@@ -435,7 +433,7 @@ async function* bodyEndStage(
 /**
  * Streaming equivalent of `rewriteFontsUrls`. Complete matches that start in
  * the emittable region are rewritten (a complete match cannot be invalidated
- * or extended by later input — the pattern has no unbounded or trailing
+ * or extended by later input: the pattern has no unbounded or trailing
  * parts); matches or match prefixes inside the holdback stay in the carry for
  * the next window, and the final carry goes through the shared
  * `rewriteFontsUrls` itself.
@@ -463,7 +461,7 @@ async function* fontsStage(
 
     // The same fast gate the buffered path uses: no `fonts.goog` in the
     // window means no match in it, and the emit/carry split below does not
-    // depend on match presence — a match *prefix* dangling at the window edge
+    // depend on match presence, a match *prefix* dangling at the window edge
     // sits inside the holdback either way.
     if (window.includes('fonts.goog')) {
       rx.lastIndex = 0
@@ -488,8 +486,8 @@ async function* fontsStage(
 /**
  * Wrap the staged text into a streaming Response.
  *
- * Deliberately no ETag: a content hash would require buffering the body — the
- * thing this path exists to avoid — and deriving one from anything less (say,
+ * Deliberately no ETag: a content hash would require buffering the body (the
+ * thing this path exists to avoid), and deriving one from anything less (say,
  * source file size+mtime) would keep serving 304s after the config-injected
  * head/body fragments change. Large streamed pages are also where conditional
  * revalidation matters least. Callers relying on the 304 machinery get it on
@@ -505,7 +503,7 @@ function streamedResponse(
   // Buffered responses get `Cache-Control: no-cache` from ETag.sendResponse
   // (guarded the same way: only when the handler set nothing itself). With no
   // ETag that hook never fires here, and a validator-less page left without a
-  // cache policy is open to heuristic caching — a stale page, not just a
+  // cache policy is open to heuristic caching: a stale page, not just a
   // missed 304.
   if (!headers.has('Cache-Control')) {
     headers.set('Cache-Control', 'no-cache')

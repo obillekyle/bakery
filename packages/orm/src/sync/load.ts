@@ -6,14 +6,14 @@
  * `orm/index.ts`. A single `schema.ts` at the root still works, so nothing
  * has to move.
  *
- * The folder is not only tidier — it separates what the generator owns from
+ * The folder is not only tidier: it separates what the generator owns from
  * what a person wrote. `--choose=db` regenerates tables; with everything in
  * one file it has to rewrite indexes and foreign keys too, and anything
  * hand-authored alongside them is collateral.
  *
  * Both of those are *defaults*, probed in that order from the app's cwd. An
- * app that keeps its model somewhere else — `db/`, `src/database/`, a path
- * shared with another tool — sets `schema` in `server.config.ts` and this
+ * app that keeps its model somewhere else (`db/`, `src/database/`, a path
+ * shared with another tool) sets `schema` in `server.config.ts` and this
  * stops guessing:
  *
  * ```ts
@@ -40,7 +40,7 @@ import type * as SyncTypes from './types'
  * `folder` means `table()` values in `<dir>/schema.ts`, with `<dir>/index.ts`
  * owning the re-exports and the schema registration. `file` and `none` mean the
  * single-file `DBInfo` namespace, which carries its own registration block.
- * Emitting the wrong one is not cosmetic — see `SchemaBuilder.generate`.
+ * Emitting the wrong one is not cosmetic. See `SchemaBuilder.generate`.
  */
 export type SchemaLayout = 'folder' | 'file' | 'none'
 
@@ -53,7 +53,7 @@ export interface LoadedSchema {
    *
    * SQL forbids those. MySQL and Postgres refuse the CREATE outright; SQLite
    * accepts the DDL and then fails *every insert* with `foreign key mismatch`,
-   * naming two tables and nothing else — so the caller aborts on this rather
+   * naming two tables and nothing else, so the caller aborts on this rather
    * than letting it surface at runtime.
    */
   unreferenceable?: string[]
@@ -62,7 +62,7 @@ export interface LoadedSchema {
   layout: SchemaLayout
   /**
    * The path a configured `schema` pointed at that does not exist. Set only
-   * for that case — never when nothing is configured, since absence is a
+   * for that case, never when nothing is configured, since absence is a
    * supported state for the defaults. The caller must abort rather than sync.
    */
   missing?: string
@@ -74,8 +74,8 @@ const CONSTRAINT_TYPES = new Set(['index', 'unique', 'foreign'])
  * Foreign keys are declarable but not implemented, and the failure is nasty:
  * no adapter emits FOREIGN KEY DDL, so a declaration is created as an ordinary
  * index. The next diff then compares `foreign` in TypeScript against `index`
- * in the database, decides to drop and re-add it, and — because index drops
- * count as destructive — aborts the sync. The dev server stops starting, with
+ * in the database, decides to drop and re-add it, and (because index drops
+ * count as destructive) aborts the sync. The dev server stops starting, with
  * nothing pointing at the cause.
  *
  * Failing here converts that into one clear message. The alternative would be
@@ -110,7 +110,7 @@ function collectIndexes(module: Record<string, unknown>) {
  *
  * Takes the whole config object rather than the field so the one place that
  * knows the config's shape is here. `unknown` because core's `AppConfig` does
- * not declare `schema` yet — `defaultConfig` in `core/core/config.ts` is
+ * not declare `schema` yet: `defaultConfig` in `core/core/config.ts` is
  * annotated `Required<AppConfig>`, so declaring the field there forces a
  * default value for it, and there is no single path to give: the default is
  * the *probe*, not a location. Core spreads unknown keys from
@@ -182,7 +182,7 @@ type Resolved =
 /**
  * Turn a configured `schema` value into an entry file and a write target.
  *
- * Relative paths resolve against the app's cwd — the framework's own location
+ * Relative paths resolve against the app's cwd: the framework's own location
  * is irrelevant and, once it is an installed package, meaningless.
  *
  * A directory means the folder layout. So does a path ending in `index.ts`,
@@ -193,13 +193,13 @@ type Resolved =
 /**
  * Where the folder layout's table declarations live.
  *
- * `tables.ts`, beside `views.ts` and `indexes.ts` — one file per kind of
+ * `tables.ts`, beside `views.ts` and `indexes.ts`: one file per kind of
  * declaration, which is the separation the folder layout exists for. It was
  * `schema.ts`, which read oddly next to its siblings and collided with the
  * single-file layout's `schema.ts` in conversation.
  *
- * The old name is still honoured when it is the one on disk. Loading never
- * cared — that goes through `index.ts`'s re-exports, so any filename works —
+ * The old name is still honored when it is the one on disk. Loading never
+ * cared: that goes through `index.ts`'s re-exports, so any filename works,
  * but *generation* writes here, and writing `tables.ts` beside someone's
  * existing `schema.ts` would leave two files declaring the same tables.
  */
@@ -280,8 +280,8 @@ export async function loadSchema(
  * cannot do on its own:
  *
  * 1. **Copies the referenced column's type onto the child.** MySQL rejects a
- *    foreign key whose types do not match exactly — an `INT` child against a
- *    `BIGINT` parent is refused — and the two declarations are usually pages
+ *    foreign key whose types do not match exactly (an `INT` child against a
+ *    `BIGINT` parent is refused), and the two declarations are usually pages
  *    apart. Copying makes the mismatch unrepresentable rather than merely
  *    unlikely. `length` comes along for a `Varchar` key, for the same reason.
  * 2. **Emits the key into the index map**, which is where `collectForeignKeys`
@@ -321,7 +321,7 @@ export function resolveColumnForeignKeys(
 
   for (const [tableName, cols] of Object.entries(constraints)) {
     // A view cannot carry a foreign key, and `view(name, sourceTable, body)`
-    // borrows the source table's columns — `_references` included. Without this
+    // borrows the source table's columns: `_references` included. Without this
     // the view gets a key of its own, which no dialect will create, so every
     // sync plans to add it again: an empty printed plan and a run that never
     // reports a perfectly synced database.

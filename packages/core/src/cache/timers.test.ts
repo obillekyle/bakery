@@ -8,8 +8,8 @@ import { fs } from '../utils'
  * session tier's flush (`cache/tiered.ts`), the string cache's flush
  * (`cache/string.ts`, constructed at module scope by `compiler/compiler.ts`)
  * and the session prune (`session.ts`). None of them is a reason to keep a
- * process alive — a flush that never runs because the process is ending is
- * exactly correct — but every one of them kept it alive anyway.
+ * process alive (a flush that never runs because the process is ending is
+ * exactly correct), but every one of them kept it alive anyway.
  *
  * The CLI never noticed: every one of its paths ends in `process.exit`. What
  * it cost was everything else. A script, a test harness or anything embedding
@@ -18,7 +18,7 @@ import { fs } from '../utils'
  *
  * **Asserted by spawning, because that is the actual claim.** Checking a
  * timer's `hasRef()` would test the call rather than the consequence, and the
- * consequence — this process ends on its own — is the thing that was broken.
+ * consequence (this process ends on its own) is the thing that was broken.
  * A timeout here means a fourth timer arrived, or an existing one lost its
  * `unref`.
  */

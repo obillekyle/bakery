@@ -16,7 +16,7 @@
  *
  * What replaces them is a declared key: a primary key, or failing that a unique
  * index over columns that cannot be null. A table with neither cannot have one
- * of its rows named at all, so it is read-only for everybody — a 409, not a
+ * of its rows named at all, so it is read-only for everybody: a 409, not a
  * best guess.
  *
  * ## The two traps this module exists to absorb
@@ -28,8 +28,8 @@
  * they are carried through from `getSchema()`; for index columns the adapters
  * now carry them too (`rawCols` on `getIndexes()` entries), which retired the
  * camel→raw map this module used to rebuild. That map was first-wins over
- * collisions — a table holding both `user_id` and `userId` resolved an index
- * over the second to the first, a predicate over the wrong column — and the
+ * collisions (a table holding both `user_id` and `userId` resolved an index
+ * over the second to the first, a predicate over the wrong column), and the
  * adapter, which had the real names all along, is the only place that cannot
  * happen.
  *
@@ -98,7 +98,7 @@ export interface TableIntrospection {
 /**
  * Can this identifier survive being written into a statement?
  *
- * `qId` — the single SQL identifier writer (convention 8) — snake-cases before
+ * `qId` (the single SQL identifier writer (convention 8)) snake-cases before
  * quoting, so `qId('Orders')` emits `"orders"`. For every name the ORM created
  * that is a no-op, because it snake-cases on the way in too. For a table some
  * other tool created with a capital in it, it is a statement against a
@@ -133,7 +133,7 @@ const none = (reason: string): Identity => ({ mode: 'none', cols: [], reason })
 export function describeIdentity(table: TableIntrospection): Identity {
   if (!isAddressable(table.name)) {
     return none(
-      `the table name ${table.name} is not addressable — ` +
+      `the table name ${table.name} is not addressable: ` +
         'identifiers are snake-cased before they are quoted',
     )
   }
@@ -146,7 +146,7 @@ export function describeIdentity(table: TableIntrospection): Identity {
   const column = (camel: string): ColumnConstraint | undefined =>
     isColumnKey(camel) ? (constraints[camel] as ColumnConstraint) : undefined
 
-  // 1. Primary key. Composite is the normal case, not an exception — walked in
+  // 1. Primary key. Composite is the normal case, not an exception: walked in
   //    `getSchema()` column order so a composite key has a stable spelling
   //    rather than whatever order the introspection query returned.
   const primary = table.columns.filter(
@@ -170,7 +170,7 @@ export function describeIdentity(table: TableIntrospection): Identity {
     .filter(index => index.type === 'unique')
     .map(index => ({
       name: index.name,
-      // The adapter's own raw spelling, aligned with `cols` by position — the
+      // The adapter's own raw spelling, aligned with `cols` by position: the
       // camel spelling is kept alongside because the *constraints* are keyed by
       // it. An entry with no `rawCols` (a TS-declared index reaching here
       // through some future path) yields `undefined` cells and is filtered out
@@ -203,13 +203,13 @@ export function describeIdentity(table: TableIntrospection): Identity {
   if (chosen) return { mode: 'unique', cols: chosen.cols.map(c => c.raw) }
 
   return none(
-    'no primary key and no unique index over NOT NULL columns — ' +
+    'no primary key and no unique index over NOT NULL columns: ' +
       'there is no way to name one row of this table',
   )
 }
 
 export interface ColumnFacts {
-  /** The raw database column name — what goes into a statement. */
+  /** The raw database column name: what goes into a statement. */
   name: string
   /** The key `getConstraints()` filed it under. */
   camel: string
@@ -230,7 +230,7 @@ export interface TableFacts {
   name: string
   camel: string
   isView: boolean
-  /** `null` unless `introspect({ rowCounts: true })` was asked — see below. */
+  /** `null` unless `introspect({ rowCounts: true })` was asked. See below. */
   rowCount: number | null
   columns: ColumnFacts[]
   /** By raw column name. */
@@ -239,13 +239,13 @@ export interface TableFacts {
   /**
    * Declared indexes.
    *
-   * Computed here already — `describeIdentity` walks them to find a usable
-   * unique key — and now carried out rather than discarded, because the
+   * Computed here already (`describeIdentity` walks them to find a usable
+   * unique key), and now carried out rather than discarded, because the
    * Structure view shows them and there is no second endpoint that knows them.
    */
   indexes: IndexFacts[]
   /**
-   * The first text column that is not part of the identity — what a foreign-key
+   * The first text column that is not part of the identity: what a foreign-key
    * reference shows instead of a bare id. `null` when the table has none.
    */
   label: string | null
@@ -260,7 +260,7 @@ const RX_DATE_TYPE = /^(date|datetime|timestamp)/i
  * `getConstraints()` is the authority, with one exception it cannot express:
  * `ColumnType` has no date member, so every adapter maps a real `DATE` or
  * `TIMESTAMP` to `string` (MySQL explicitly, Postgres by falling through). The
- * raw SQL type is the only place that distinction survives, and it matters —
+ * raw SQL type is the only place that distinction survives, and it matters:
  * `''` into a text column is an empty string and into a timestamp is an error.
  */
 function kindOf(declared: string | undefined, sqlType: string): ColumnKind {
@@ -290,7 +290,7 @@ export function metaOf(
     nullable: constraint?.nullable ?? !schemaColumn.notnull,
     length: constraint?.length,
     enum: constraint?._enum,
-    // **Not `'default' in constraint`.** That reads as the careful choice —
+    // **Not `'default' in constraint`.** That reads as the careful choice:
     // `DEFAULT NULL` is a real default and is filed as `default: null`, so the
     // key's presence looks like the honest test. It is not: `parseConstraints`
     // writes the key on **every** column, defaulted or not, so `in` answered
@@ -298,7 +298,7 @@ export function metaOf(
     //
     // That is not cosmetic. `omittableOnInsert` is
     // `autoIncrement || hasDefault || nullable`, so an always-true `hasDefault`
-    // makes every column omittable — and the insert dialog would happily leave
+    // makes every column omittable, and the insert dialog would happily leave
     // out a NOT NULL column with no default, to be refused by the database
     // rather than by the form that knew.
     //
@@ -363,7 +363,7 @@ export function __resetIntrospectCache() {
 export async function introspect(options?: {
   /**
    * Take the per-table `COUNT(*)`. The schema listing displays it; nothing
-   * else does, and every write introspects to resolve row identity — so the
+   * else does, and every write introspects to resolve row identity, so the
    * default skips a full scan of every table per write.
    */
   rowCounts?: boolean
@@ -371,13 +371,13 @@ export async function introspect(options?: {
   const wantsCounts = options?.rowCounts === true
 
   // `null` from an adapter that cannot answer cheaply - Postgres and MySQL
-  // today - and the behaviour is then exactly what it was before this cache
+  // today - and the behavior is then exactly what it was before this cache
   // existed. Correctness does not depend on the capability being present.
   //
   // Probed rather than called, because this plugin is published against a
   // *range* of `@bakery-framework/orm` versions and an adapter can come from a
   // third-party package that predates the method. A `TypeError` here would
-  // turn a missing optimisation into a failed request; the tests' own stub
+  // turn a missing optimization into a failed request; the tests' own stub
   // adapters are the same shape and proved the point immediately.
   const fingerprint =
     wantsCounts || typeof connection.schemaFingerprint !== 'function'
@@ -432,7 +432,7 @@ export async function introspect(options?: {
         ?.name ?? null
 
     // The adapter's raw spelling where it exists, the camel one where it does
-    // not — shown as it came rather than dropped, so a mismatch is visible
+    // not: shown as it came rather than dropped, so a mismatch is visible
     // instead of silently missing a column.
     const tableIndexFacts = tableIndexes.map(index => ({
       name: index.name,

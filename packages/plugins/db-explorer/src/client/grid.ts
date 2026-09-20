@@ -3,20 +3,20 @@
  *
  * Two rules keep this file's functions under biome's complexity ceiling, and
  * they are worth stating because the old `renderTable` broke both and scored
- * 34 with a fraction of the behaviour:
+ * 34 with a fraction of the behavior:
  *
  *  1. **No function both fetches and renders.** Everything here takes rows it
  *     was handed. `api.ts` does the asking.
  *  2. **Every loop body is a named function.** `each()` from `dom.ts` takes the
  *     factory; an inline body would fold its branches into the caller's score.
  *
- * Three neighbours carry the parts that do not need the cursor:
+ * Three neighbors carry the parts that do not need the cursor:
  * `grid-header.ts` builds the heading row, `grid-body.ts` paints a cell's
  * contents, and `grid-rowbar.ts` owns the per-row save strip. The editing model
  * itself is in `edit-session.ts` and the keyboard model in `cell.ts`, both pure
  * and both tested. What is left here genuinely needs a DOM.
  *
- * `focus` used to live here too — a row identity carried alongside the filters,
+ * `focus` used to live here too: a row identity carried alongside the filters,
  * because a substring `LIKE` could not name a row. With `eq` in the filter
  * vocabulary a foreign-key jump is an ordinary filter, and the highlight, the
  * `focusedMissing()` note and the whole concept are gone.
@@ -79,7 +79,7 @@ export class Grid {
     this.paintCtx = {
       table: ctx.table.name,
       graph: ctx.graph,
-      // Once per grid, not once per cell per paint — see `fkMapFor`.
+      // Once per grid, not once per cell per paint. See `fkMapFor`.
       fks: fkMapFor(ctx.graph, ctx.table.name),
       resolver: ctx.resolver,
       onFollowFk: ctx.onFollowFk,
@@ -174,7 +174,7 @@ export class Grid {
   /**
    * Render one cell from the session's current view of it.
    *
-   * Called on build, after every stage, and after an editor closes — so a
+   * Called on build, after every stage, and after an editor closes, so a
    * staged value and a saved value take exactly the same path.
    */
   private repaintCell(
@@ -248,7 +248,7 @@ export class Grid {
   // ---------------------------------------------------------------- editing
 
   /**
-   * Open an editor — or explain why not.
+   * Open an editor, or explain why not.
    *
    * A double-click on a read-only table says what is wrong *here*, at the
    * moment the user asked. The alternative is a grid that looks editable and
@@ -293,8 +293,7 @@ export class Grid {
     // write, and a multi-column edit must stay one statement.
     //
     // `relatedTarget` is checked because `focusout` also fires for movement
-    // *inside* the editor — tabbing from the input to the null toggle is one —
-    // and committing there would close the editor the user is still in.
+    // *inside* the editor (tabbing from the input to the null toggle is one),     // and committing there would close the editor the user is still in.
     handle.node.addEventListener('focusout', event => {
       const next = (event as FocusEvent).relatedTarget
       if (next instanceof Node && handle.node.contains(next)) return
@@ -425,7 +424,7 @@ export class Grid {
     return this.slots[index]?.row
   }
 
-  /** The row under the cursor — what a keyboard-only user means by "this row". */
+  /** The row under the cursor: what a keyboard-only user means by "this row". */
   focusedRow(): Record<string, unknown> | undefined {
     return this.slots[this.cursor.row]?.row
   }

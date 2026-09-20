@@ -1,15 +1,15 @@
 /**
  * Wire value → column value, and the validation that goes with it.
  *
- * **Pure.** No `Bun.*`, no node builtins, no DOM — convention 5's rule applied
+ * **Pure.** No `Bun.*`, no node builtins, no DOM: convention 5's rule applied
  * inside the plugin, because this module is imported by the endpoints *and*
  * compiled into the browser bundle, so the grid can tell a user their input is
  * wrong before a request is made and get the same answer the server would give.
  * One implementation is the only way those two answers stay equal.
  *
  * **Pure also means importing nothing from `@bakery-framework/*`, including
- * `utils/isomorphic`.** That reads like the one safe exception — it is the
- * framework's own pure layer — and it is not, for a mechanical reason:
+ * `utils/isomorphic`.** That reads like the one safe exception (it is the
+ * framework's own pure layer), and it is not, for a mechanical reason:
  * `bundleModule` marks every *installed package* external
  * (`compiler.ts:316`), so a framework import survives into the emitted bundle
  * as a bare specifier, the browser tries to fetch
@@ -27,9 +27,9 @@
  * express "leave this alone", an empty text field cleared to `NULL`, and `""`
  * into a numeric column silently became `0`. Here:
  *
- *   - **key absent** — leave the column unchanged. Never reaches this function.
- *   - **`null`** — SQL NULL. Refused on a NOT NULL column rather than coerced.
- *   - **`""`** — the empty string. On a text column that is a value; on any
+ *   - **key absent**. Leave the column unchanged. Never reaches this function.
+ *   - **`null`**, SQL NULL. Refused on a NOT NULL column rather than coerced.
+ *   - **`""`**: the empty string. On a text column that is a value; on any
  *     other kind it is an error, never zero and never NULL.
  *
  * And `"007"` is a string in a text column and the number 7 in an integer one,
@@ -41,8 +41,8 @@
  * What kind of value a column holds.
  *
  * The ORM's own `ColumnType` plus `date`. That extra member is not reachable
- * from `getConstraints()` — the ORM stores timestamps as integer seconds, so it
- * reports `integer` — and exists for a column some other tool created as a real
+ * from `getConstraints()` (the ORM stores timestamps as integer seconds, so it
+ * reports `integer`), and exists for a column some other tool created as a real
  * `DATE`/`TIMESTAMP`, which the raw SQL type from `getSchema()` reveals. A
  * genuine date column binds a `Date`, and an integer timestamp binds a number;
  * conflating them is how a timestamp ends up written as the year 1970.
@@ -101,9 +101,8 @@ const ok = (value: unknown): CoerceResult => ({ ok: true, value })
  *
  * `json` and `buffer` cannot, portably: MySQL compares JSON structurally,
  * Postgres refuses `=` on `json` outright (only `jsonb` has it), and a blob
- * comparison depends on how the driver bound the parameter. An optimistic
- * `expect` on one of these would be a predicate that silently never matched —
- * every edit a 409 — so it is refused instead.
+ * comparison depends on how the driver bound the parameter. An optimiztic
+ * `expect` on one of these would be a predicate that silently never matched ( * every edit a 409), so it is refused instead.
  */
 export function comparableKind(kind: ColumnKind): boolean {
   return kind !== 'json' && kind !== 'buffer'
@@ -133,7 +132,7 @@ function coerceInteger(raw: unknown, meta: ColumnMeta): CoerceResult {
     // Narrowed back to a number when it fits, so the common case binds the
     // type every driver has always taken. A value outside the safe range stays
     // a bigint, because turning it into a `number` is the precision loss this
-    // branch exists to avoid — `bigint` is the ORM's own column kind for it.
+    // branch exists to avoid: `bigint` is the ORM's own column kind for it.
     const inSafeRange =
       n <= BigInt(Number.MAX_SAFE_INTEGER) &&
       n >= BigInt(Number.MIN_SAFE_INTEGER)
@@ -187,7 +186,7 @@ function coerceBoolean(raw: unknown): CoerceResult {
 /**
  * A real date/time column, bound as a `Date`.
  *
- * Accepts an ISO-8601 string or a number of **milliseconds** since the epoch —
+ * Accepts an ISO-8601 string or a number of **milliseconds** since the epoch:
  * milliseconds because that is what `Date.now()` and `JSON.stringify(new Date)`
  * produce on the client, and a value that is ambiguous between the two units
  * does not exist: an integer timestamp column reports kind `integer` and never
@@ -215,9 +214,9 @@ function coerceDate(raw: unknown): CoerceResult {
 /**
  * A JSON column, stored as text.
  *
- * The ORM serialises nothing — `Field.Json` declares the column type and the
- * application decides what goes in it — so the explorer stores text and refuses
- * text that is not JSON. An object or array on the wire is serialised here
+ * The ORM serializes nothing: `Field.Json` declares the column type and the
+ * application decides what goes in it, so the explorer stores text and refuses
+ * text that is not JSON. An object or array on the wire is serialized here
  * rather than at the call site, so the grid can send either spelling.
  */
 function coerceJson(raw: unknown): CoerceResult {
@@ -237,7 +236,7 @@ function coerceJson(raw: unknown): CoerceResult {
       return ok(JSON.stringify(raw))
     } catch {
       // A cycle, or a BigInt. Same reasoning as above.
-      return fail('bad_json', 'value cannot be serialised as JSON')
+      return fail('bad_json', 'value cannot be serialized as JSON')
     }
   }
   return fail('type', `expected JSON, got ${typeName(raw)}`)
@@ -312,7 +311,7 @@ export function coerceValue(raw: unknown, meta: ColumnMeta): CoerceResult {
   if (raw === '' && meta.kind !== 'string') {
     // The whole reason this function returns a result rather than a value.
     // `Number('')` is 0, `Boolean('')` is false and `new Date('')` is Invalid
-    // Date — three different wrong answers for the same input, which is what
+    // Date: three different wrong answers for the same input, which is what
     // the dashboard's editor shipped.
     return fail(
       'empty_string',
@@ -351,16 +350,16 @@ export function omittableOnInsert(meta: ColumnMeta): boolean {
 }
 
 /**
- * "Did the user actually change this?" — deliberately loose.
+ * "Did the user actually change this?", deliberately loose.
  *
  * The two operands come from different worlds: the left is a value the database
  * returned, the right is whatever JSON the browser sent, and a driver that
  * hands back `1` for a boolean or a string for a `BIGINT` is not a difference
  * the user made. Strict equality here would send a `set` full of columns nobody
- * touched, which is how an optimistic-concurrency check turns into a conflict
+ * touched, which is how an optimiztic-concurrency check turns into a conflict
  * for every concurrent editor of any column.
  *
- * This is used to *shrink* a statement, never to decide correctness — the
+ * This is used to *shrink* a statement, never to decide correctness: the
  * server's own conflict check is a SQL predicate, not this.
  */
 export function sameValue(a: unknown, b: unknown): boolean {
@@ -379,7 +378,7 @@ export function sameValue(a: unknown, b: unknown): boolean {
   }
   if (typeof a === 'object' || typeof b === 'object') {
     // A cyclic object throws in `JSON.stringify`, and "could not be compared"
-    // has to mean "not equal" — the conservative direction, because it keeps
+    // has to mean "not equal": the conservative direction, because it keeps
     // the column in the statement rather than dropping an edit the user made.
     //
     // A bare try/catch rather than core's `Try`, and that is a constraint of

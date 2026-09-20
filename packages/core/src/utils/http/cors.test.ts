@@ -40,7 +40,7 @@ describe('resolveOrigin', () => {
   })
 
   test('wildcard + credentials is refused, not downgraded', () => {
-    // The browser rejects this pairing outright. Honouring it would leave the
+    // The browser rejects this pairing outright. Honoring it would leave the
     // server believing it allowed a call the client could never make; echoing
     // the origin instead would silently widen what the app asked for. Denying
     // makes the misconfiguration visible.
@@ -57,7 +57,7 @@ describe('corsHeaders', () => {
 
   test('Vary: Origin is set whenever the value is origin-dependent', () => {
     // Without it a shared cache can hand one origin the response computed for
-    // another — the classic CORS cache-poisoning shape.
+    // another, the classic CORS cache-poisoning shape.
     const h = corsHeaders({ origin: ['https://a'] }, 'https://a')
     expect(h?.Vary).toBe('Origin')
   })

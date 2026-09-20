@@ -125,7 +125,7 @@ export function handleTableRenames(
   )
   // Views are excluded, not merely absent. `initDbTablesMap` skips `_view`
   // entries, so a view is never in `dbTables` and would look like a table that
-  // still needs creating — on every run, forever. `evaluateChanges` counts
+  // still needs creating: on every run, forever. `evaluateChanges` counts
   // `unmappedTsTables`, so a schema with a view could never report a perfectly
   // synced database. The view phase creates them; this set is about tables.
   plan.unmappedTsTables = new Set(

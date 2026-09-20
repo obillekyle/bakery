@@ -7,18 +7,18 @@
 ### Drop a file in. It is a route.
 
 <!--
-  One line each. GitHub renders a single newline inside a centred block as a
+  One line each. GitHub renders a single newline inside a centered block as a
   `<br>`, so a wrapped paragraph breaks mid-sentence and each badge on its own
   source line becomes its own row.
 
   MERGE-DAY CHECKLIST. This comment is the durable copy: it is tracked, and it
   sits next to the thing it describes. The same two items are in MONOREPO.md,
-  which is gitignored and therefore disappears on a branch switch — including
+  which is gitignored and therefore disappears on a branch switch, including
   the branch switch this checklist exists for. Do not treat that copy as the
   record.
 
   1. The asset URLs below point at 2.0.0-alpha rather than main, because that
-     is the only branch the files are on — origin/main has no assets/ directory
+     is the only branch the files are on: origin/main has no assets/ directory
      at all, so a main URL today is four broken images, not a fix. Repoint them
      when the branch merges: after that the branch ref is the broken one, and it
      is on the project's front page.
@@ -44,12 +44,12 @@ Filesystem routing, server-rendered JSX and a typed ORM for Bun, with no build s
 
 A batteries-included server framework for [Bun](https://bun.sh): filesystem
 routing, server-rendered JSX, cookie sessions, a typed ORM with schema sync, a
-plugin system, and a live-reload dev loop — with no build step in development.
+plugin system, and a live-reload dev loop, with no build step in development.
 
 Bakery serves files the way Apache served directories: drop a `.tsx`, `.html`,
 `.ts`, or `/api` file under your app's `src/` and it is a route on the next
-request. Routes are resolved against the filesystem per request — a dropped-in
-file serves, a deleted one stops — and in development route modules are
+request. Routes are resolved against the filesystem per request (a dropped-in
+file serves, a deleted one stops), and in development route modules are
 re-imported when their mtime changes, so there is no route table to register
 and, for most edits, no restart.
 
@@ -63,13 +63,12 @@ bun run dev
 ```
 
 That scaffolds an app, creates its SQLite database and serves it on port 3000.
-The scaffolder asks what to include — the ORM, and any of the three plugins —
-and every answer is also a flag (`--no-orm`, `--plugins vue,dashboard`, `--yes`),
+The scaffolder asks what to include (the ORM, and any of the three plugins), and every answer is also a flag (`--no-orm`, `--plugins vue,dashboard`, `--yes`),
 so it drives from a Dockerfile as well as from a terminal.
 
 Requires Bun 1.3.14 or newer, which every package declares as its floor.
-TypeScript is only needed for typechecking — Bun transpiles everything at
-runtime — and a generated app installs it for you.
+TypeScript is only needed for typechecking (Bun transpiles everything at
+runtime), and a generated app installs it for you.
 
 [Installation](docs/getting-started/installation.md) covers the flags, adding
 Bakery to an existing project, and working on the framework itself;
@@ -77,35 +76,35 @@ Bakery to an existing project, and working on the framework itself;
 
 ## What's in the box
 
-- **Filesystem routing** — a URL resolves to a file under `root` (default
+- **Filesystem routing**: a URL resolves to a file under `root` (default
   `src/`): `.tsx` pages rendered to HTML on the server through Bakery's own
   JSX runtime, with a same-stem sibling `.ts`/`.css` auto-injected as script
-  and stylesheet (`about.tsx` picks up `about.ts` and `about.css` — the stem is
+  and stylesheet (`about.tsx` picks up `about.ts` and `about.css`. The stem is
   the page's own filename, not a reserved name); `.html` pages with
   `{{param}}` substitution; `.ts` files
   compiled for the browser on request; `/api/*` JSON handlers; `[param]`
   dynamic segments; and static files with ETag/conditional-GET handling.
-- **Typed routes** — `defineRoute<P>` types the body an `/api` handler
+- **Typed routes**: `defineRoute<P>` types the body an `/api` handler
   receives, `HTMLBody<P>` (also exported as `html`) does the same for a `.tsx`
-  page's render function. Both are identity functions — inference only — and
+  page's render function. Both are identity functions (inference only), and
   the `RouteBody`/`RouteResponse` types behind them are exported from
   `@bakery-framework/core`.
-- **Sessions** — a lazily-created cookie session on every request, backed by a
+- **Sessions**: a lazily-created cookie session on every request, backed by a
   tiered memory-then-SQLite cache.
-- **ORM** (`@bakery-framework/orm`) — schema declared in TypeScript, a query builder and
+- **ORM** (`@bakery-framework/orm`): schema declared in TypeScript, a query builder and
   mutations typed from it, SQLite by default with MySQL/Postgres via `DB_URL`,
   and a sync engine that diffs schema against database, prompts before
   destructive changes, and takes a backup first.
-- **Plugins** — register handlers, route mounts, and lifecycle hooks. Bundled:
+- **Plugins**: register handlers, route mounts, and lifecycle hooks. Bundled:
   Vue single-file-component routes, request analytics, and an admin dashboard.
-- **Security defaults** — blocked-file globs (`.env`, lockfiles, configs, the
+- **Security defaults**: blocked-file globs (`.env`, lockfiles, configs, the
   schema), a same-origin CSRF guard on unsafe `/api` methods, and an
   on-by-default per-IP rate limit.
-- **Also in core** — WebSockets, reverse proxy, per-hostname (multi-host)
+- **Also in core**: WebSockets, reverse proxy, per-hostname (multi-host)
   config, image resizing via `;<size>` URL suffixes, a Google Fonts
   proxy/cache, and middleware/`onRequest`/`onError` hooks.
 
-An `/api` route, complete — save it as `src/api/posts.ts` and `POST /api/posts`
+An `/api` route, complete: save it as `src/api/posts.ts` and `POST /api/posts`
 exists:
 
 ```ts
@@ -124,7 +123,7 @@ export default defineRoute<{ title?: string }>(async (req, body) => {
 ```
 
 `body.title` is `string | undefined` inside the handler. Declaring the shape
-states your contract — it does not validate the request, so validate anyway.
+states your contract: it does not validate the request, so validate anyway.
 
 ## Workspace layout
 
@@ -150,7 +149,7 @@ populated in [`packages/core/src/startup.ts`](packages/core/src/startup.ts);
 a request walks the fetch registry from middleware (priority 100) through
 proxy, virtual assets, images, `/api`, `.tsx`/`.html`/`.ts` routes, down to the
 static-file fallback (0), and the first handler whose `canHandle` claims the
-path wins — with resolutions cached in a shared LRU and re-validated on every
+path wins, with resolutions cached in a shared LRU and re-validated on every
 hit. Because resolution is against the filesystem, dropping in or deleting a
 file is honored on the next request in any mode; in development, route modules
 are additionally imported with mtime cache-busting, so editing one is live too
@@ -164,21 +163,21 @@ files. Editing the `.tsx` page or `/api` route you are working on takes effect
 immediately (mtime-busted re-import); `.css` changes hot-swap the stylesheet in
 the browser; other source changes clear route caches and reload the page. Only
 three things restart the worker: a change to `server.config.ts`, a change
-anywhere under the api directory, and *creating* a `.tsx`/`.jsx` file — Bun
+anywhere under the api directory, and *creating* a `.tsx`/`.jsx` file, Bun
 caches the directory listing it resolved against, so a page that did not exist
 at boot cannot be imported at any specifier until the process restarts. Editing
 an existing page does not restart. Server-pushed errors
 appear in the browser as a dismissable overlay, and a dead dev server shows a
 "disconnected" overlay that reloads when it returns. Schema sync runs before
 each boot, but only actually executes when a content hash of the schema sources
-(recorded under `.cache/`) has changed — so restarts stay fast.
+(recorded under `.cache/`) has changed, so restarts stay fast.
 
 One honest limitation: only the route file's own mtime is checked. Editing a
 shared helper or component that a page imports needs a dev-server restart.
 
 ## Configuration
 
-`server.config.ts` is optional — the defaults (`root: 'src'`, port 3000, host
+`server.config.ts` is optional: the defaults (`root: 'src'`, port 3000, host
 `0.0.0.0`, SQLite at `bakery/server.db`) are a working config. `defineConfig`
 is an identity function that typechecks the object against `AppConfig`:
 
@@ -193,7 +192,7 @@ export default defineConfig({
 ```
 
 The rate limit is worth knowing about: an unconfigured app gets
-`{ max: 100, refill: 10 }` — a 100-request burst refilling at 10 requests per
+`{ max: 100, refill: 10 }`, a 100-request burst refilling at 10 requests per
 second, per client IP. The startup banner announces it, and `rateLimit: false`
 disables it. The full option surface is documented in
 [docs/configuration/server-config.md](docs/configuration/server-config.md).
@@ -202,20 +201,20 @@ disables it. The full option surface is documented in
 
 `bunx bakery` with no flags is production mode: no watcher, no live reload, no
 implicit schema sync (pass `--sync`/`-s` to run one at startup). The port comes
-from `PORT` in the environment, then `port` in the config — there is no port
+from `PORT` in the environment, then `port` in the config: there is no port
 flag. `--threads N` (`-t N`) forks a cluster of workers sharing one port via
-`SO_REUSEPORT`, which only Linux provides — on any other platform the count is
+`SO_REUSEPORT`, which only Linux provides: on any other platform the count is
 clamped to 1 with a warning. Set `NODE_ENV=production` on production hosts; it
 is what arms the sync engine's destructive-change guard.
 
 The flag list is exactly `--dev`, `--sync`/`-s`, `--threads`/`-t`, and the
 internal worker markers. There is no `--help`, and unknown flags are silently
-ignored — `bakery --port 8080` starts a production server. See
+ignored: `bakery --port 8080` starts a production server. See
 [docs/reference/cli.md](docs/reference/cli.md).
 
 ## Documentation
 
-**[bakery.okyle.dev](https://bakery.okyle.dev)** — installation through to the
+**[bakery.okyle.dev](https://bakery.okyle.dev)**: installation through to the
 architecture reference.
 
 The source is [`docs/`](docs/README.md) in this repository, and the site is
@@ -225,11 +224,11 @@ example that stops working fails CI rather than the reader.
 
 ## License
 
-MIT with the Commons Clause v1.0 condition — see [LICENSE](LICENSE).
+MIT with the Commons Clause v1.0 condition. See [LICENSE](LICENSE).
 
-**Not an OSI-approved licence.** The Commons Clause removes the right to *sell*
-the software — meaning to charge for a product or service whose value derives
+**Not an OSI-approved license.** The Commons Clause removes the right to *sell*
+the software: meaning to charge for a product or service whose value derives
 substantially from it, hosting and support included. Everything else the MIT
-licence grants is unchanged: use it, modify it, ship it inside your own product.
-If your organisation only permits OSI-approved dependencies, this will not pass
+license grants is unchanged: use it, modify it, ship it inside your own product.
+If your organization only permits OSI-approved dependencies, this will not pass
 that check.

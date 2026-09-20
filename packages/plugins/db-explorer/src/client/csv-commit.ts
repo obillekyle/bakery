@@ -2,7 +2,7 @@
  * The last step: the bad-row policy, and sending.
  *
  * The interesting part is `commit`. It chunks, and the Cancel button stops
- * **before** the next request rather than aborting one in flight — cancelling
+ * **before** the next request rather than aborting one in flight: canceling
  * mid-flight would leave the user unable to say what landed, and this way the
  * answer is exact and is reported: the chunks that completed are the rows that
  * are in.
@@ -33,12 +33,12 @@ import type { SchemaColumn, SchemaTable } from './meta'
  * The reason on record for raising it was that each request re-introspected
  * the schema, and that is no longer true - `introspect()` is cached against
  * `schemaFingerprint()` now, so the second request onwards pays 10 us rather
- * than 8.28 ms. What is left is HTTP, authorisation and a transaction per
+ * than 8.28 ms. What is left is HTTP, authorization and a transaction per
  * request, which is what the 18% is.
  *
  * **The cost is cancel granularity**, and it is worth stating plainly.
  * `cancelled` is checked between chunks, so a chunk in flight always
- * completes: cancelling used to leave at most 500 further rows inserted and
+ * completes: canceling used to leave at most 500 further rows inserted and
  * now leaves at most 5,000. Progress also advances ten times less often. Both
  * follow from the chunk size rather than from anything that could be tuned
  * separately, since a chunk is one request and one transaction.
@@ -127,7 +127,7 @@ async function commit(
   append(stage, [progress, box('row-bar', stop)])
 
   // All-or-nothing means one transaction, and one transaction means one
-  // request — chunking it would produce N transactions and exactly the partial
+  // request: chunking it would produce N transactions and exactly the partial
   // apply the option exists to rule out.
   const batches = model.onBadRow === 'all' ? [records] : chunk(records, CHUNK)
   const onBadRow = model.onBadRow === 'skip' ? 'skip' : 'stop'
@@ -175,7 +175,7 @@ function paintDone(
   append(stage, [
     el('p', {
       text: facts.cancelled
-        ? `Cancelled — ${facts.inserted} rows landed before it stopped.`
+        ? `Cancelled: ${facts.inserted} rows landed before it stopped.`
         : `${facts.inserted} rows imported.`,
     }),
     failures.length ? rejectedDownload(model, failures) : null,

@@ -42,7 +42,7 @@ export interface DbExplorerPluginOptions extends AccessConfig {
  * })
  * ```
  *
- * Either door admits and the higher level wins — a session admin presenting a
+ * Either door admits and the higher level wins, a session admin presenting a
  * read-only key is still an admin. With neither configured the explorer admits
  * nobody, which is the same default it had when it was read-only, and the
  * reason there is no `writes: true` flag to leave set by accident.

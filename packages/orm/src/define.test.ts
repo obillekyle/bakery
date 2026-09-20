@@ -11,14 +11,14 @@ import type { ExtractOptionals, ExtractTableTypes } from './schema-util'
 
 /**
  * The prototype is only worth building if the derived types are
- * indistinguishable from the hand-written ones — otherwise `DB.table('users')`
+ * indistinguishable from the hand-written ones, otherwise `DB.table('users')`
  * loses autocomplete and the whole idea costs more than it returns.
  *
  * These are compile-time assertions as much as runtime ones: `Exact` fails to
  * typecheck if the two shapes differ in any property or optionality.
  */
 
-/** Mutually assignable — catches widening a column to `any`, or losing null. */
+/** Mutually assignable: catches widening a column to `any`, or losing null. */
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 const exact = <T extends true>(_ok: T) => true
 

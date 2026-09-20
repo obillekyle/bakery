@@ -92,7 +92,7 @@ export type { AuthorizeFn } from '@bakery-framework/core/utils/http'
 
 /**
  * Analytics owns the auth for its endpoints, and the dashboard delegates to
- * it (`isAnalyticsAuthorized`) — the analytics key *is* the dashboard key.
+ * it (`isAnalyticsAuthorized`): the analytics key *is* the dashboard key.
  * Two doors, both fail closed and both off until configured:
  *
  *   - the shared `credential` (`x-analytics-key`, Bearer, or `?analytics-key=`)
@@ -100,7 +100,7 @@ export type { AuthorizeFn } from '@bakery-framework/core/utils/http'
  *
  * Neither configured means analytics is closed to everyone, which is the safe
  * default. Note `isAnalyticsAuthorized` is sync-fast on the credential path
- * and only awaits when a predicate is present — the websocket `canHandle`
+ * and only awaits when a predicate is present: the websocket `canHandle`
  * needs a boolean, so a predicate makes the check async there too.
  */
 let credential: string | undefined
@@ -126,9 +126,9 @@ export async function isAnalyticsAuthorized(req: Request): Promise<boolean> {
 }
 
 /**
- * The rejection envelope, or `null` when the caller may proceed — a guard
+ * The rejection envelope, or `null` when the caller may proceed: a guard
  * returns the rejection rather than throwing (convention 2). It is a
- * `JsonResponseData` and never a `Response`; the router serialises it through
+ * `JsonResponseData` and never a `Response`; the router serializes it through
  * the one JSON envelope in `processResponse`. The explicit `<undefined>` says
  * the envelope carries no `data`, which is what makes it assignable into every
  * caller's own payload type.
@@ -137,7 +137,7 @@ async function checkAnalyticsAuth(
   req: Request,
 ): Promise<JsonResponseData<undefined> | null> {
   if (await isAnalyticsAuthorized(req)) return null
-  // Armed-but-unauthorised is a 401; nothing configured is a 404 that does
+  // Armed-but-unauthorized is a 401; nothing configured is a 404 that does
   // not advertise the endpoint at all.
   return credential || authorizeFn
     ? response.json.error<undefined>(401, 'Unauthorized')
