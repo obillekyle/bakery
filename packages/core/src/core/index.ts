@@ -1,3 +1,25 @@
+/**
+ * The ambients travel with the import.
+ *
+ * Erased at runtime: a type-only import with no bindings adds no module
+ * edge, only the declarations. What it buys is that anything importing from
+ * `@bakery-framework/core` gets the `Request` augmentation (`session`,
+ * `startNs`), `Bakery`, `AppConfig` and the JSX namespace, without the
+ * consuming tsconfig having to name `global.d.ts` in `files`.
+ *
+ * Before this, `getRequest().session` was an error in any project that did
+ * not, which is most of them: the ambients reach an app through the `files`
+ * list of `tsconfig.server.json`, and that list is replaced wholesale the
+ * moment an app writes its own `files`, or bypassed entirely when an editor
+ * resolves a `.vue` file to a project that does not include it. Shipping
+ * `getRequest()` while leaving its return type dependent on that wiring
+ * fixed how to reach the request and left what it is unresolved.
+ *
+ * `plugin-vue/src/vue.d.ts` has used exactly this line for the same reason.
+ */
+import type {} from '../global.d.ts'
+import type {} from '../shared.d.ts'
+import type {} from '../types.d.ts'
 import { Logger, log } from '../logger'
 import { definePlugin as _definePlugin } from '../plugins/types'
 import { Case, is, Math2, match, Try } from '../utils/common'
