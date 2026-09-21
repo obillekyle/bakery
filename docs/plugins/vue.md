@@ -297,6 +297,46 @@ literals and comments, so a literal `"</script>"` inside server code does not
 truncate the block and leak the remainder into the client bundle
 ([`vue/src/utils.ts`](../../packages/plugins/vue/src/utils.ts)).
 
+### Reaching the request: `getRequest()` and `getBody()`
+
+Import them. They work in the block and in anything the block calls:
+
+```ts
+import { getRequest } from '@bakery-framework/core'
+import { getBody } from '@bakery-framework/plugin-vue'
+
+export function viewerId(): number | undefined {
+  return getRequest().session.get('userId')
+}
+
+export function submittedName(): string | undefined {
+  return getBody<{ name?: string }>()?.name
+}
+```
+
+That helper can live in its own file under `src/shared/`, and it still sees
+the request: both read an `AsyncLocalStorage` the framework enters once per
+request, so they survive an `await` and cross a module boundary.
+
+`getRequest()` **throws** outside a request, because the only two places that
+happens are a WebSocket event (which has `ws.data` instead) and boot-time
+code, and both are mistakes rather than states to branch on. `getBody()`
+returns `undefined` instead, because a GET with no payload and no route
+params is an ordinary request.
+
+The older way still works and nothing needs rewriting: `req` and `body` are
+injected into the block as parameters, described below. Prefer the imports in
+new code for three reasons. They carry the real types, where the parameters
+are `any` and the ambient declaration claimed a `Request` the runtime never
+promised. They reach a helper, where a parameter stops at the block. And they
+need no ambient declaration to resolve, which is the one that bites: the
+`req` and `body` globals are declared in `plugin-vue/src/vue.d.ts`, and that
+file reaches an editor only if it lands in whatever tsconfig project the
+editor resolves for the SFC. The generated project naming it lives under
+`.cache/tsconfig/`, which is not an ancestor of `src/`, so for an SFC it
+usually does not, and the symptom is `req` unresolved with nothing to point
+at.
+
 ### `req` and `body` are parameters, not globals
 
 The block is compiled into a module whose default export is, literally:

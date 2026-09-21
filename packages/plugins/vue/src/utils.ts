@@ -7,6 +7,7 @@ import { LRUCache } from '@bakery-framework/core/cache/lru'
 import { Bakery } from '@bakery-framework/core/core/bakery'
 import { Logger } from '@bakery-framework/core/logger'
 import { fs, is, Try } from '@bakery-framework/core/utils'
+import { runWithServerBody } from './server-context'
 import type { ParsedCacheEntry, ServerResponseOptions, VueMeta } from './types'
 
 const logger = new Logger('vue')
@@ -524,7 +525,11 @@ export async function getServerResponse(options: ServerResponseOptions) {
     })
     const execPromise = Promise.resolve(
       is.function(exported)
-        ? exported(req, body, actionName, actionArgs)
+        ? // The parameters stay, so every existing block keeps working; the
+          // store is what lets `getBody()` reach a helper the block calls.
+          runWithServerBody(body, () =>
+            exported(req, body, actionName, actionArgs),
+          )
         : exported,
     )
     const params = await Promise.race([execPromise, timeoutPromise])

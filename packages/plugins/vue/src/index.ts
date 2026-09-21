@@ -12,6 +12,17 @@ import { rewriteVueImports } from './utils'
  */
 export type { CustomElementsOption, VuePluginOptions } from './types'
 
+/**
+ * The request body inside a `<script server>` block, and anything it calls.
+ *
+ * Pairs with `getRequest()` from `@bakery-framework/core`. Both replace the
+ * `req` and `body` globals this plugin declared in `vue.d.ts`, which only
+ * reached a file when that `.d.ts` happened to land in the tsconfig project
+ * an editor resolved for it. The globals still work; they are no longer the
+ * only way, and they are no longer load-bearing.
+ */
+export { getBody } from './server-context'
+
 export default function vuePlugin(options?: VuePluginOptions) {
   if (options) setVuePluginOptions(options)
   return definePlugin({

@@ -146,7 +146,7 @@ try {
       const hostname = getHostname(req)
       const hostConfig = resolveHostConfig(hostname)
 
-      return hostStore.run({ config: hostConfig, hostname }, async () => {
+      return hostStore.run({ config: hostConfig, hostname, req }, async () => {
         const path = url.pathname
         req.startNs = Bun.nanoseconds()
         req.__hostname = hostname
@@ -208,7 +208,7 @@ try {
       serveLog.UNHANDLED_ERR({ error: errorMsg(error) })
       const hostname = req ? getHostname(req) : ''
       const hostConfig = resolveHostConfig(hostname)
-      return hostStore.run({ config: hostConfig, hostname }, async () => {
+      return hostStore.run({ config: hostConfig, hostname, req }, async () => {
         return await handleRequestError('/', req, error)
       })
     },

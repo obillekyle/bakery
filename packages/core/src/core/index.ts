@@ -7,7 +7,7 @@ import { getConfig, NOOP } from './config'
 // `./context` is already in this barrel's graph: line 5 reaches it through
 // `./bakery`, which re-exports `hostStore` from exactly here, so naming it
 // adds no module edge, only a name.
-import { getFrameworkVersion } from './context'
+import { getFrameworkVersion, getRequest } from './context'
 import { createElement, Fragment, html, raw } from './jsx'
 
 export const defineConfig = <T extends AppConfig>(config: T): T => config
@@ -92,6 +92,15 @@ export {
    * ask. The dashboard's footer showed a hardcoded `v3` for want of it.
    */
   getFrameworkVersion,
+  /**
+   * The request being served, from anywhere inside the request.
+   *
+   * Here rather than reachable only through `./core/context` because the
+   * whole point is that it needs no ambient declaration and no deep
+   * subpath to reach a file: a Vue `<script server>` block, a helper it
+   * calls, a `.tsx` page and an API route all import it the same way.
+   */
+  getRequest,
   // Multi-host helpers. Documented in docs/configuration/multi-host.md, and
   // the only reason `./core/bakery` had to be a subpath of its own.
   getHostname,

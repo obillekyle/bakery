@@ -6,6 +6,16 @@ export type HostContext = {
   config: Readonly<ProcessedAppConfig>
   hostname: string
   /**
+   * The request this store was entered for, when there is one.
+   *
+   * Optional because two of the three `hostStore.run` sites have no request
+   * to offer: a WebSocket event carries `ws.data` rather than a `Request`,
+   * and the server's `error` hook receives one only sometimes. `getRequest()`
+   * below is what callers should use, and it reports the absence rather than
+   * handing back `undefined` for them to trip over.
+   */
+  req?: Request
+  /**
    * Per-request memo of raw `.forbidden` marker probes, keyed by the marker
    * path (`<dir>/.forbidden`). Lazily created by `fs.isForbidden` and never
    * read anywhere else. Scoped to one request by construction: every
@@ -152,4 +162,40 @@ export function getFrameworkVersion() {
     // value from the app fallback.
   }
   return _frameworkVersion || UNKNOWN_FW
+}
+
+/**
+ * The request being served, from anywhere inside the request.
+ *
+ * The point is that it needs no ambient declaration to reach a file. The Vue
+ * plugin's `<script server>` blocks used to get `req` and `body` as globals
+ * declared in `plugin-vue/src/vue.d.ts`, which works only if that file lands
+ * in whatever tsconfig project the editor picks for an SFC. It routinely does
+ * not: the generated project that names it lives under `.cache/tsconfig/`,
+ * which is not an ancestor of `src/`, so no editor resolves an SFC to it, and
+ * the symptom is `req` unresolved and `req.session` missing with nothing to
+ * point at. An import cannot fail that way.
+ *
+ * Two things it fixes beyond reachability. The ambient said `Request` while
+ * the value the Vue wrapper actually passes is typed `any`, so the promise
+ * and the runtime disagreed; this returns the one real type, `session`
+ * included. And it works inside a helper the block calls, which a wrapper
+ * parameter cannot reach without being threaded through by hand.
+ *
+ * **Throws when there is no request**, rather than returning `undefined`.
+ * There are exactly two such places and neither is application code that
+ * meant to ask: a WebSocket event (which has `ws.data`, not a `Request`) and
+ * boot-time code running before any request. Handing back `undefined` would
+ * push a null check into every call site to serve two cases that are bugs.
+ */
+export function getRequest(): Request {
+  const store = hostStore.getStore()
+  if (!store?.req) {
+    throw new Error(
+      'getRequest() was called outside a request. A WebSocket event has no ' +
+        'Request (use the handler argument), and boot-time code runs before ' +
+        'there is one.',
+    )
+  }
+  return store.req
 }
