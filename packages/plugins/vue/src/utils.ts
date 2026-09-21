@@ -4,10 +4,11 @@ import {
   unlink as nodeUnlink,
 } from 'node:fs/promises'
 import { LRUCache } from '@bakery-framework/core/cache/lru'
-import { Bakery } from '@bakery-framework/core/core/bakery'
+import { Bakery, hostStore } from '@bakery-framework/core/core/bakery'
 import { Logger } from '@bakery-framework/core/logger'
 import { fs, is, Try } from '@bakery-framework/core/utils'
 import { runWithServerBody } from './server-context'
+import type { HostContext } from '@bakery-framework/core/core/bakery'
 import type { ParsedCacheEntry, ServerResponseOptions, VueMeta } from './types'
 
 const logger = new Logger('vue')
@@ -435,6 +436,34 @@ ${
   `
 }
 
+/**
+ * Run `fn` in a host store that carries `req`.
+ *
+ * Preserves an outer store when there is one: it holds the host config and
+ * hostname the router resolved, and only `req` needs adding. Outside one
+ * (a test driving a route directly, a direct handler call) it builds a
+ * minimal context from the process config, which is what `Bakery.config`
+ * already falls back to.
+ */
+function runInRequest<T>(req: Request, fn: () => T): T {
+  const outer = hostStore.getStore()
+  if (outer) return hostStore.run({ ...outer, req }, fn)
+
+  // No outer store: carry the request and leave `config` unread.
+  //
+  // A plain `{ config: Bakery.config, ... }` throws "Config has not been
+  // initialized" the moment this runs before `initConfig()`, which is every
+  // test that drives a route directly, so the eager read reintroduced the
+  // failure it was added to fix. A getter defers it to whoever actually
+  // wants the config, and nothing in a block that only needs `req` does.
+  const ctx = { hostname: '', req } as HostContext
+  Object.defineProperty(ctx, 'config', {
+    get: () => Bakery.config,
+    enumerable: true,
+  })
+  return hostStore.run(ctx, fn)
+}
+
 /** Drop stale compiled versions of the same source so the cache dir stays bounded. */
 async function pruneServerCache(dir: string, id: string, keepName: string) {
   const entries = await Try(nodeReaddir(dir))
@@ -525,10 +554,20 @@ export async function getServerResponse(options: ServerResponseOptions) {
     })
     const execPromise = Promise.resolve(
       is.function(exported)
-        ? // The parameters stay, so every existing block keeps working; the
-          // store is what lets `getBody()` reach a helper the block calls.
-          runWithServerBody(body, () =>
-            exported(req, body, actionName, actionArgs),
+        ? // The block runs inside a store carrying its own request, so
+          // `getRequest()` works whatever the caller did. Depending on an
+          // outer store looked fine because the worker always enters one,
+          // and then every test that drives a route directly got a throw,
+          // which `getServerResponse` swallows into `{}`: a guard block
+          // stopped redirecting and served 200. Entering it here is what
+          // makes the function total.
+          //
+          // An outer store is preserved rather than replaced: it carries the
+          // host config and hostname this request resolved.
+          runInRequest(req, () =>
+            runWithServerBody(body, () =>
+              exported(req, body, actionName, actionArgs),
+            ),
           )
         : exported,
     )

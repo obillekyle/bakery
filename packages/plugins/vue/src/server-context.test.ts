@@ -156,6 +156,29 @@ describe('a server block reaches the request without an ambient global', () => {
     )
   })
 
+  test('getRequest() works with no outer store, which is how tests drive routes', async () => {
+    // The regression this exists for, found by migrating a real app. The
+    // block used to depend on a store entered by the worker, so anything
+    // calling a route directly got a throw, and `getServerResponse` swallows
+    // a throw into `{}`: a guard block stopped redirecting and served 200
+    // instead of 302. Six route-guard tests in that app caught it and
+    // nothing in this repo did.
+    //
+    // Note the missing `inRequest` wrapper below. That absence is the test.
+    const req = new Request('http://localhost/guarded')
+    const res = await getServerResponse({
+      script: `
+        import { getRequest } from '${CORE}'
+        export const seen = getRequest().url
+      `,
+      id: nextId(),
+      lastMod: MOD,
+      req,
+      body: {},
+    })
+    expect((res as { seen?: string }).seen).toBe('http://localhost/guarded')
+  })
+
   test('getBody() outside a block is undefined, not a throw', async () => {
     // Unlike getRequest(): a GET with no payload and no route params is an
     // ordinary request, so absence is an answer rather than an error.
