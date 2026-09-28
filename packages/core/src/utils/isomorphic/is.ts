@@ -4,7 +4,7 @@
  * Two implementations of this used to exist. This one keeps the *callable*
  * shape from the client copy (`is(x, 'string')` as well as `is.string(x)`,
  * which is what the global `ISFunction` type has always described) and the
- * *semantics* of the server copy — notably `is.object([]) === true`, which
+ * *semantics* of the server copy, notably `is.object([]) === true`, which
  * `misc.test.ts` asserts and which callers like `router.ts` rely on to
  * JSON-encode array response bodies.
  */
@@ -16,7 +16,7 @@ const checks = {
   bigint: (v: any): v is bigint => typeof v === 'bigint',
   symbol: (v: any): v is symbol => typeof v === 'symbol',
   function: (v: any): v is Function => typeof v === 'function',
-  /** Arrays count as objects here — see the note above before changing this. */
+  /** Arrays count as objects here. See the note above before changing this. */
   object: (v: any): v is Record<string, any> =>
     v !== null && typeof v === 'object',
   array: Array.isArray,

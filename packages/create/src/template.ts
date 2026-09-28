@@ -6,12 +6,12 @@
  * checkable: **every `@bakery-framework/*` specifier below resolves through an
  * *enumerated* export, never the `"./*"` wildcard.** That wildcard is a
  * deprecation ramp with one release to live (MONOREPO.md), so a template that
- * leaned on it would generate apps that break on its removal — and it would
+ * leaned on it would generate apps that break on its removal, and it would
  * break them silently, because the wildcard resolves fine today.
  *
  * Derived from `apps/starter`, which is the honest reference: written against
  * public entry points only and booted in CI. The differences are the ones that
- * have to differ — real dependency ranges instead of `workspace:*`, the
+ * have to differ: real dependency ranges instead of `workspace:*`, the
  * `bakery` bin instead of a relative path into the repo, and a `.gitignore`.
  */
 
@@ -22,7 +22,12 @@ export type TemplateFile = {
 }
 
 /** The plugins `--plugins` accepts, in the order they are registered. */
-export const PLUGIN_IDS = ['vue', 'analytics', 'dashboard'] as const
+export const PLUGIN_IDS = [
+  'vue',
+  'analytics',
+  'dashboard',
+  'db-explorer',
+] as const
 export type PluginId = (typeof PLUGIN_IDS)[number]
 
 export type TemplateOptions = {
@@ -38,7 +43,7 @@ export type TemplateOptions = {
  * `@vue/compiler-sfc` as **peer** dependencies, so scaffolding the plugin
  * without them produces an app that installs cleanly and then fails the first
  * time it compiles an SFC. They go into the generated `dependencies`, because a
- * scaffolded app is an application — it should pin what it needs rather than
+ * scaffolded app is an application: it should pin what it needs rather than
  * inherit an unmet peer warning.
  */
 const PLUGINS: Record<
@@ -65,7 +70,31 @@ const PLUGINS: Record<
     // because it is a local demo; a generated app is not.
     call: 'dashboardPlugin()',
   },
+  'db-explorer': {
+    pkg: '@bakery-framework/plugin-db-explorer',
+    import: 'dbExplorerPlugin',
+    // Same rule as the dashboard and for a stronger reason: this one edits
+    // rows. With no `users` and no `authorize` the explorer allows loopback in
+    // development and denies in production, so a generated app is never born
+    // able to write to its database from a browser on the internet.
+    //
+    // It does not share the dashboard's door. Access here is a *level* per
+    // caller rather than a yes, which is why configuring one grants nothing in
+    // the other. See `docs/plugins/db-explorer.md`.
+    call: 'dbExplorerPlugin()',
+  },
 }
+
+/**
+ * Plugins that cannot work without the ORM.
+ *
+ * `db-explorer` browses and edits whatever the ORM is connected to, so
+ * scaffolding it without `orm/` produces an app whose headline feature has
+ * nothing to show. The scaffolder turns the ORM on rather than refusing: the
+ * two are asked for separately and a generated app that boots is better than
+ * a prompt that argues.
+ */
+export const PLUGINS_NEEDING_ORM: readonly PluginId[] = ['db-explorer']
 
 /**
  * The version range the generated `package.json` asks for.
@@ -82,14 +111,14 @@ export function dependencyRange(ownVersion: string): string {
 /**
  * A valid npm package name, scoped or not.
  *
- * Stricter than npm on the parts that are worth being strict about — no
- * uppercase, no leading dot or dash — because the generated `name` field is
+ * Stricter than npm on the parts that are worth being strict about (no
+ * uppercase, no leading dot or dash), because the generated `name` field is
  * the only place this lands, and a name npm would reject surfaces as a
  * confusing `bun install` failure several steps after the mistake.
  *
  * Scopes are accepted, and are reachable only through `--name`. The positional
  * argument is a *directory path*, so `bun create bakery @co/app` means a nested
- * directory whose basename is `app` — that is what a path argument means, and
+ * directory whose basename is `app`: that is what a path argument means, and
  * quietly treating it as a scoped package name instead would be a guess.
  */
 export function isValidAppName(name: string): boolean {
@@ -116,7 +145,7 @@ export default defineConfig({
 
   const calls = plugins.map(id => `    ${PLUGINS[id].call},\n`).join('')
   const dashboardNote = plugins.includes('dashboard')
-    ? `  // The dashboard authenticates nobody itself — the app does, because it is\n` +
+    ? `  // The dashboard authenticates nobody itself. The app does, because it is\n` +
       `  // the thing that knows who its users are. With no \`authorize\`, access is\n` +
       `  // loopback-only in development and denied in production:\n` +
       `  //\n` +
@@ -142,7 +171,7 @@ const INDEX_PAGE = `export default function Home() {
       </head>
       <body>
         <h1>{{name}}</h1>
-        <p>Edit <code>src/index.tsx</code> and save — the page reloads itself.</p>
+        <p>Edit <code>src/index.tsx</code> and save, the page reloads itself.</p>
         <p id="count">loading…</p>
         <script src="/script.js" type="module"></script>
       </body>
@@ -162,12 +191,12 @@ import DB from '@bakery-framework/orm'
 //
 //   export default defineRoute({ body: mySchema }, async (req, body) => …)
 //
-// The body option takes a Standard Schema (zod, valibot, arktype — Bakery
+// The body option takes a Standard Schema (zod, valibot, arktype, Bakery
 // bundles none of them), or a plain function returning the parsed value or
 // throwing. A rejection answers 400 through the same JSON envelope as
 // everything else.
 // posts.authorId is a foreign key into users, so a post cannot be inserted
-// before its author exists — the database refuses a dangling id, which is the
+// before its author exists: the database refuses a dangling id, which is the
 // entire point of the constraint. A real app takes the author from the session;
 // this creates one on demand so the route works on a freshly synced database.
 async function authorId(): Promise<number> {
@@ -203,14 +232,14 @@ export default defineRoute<{ title: string; slug: string; body: string }>(
 /**
  * The same route without a database.
  *
- * Kept to the same shape — `defineRoute`, a typed body, one JSON envelope, and
- * `data` as an array — so the client script below is identical either way and
+ * Kept to the same shape (`defineRoute`, a typed body, one JSON envelope, and
+ * `data` as an array), so the client script below is identical either way and
  * the two templates do not drift into demonstrating different things.
  */
 const API_ROUTE_NO_ORM = `import { defineRoute, response } from '@bakery-framework/core'
 
 // In memory, and therefore per process: a cluster (\`--threads N\`) gives each
-// worker its own copy. That is the point at which you want the ORM — scaffold
+// worker its own copy. That is the point at which you want the ORM: scaffold
 // with it, or add @bakery-framework/orm later.
 const posts: { title: string }[] = []
 
@@ -266,7 +295,7 @@ export const postsByAuthor = Field.Index(posts.authorId)
 /**
  * The `declare module` block is the whole point of this file: it is what makes
  * the ORM typed. Without it everything still runs and typechecks, the columns
- * are just permissive `any` — which is a quiet enough failure that it is worth
+ * are just permissive `any`, which is a quiet enough failure that it is worth
  * generating rather than documenting.
  */
 
@@ -330,7 +359,7 @@ function gitignore(orm: boolean): string {
 
   return `node_modules
 
-# Disposable — the framework deletes it wholesale on every version bump and
+# Disposable: the framework deletes it wholesale on every version bump and
 # dev<->prod switch.
 .cache
 ${data}`
@@ -343,7 +372,7 @@ function readme(name: string, orm: boolean, plugins: PluginId[]): string {
 
   const ormRows = orm
     ? '| `orm/tables.ts` | Table definitions. Run `bun run db:sync` after editing. |\n' +
-      '| `orm/views.ts` | View definitions — stored SELECTs, read-only. |\n' +
+      '| `orm/views.ts` | View definitions: stored SELECTs, read-only. |\n' +
       "| `orm/index.ts` | Registers the schema with the ORM's types. Without its `declare module` block the ORM still works, untyped. |\n"
     : ''
 
@@ -353,6 +382,11 @@ function readme(name: string, orm: boolean, plugins: PluginId[]): string {
       (plugins.includes('dashboard')
         ? '\n\nThe dashboard is loopback-only in development and denied in production ' +
           'until you give it an `authorize` predicate.'
+        : '') +
+      (plugins.includes('db-explorer')
+        ? '\n\nThe database explorer is served at `/_db` and follows the same rule, ' +
+          'with its own access model: a level per caller rather than a yes. ' +
+          'Configuring the dashboard grants nothing there.'
         : '') +
       (plugins.includes('vue')
         ? '\n\n`vue` and `@vue/compiler-sfc` are direct dependencies rather than ' +
@@ -364,7 +398,7 @@ function readme(name: string, orm: boolean, plugins: PluginId[]): string {
   const noOrm = orm
     ? ''
     : '\nScaffolded without the ORM. `src/api/notes.ts` keeps its posts in memory, ' +
-      'which is per process — add `@bakery-framework/orm` when you want them to outlive a ' +
+      'which is per process. Add `@bakery-framework/orm` when you want them to outlive a ' +
       'restart or survive `--threads`.\n'
 
   return `# ${name}
@@ -382,7 +416,7 @@ ${noOrm}
 
 | Path | What it is |
 | --- | --- |
-| \`src/\` | Served. Every file is a route — \`src/index.tsx\` is \`/\`, \`src/api/notes.ts\` is \`/api/notes\`. |
+| \`src/\` | Served. Every file is a route, \`src/index.tsx\` is \`/\`, \`src/api/notes.ts\` is \`/api/notes\`. |
 ${ormRows}| \`server.config.ts\` | Port, root directory, plugins. |
 ${pluginSection}
 \`bun run start\` serves in production mode; add \`--threads N\` to fork a cluster.
@@ -394,7 +428,7 @@ ${pluginSection}
  * every page in the generated app.
  *
  * `@bakery-framework/core/tsconfig.server.json` already sets them, and `tsc` picks them up
- * from there — but **Bun's runtime does not follow `extends` into a package
+ * from there, but **Bun's runtime does not follow `extends` into a package
  * specifier**, only a relative path. So at runtime the app is transpiled with
  * Bun's default automatic JSX runtime instead of Bakery's classic
  * `createElement`, and every `.tsx` route fails with `Cannot find module
@@ -414,7 +448,7 @@ function tsconfig(orm: boolean): string {
     .join(',\n')
 
   return `{
-  "$comment": "The three jsx* options are also set by @bakery-framework/core/tsconfig.server.json, and tsc reads them from there — but Bun's runtime does not follow 'extends' into a package specifier, only a relative path. Without them here, every .tsx page fails at runtime with \\"Cannot find module 'react/jsx-dev-runtime'\\" while typecheck stays clean. Keep them.",
+  "$comment": "The three jsx* options are also set by @bakery-framework/core/tsconfig.server.json, and tsc reads them from there, but Bun's runtime does not follow 'extends' into a package specifier, only a relative path. Without them here, every .tsx page fails at runtime with \\"Cannot find module 'react/jsx-dev-runtime'\\" while typecheck stays clean. Keep them.",
   "extends": "@bakery-framework/core/tsconfig.server.json",
   "compilerOptions": {
     "jsx": "react",
@@ -431,7 +465,7 @@ ${include}
 /**
  * Build the file list for an app named `name`.
  *
- * `range` is threaded in rather than read from disk so this stays pure — the
+ * `range` is threaded in rather than read from disk so this stays pure: the
  * caller resolves it from the running package's own version.
  */
 export function templateFiles(
@@ -460,7 +494,16 @@ export function templateFiles(
       dev: 'bakery --dev',
       start: 'bakery',
       typecheck: 'tsc --noEmit',
-      ...(orm ? { 'db:sync': 'bun run scripts/db-sync.ts' } : {}),
+      ...(orm
+        ? {
+            'db:sync': 'bun run scripts/db-sync.ts',
+            // The codegen entry point: write the schema *from* the database,
+            // touching no tables. `--migrate` is the sync engine's adoption
+            // flag; naming it here is what makes generation discoverable as a
+            // command rather than folklore about a flag.
+            'db:codegen': 'bun run scripts/db-sync.ts --migrate',
+          }
+        : {}),
     },
     // Sorted, because the key order here is otherwise "whichever plugin was
     // listed first", and a generated file that differs run to run is a diff
@@ -470,21 +513,21 @@ export function templateFiles(
     ),
     // `bun-types` is not optional, and its absence is invisible until you run
     // tsc. `@bakery-framework/core/tsconfig.server.json` sets
-    // `"types": ["bun-types"]` — it has to, that is what makes `Bun.*` a type
-    // error in browser code — but core declares no dependencies at all, so
+    // `"types": ["bun-types"]`. It has to, that is what makes `Bun.*` a type
+    // error in browser code, but core declares no dependencies at all, so
     // nothing installs the package the setting names. In this repo it resolves
     // from a *root* devDependency, which is why the gap was invisible from
     // inside the workspace: a generated app typechecked here and died with
     // `TS2688: Cannot find type definition file for 'bun-types'` anywhere else.
     //
-    // An app owning its own toolchain is the right shape regardless — the
+    // An app owning its own toolchain is the right shape regardless: the
     // alternative is core taking a dependency, and having none is a property
     // worth more than this convenience.
     devDependencies: {
-      'bun-types': '^1.3.14',
+      'bun-types': '^1.4.0',
       // **`^5`, not `^7`, and the reason is `vue-tsc`.** TypeScript 7 is the
       // native port and does not ship `typescript/lib/tsc`, which `vue-tsc`
-      // requires to patch — so a Vue app that installs TS 7 gets
+      // requires to patch, so a Vue app that installs TS 7 gets
       // `Cannot find module 'typescript/lib/tsc'` the first time it typechecks
       // an SFC. Measured on a real app: 7.0.2 crashes, 5.9.3 runs.
       //

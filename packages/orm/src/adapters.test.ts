@@ -11,17 +11,17 @@ import {
 /**
  * The extension point, exercised the way a third-party package would use it.
  *
- * Without this the tests below do not compile — `registerAdapter({driver:
+ * Without this the tests below do not compile: `registerAdapter({driver:
  * 'mssql'})` is a type error, because `Driver` is `keyof DriverRegistry` and
  * nothing had declared `mssql`. That is the design working: a driver name is
  * checked, and adding one is a declaration rather than a string.
  *
  * `'./adapters'` is the *barrel*, which is `'@bakery-framework/orm/adapters'` from
- * outside — and it merges even though `DriverRegistry` is declared a file
+ * outside, and it merges even though `DriverRegistry` is declared a file
  * deeper, behind an `export *`. That is worth stating because the alternative
  * is silent: an augmentation aimed at a module the consumer cannot resolve
  * declares a second, unrelated interface and every driver name goes on being
- * rejected with no clue as to why. Both directions are asserted — `oracle`,
+ * rejected with no clue as to why. Both directions are asserted: `oracle`,
  * which nothing declares, is still a type error here.
  */
 declare module './adapters' {
@@ -69,7 +69,7 @@ describe('driver resolution', () => {
   }
 
   test('mysqlis:// now reaches MySQL, which is a fix', () => {
-    // The old factory matched /^mysql[is]?:\/\//  — one optional character — so
+    // The old factory matched /^mysql[is]?:\/\//  (one optional character), so
     // `mysqlis://` fell through to the path heuristic and opened as *SQLite*.
     // MySQLAdapter's own constructor has always rewritten all four spellings,
     // so the two disagreed and the URL never reached the adapter that
@@ -86,7 +86,7 @@ describe('driver resolution', () => {
 describe('registerAdapter', () => {
   const stub = { driver: 'stub' } as unknown as SQLAdapter
 
-  // The registry is process-global — the same hazard as `mock.module`, and the
+  // The registry is process-global: the same hazard as `mock.module`, and the
   // reason every test here uses its disposer. This is the check that they did:
   // a stub left registered would be handed to every later file's `initDB()`.
   const builtIns = Object.fromEntries(
@@ -142,7 +142,7 @@ describe('registerAdapter', () => {
       open: () => stub,
     })
     expect(getAdapter('sqlite')).not.toBe(before)
-    // One entry per driver, however many are stacked under it — otherwise the
+    // One entry per driver, however many are stacked under it: otherwise the
     // reverse scan in resolveDriver would ask the same adapter twice.
     expect(listAdapters().filter(s => s.driver === 'sqlite')).toHaveLength(1)
     off()
@@ -152,7 +152,7 @@ describe('registerAdapter', () => {
   test('a stale disposer does not remove someone else’s adapter', () => {
     // Two registrations under one name. Without the identity check in the
     // disposer, releasing the outer one would delete the *inner* adapter and
-    // leave the driver unregistered — `createDbAdapter` would then throw for a
+    // leave the driver unregistered: `createDbAdapter` would then throw for a
     // driver that is plainly still registered.
     const builtIn = getAdapter('sqlite')
     const inner = { driver: 'sqlite', open: () => stub } as const

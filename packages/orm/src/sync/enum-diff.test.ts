@@ -9,9 +9,9 @@ import { describe, expect, test } from 'bun:test'
  * "current".
  *
  * The gate is the whole design, and these assert both halves of it. Under
- * introspection the members cannot be compared — all three dialects report the
+ * introspection the members cannot be compared: all three dialects report the
  * `CHECK` constraint back in a different shape, and Postgres re-renders it
- * entirely — so comparing there would differ every single time and rebuild the
+ * entirely, so comparing there would differ every single time and rebuild the
  * table on every sync, forever. That is the failure the `length` note in
  * helpers.ts says it waited to rule out.
  */
@@ -44,7 +44,7 @@ describe('enum members join the column diff', () => {
     // The members are emitted into the CHECK in declaration order, so the
     // constraint text genuinely differs. Treating order as insignificant would
     // mean the database and the ledger disagreeing with nothing to reconcile
-    // them — and the rebuild is cheap.
+    // them, and the rebuild is cheap.
     expect(enumDiffers('ledger', ['b', 'a'], ['a', 'b'])).toBe(true)
   })
 
@@ -69,7 +69,7 @@ describe('enum members join the column diff', () => {
 
 describe('the introspection gate', () => {
   test('under introspection, nothing about enums is compared', () => {
-    // Not an optimisation — a correctness guard. Introspection cannot report
+    // Not an optimization: a correctness guard. Introspection cannot report
     // `_enum` in a comparable form, so the db side is always absent; without
     // this gate every enum column would differ on every sync and rebuild
     // forever.
@@ -79,7 +79,7 @@ describe('the introspection gate', () => {
 
   test('an unknown source is treated as introspection', () => {
     // `ledgerSource` is optional on SyncPlan. Defaulting to "compare" would
-    // make the rebuild loop the behaviour for any caller that forgot to set it.
+    // make the rebuild loop the behavior for any caller that forgot to set it.
     expect(enumDiffers(undefined, ['a'], undefined)).toBe(false)
   })
 })

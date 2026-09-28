@@ -10,7 +10,7 @@ import {
 /**
  * This handler is an unauthenticated outbound fetch from the server's own IP,
  * with a cache key built from an attacker-controlled path and query. Google
- * answers 200 for parameters it does not recognise, so before the allow-lists
+ * answers 200 for parameters it does not recognize, so before the allow-lists
  * every junk request minted a fresh cache key and a fresh upstream request --
  * six junk requests were measured producing six keys and eighteen files.
  *

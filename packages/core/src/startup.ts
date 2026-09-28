@@ -39,7 +39,7 @@ let pluginSetup: Promise<void> | null = null
  * Calling both meant every non-clustered worker set its plugins up twice.
  * Handler and mount registration is idempotent so that went unnoticed, but the
  * analytics plugin registers a shutdown hook and kicks off `loadAnalyticsData()`
- * from `setup()` — so it got two of each. Memoising the promise (not a boolean)
+ * from `setup()`, so it got two of each. Memoizing the promise (not a boolean)
  * also makes a concurrent second caller await the first run rather than race it.
  */
 export function setupPlugins(): Promise<void> {
@@ -96,7 +96,7 @@ export async function runStartupBanner(): Promise<void> {
   const host = Bakery.config.host
 
   // Ground truth first. The banner's job is to print where the server is
-  // listening, and `Bakery.server.port` is what the OS actually gave us —
+  // listening, and `Bakery.server.port` is what the OS actually gave us,
   // which is the only correct answer under `PORT=0`, and the only *honest*
   // one if the bound port and the requested one ever part company again.
   // `resolvePort` covers the callers that print a banner without a server
@@ -134,7 +134,7 @@ export async function runStartupBanner(): Promise<void> {
     // constant, and any user-supplied value replaces the reference. The
     // default limiter 429s load tests and shared-NAT offices with nothing
     // anywhere saying it exists, so this line is its one announcement. An
-    // app-configured value prints nothing — their choice, their knowledge.
+    // app-configured value prints nothing: their choice, their knowledge.
     if (Bakery.config.rateLimit === DEFAULT_RATE_LIMIT) {
       serveLog.RATE_LIMIT_DEFAULT(DEFAULT_RATE_LIMIT)
     }

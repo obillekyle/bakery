@@ -10,7 +10,7 @@ export const FLUSH_TIMEOUT_MS = 5000
 
 /**
  * The part of `Worker` this module needs. Narrow enough that a test can supply
- * a plain object, which is the only practical way to exercise the timeout — a
+ * a plain object, which is the only practical way to exercise the timeout: a
  * real Worker that never acknowledges means spawning a real server.
  */
 export interface FlushTarget {
@@ -20,7 +20,7 @@ export interface FlushTarget {
 }
 
 /**
- * Ask every worker to flush, and resolve when they all have — or when
+ * Ask every worker to flush, and resolve when they all have, or when
  * `timeoutMs` elapses, whichever comes first.
  *
  * `worker.terminate()` is immediate: a worker's shutdown hooks never run, so
@@ -87,7 +87,7 @@ export const RESPAWN_RESET_AFTER_MS = 60_000
  * backoff, `RESPAWN_BASE_DELAY_MS` doubling per consecutive failure up to
  * `RESPAWN_MAX_DELAY_MS`. A fixed 100ms meant a worker that died during boot
  * (bad DB URL, port conflict) re-ran initDB/setupServer ~10 times a second
- * indefinitely. Pure — delay = f(consecutiveFailures); the caller owns the
+ * indefinitely. Pure: delay = f(consecutiveFailures); the caller owns the
  * count and resets it after `RESPAWN_RESET_AFTER_MS` of survival.
  */
 export function respawnDelayMs(consecutiveFailures: number): number {
@@ -108,7 +108,7 @@ export async function handleThreadsMaster(threadCount: number) {
   if (process.platform !== 'linux' && threadCount > 1) {
     // Not just Windows: the multi-worker model needs kernel-level SO_REUSEPORT
     // load balancing, which only Linux provides. On macOS N sockets either
-    // fail to bind or never receive balanced traffic — and a bind failure
+    // fail to bind or never receive balanced traffic, and a bind failure
     // feeds the respawn loop below.
     serveLog.CLUSTER_CLAMPED({
       platform: PLATFORM_NAMES[process.platform] ?? process.platform,
@@ -138,9 +138,9 @@ export async function handleThreadsMaster(threadCount: number) {
     // getter-only the assignment threw, and a Try() swallow hid it).
     //
     // THREAD_WORKER is deliberately NOT set. It is the flag that scales caches
-    // *down* for N-way memory sharing — HandlerCache 500→50, HandlerMap
+    // *down* for N-way memory sharing: HandlerCache 500→50, HandlerMap
     // routeCache 5000→500, the tiered cache's memory tier ÷4, the SQLite page
-    // caches ~10x smaller — and a single worker that owns the whole process
+    // caches ~10x smaller, and a single worker that owns the whole process
     // would get all of that for zero benefit. Setting it here made
     // `--threads 1` strictly worse than plain `bun run serve`; leaving it
     // unset makes this path identical to plain prod.
@@ -161,7 +161,7 @@ export async function handleThreadsMaster(threadCount: number) {
   const spawnWorker = (id: number) => {
     workerState.set(id, {
       isTerminated: false,
-      // The streak survives the respawn — that is what makes it a streak.
+      // The streak survives the respawn: that is what makes it a streak.
       consecutiveFailures: workerState.get(id)?.consecutiveFailures ?? 0,
       spawnedAt: Date.now(),
     })

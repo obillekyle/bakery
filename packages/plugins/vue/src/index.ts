@@ -1,15 +1,27 @@
 import { definePlugin } from '@bakery-framework/core/plugins'
+import { preloadCompiler } from './compile'
 import { setVuePluginOptions } from './compile'
 import type { VuePluginOptions } from './types'
 import { rewriteVueImports } from './utils'
 
 /**
  * `vuePlugin` is this package's only export, and its parameter type lived in a
- * `.d.ts` reachable through no working specifier — so a consumer could pass
+ * `.d.ts` reachable through no working specifier, so a consumer could pass
  * options but never name their type. Re-exported here, where the function that
  * takes them is.
  */
 export type { CustomElementsOption, VuePluginOptions } from './types'
+
+/**
+ * The request body inside a `<script server>` block, and anything it calls.
+ *
+ * Pairs with `getRequest()` from `@bakery-framework/core`. Both replace the
+ * `req` and `body` globals this plugin declared in `vue.d.ts`, which only
+ * reached a file when that `.d.ts` happened to land in the tsconfig project
+ * an editor resolved for it. The globals still work; they are no longer the
+ * only way, and they are no longer load-bearing.
+ */
+export { getBody } from './server-context'
 
 export default function vuePlugin(options?: VuePluginOptions) {
   if (options) setVuePluginOptions(options)
@@ -19,7 +31,7 @@ export default function vuePlugin(options?: VuePluginOptions) {
     // Declarative, read by the tsconfig generator at dev boot rather than by
     // the server. `.vue` needs its own project for two reasons core cannot
     // cover: plain `tsc` cannot parse an SFC at all (so this is for `vue-tsc`),
-    // and `vue.d.ts` declares `req` and `body` for SFC scope — globals core
+    // and `vue.d.ts` declares `req` and `body` for SFC scope. Globals core
     // deliberately does not provide. Before this, those declarations shipped in
     // the package and were reachable by no app.
     tsconfig: {
@@ -27,7 +39,7 @@ export default function vuePlugin(options?: VuePluginOptions) {
         name: 'vue',
         // An SFC's `<script>` is rendered on the server, so it reaches the ORM
         // and the app's schema registration the way an API route does. Without
-        // this the tables fall back to `any` in every `.vue` file — silently,
+        // this the tables fall back to `any` in every `.vue` file: silently,
         // because the untyped mode is a supported state and does not error.
         server: true,
         extends: '@bakery-framework/core/tsconfig.vue.json',
@@ -38,7 +50,7 @@ export default function vuePlugin(options?: VuePluginOptions) {
         // An SFC's `<script>` is browser code, so an `importMap` alias inside one
         // is resolved by the browser's own import map and has to typecheck. The
         // flag is off by default precisely because the *server* project must not
-        // have it — an alias only the browser can satisfy would typecheck there
+        // have it: an alias only the browser can satisfy would typecheck there
         // and fail at runtime. Vue is the case the flag exists to allow.
         importMapPaths: true,
       },
@@ -47,6 +59,19 @@ export default function vuePlugin(options?: VuePluginOptions) {
     async setup() {
       const { setupVue } = await import('./setup')
       await setupVue()
+    },
+
+    /**
+     * Start loading `@vue/compiler-sfc` while the rest of boot runs.
+     *
+     * It is 168-173 ms warm and 1,848 ms on a cold filesystem, and without
+     * this every server process paid it inside the first Vue page it served.
+     * Not awaited: the load overlaps with everything else here, and a request
+     * that arrives before it finishes awaits the same promise rather than
+     * starting a second one.
+     */
+    onStart() {
+      preloadCompiler()
     },
     onCompile(content, path) {
       if (

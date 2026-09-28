@@ -1,5 +1,5 @@
 /**
- * `is`, `Math2` and `throws` moved to `utils/isomorphic/` — the client bundle
+ * `is`, `Math2` and `throws` moved to `utils/isomorphic/`: the client bundle
  * carried its own copies of all three. They are re-exported here so existing
  * `@server/utils` importers are unaffected.
  *

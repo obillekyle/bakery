@@ -7,7 +7,7 @@ import { DB } from './query'
 // A real in-memory SQLite adapter rather than a `quoteChar` stub: `parse()`
 // only needs the quote character, but the execution block below needs a
 // database, and one seam for the file is fewer moving parts than two. Set
-// through the connection test seam, never `mock.module` — Bun's module mocks
+// through the connection test seam, never `mock.module`: Bun's module mocks
 // are process-global and never restored.
 let db: SQLiteAdapter
 
@@ -33,7 +33,7 @@ afterAll(() => {
  * `QBRaw | QBObject`, while Update's and Delete's overloads narrow it to a
  * column string. Runtime accepts all three on all of them. Widening six
  * mutation signatures is a public-surface change belonging to the tracked "ORM
- * fluent-API typing gap", so the form is cast at the call site here —
+ * fluent-API typing gap", so the form is cast at the call site here:
  * deliberately, rather than `@ts-nocheck`-ing the file, which is what
  * `orm.test.ts` does and which would also stop checking the assertions that
  * matter.
@@ -41,7 +41,7 @@ afterAll(() => {
 const clause = (builder: unknown): any => builder
 
 /**
- * `parseWhereArgs` emits `operator: ''` for the one-argument form —
+ * `parseWhereArgs` emits `operator: ''` for the one-argument form,
  * `where(<anything exposing .parse()>)`, which is what `DB.raw` and a subquery
  * builder both are. Such a clause has no right operand, so it must render as
  * the left operand alone.
@@ -49,7 +49,7 @@ const clause = (builder: unknown): any => builder
  * `QB`'s `formatClause` (query.ts) and `UpdateExecutable.evalWhere` both branch
  * on it. `DeleteExecutable.evalWhere` was a copy of the Update one that never
  * received that branch, so it appended an operator that is the empty string and
- * a right operand that is `undefined` — and `evalOperands(undefined)` does not
+ * a right operand that is `undefined`, and `evalOperands(undefined)` does not
  * throw, it *binds*: the statement gained a trailing `?` with no operator in
  * front of it and the parameter list gained an `undefined` at a position the
  * visible query does not account for.
@@ -58,7 +58,7 @@ const clause = (builder: unknown): any => builder
  * is exported, and both `where()` implementations take `(column: any,
  * valueOrRef?: any)` and hand it to `parseWhereArgs` unchanged.
  */
-describe('Mutation.DeleteExecutable — operator-less WHERE clauses', () => {
+describe('Mutation.DeleteExecutable: operator-less WHERE clauses', () => {
   test('a raw WHERE renders as the clause alone, as it does on Update', () => {
     const email = 'admin@example.com'
 
@@ -124,11 +124,11 @@ describe('Mutation.DeleteExecutable — operator-less WHERE clauses', () => {
   })
 })
 
-describe('Mutation.DeleteExecutable — executes against SQLite', () => {
+describe('Mutation.DeleteExecutable: executes against SQLite', () => {
   // The SQL-string assertions above are the primary evidence; this proves the
   // malformed form is not merely ugly but rejected by the database, and that
-  // `exists()` — which calls `evalWhere` itself rather than through `parse()`
-  // — is fixed by the same change.
+  // `exists()` (which calls `evalWhere` itself rather than through `parse()`
+  //) is fixed by the same change.
   test('run() and exists() both accept a raw WHERE', async () => {
     const target = 'drop@example.com'
 

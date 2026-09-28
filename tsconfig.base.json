@@ -32,8 +32,20 @@
       "@bakery-framework/plugin-analytics": [
         "./packages/plugins/analytics/src/index.ts"
       ],
+      "@bakery-framework/plugin-analytics/setup": [
+        "./packages/plugins/analytics/src/setup.ts"
+      ],
+      "@bakery-framework/plugin-analytics/stats": [
+        "./packages/plugins/analytics/src/endpoints/stats.ts"
+      ],
+      "@bakery-framework/plugin-analytics/timescale": [
+        "./packages/plugins/analytics/src/timescale.ts"
+      ],
       "@bakery-framework/plugin-dashboard": [
         "./packages/plugins/dashboard/src/index.ts"
+      ],
+      "@bakery-framework/plugin-db-explorer": [
+        "./packages/plugins/db-explorer/src/index.ts"
       ]
     }
   }

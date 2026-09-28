@@ -3,7 +3,7 @@
 One-way streaming from server to browser over an ordinary HTTP response: no
 upgrade, no subprotocol, and the browser reconnects on its own. It is the
 cheaper half of the WebSocket pair and the right shape for progress bars,
-notifications, log tailing and live counters — anything where the client only
+notifications, log tailing and live counters: anything where the client only
 listens.
 
 ```ts
@@ -30,7 +30,7 @@ page handler, a middleware, or a plugin endpoint. Nothing needs registering.
 ## Why this is a helper and not four lines of your own
 
 A route could always return a `Response` wrapping a `ReadableStream` and it
-would reach the client intact — `ETag.sendResponse` returns early without an
+would reach the client intact: `ETag.sendResponse` returns early without an
 `ETag`, and the HTML injector ignores anything that is not HTML. What is easy to
 get wrong is the framing, and every mistake in it is silent:
 
@@ -42,8 +42,8 @@ get wrong is the framing, and every mistake in it is silent:
   forever, so the symptom is "nothing happens".
 - **A write after the client has gone throws**, and it throws inside your timer
   callback, where nothing is catching. `stream.send` after close is a no-op.
-- **An idle connection gets cut by proxies at 30–60s**, and the browser
-  reconnects silently — so the symptom is duplicated server work, not an error.
+- **An idle connection gets cut by proxies at 30 to 60s**, and the browser
+  reconnects silently, so the symptom is duplicated server work, not an error.
   A keep-alive comment every 15s prevents it.
 - **nginx buffers proxied responses by default**, holding every event until the
   buffer fills. Works in development, hangs in production. The response carries
@@ -57,7 +57,7 @@ The producer receives one object
 | Member | What it does |
 | --- | --- |
 | `send(message)` | Send one event. A no-op once closed. |
-| `comment(text?)` | Send a `:` comment — invisible to `onmessage`, useful as a heartbeat. |
+| `comment(text?)` | Send a `:` comment: invisible to `onmessage`, useful as a heartbeat. |
 | `close()` | End the stream. Idempotent. |
 | `closed` | `true` once the client has gone or `close()` has run. |
 
@@ -80,7 +80,7 @@ A message has four fields, three of them optional:
 | `id` | `id:` | Echoed back as the `Last-Event-ID` header when the browser reconnects. |
 | `retry` | `retry:` | How long the browser waits before reconnecting, in ms. |
 
-`data: undefined` still emits an empty `data:` line rather than nothing at all —
+`data: undefined` still emits an empty `data:` line rather than nothing at all,
 a frame with no data line is a *comment* to the client, so the event would vanish
 instead of arriving empty.
 
@@ -105,7 +105,7 @@ export default defineRoute(req =>
 ```
 
 Without it, a closed connection leaves the interval running or the listener
-registered for the life of the process, and the leak is invisible — the client is
+registered for the life of the process, and the leak is invisible: the client is
 gone, so nothing complains. A browser tab left open overnight reconnecting every
 few minutes turns that into hundreds of dead subscriptions.
 
@@ -153,14 +153,14 @@ faster than 15 seconds. Set it to `0` only for a stream you know is short-lived.
 | Binary | no | yes |
 | Through a dumb proxy | usually, with the buffering opt-out | often blocked |
 
-If the client never needs to send anything, use SSE — the reconnect handling
+If the client never needs to send anything, use SSE: the reconnect handling
 alone is worth it. See [WebSockets](websockets.md) for the other half.
 
 ## Notes
 
 - **The CSRF guard does not apply.** `GET` is a safe method, and `EventSource`
   can only issue `GET`. Cross-origin reads are still governed by
-  [CORS](cors.md) — `EventSource` sends no `Origin` header for a same-origin
+  [CORS](cors.md): `EventSource` sends no `Origin` header for a same-origin
   request, and a cross-origin one needs `cors` configured.
 - **`EventSource` cannot set headers.** No `Authorization`, no custom token.
   Same-origin cookie sessions work, since the browser attaches them; anything
@@ -169,11 +169,11 @@ alone is worth it. See [WebSockets](websockets.md) for the other half.
 - **One connection per stream, held open.** Under `--threads N` each connection
   pins one worker for its lifetime. Browsers also cap concurrent connections per
   origin (six on HTTP/1.1), which is a real limit if you open several streams per
-  page — HTTP/2 at the proxy removes it.
+  page: HTTP/2 at the proxy removes it.
 
 ## Next
 
-- [WebSockets](websockets.md) — the bidirectional half.
-- [API routes](api-routes.md) — what else a route can return.
-- [CORS](cors.md) — reading a stream from another origin.
+- [WebSockets](websockets.md): the bidirectional half.
+- [API routes](api-routes.md): what else a route can return.
+- [CORS](cors.md): reading a stream from another origin.
 </content>

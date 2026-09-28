@@ -9,7 +9,7 @@ const MYSQL_URL = process.env.MYSQL_TEST_URL
 const PGSQL_URL = process.env.PGSQL_TEST_URL
 
 /**
- * `iterate()` — and above it `QBExecutable.iterable()` — had never worked.
+ * `iterate()`, and above it `QBExecutable.iterable()`: had never worked.
  *
  * The adapters handed their raw Bun query object to `for await`, and an
  * `SQLQuery` is a thenable with no `Symbol.asyncIterator`, so every dialect
@@ -72,7 +72,7 @@ describe('pagedIterate', () => {
     for await (const _ of pagedIterate(all, 10)('SELECT * FROM t')) {
       // drain
     }
-    // 10 then 5 — and it stops, rather than asking for an empty third page.
+    // 10 then 5, and it stops, rather than asking for an empty third page.
     expect(seen).toHaveLength(2)
   })
 
@@ -119,7 +119,7 @@ describe('pagedIterate', () => {
 
 /**
  * The same walk against real servers, because the derived-table wrapper is the
- * part a dialect can reject — MySQL requires the alias, and a statement that
+ * part a dialect can reject: MySQL requires the alias, and a statement that
  * already carries `ORDER BY` or `LIMIT` has to survive being wrapped.
  */
 describe('iterate() against a live server', () => {
@@ -190,7 +190,7 @@ describe('iterate() against a live server', () => {
  * The published API, end to end.
  *
  * `QBExecutable.iterable()` is what `docs/orm/queries.md` tells people to use
- * for a result set they do not want in memory — and the doc example only ever
+ * for a result set they do not want in memory, and the doc example only ever
  * *compiled*, so it documented something that threw. This runs it.
  */
 describe('DB…iterable()', () => {

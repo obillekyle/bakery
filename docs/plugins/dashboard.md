@@ -1,13 +1,20 @@
 # Dashboard plugin
 
 `@bakery-framework/plugin-dashboard` serves an admin console at `/_dashboard`: server
-metrics, live logs, a session browser and editor, and a database browser with a
-SQL console.
+metrics, live logs, and a session browser and editor.
+
+**It no longer edits your database.** The grid editor and the raw SQL console
+that used to live in the Database tab are gone, along with the
+`DASHBOARD_ALLOW_WRITES` flag that gated them,
+[`@bakery-framework/plugin-db-explorer`](db-explorer.md) does that work at
+`/_db` with a per-caller access level instead of one process-wide environment
+variable. The console's Database entry is a link to it when it is mounted, and
+a panel saying where it went when it is not.
 
 **The dashboard does not authenticate anyone.** It takes a predicate from the
 application, which already knows who its users are. The old shared-secret
-scheme — `DASHPASS`, HTTP Basic auth, a login form, a session flag, a
-constant-time compare and a failed-attempt backoff map — is gone, not
+scheme (`DASHPASS`, HTTP Basic auth, a login form, a session flag, a
+constant-time compare and a failed-attempt backoff map) is gone, not
 deprecated. The `renderLoginForm` component outlived the flow as dead code
 for a while; it is gone now too.
 
@@ -32,31 +39,64 @@ Options ([`dashboard/src/index.ts`](../../packages/plugins/dashboard/src/index.t
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `authorize` | see below | `(req: Request) => boolean \| Promise<boolean>`. Return `true` to allow. |
-| `enabled` | `true` | `false` keeps the plugin out entirely — nothing is registered, no routes exist. The documented way to disable it in production. |
+| `credential` | unset (off) | A shared key, presented as `Authorization: Bearer`, `x-analytics-key`, or `?analytics-key=`. Composes with `authorize`: either admits. |
+| `enabled` | `true` | `false` keeps the plugin out entirely: nothing is registered, no routes exist. The documented way to disable it in production. |
+
+## The door belongs to analytics
+
+[`@bakery-framework/plugin-analytics`](analytics.md) is a **hard dependency**
+of this package, not an optional companion. The console renders analytics, its
+client calls `/api/_analytics/reset` and opens the `/_analytics_ws` socket, and
+registering the dashboard brings analytics' handlers up so those endpoints
+exist.
+
+It follows that they share one door rather than two. `dashboardPlugin`
+forwards both `authorize` and `credential` to `setupAnalytics`, and the
+console's request guard *is* `isAnalyticsAuthorized`: the analytics key is
+literally the dashboard key. A console admitted by one key while the data it
+renders answered to another would be half-open by construction.
+
+```ts no-check: import.meta.env keys are app-defined
+dashboardPlugin({ credential: import.meta.env.ANALYTICS_KEY })
+```
+
+Configure it on either plugin. A call that omits an option leaves whatever the
+other one set, so registration order does not decide the answer; to turn a
+door off, pass the empty string or do not register the plugin.
 
 ## The default is closed
 
-With no `authorize` supplied
-([`dashboard/src/authorize.ts`](../../packages/plugins/dashboard/src/authorize.ts)):
+With no `authorize` supplied, `setupDashboard` forwards core's
+`defaultAuthorize`
+([`core/src/utils/http/authorize.ts`](../../packages/core/src/utils/http/authorize.ts)):
 
-```ts no-check — the default predicate, quoted; supply your own instead
+```ts no-check: the default predicate, quoted; supply your own instead
 export function defaultAuthorize(req: Request): boolean {
-  if (!import.meta.env.DEV) return false
+  if (import.meta.env.PROD !== false) return false
   return isLoopback(req)
 }
 ```
 
-- **Development**: allowed from loopback only — `127.0.0.1`, `::1`, or a
-  request whose hostname is `localhost`. The client IP is read through
-  `getClientIp`, and if that throws (no config, early boot) the hostname alone
-  decides.
-- **Production**: denied, always. Forgetting to configure the console cannot
-  expose a database browser to the internet.
+- **Development**: allowed from loopback only, `127.0.0.1`, `::1` or
+  `::ffff:127.0.0.1`, read from the peer address through `getClientIp`. Never
+  a hostname: `Host: localhost` is chosen by the client, and honoring it once
+  meant any peer on the LAN could ask for a database browser.
+- **Production**: denied, always. The gate reads `PROD` rather than `!DEV`, and
+  an *unset* flag counts as production, so a process that never booted through
+  `core/init` is closed too. Forgetting to configure the console cannot put it
+  on the internet.
 
-The predicate runs inside `isAuthorized`, which coerces the result and treats a
-**throw as a denial**. An authorization check that errors is indeterminate, and
-indeterminate fails closed — the same guard convention the rest of the
-framework follows. A predicate that returns `undefined` is not trusted either.
+This is the one place the console is not simply analytics': analytics on its
+own is closed until configured, and forwarding `defaultAuthorize` keeps the
+loopback-in-development convenience that a scaffolded `dashboardPlugin()`
+relies on. It can only ever narrow: it denies in production and admits
+nothing but this machine in development.
+
+The predicate runs behind `isAuthorized`, which requires the exact boolean
+`true` and treats a **throw as a denial**. An authorization check that errors
+is indeterminate, and indeterminate fails closed: the same guard convention
+the rest of the framework follows. A truthy non-boolean is not trusted either:
+a predicate that answers with a status string would otherwise grant on `"no"`.
 
 Because the predicate receives the raw `Request`, it composes with whatever the
 application already has: a session role, a signed cookie, an IP allow-list, an
@@ -77,7 +117,7 @@ declare function isAdmin(id: string): Promise<boolean>
 ```
 
 The bundled example app uses `authorize: () => true`
-([`apps/example/server.config.ts`](../../apps/example/server.config.ts)) —
+([`apps/example/server.config.ts`](../../apps/example/server.config.ts)),
 appropriate for a local demo, and nothing else.
 
 ## Routes
@@ -93,10 +133,29 @@ everything else, so it sees these paths first.
 | `/api/_dashboard/sessions` | list sessions (`search`, `page`, `pageSize`, `sortBy`, `sortOrder`) |
 | `/api/_dashboard/sessions/delete` | delete one by id |
 | `/api/_dashboard/sessions/update` | set or remove one key on one session |
-| `/api/_dashboard/schema` | the live database schema |
-| `/api/_dashboard/table-data` | paged rows for one table (`tableName`, `page`, `pageSize`, `sortBy`, `sortOrder`, `filters`) |
-| `/api/_dashboard/query` | run SQL |
-| `/api/_dashboard/execute-action` | row-level actions: `delete-row`, `insert-row`, `update-row`, `truncate`, `import-csv` |
+
+Three session routes are the whole `/api/_dashboard` surface. The console
+reads no table data of its own.
+
+The two write routes that used to complete this table (`POST
+/api/_dashboard/query` and `POST /api/_dashboard/execute-action`) are not
+gated, they are **absent**. No environment variable brings them back. The
+console's only mutating endpoints are the two session ones.
+
+`/api/_dashboard/schema` and `/api/_dashboard/table-data` are gone as well.
+They outlived the editor as read-only routes with no caller, and `table-data`
+was the worse of the two: it passed `JSON.parse(filters)` straight to the ORM's
+`getData` with no validation, and an operator the ORM does not recognize is
+*dropped* rather than refused, a dropped filter **widens** the result set.
+[The explorer](db-explorer.md) validates the vocabulary before the query
+builder sees it; this endpoint never learned to.
+
+**An unmatched `/api/_dashboard/*` path answers 404.** It used to answer 204:
+the dispatcher returns `null` for a key no route matched, a handler returning
+`null` means "not mine", and core turns that into No Content, so a script
+still posting to a retired endpoint was told success and changed nothing. The
+404 is scoped to `/api/` deliberately, because `null` is exactly how
+`/_dashboard/style.css` falls through to the route mount below.
 
 Every `/api/_dashboard/*` route answers with the standard JSON envelope; the
 shell is a `Response` and `dashboard.js` is a `Bun.BunFile` once cached, which
@@ -105,7 +164,7 @@ is why the plugin's response type is a three-member union rather than
 
 Unauthorized requests get **404** for page routes and **401** for `/api/`
 routes ([`dashboard/src/setup.ts`](../../packages/plugins/dashboard/src/setup.ts)).
-Any path ending `.css` or `.js` is deliberately exempt from the check — they
+Any path ending `.css` or `.js` is deliberately exempt from the check: they
 are not secrets, and letting them through keeps a denied response from
 rendering unstyled. Note what that means concretely: `/_dashboard/style.css`
 and `/_dashboard/dashboard.js` are readable by anyone while the plugin is
@@ -115,40 +174,71 @@ enabled. They contain UI code, not data.
 
 The stylesheet is not served by a bespoke asset route. `setup()` calls
 `mountRoutes('/_dashboard', <plugin>/public)`, and the normal static pipeline
-takes it from there — with the mount directory as the containment boundary
+takes it from there, with the mount directory as the containment boundary
 ([`dashboard/src/setup.ts`](../../packages/plugins/dashboard/src/setup.ts)).
 
 This is why `DashboardHandler.canHandle` is written so narrowly: it claims
-`/api/_dashboard*`, `/_dashboard` and `/_dashboard/dashboard.js`, and nothing
-else. A handler at priority 120 that claimed `/_dashboard/*` would intercept
-every asset before the mount was ever consulted.
+`/api/_dashboard` and the segments below it, plus exactly `/_dashboard` and
+`/_dashboard/dashboard.js`, and nothing else. A handler at priority 120 that
+claimed `/_dashboard/*` would intercept every asset before the mount was ever
+consulted. The `/api/` half is matched as a namespace *root* rather than a
+string prefix for a second reason: a bare `startsWith` also claims (and then
+404s) an application route named `/api/_dashboard-export`.
 
-## The SQL console
+## The Database entry
 
-`/api/_dashboard/query` is a real SQL prompt against the application's
-database. Three guards sit on it
-([`dashboard/src/endpoints/database.ts`](../../packages/plugins/dashboard/src/endpoints/database.ts)):
+What that entry is depends on whether anything serves `/_db`
+([`shell.tsx`](../../packages/plugins/dashboard/src/shell.tsx)):
 
-1. **Reads only, by default.** A statement that does not begin with `SELECT`,
-   `WITH`, `SHOW`, `DESCRIBE`, `PRAGMA` or `EXPLAIN` is rejected with 403
-   unless the environment sets `DASHBOARD_ALLOW_WRITES=1`. A browser console
-   should not be a one-keystroke path to `DROP TABLE` in production.
+- **With an explorer mounted**, it is an `<a href="/_db">` rather than a tab
+  button, and the signpost panel is not rendered at all. A tab whose whole
+  content is "go there" is a click of ceremony in front of going there.
+- **With nothing at `/_db`**, it stays a tab, and the panel explains where the
+  editor went and how to get it back. An entry that silently navigated to a 404
+  would be worse than either shape.
 
-   The same flag now gates the **grid editor** too — row insert, update and
-   delete, and table truncate. It previously covered only the SQL console, so
-   the Truncate button was exactly the one-keystroke path that rule describes.
-   A control covering one of two routes to the same effect is worse than none,
-   because it reads as protection.
-2. **`ATTACH` / `DETACH` / `VACUUM INTO` are always rejected**, write mode or
-   not. In SQLite, `ATTACH` plus `VACUUM INTO` is an arbitrary file write —
-   which would turn any dashboard session, or any XSS in this origin, into host
-   filesystem access.
-3. **Table names are validated** against `^[a-zA-Z0-9_]+$` before reaching any
-   query builder.
+The console asks that question **behaviorally** (it walks the fetch registry
+for a handler that claims `/_db` *and declines a path nobody serves*), rather
+than importing the explorer, so an application serving its own explorer at
+`/_db` gets the link too. The second half of the test is load-bearing:
+`StaticHandler` sits at priority 0 with a `canHandle` that returns `true`
+unconditionally, so "does some handler claim `/_db`" is always yes. Only a
+handler that claims a *namespace* declines the control path.
+
+Either way it fetches nothing and ships no client module.
+
+The tab used to be a grid editor over `execute-action` and a raw SQL prompt
+over `query`, both behind `DASHBOARD_ALLOW_WRITES=1`. The whole arrangement is
+retired in favor of
+[`@bakery-framework/plugin-db-explorer`](db-explorer.md), which reaches the
+same data through an access level tied to the caller rather than a flag tied
+to the process, and which does not accept raw SQL at all.
+
+Register the explorer alongside the console if you want the link to lead
+anywhere:
+
+```ts
+import { defineConfig } from '@bakery-framework/core'
+import dbExplorerPlugin from '@bakery-framework/plugin-db-explorer'
+import dashboardPlugin from '@bakery-framework/plugin-dashboard'
+
+export default defineConfig({
+  root: 'src',
+  plugins: [dashboardPlugin(), dbExplorerPlugin()],
+})
+```
+
+What this removes is worth stating plainly, because the old text made a
+security promise on the flag's behalf: an operator who set
+`DASHBOARD_ALLOW_WRITES=1` had a browser tab that could `DROP TABLE`, and one
+who left it unset was relying on a statement classifier to tell reads from
+writes. Neither situation exists now. Setting the variable does nothing: if
+it is still in a deployment environment, delete it; a variable that reads as a
+control still in force is worse than no variable at all.
 
 Session editing has its own guard: a key under the reserved `__bakery.` prefix
 is rejected with 403. Without it, editing a session could set a framework
-privilege marker on any user's session — a permanent backdoor
+privilege marker on any user's session: a permanent backdoor
 ([`dashboard/src/endpoints/sessions.ts`](../../packages/plugins/dashboard/src/endpoints/sessions.ts)).
 
 ## Live logs
@@ -162,30 +252,41 @@ The Logs panel is therefore **development-only in practice**:
 `LiveReloadHandler` refuses to handle `/_livereload` unless both `DEV` and
 `DEV_WORKER` are set, so in production nothing ever joins the registry.
 
-## Known issue: the Overview panel cannot load
+## How the Overview panel gets its data
 
 The stats panel talks to the analytics plugin over `/_analytics_ws` and
-`/api/_analytics/reset`, by **hardcoded URL** — the package dependency was
-removed but the coupling moved into strings, invisible to both the dependency
-graph and the typechecker
-([`dashboard/src/client/parts/stats.ts,644`](../../packages/plugins/dashboard/src/client/parts/stats.ts)).
+`/api/_analytics/reset`, and the dependency is real rather than implied:
+`@bakery-framework/plugin-analytics` is a `workspace:^` dependency of this
+package, `setup.ts` calls `setupAnalytics` and forwards the door, and
+`isAnalyticsAuthorized` is what guards the console itself.
 
-Two things follow:
+That means one door, not two. Whatever admits you to the console admits you to
+the data it renders: configure `credential` or `authorize` once, on either
+plugin, and both surfaces honor it. See
+[Analytics → Authorization](analytics.md#authorization).
 
-- Install the dashboard **without** `@bakery-framework/plugin-analytics` and those calls
-  404 silently. The panel stays empty; nothing reports why.
-- Install it **with** analytics and they are refused anyway, because the
-  analytics authorization check can no longer be satisfied by anything in the
-  repository. See
-  [Analytics → Authorization is currently a dead end](analytics.md#authorization-is-currently-a-dead-end).
+With neither configured the guard allows loopback in development and denies
+everything in production, so an unconfigured console works on your machine and
+is closed on a server.
 
-The Sessions, Database and Logs panels are unaffected — they use
-`/api/_dashboard/*`, which is gated by your `authorize` predicate and works.
+The Sessions panel uses `/api/_dashboard/*` and goes through the same
+predicate. The Logs panel holds a WebSocket open on `/_dashboard/logs`, behind
+that same door, and every line the server logs is pushed down it.
+
+That socket is the console's own. It used to ride on `/_livereload`, which the
+dev watcher owns and which is registered only in development, so the panel
+worked on a dev server and answered 400 on every production one. The
+live-reload socket is still the watcher's, and in development it also forwards
+your app pages' own `console` output into the same stream, which is why those
+lines appear here too. The Database entry fetches nothing at all: with the explorer mounted
+it is a link to `/_db`, and without it a panel saying where the editor went.
 
 ## Production checklist
 
 - Pass `enabled: false`, or an `authorize` predicate you can defend. There is
   no third option that leaves the console reachable safely.
-- Leave `DASHBOARD_ALLOW_WRITES` unset.
 - Remember that the console runs at the same origin as the application, so an
   XSS anywhere in that origin inherits whatever the predicate grants.
+- If you register the explorer for the Database link, give it its own access
+  configuration: the console's `authorize` does not carry over. See
+  [Database Explorer](db-explorer.md).

@@ -1,5 +1,5 @@
 /**
- * Template schema — copy this to `schema.ts` to get started:
+ * Template schema. Copy this to `schema.ts` to get started:
  *
  * ```sh
  * cp schema.example.ts schema.ts
@@ -8,8 +8,8 @@
  *
  * `schema.ts` itself is gitignored: it belongs to the application, and
  * `db:sync` rewrites it (it can generate the file from an existing database
- * with `--choose=db`). This example is tracked so the shape — and, more
- * importantly, the registration block at the bottom — is discoverable in a
+ * with `--choose=db`). This example is tracked so the shape (and, more
+ * importantly, the registration block at the bottom) is discoverable in a
  * fresh clone.
  *
  * The framework never imports this file for types. Everything runs and
@@ -80,7 +80,7 @@ export type DBOptionals = {
 
 /**
  * Registers this schema with the framework's type system, which is what makes
- * `DB.from('posts')` know its columns. Keep this block — without it the ORM
+ * `DB.from('posts')` know its columns. Keep this block, without it the ORM
  * still works, but every table and column is `any`.
  */
 declare module '@bakery-framework/orm/schema-registry' {

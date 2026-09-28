@@ -3,7 +3,7 @@ import { createExecutor, type SQLAdapter } from './base'
 import { getQueryObserver, type QueryEvent, setQueryObserver } from './observe'
 
 /**
- * The observer is process-wide state, so every test here restores it — a leaked
+ * The observer is process-wide state, so every test here restores it: a leaked
  * observer would otherwise collect events from every ORM test file Bun loads
  * afterwards and, worse, a leaked *throwing* one would fail them.
  */
@@ -45,7 +45,7 @@ function stubExecutor(
     driver,
     {
       // An explicit walker, because these tests are about the *observer*, not
-      // about how rows are fetched — `pagedIterate` would issue its own
+      // about how rows are fetched: `pagedIterate` would issue its own
       // windowed statements and the assertions below count calls.
       iterate: async function* (sql: string, params: unknown[] = []) {
         await guard('iterate', sql, params)
@@ -72,7 +72,7 @@ describe('setQueryObserver', () => {
     }
 
     expect(getQueryObserver()).toBeNull()
-    // The queries still ran — an unset observer must not short-circuit anything.
+    // The queries still ran: an unset observer must not short-circuit anything.
     expect(calls.length).toBe(5)
   })
 
@@ -112,7 +112,7 @@ describe('query events', () => {
     expect(events[0].rows).toBe(2)
     expect(events[0].error).toBeNull()
     // Real wall clock, not a placeholder: the stub sleeps 20ms. The upper bound
-    // is loose on purpose — a tight one turns a busy CI box into a flake.
+    // is loose on purpose: a tight one turns a busy CI box into a flake.
     expect(events[0].ms).toBeGreaterThanOrEqual(15)
     expect(events[0].ms).toBeLessThan(5000)
   })
@@ -310,7 +310,7 @@ describe('iterate', () => {
 
     const seen: unknown[] = []
     for await (const row of exec.iterate('SELECT * FROM t')) {
-      // Nothing must be reported until the stream is done — the whole point of
+      // Nothing must be reported until the stream is done: the whole point of
       // measuring an iterate to its end rather than to its first row.
       expect(events.length).toBe(0)
       seen.push(row)
@@ -322,7 +322,7 @@ describe('iterate', () => {
     expect(events[0].rows).toBe(2)
     expect(events[0].error).toBeNull()
     // Three sleeps of 15ms: the open, then one per row. This is the documented
-    // difference from `all` — the duration spans the whole streaming lifetime.
+    // difference from `all`: the duration spans the whole streaming lifetime.
     expect(events[0].ms).toBeGreaterThanOrEqual(35)
   })
 

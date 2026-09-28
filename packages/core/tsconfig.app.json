@@ -1,12 +1,12 @@
 {
   "$comment": [
-    "**Client-side code** — the plain `.ts` under your source root that ends up",
+    "**Client-side code**, the plain `.ts` under your source root that ends up",
     "in the browser bundle. Extend it:",
     "  { \"extends\": \"@bakery-framework/core/tsconfig.app.json\" }",
     "",
     "BREAKING, 2.0.0: this file used to be the single config every app",
     "extended, and it carried `bun-types` and the JSX settings. It is now the",
-    "*browser* half of a three-way split — server code extends",
+    "*browser* half of a three-way split: server code extends",
     "tsconfig.server.json, Vue SFCs extend tsconfig.vue.json.",
     "",
     "**`types` is deliberately empty.** That is the entire reason the split",
@@ -18,7 +18,7 @@
     "tsconfig.server.json; a `.tsx` file compiled under this config would pick up",
     "the automatic runtime and fail at request time while typechecking clean."
   ],
-  "_files_note": "client/globals.d.ts declares the globals the browser runtime binds onto globalThis (request, escapeHTML, is, Try, Case, match, …). It states each as `typeof import(...)` of the isomorphic module that implements it, so the declaration cannot drift from the value. Those modules are pure by convention — no Bun, no node builtins, no DOM — which is what makes them safe to pull into a project that has no bun-types.",
+  "_files_note": "client/globals.d.ts declares the globals the browser runtime binds onto globalThis (request, escapeHTML, is, Try, Case, match, …). It states each as `typeof import(...)` of the isomorphic module that implements it, so the declaration cannot drift from the value. Those modules are pure by convention (no Bun, no node builtins, no DOM), which is what makes them safe to pull into a project that has no bun-types.",
   "files": [
     "./src/client/globals.d.ts",
     "./src/shared.d.ts",

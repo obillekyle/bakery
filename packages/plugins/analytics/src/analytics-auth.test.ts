@@ -1,85 +1,205 @@
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { initConfig } from '@bakery-framework/core/core/config'
-import { DASHPASS_SESSION_KEY } from '@bakery-framework/core/session'
-import { isAnalyticsAuthorized } from './endpoints/stats'
+import {
+  isAnalyticsAuthorized,
+  setAnalyticsAuthorize,
+  setAnalyticsCredential,
+} from './endpoints/stats'
 import { AnalyticsWSHandler } from './endpoints/websocket'
+import { applyAnalyticsAuth } from './setup'
 
 beforeAll(async () => {
   await initConfig()
 })
 
-const originalDashpass = process.env.DASHPASS
-
 afterEach(() => {
-  if (originalDashpass === undefined) delete process.env.DASHPASS
-  else process.env.DASHPASS = originalDashpass
+  // Both are module-level process state; a test that set either must clear it
+  // or every file after this one inherits an armed door.
+  setAnalyticsCredential(undefined)
+  setAnalyticsAuthorize(undefined)
 })
 
-/** A request with a stub session, mirroring what the worker attaches. */
-function reqWithSession(values: Record<string, any> = {}) {
-  const req = new Request('http://localhost/_analytics_ws')
-  Object.defineProperty(req, 'session', {
-    value: { get: (k: string, d?: any) => values[k] ?? d },
-    configurable: true,
-  })
-  return req
-}
+const req = (init: RequestInit = {}, path = '/api/_analytics/stats') =>
+  new Request(`http://localhost${path}`, init)
 
 describe('analytics authorization', () => {
-  test('fails CLOSED when DASHPASS is unset', () => {
-    delete process.env.DASHPASS
-    // This previously returned "authorized", so the documented way to disable
-    // the dashboard left analytics wide open.
-    expect(isAnalyticsAuthorized(reqWithSession())).toBe(false)
-  })
-
-  test('rejects an unauthenticated request when DASHPASS is set', () => {
-    process.env.DASHPASS = 'secret'
-    expect(isAnalyticsAuthorized(reqWithSession())).toBe(false)
-  })
-
-  test('accepts a request holding the dashpass marker', () => {
-    process.env.DASHPASS = 'secret'
+  test('closed to everyone with nothing configured', async () => {
     expect(
-      isAnalyticsAuthorized(reqWithSession({ [DASHPASS_SESSION_KEY]: true })),
+      await isAnalyticsAuthorized(
+        req({ headers: { 'x-analytics-key': 'anything' } }),
+      ),
+    ).toBe(false)
+    expect(await isAnalyticsAuthorized(req())).toBe(false)
+  })
+
+  test('the credential admits via header, Bearer or query', async () => {
+    setAnalyticsCredential('ops-key-7')
+    expect(
+      await isAnalyticsAuthorized(
+        req({ headers: { 'x-analytics-key': 'ops-key-7' } }),
+      ),
     ).toBe(true)
+    expect(
+      await isAnalyticsAuthorized(
+        req({ headers: { authorization: 'Bearer ops-key-7' } }),
+      ),
+    ).toBe(true)
+    expect(
+      await isAnalyticsAuthorized(
+        req({}, '/api/_analytics/stats?analytics-key=ops-key-7'),
+      ),
+    ).toBe(true)
+  })
+
+  test('a wrong or absent credential is refused', async () => {
+    setAnalyticsCredential('ops-key-7')
+    expect(
+      await isAnalyticsAuthorized(
+        req({ headers: { 'x-analytics-key': 'wrong' } }),
+      ),
+    ).toBe(false)
+    expect(await isAnalyticsAuthorized(req())).toBe(false)
+  })
+
+  test('an authorize predicate is the second door, and fails closed on throw', async () => {
+    setAnalyticsAuthorize(r => r.headers.get('x-role') === 'admin')
+    expect(
+      await isAnalyticsAuthorized(req({ headers: { 'x-role': 'admin' } })),
+    ).toBe(true)
+    expect(
+      await isAnalyticsAuthorized(req({ headers: { 'x-role': 'guest' } })),
+    ).toBe(false)
+
+    setAnalyticsAuthorize(() => {
+      throw new Error('identity service down')
+    })
+    expect(await isAnalyticsAuthorized(req())).toBe(false)
+  })
+
+  test('either door admits when both are configured', async () => {
+    setAnalyticsCredential('ops-key-7')
+    setAnalyticsAuthorize(r => r.headers.get('x-role') === 'admin')
+    expect(
+      await isAnalyticsAuthorized(
+        req({ headers: { 'x-analytics-key': 'ops-key-7' } }),
+      ),
+    ).toBe(true)
+    expect(
+      await isAnalyticsAuthorized(req({ headers: { 'x-role': 'admin' } })),
+    ).toBe(true)
+    expect(await isAnalyticsAuthorized(req())).toBe(false)
+  })
+})
+
+/**
+ * `applyAnalyticsAuth` is the half of `setupAnalytics` that runs on every call,
+ * and both plugins call it: `analyticsPlugin` directly, `dashboardPlugin`
+ * through `setupDashboard`, because the analytics key is the dashboard key.
+ *
+ * Which means registration order decides who configures the door last, and
+ * these pin that it does not decide *what the door is*. Verified against the
+ * unconditional assignment this replaced: the first two cases fail there, and
+ * the second is the shape `apps/example` actually has,
+ * `dashboardPlugin({ authorize })` then `analyticsPlugin({ credential })`,
+ * which under a plain assignment shut the console the first call opened.
+ */
+describe('setup applies only the options it is given', () => {
+  test('a bare call does not clear a configured credential', async () => {
+    applyAnalyticsAuth({ credential: 'ops-key-7' })
+    applyAnalyticsAuth({})
+
+    expect(
+      await isAnalyticsAuthorized(
+        req({ headers: { 'x-analytics-key': 'ops-key-7' } }),
+      ),
+    ).toBe(true)
+  })
+
+  test('a later credential does not clear an earlier predicate', async () => {
+    applyAnalyticsAuth({ authorize: r => r.headers.get('x-role') === 'admin' })
+    applyAnalyticsAuth({ credential: 'ops-key-7' })
+
+    expect(
+      await isAnalyticsAuthorized(req({ headers: { 'x-role': 'admin' } })),
+    ).toBe(true)
+    expect(
+      await isAnalyticsAuthorized(
+        req({ headers: { 'x-analytics-key': 'ops-key-7' } }),
+      ),
+    ).toBe(true)
+  })
+
+  test('a value that is given still wins', async () => {
+    // The other direction: "does not clear" must not have become "cannot
+    // change". Last config wins is the rule; omission is simply not a config.
+    applyAnalyticsAuth({ credential: 'first' })
+    applyAnalyticsAuth({ credential: 'second' })
+
+    expect(
+      await isAnalyticsAuthorized(
+        req({ headers: { 'x-analytics-key': 'first' } }),
+      ),
+    ).toBe(false)
+    expect(
+      await isAnalyticsAuthorized(
+        req({ headers: { 'x-analytics-key': 'second' } }),
+      ),
+    ).toBe(true)
+  })
+
+  test('the empty string is how a door is turned off', async () => {
+    // Documented as the escape hatch, so it has to work: `requestHasCredential`
+    // treats an empty key as no key rather than as a key that matches nothing.
+    applyAnalyticsAuth({ credential: 'ops-key-7' })
+    applyAnalyticsAuth({ credential: '' })
+
+    expect(
+      await isAnalyticsAuthorized(
+        req({ headers: { 'x-analytics-key': 'ops-key-7' } }),
+      ),
+    ).toBe(false)
+    expect(
+      await isAnalyticsAuthorized(req({ headers: { 'x-analytics-key': '' } })),
+    ).toBe(false)
   })
 })
 
 describe('analytics websocket upgrade', () => {
-  test('refuses to upgrade an unauthenticated socket', () => {
-    process.env.DASHPASS = 'secret'
+  test('honors the credential', async () => {
+    setAnalyticsCredential('ops-key-7')
     expect(
-      AnalyticsWSHandler.canHandle('/_analytics_ws', reqWithSession()),
-    ).toBe(false)
-  })
-
-  test('refuses to upgrade when DASHPASS is unset', () => {
-    delete process.env.DASHPASS
-    expect(
-      AnalyticsWSHandler.canHandle(
+      await AnalyticsWSHandler.canHandle(
         '/_analytics_ws',
-        reqWithSession({ [DASHPASS_SESSION_KEY]: true }),
-      ),
-    ).toBe(false)
-  })
-
-  test('upgrades an authenticated socket', () => {
-    process.env.DASHPASS = 'secret'
-    expect(
-      AnalyticsWSHandler.canHandle(
-        '/_analytics_ws',
-        reqWithSession({ [DASHPASS_SESSION_KEY]: true }),
+        req({ headers: { 'x-analytics-key': 'ops-key-7' } }, '/_analytics_ws'),
       ),
     ).toBe(true)
   })
 
-  test('ignores unrelated paths', () => {
-    process.env.DASHPASS = 'secret'
+  test('refuses an unauthenticated socket', async () => {
+    setAnalyticsCredential('ops-key-7')
     expect(
-      AnalyticsWSHandler.canHandle(
+      await AnalyticsWSHandler.canHandle(
+        '/_analytics_ws',
+        req({}, '/_analytics_ws'),
+      ),
+    ).toBe(false)
+  })
+
+  test('refuses when nothing is configured', async () => {
+    expect(
+      await AnalyticsWSHandler.canHandle(
+        '/_analytics_ws',
+        req({ headers: { 'x-analytics-key': 'ops-key-7' } }, '/_analytics_ws'),
+      ),
+    ).toBe(false)
+  })
+
+  test('ignores unrelated paths', async () => {
+    setAnalyticsCredential('ops-key-7')
+    expect(
+      await AnalyticsWSHandler.canHandle(
         '/other',
-        reqWithSession({ [DASHPASS_SESSION_KEY]: true }),
+        req({ headers: { 'x-analytics-key': 'ops-key-7' } }, '/other'),
       ),
     ).toBe(false)
   })

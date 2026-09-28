@@ -13,12 +13,12 @@ const PGSQL_URL = process.env.PGSQL_TEST_URL
  *
  * The three constructs the builder had never been able to express. Each one
  * has a dialect split, and every rule asserted here was measured against live
- * MySQL 8 and Postgres 16 before it was written — the standard says one thing
+ * MySQL 8 and Postgres 16 before it was written: the standard says one thing
  * and the servers say another in at least three places:
  *
  * | | SQLite | MySQL | Postgres |
  * | --- | --- | --- | --- |
- * | parenthesised operands | **no** | yes | yes |
+ * | parenthesized operands | **no** | yes | yes |
  * | branch with its own LIMIT | needs a derived table | parens or derived | parens or derived |
  * | `INTERSECT ALL` / `EXCEPT ALL` | **no** | 8.0.31+ | yes |
  * | `FULL OUTER JOIN` | 3.39+ | **never** | yes |
@@ -35,7 +35,7 @@ describe('set operations: emitted SQL', () => {
     await db.close()
   })
 
-  test('operands are bare — SQLite rejects parenthesised ones outright', () => {
+  test('operands are bare, SQLite rejects parenthesized ones outright', () => {
     const { sql } = DB.from('a').union(DB.from('b')).parse()
     expect(sql).toBe('SELECT * FROM "a" UNION SELECT * FROM "b"')
     expect(sql).not.toContain('(SELECT')
@@ -43,7 +43,7 @@ describe('set operations: emitted SQL', () => {
 
   test('a branch that limits itself is wrapped as a derived table', () => {
     // `SELECT … LIMIT 2 UNION SELECT …` is a syntax error on all three, and
-    // the parenthesised fix works on only two. This form works on all three.
+    // the parenthesized fix works on only two. This form works on all three.
     const { sql } = DB.from('a').limit(2).union(DB.from('b')).parse()
     expect(sql).toBe(
       'SELECT * FROM (SELECT * FROM "a" LIMIT 2) AS "bakery_set_0"' +
@@ -155,7 +155,7 @@ describe('FULL OUTER JOIN', () => {
 
   test('an invented join type is refused', () => {
     // The type is interpolated straight into `${type} JOIN`, and the union that
-    // restricts it is compile-time only — the same hole `orderBy`'s direction
+    // restricts it is compile-time only, the same hole `orderBy`'s direction
     // had. Without the allow-list this was emitted verbatim.
     expect(() =>
       DB.from('a').join(
@@ -213,7 +213,7 @@ describe('window functions: emitted SQL', () => {
   })
 
   test('all three ranking helpers emit their own function', () => {
-    // `denseRank` had no test at all — it was the one exported symbol in the
+    // `denseRank` had no test at all. It was the one exported symbol in the
     // package with zero references anywhere, which is how it was found.
     const one = (ref: unknown) =>
       DB.from('users')
@@ -255,7 +255,7 @@ describe('window functions: emitted SQL', () => {
 
 /**
  * The same three constructs, executed. Emitted SQL being *shaped* right is not
- * the property that matters — a server accepting it is.
+ * the property that matters: a server accepting it is.
  */
 describe('against a live server', () => {
   const cleanup: Array<() => Promise<unknown> | unknown> = []
@@ -321,7 +321,7 @@ describe('against a live server', () => {
       const exc = await alive(DB.from(a).except(DB.from(b)).array())
       expect({ d: name, r: ids(exc as any[]) }).toEqual({ d: name, r: [1] })
 
-      // A branch with its own LIMIT — the derived-table wrapper. Ordered, so
+      // A branch with its own LIMIT, the derived-table wrapper. Ordered, so
       // "the first two" is a defined set rather than whatever came back.
       const limited = await alive(
         DB.from(a).orderBy(`${a}.id`).limit(2).union(DB.from(b)).array(),
@@ -365,7 +365,7 @@ describe('against a live server', () => {
         )
       }
 
-      // Window functions — supported everywhere.
+      // Window functions, supported everywhere.
       const ranked = (await alive(
         DB.from(a)
           .select({ id: `${a}.id`, rn: DB.rowNumber({ orderBy: `${a}.id` }) })

@@ -15,7 +15,7 @@ export const posts = table('posts', {
   authorId: Field.Foreign(users.id, { onDelete: 'CASCADE' }),
   title: Field.Varchar(255, null),
   slug: Field.Varchar(255, null),
-  // Sized because it carries a default — MySQL refuses a literal DEFAULT on a
+  // Sized because it carries a default: MySQL refuses a literal DEFAULT on a
   // TEXT column. `Field.Text()` is the unbounded, default-less form.
   body: Field.Varchar(8192, ''),
   published: Field.Int(0),

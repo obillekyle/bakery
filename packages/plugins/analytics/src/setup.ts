@@ -10,7 +10,13 @@ import { response } from '@bakery-framework/core/utils/http'
 import * as core from './core'
 import { BOOT_MAX_ITEMS } from './core'
 import type { AnalyticsStats } from './endpoints/stats'
-import { handleResetRequest, handleStatsRequest } from './endpoints/stats'
+import {
+  type AuthorizeFn,
+  handleResetRequest,
+  handleStatsRequest,
+  setAnalyticsAuthorize,
+  setAnalyticsCredential,
+} from './endpoints/stats'
 import { AnalyticsWSHandler } from './endpoints/websocket'
 import * as storageSqlite from './storage-sqlite'
 
@@ -25,7 +31,6 @@ export const history7d = core.history7d
 export const history30d = core.history30d
 
 export const recordRouteHit = core.recordRouteHit
-export const recordDbHit = core.recordDbHit
 export const recordErrorPageHit = core.recordErrorPageHit
 export const pushAnalyticsSnapshot = core.pushAnalyticsSnapshot
 export const getLatestAnalyticsSnapshot = core.getLatestAnalyticsSnapshot
@@ -118,7 +123,7 @@ export { startAnalyticsLoop }
  * plugin keeps the same rule in `isDashboardPath`, over namespaces rather than
  * exact paths.
  *
- * Exact matches, not prefixes — `/_analytics/pingback` belongs to the app.
+ * Exact matches, not prefixes: `/_analytics/pingback` belongs to the app.
  */
 const ANALYTICS_PATHS = new Set([
   '/_analytics/ping',
@@ -151,7 +156,7 @@ class AnalyticsHandler extends Handler {
 
 /**
  * Auth stays inside each endpoint (`handleStatsRequest` / `handleResetRequest`
- * fail closed on their own) — this table only replaces the path/method chain.
+ * fail closed on their own): this table only replaces the path/method chain.
  *
  * `satisfies` rather than an annotation: it checks the table against
  * `PluginRouteTable` while keeping the literal type, so `routeTable` can carry
@@ -165,7 +170,7 @@ const analyticsRoutes = routeTable({
 
 /**
  * `/_analytics/ping` is a plain `Response`; the two `/api/` endpoints return
- * the JSON envelope, which the router serialises in `processResponse`. Spelling
+ * the JSON envelope, which the router serializes in `processResponse`. Spelling
  * the union out here means adding a route that returns something else is a
  * compile error rather than a silent widening.
  */
@@ -179,7 +184,53 @@ export function handleAnalyticsRequest(
   return analyticsRoutes(req)
 }
 
-export function setupAnalytics() {
+let registered = false
+
+export interface AnalyticsAuthOptions {
+  credential?: string
+  authorize?: AuthorizeFn
+}
+
+/**
+ * The auth half of `setupAnalytics`, split out from the once-only half.
+ *
+ * Auth is (re)applied on every call (last config wins), so the dashboard
+ * bringing analytics up with the shared key overrides a bare
+ * `analyticsPlugin()`, whichever order they registered in.
+ *
+ * "Whichever order" is what the `!== undefined` buys, and it is the whole
+ * reason each option is applied conditionally rather than assigned straight
+ * through. Both plugins forward their options here and an application
+ * configures whichever of the two it thinks of as the console, so under a
+ * plain assignment the answer would depend on registration order: in
+ * `apps/example`, `analyticsPlugin({ credential })` runs after
+ * `dashboardPlugin({ authorize })` and would have wiped the predicate,
+ * shutting the console it was registered to open. A call that carries a value
+ * wins; a bare call is a no-op against auth rather than a silent disarm.
+ * Turning a door off means not registering the plugin, or passing the empty
+ * string, never omitting the option.
+ *
+ * It is separate, and exported, because `setupAnalytics` cannot be called from
+ * a test: it also registers two handlers, installs a shutdown hook and kicks
+ * off a data load, none of them restorable (convention 9).
+ */
+export function applyAnalyticsAuth(options: AnalyticsAuthOptions): void {
+  if (options.credential !== undefined) {
+    setAnalyticsCredential(options.credential)
+  }
+  if (options.authorize !== undefined) setAnalyticsAuthorize(options.authorize)
+}
+
+export function setupAnalytics(options: AnalyticsAuthOptions = {}) {
+  applyAnalyticsAuth(options)
+
+  // The rest runs once. Analytics is now a hard dependency of the dashboard,
+  // so both may set it up in one process; the handler registrations are
+  // idempotent but the shutdown hook and data load are not, and a doubled
+  // load would race two reads of the same file.
+  if (registered) return
+  registered = true
+
   Bakery.handlers.fetch.set(AnalyticsHandler, 110)
   Bakery.handlers.websocket.set(AnalyticsWSHandler)
   void loadAnalyticsData()

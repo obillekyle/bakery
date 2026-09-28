@@ -8,21 +8,25 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { __wipeCacheDir } from './cache-version'
+import {
+  __wipeCacheDir,
+  type CacheMarker,
+  isCacheStale,
+} from './cache-version'
 import { getAppVersion, getFrameworkVersion } from './context'
 
 /**
  * `.cache/` invalidation keys on the framework's version as well as the app's.
  *
  * It used to key on the app's alone, through a function called
- * `getBakeryVersion` that read `<cwd>/package.json` — so `bun update
+ * `getBakeryVersion` that read `<cwd>/package.json`, so `bun update
  * @bakery-framework/core` left a cache full of artifacts compiled by the previous
  * framework version and nothing invalidated them. The misnomer is what hid it,
  * and the repo layout is what kept it hidden: `apps/example`'s version tracks
  * the framework's, so bumping both made the app version look sufficient.
  *
- * These assert the two properties the fix depends on — that the two versions
- * are read from *different* files, and that the marker carries both — rather
+ * These assert the two properties the fix depends on (that the two versions
+ * are read from *different* files, and that the marker carries both), rather
  * than re-testing `fs.rm`, which is a recursive forced delete and not something
  * to exercise for a unit test.
  */
@@ -57,7 +61,7 @@ describe('cache invalidation reads two versions', () => {
     //
     // The sentinels are deliberately impossible as real versions. They were
     // '0.0.0' and '1.0.0' until the framework was renumbered to 1.0.0 for its
-    // first publish — at which point the framework's *correct* version equalled
+    // first publish: at which point the framework's *correct* version equalled
     // the app's fallback, and this assertion could no longer distinguish a
     // successful read from a fallback. It failed, which is the good outcome;
     // had the numbers landed the other way it would have passed vacuously
@@ -68,58 +72,72 @@ describe('cache invalidation reads two versions', () => {
 })
 
 /**
- * The marker file's shape. `checkCacheVersion` compares three fields and writes
- * the same three; a marker written before `framework` existed mismatches and
- * wipes once, which is the intended upgrade path.
+ * The marker file's shape, asserted through the real predicate.
+ *
+ * These used to restate the comparison and assert on their own copy, which
+ * meant they passed whichever fields `checkCacheVersion` actually compared and
+ * would have gone on passing if one were dropped. Adding `runtime` made that
+ * visible: three tests agreed the marker "carries all three fields" while the
+ * code had four. They call `isCacheStale` now, so the two cannot drift.
  */
-describe('the cache marker carries all three fields', () => {
-  test('a pre-fix marker mismatches and would trigger a wipe', () => {
-    const current = {
-      mode: 'development',
-      version: '4.0.0',
-      framework: '4.0.0',
-    }
-    // What a marker written before this change looks like.
-    const legacy: Record<string, unknown> = {
-      mode: 'development',
-      version: '4.0.0',
-    }
-    const stale =
-      legacy.mode !== current.mode ||
-      legacy.version !== current.version ||
-      legacy.framework !== current.framework
-    expect(stale).toBe(true)
+describe('the cache marker decides staleness', () => {
+  const current: CacheMarker = {
+    mode: 'production',
+    version: '1.2.3',
+    framework: '4.0.0',
+    runtime: '1.4.2',
+  }
+
+  test('an identical marker leaves the cache alone', () => {
+    expect(isCacheStale({ ...current }, current)).toBe(false)
   })
 
-  test('a framework bump alone is enough to invalidate', () => {
-    const prev = { mode: 'production', version: '1.2.3', framework: '4.0.0' }
-    const next = { mode: 'production', version: '1.2.3', framework: '4.1.0' }
-    const stale =
-      prev.mode !== next.mode ||
-      prev.version !== next.version ||
-      prev.framework !== next.framework
-    expect(stale).toBe(true)
+  test('any one field moving is enough to invalidate', () => {
+    for (const key of Object.keys(current) as (keyof CacheMarker)[]) {
+      expect(isCacheStale({ ...current, [key]: 'different' }, current)).toBe(
+        true,
+      )
+    }
   })
 
-  test('and an unchanged pair leaves the cache alone', () => {
-    const prev = { mode: 'production', version: '1.2.3', framework: '4.0.0' }
-    const next = { mode: 'production', version: '1.2.3', framework: '4.0.0' }
-    const stale =
-      prev.mode !== next.mode ||
-      prev.version !== next.version ||
-      prev.framework !== next.framework
-    expect(stale).toBe(false)
+  test('any one field missing is enough to invalidate', () => {
+    // The upgrade path for a marker written before a field existed: it
+    // describes a cache built under conditions nobody recorded, so it wipes
+    // once rather than being guessed at.
+    for (const key of Object.keys(current) as (keyof CacheMarker)[]) {
+      const legacy = { ...current }
+      delete legacy[key]
+      expect(isCacheStale(legacy, current)).toBe(true)
+    }
+  })
+
+  test('no marker at all is stale', () => {
+    expect(isCacheStale(null, current)).toBe(true)
+    expect(isCacheStale(undefined, current)).toBe(true)
+  })
+
+  test('the runtime is one of the fields, and a Bun upgrade invalidates', () => {
+    // The reason it is there. This directory holds compiled and bundled
+    // output, and Bun's bundler is what produces it, so a Bun upgrade
+    // changes what a correct entry looks like.
+    //
+    // Found the day it happened: Bun 1.4.1 reworked the bundler's barrel
+    // optimization, and 1.4.0 emptied a `sideEffects: false` re-export entry
+    // to an export list with no declaration. A cache written by 1.4.0 can hold
+    // that husk, and a 1.4.2 process would have bundled it correctly.
+    expect(isCacheStale({ ...current, runtime: '1.4.0' }, current)).toBe(true)
+    expect(Object.keys(current)).toContain('runtime')
   })
 })
 
 /**
- * The wipe itself — where the real bug was.
+ * The wipe itself: where the real bug was.
  *
  * `checkCacheVersion` used to hand the whole directory to a single recursive
  * `fs.rm` whose every error was swallowed (`.catch(() => {})`), then write a
  * marker claiming the cache was current. On Windows the delete fails with
- * `EBUSY` on `.cache/shared-cache.db` — which the process itself opens at
- * import time — node's walk stops at the locked entry, and everything it had
+ * `EBUSY` on `.cache/shared-cache.db` (which the process itself opens at
+ * import time) node's walk stops at the locked entry, and everything it had
  * not reached survived. Including `html/`, the compiled-page cache.
  *
  * Ordering is fixed elsewhere (`shared-db.ts` awaits the check before opening
@@ -143,7 +161,7 @@ describe('wiping the cache directory', () => {
    * is the real shape of the bug on Windows: the process opens
    * `.cache/shared-cache.db` at import time and `EBUSY` makes it undeletable.
    *
-   * On POSIX an open file unlinks perfectly happily — so on Linux the sqlite
+   * On POSIX an open file unlinks perfectly happily, so on Linux the sqlite
    * fixture deleted cleanly, the survivor list came back empty, and both tests
    * failed. They passed on the maintainer's Windows machine and had never run
    * on Linux until the full suite reached CI for the first time.
@@ -176,7 +194,7 @@ describe('wiping the cache directory', () => {
    * Root ignores directory permissions, so in a container running as root the
    * POSIX fixture is deletable and these tests would fail for a reason that has
    * nothing to do with the code. Skipping beats a red build that means nothing
-   * — but it is asserted rather than assumed, so the tests still run wherever
+   *, but it is asserted rather than assumed, so the tests still run wherever
    * they can.
    */
   function fixtureHolds(): boolean {
@@ -214,7 +232,7 @@ describe('wiping the cache directory', () => {
     'a locked file does not shield the entries beside it',
     async () => {
       // The exact shape of the bug: an entry inside the directory that the OS
-      // refuses to remove — an open sqlite handle on Windows, a permission-
+      // refuses to remove, an open sqlite handle on Windows, a permission-
       // locked directory on POSIX.
       const dir = `${base}/locked`
       mkdirSync(dir, { recursive: true })
@@ -227,7 +245,7 @@ describe('wiping the cache directory', () => {
 
       try {
         const survivors = await __wipeCacheDir(dir)
-        // Everything except the locked entry is gone — including `html/`,
+        // Everything except the locked entry is gone, including `html/`,
         // which is the one that actually matters and which used to survive
         // purely because of where it sat in readdir order.
         expect(survivors).toEqual([planted.name])
@@ -241,7 +259,7 @@ describe('wiping the cache directory', () => {
   test.skipIf(!undeletableHolds)(
     'a non-empty survivor list is what withholds the marker',
     async () => {
-      // Not a test of the writer — a statement of the contract the writer
+      // Not a test of the writer: a statement of the contract the writer
       // reads. `checkCacheVersion` writes the "cache is current" marker only
       // when this is empty, so anything non-empty must keep it withheld.
       const dir = `${base}/contract`
@@ -265,10 +283,10 @@ describe('wiping the cache directory', () => {
  * The generated tsconfig projects survive the wipe.
  *
  * The app's *committed* `tsconfig.json` references `.cache/tsconfig/*.json`, so
- * deleting them does not degrade the editor — it removes the project entirely.
+ * deleting them does not degrade the editor: it removes the project entirely.
  * Reproduced on a real app: `tsc -p tsconfig.json` reports
  * `TS6053: File '…/.cache/tsconfig/server.json' not found` once per reference,
- * and every ambient goes with it — `req.session`, `Bakery`, the app's own schema
+ * and every ambient goes with it, `req.session`, `Bakery`, the app's own schema
  * types, all unresolved at once.
  *
  * It fires on every framework upgrade, since the wipe is keyed on the framework

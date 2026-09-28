@@ -2,7 +2,7 @@
  * Type-level extension point connecting the framework to the app's schema.
  *
  * The dependency must point one way: the app depends on the framework, never
- * the reverse. Yet the ORM's types are derived from the app's `schema.ts` —
+ * the reverse. Yet the ORM's types are derived from the app's `schema.ts`:
  * previously via a direct `import ... from '~/schema'`, which meant the
  * framework's own types imported an app-owned, gitignored file, and a fresh
  * clone could not typecheck its database layer.
@@ -24,7 +24,7 @@
  * ```
  *
  * With no registration, every table and column falls back to permissive
- * `any`-shaped records — the ORM stays fully usable, just untyped. The
+ * `any`-shaped records. The ORM stays fully usable, just untyped. The
  * runtime needs no registration at all: schema *values* are loaded by path
  * (see `sync/load.ts`), from `schema` in `server.config.ts` when the app sets
  * one and otherwise from `<cwd>/orm/index.ts` or `<cwd>/schema.ts`, whichever
@@ -36,19 +36,16 @@ import type { MapOf } from '@bakery-framework/core/types'
 
 // Augmented by the app; empty until then.
 //
-// **It has to be an `interface`, and the empty body is the point.** Biome's
 // **`interface`, not `type`, and the empty body is the point.** A type alias
 // cannot be declaration-merged, so rewriting this to `type X = {}` turns every
 // app's `declare module '@bakery-framework/orm/schema-registry'` into
 // `TS2300: Duplicate identifier` and the whole schema registry stops working.
 //
-// Biome's `noBannedTypes` proposed exactly that rewrite and called it a safe
-// fix; the 2026-08-09 sweep applied it and `bun run typecheck` was the only
-// thing that caught it. That rule is off repo-wide now — it had no true
-// positives here — but `noEmptyInterface` reaches the same construct and
-// offers the same fix, so the suppression stays. The compiler is the real
-// guard: change this line and `apps/starter` fails to typecheck.
-// biome-ignore lint/suspicious/noEmptyInterface: must stay mergeable — above
+// Biome's `noBannedTypes` proposes exactly that rewrite and calls it a safe
+// fix. That rule is off repo-wide now, but `noEmptyInterface` reaches the same
+// construct and offers the same fix, so the suppression stays. The compiler is
+// the real guard: change this line and `apps/starter` fails to typecheck.
+// biome-ignore lint/suspicious/noEmptyInterface: must stay mergeable, above
 export interface SchemaRegistry {}
 
 type Registered = SchemaRegistry extends { schema: infer S } ? S : never

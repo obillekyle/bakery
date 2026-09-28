@@ -1,12 +1,15 @@
 /**
  * Shared browser-side helpers for the dashboard panels.
  *
- * The three panels (database, sessions, stats) were built independently and
- * each grew its own copy of the same four things: an element-text setter, a
- * `results-empty` block, a fetch/`.json()` pair, and a prev/next pager. They
- * are declared once here because this file is compiled into the shipped
- * bundle — a duplicated string literal is duplicated bytes, the minifier does
- * not merge them.
+ * The panels were built independently and each grew its own copy of the same
+ * four things: an element-text setter, a `results-empty` block, a
+ * fetch/`.json()` pair, and a prev/next pager. They are declared once here
+ * because this file is compiled into the shipped bundle: a duplicated string
+ * literal is duplicated bytes, the minifier does not merge them.
+ *
+ * Shrank when the database editor was retired: `executeAction`, `getJson`,
+ * `errorBox` and three icon paths had no caller left once `database.ts` went,
+ * and dead code in a browser bundle is bytes every operator downloads.
  */
 
 /** `innerText` on an element that may not be in the DOM yet. */
@@ -22,12 +25,13 @@ export function setText(id: string, value: string) {
  * These helpers previously took a string straight into `innerHTML`: every
  * caller happened to pass a literal or escape first, which is exactly the state
  * a codebase is in right before it stops being true. Every XSS found in this
- * repo came from hand-built DOM strings in these three files, including a
- * stored-XSS to arbitrary-SQL chain, so the default here is the safe one and
- * markup is not expressible through it at all.
+ * repo came from hand-built DOM strings in these panel files, including a
+ * stored-XSS to arbitrary-SQL chain through the database grid, which is gone
+ * now, but the escaping default it argued for is not, because the sessions and
+ * stats panels build markup the same way from data they did not write.
  */
 export function emptyBox(message: string, isError = false): string {
-  const style = isError ? ' style="color: var(--accent-red);"' : ''
+  const style = isError ? ' style="color: var(--danger);"' : ''
   return `<div class="results-empty"${style}><span>${escapeHTML(message)}</span></div>`
 }
 
@@ -41,8 +45,8 @@ export function setEmpty(
 
 /**
  * Inline SVGs, built from the path data alone. Every hand-written copy in the
- * panels carried `width="1em" height="1em"` twice — a duplicate attribute the
- * parser silently drops — and the same ~380-byte markup was pasted once per
+ * panels carried `width="1em" height="1em"` twice (a duplicate attribute the
+ * parser silently drops), and the same ~380-byte markup was pasted once per
  * use site.
  */
 export function icon(d: string, size: string): string {
@@ -53,36 +57,11 @@ export function icon(d: string, size: string): string {
   )
 }
 
-export const ICON_TABLE =
-  'M19 21H5q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21M5 8h14V5H5zm2.5 2H5v9h2.5zm9 0v9H19v-9zm-2 0h-5v9h5z'
-export const ICON_EYE =
-  'M15.188 14.688Q16.5 13.375 16.5 11.5t-1.312-3.187T12 7T8.813 8.313T7.5 11.5t1.313 3.188T12 16t3.188-1.312m-5.1-1.276Q9.3 12.625 9.3 11.5t.788-1.912T12 8.8t1.913.788t.787 1.912t-.787 1.913T12 14.2t-1.912-.787m-4.738 3.55Q2.35 14.925 1 11.5q1.35-3.425 4.35-5.462T12 4t6.65 2.038T23 11.5q-1.35 3.425-4.35 5.463T12 19t-6.65-2.037m11.838-1.45Q19.55 14.025 20.8 11.5q-1.25-2.525-3.613-4.012T12 6T6.813 7.488T3.2 11.5q1.25 2.525 3.613 4.013T12 17t5.188-1.487'
-export const ICON_EDIT =
-  'M5 19h1.425L16.2 9.225L14.775 7.8L5 17.575zm-2 2v-4.25L16.2 3.575q.3-.275.663-.425t.762-.15t.775.15t.65.45L20.425 5q.3.275.438.65T21 6.4q0 .4-.137.763t-.438.662L7.25 21zM19 6.4L17.6 5zm-3.525 2.125l-.7-.725L16.2 9.225z'
+// `ICON_EDIT` was here. It drew the pencil on the session key editor's Edit
+// button, and that button went with the editor it could not open. See the
+// note in `sessions.ts`. The path data has no other caller.
 export const ICON_DELETE =
   'M7 21q-.825 0-1.412-.587T5 19V6H4V4h5V3h6v1h5v2h-1v13q0 .825-.587 1.413T17 21zM17 6H7v13h10zM9 17h2V8H9zm4 0h2V8h-2zM7 6v13z'
-export const ICON_WARN =
-  'M1 21L12 2l11 19zm3.45-2h15.1L12 6zm8.263-1.287Q13 17.425 13 17t-.288-.712T12 16t-.712.288T11 17t.288.713T12 18t.713-.288M11 15h2v-5h-2zm1-2.5'
-
-/**
- * An error block with the warning glyph, as the fetch failure paths render it.
- * `message` is escaped — see `emptyBox`. The two dynamic callers pass a driver
- * error string, which quotes the caller's own SQL back at them.
- */
-export function errorBox(message: string): string {
-  return (
-    `<div class="results-empty" style="color: var(--accent-red);">` +
-    `<span style="display: inline-flex; align-items: center; gap: 0.25rem;">` +
-    `${icon(ICON_WARN, '1.1rem')}${escapeHTML(message)}</span></div>`
-  )
-}
-
-/** GET a dashboard endpoint and unwrap the JSON envelope. */
-export async function getJson(url: string): Promise<any> {
-  const res = await fetch(url)
-  return await res.json()
-}
-
 /** POST a JSON body to a dashboard endpoint and unwrap the envelope. */
 export async function postJson(url: string, body: unknown): Promise<any> {
   const res = await fetch(url, {
@@ -91,11 +70,6 @@ export async function postJson(url: string, body: unknown): Promise<any> {
     body: JSON.stringify(body),
   })
   return await res.json()
-}
-
-/** The mutating half of the database panel; every action shares one endpoint. */
-export function executeAction(body: Record<string, unknown>): Promise<any> {
-  return postJson('/api/_dashboard/execute-action', body)
 }
 
 /** Page N of M, with the prev/next buttons disabled at the ends. */
@@ -111,67 +85,20 @@ export function setPager(
   if (nextBtn) nextBtn.disabled = page >= totalPages
 }
 
-export class SegmentedProgress {
-  private container: HTMLElement
-  private percent: number
-  private barWidth: number
-  private barGap: number
-  private resizeObserver: ResizeObserver | null = null
-
-  constructor(
-    container: HTMLElement,
-    percent: number,
-    barWidth = 4,
-    barGap = 6,
-  ) {
-    this.container = container
-    this.percent = percent
-    this.barWidth = barWidth
-    this.barGap = barGap
-    this.init()
-  }
-
-  private init() {
-    this.container.classList.add('segmented-progress-container')
-    if (this.barGap !== 6) {
-      this.container.style.gap = `${this.barGap}px`
-    }
-
-    if (typeof ResizeObserver !== 'undefined') {
-      this.resizeObserver = new ResizeObserver(() => this.draw())
-      this.resizeObserver.observe(this.container)
-    }
-
-    this.draw()
-  }
-
-  public destroy() {
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect()
-    }
-  }
-
-  public draw() {
-    const containerWidth = this.container.clientWidth
-    if (containerWidth === 0) return
-
-    const count = Math.floor(
-      (containerWidth + this.barGap) / (this.barWidth + this.barGap),
-    )
-    const activeCount = Math.round((this.percent / 100) * count)
-
-    let html = ''
-    for (let i = 0; i < count; i++) {
-      const className = i < activeCount ? 'active' : 'inactive'
-      let styleAttr = ''
-      if (this.barWidth !== 4) {
-        styleAttr = ` style="width: ${this.barWidth}px;"`
-      }
-      html += `<div class="segmented-bar-segment ${className}"${styleAttr}></div>`
-    }
-    this.container.innerHTML = html
-  }
-}
+/*
+ * `SegmentedProgress` was here, and nothing it drew was ever visible.
+ *
+ * It filled a `.segmented-progress-container` with one `div` per 10px of
+ * width and watched the container with a `ResizeObserver`. Neither that
+ * class nor `.segmented-bar-segment` has a rule in the sheet - grep it - so
+ * the container is a bare block with no height and the segments are bare
+ * blocks with no width. Measured against a running console on the Traffic
+ * panel: 10 containers, 98 children each, every one of them 0px tall.
+ *
+ * So it cost 980 nodes and 10 `ResizeObserver`s per render of that panel,
+ * redrawn on every resize, to show nothing. The list it sat under - path and
+ * hit count - works and stays.
+ */
 
 export function getWebSocketUrl(path: string) {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'

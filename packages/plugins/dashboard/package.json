@@ -1,6 +1,6 @@
 {
   "name": "@bakery-framework/plugin-dashboard",
-  "version": "1.2.3",
+  "version": "2.0.0-rc.5",
   "description": "Bakery dashboard plugin.",
   "keywords": [
     "bakery",
@@ -34,9 +34,12 @@
   ],
   "dependencies": {
     "@bakery-framework/core": "workspace:^",
+    "@bakery-framework/plugin-analytics": "workspace:^"
+  },
+  "devDependencies": {
     "@bakery-framework/orm": "workspace:^"
   },
   "engines": {
-    "bun": ">=1.3.14"
+    "bun": ">=1.4.0"
   }
 }

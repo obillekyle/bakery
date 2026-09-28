@@ -3,7 +3,7 @@
 `@bakery-framework/plugin-vue` adds `.vue` single-file components as a first-class route
 type, alongside `.tsx`, `.html` and `.ts`. A `.vue` file under the serve root is
 a page; a `.vue` file imported by another component is a module. Components
-render **in the browser** — there is no SSR — but each page may carry a
+render **in the browser** (there is no SSR), but each page may carry a
 `<script server>` block that runs on the server, per request, and whose exports
 become the component's data.
 
@@ -16,12 +16,13 @@ bun add vue
 ```
 
 `setup()` checks that `vue/package.json` resolves and calls `process.exit(1)`
-with a log line if it does not — a missing Vue is a boot failure, not a runtime
+with a log line if it does not: a missing Vue is a boot failure, not a runtime
 surprise ([`vue/src/setup.ts`](../../packages/plugins/vue/src/setup.ts)). The
-version string, and the runtime served at `/_vue/<version>.js`, are resolved
-from the *application's* directory, so the app controls which Vue it ships. The
-SFC compiler (`@vue/compiler-sfc`, a dependency of `vue`) is imported lazily on
-the first compile, and throws "compiler-sfc not available" if it is missing.
+version string, and the runtime served at `/_vue/<version>.<build>.js`, are
+resolved from the *application's* directory, so the app controls which Vue it
+ships. The SFC compiler (`@vue/compiler-sfc`, a dependency of `vue`) is
+imported lazily on the first compile, and throws "compiler-sfc not available"
+if it is missing.
 
 ## Register
 
@@ -38,27 +39,44 @@ export default defineConfig({
       customElements: ['my-widget'],
       // Passed through to @vue/compiler-sfc's compileTemplate.
       compilerOptions: {},
+      // 'runtime' (default) or 'full'. See below.
+      build: 'runtime',
     }),
   ],
 })
 ```
 
 `iconify-icon` is always treated as a custom element, whether or not you list
-it. If `customElements` is a *function*, it is stringified into the browser
-bundle so runtime-compiled templates agree with the build-time decision — a
-predicate that closes over server state will not survive that, and the runtime
-check falls back to the built-in tag
-([`vue/src/compile.ts`](../../packages/plugins/vue/src/compile.ts)).
+it. `customElements` is applied where templates are compiled (on the server), so it works identically on both builds; it does not require `'full'`.
+
+**`build` picks which Vue the browser downloads.** The default, `'runtime'`,
+is ~170KB smaller and is all a Bakery app normally needs: every SFC template
+becomes a render function on the server, so the browser never compiles one.
+Opt into `'full'` only when a component hands Vue a raw `template:` string at
+runtime: those are compiled in the browser, and on the runtime build they
+fail with Vue's "runtime compilation is not supported" error naming the
+component.
+
+With `'full'`, if `customElements` is a *function*, it is stringified into the
+browser bundle so runtime-compiled templates agree with the build-time
+decision: a predicate that closes over server state will not survive that,
+and the runtime check falls back to the built-in tag
+([`vue/src/compile.ts`](../../packages/plugins/vue/src/compile.ts)). On
+`'runtime'` that bridge is not emitted, because the runtime build has no
+in-browser compiler to consult it.
 
 Registering the plugin does three things
 ([`vue/src/setup.ts`](../../packages/plugins/vue/src/setup.ts)):
 
-- `VueHandler` joins the fetch registry at priority **58** — below `TSXHandler`
+- `VueHandler` joins the fetch registry at priority **58**: below `TSXHandler`
   (60), above `HTMLHandler` (55).
 - `VueErrorHandler` joins the error registry at **18**, so `error.vue` and
   `error-*.vue` files render error pages.
-- `Bakery.config.importMap['vue']` points at `/_vue/<version>.js`, a
-  self-hosted build of the Vue ESM runtime. No CDN.
+- `Bakery.config.importMap['vue']` points at `/_vue/<version>.<build>.js`
+  (e.g. `/_vue/3.5.41.runtime.js`), a self-hosted build of the Vue ESM
+  runtime. No CDN. The build variant is part of the filename so switching
+  `build` in `server.config.ts` can never serve the other variant out of the
+  chunk cache.
 
 ## How a page is served
 
@@ -85,20 +103,158 @@ The plugin's `onCompile` hook rewrites every `.vue` import in every compiled
 
 ### `<meta />` directives
 
-A `<meta />` tag in the file prologue — before any block, comments and
-whitespace allowed — configures the page. It is stripped before compilation and
+A `<meta />` tag in the file prologue (before any block, comments and
+whitespace allowed) configures the page. It is stripped before compilation and
 is not part of the template.
 
 ```vue
 <meta title="Team dashboard" page-only />
 ```
 
-- `title="…"` — sets the shell's `<title>`, HTML-escaped.
-- `module-only` — the file may only be imported; a page request gets 404.
-- `page-only` — the file may only be a page; `?__vue_script=module` gets 404.
+- `title="…"`: sets the shell's `<title>`, HTML-escaped.
+- `module-only`: the file may only be imported; a page request gets 404.
+- `page-only`: the file may only be a page; `?__vue_script=module` gets 404.
+- `no-layout`: the page renders without its directory's `layout.vue`.
 
 Only the prologue is scanned, so a `<meta charset>` inside a `<template>` is
 left alone.
+
+## Client-rendered only
+
+The response described above is the whole story: the HTML for a `.vue` route
+is the shell, an empty `<div id="app">` (or the static [skeleton](#skeletons)
+markup, when the page declares one), the inlined server data, and the script
+links. The component's rendered output is never in it. Templates are compiled
+to render functions on the server, but those functions *execute* only in the
+browser; view-source on any Vue route shows the div and the scripts, not the
+markup the component produces.
+
+This is the one place `.vue` routes are not interchangeable with the `.tsx`
+pages they sit alongside. A JSX page runs on the server and responds with its
+rendered HTML ([Routing → Page handlers](../guides/routing.md#page-handlers));
+an SFC route responds with a mount point. Consequences worth planning around:
+
+- **No SEO or preview content in the initial HTML.** A crawler or link
+  unfurler that does not execute JavaScript sees the `<title>`, the skeleton
+  if any, and an empty div. Content that must be in the payload itself (a
+  landing page, anything shared by link) belongs on a `.tsx` page.
+- **First paint requires the client boot.** The Vue runtime and the page's
+  root module must download and `mount('#app')` before anything renders; a
+  `<template skeleton>` block is the placeholder for that gap.
+- **Server data is inlined; markup is not.** A `<script server>` block runs
+  per request and its exports ship in the HTML (no second round trip for
+  data), but they arrive as JSON for the component to render in the browser,
+  not as rendered output.
+
+## Layouts
+
+A `layout.vue` file wraps every page in its directory and below; the nearest
+ancestor wins, and the page renders into its default `<slot />`:
+
+```html
+<template>
+  <div class="chrome">
+    <nav>…shared navigation…</nav>
+    <main><slot /></main>
+  </div>
+</template>
+```
+
+The walk is anchored by the page **file**, not the request URL, so a
+catch-all page (`admin/[...slug!].vue`) is wrapped by `admin/layout.vue`
+however deep the request goes. Opt a page out with `<meta no-layout />`.
+
+Rules worth knowing:
+
+- `layout.vue` is scaffolding, not a destination: requesting `/admin/layout`
+  as a page is a 404, while the module and stylesheet requests every wrapped
+  page makes still serve.
+- The layout's stylesheet is linked *before* the page's, so a page can
+  override its layout the way source order normally implies.
+- Layouts do not nest, and a layout never wraps itself. One nearest layout,
+  deliberately: nesting needs an ordering story that should be designed,
+  not implied.
+- Error pages (`error.vue`, `error-*.vue`) are wrapped too, since they are
+  served by the same pipeline; give them `<meta no-layout />` if the chrome
+  itself is what might be broken.
+
+## `defineLayout()`: client-side navigation for catch-all pages
+
+A catch-all page owns every URL under its directory, so swapping content on a
+URL change can never disagree with what a hard reload would serve. That
+invariant is the whole permission slip for client-side navigation, and it is
+why `defineLayout()` **throws on any page that is not a catch-all**: on
+other pages, two URLs mean two different files.
+
+```html no-check: SFC browser script; compiled by the plugin, not tsc
+<script setup lang="ts">
+import { defineLayout } from '@bakery-framework/plugin-vue/client'
+import { computed } from 'vue'
+
+const nav = defineLayout()
+
+// nav.segments: Ref<string[]>, [] on the bare directory under [...slug!]
+const section = computed(() => nav.segments.value[0] ?? 'home')
+
+nav.on((next, prev, cause) => {
+  // 'click' | 'navigate' | 'history'. Return false to cancel: clicks and
+  // navigate() only; back/forward has already moved and is observe-only.
+})
+</script>
+```
+
+The page becomes its subtree's layout: it renders whichever of its own
+components the segments mean. Clicks on same-origin links **under the base**
+become a `pushState` and a reactive update: no reload, component state
+survives. Links that leave the base navigate normally, and back/forward
+entries that leave it trigger a real load, because pretending otherwise would
+render a lie.
+
+Module imports under the subtree keep working: a real file always beats the
+catch-all, so `import('/wiki/parts/sidebar.vue')` is served as a module while
+`/wiki/anything/else` falls to the page. Use absolute paths for those imports:
+a relative one resolves against the current URL, which moves.
+
+**More specific routes under the base win, in the browser too.** With
+`admin/[...slug].vue` beside `admin/faculty/[id].vue`, the URL
+`/admin/faculty/7` belongs to `[id].vue` on the server, so the client router
+yields it to a real navigation instead of soft-swapping the catch-all's view
+over it. The shell's route stamp carries what the sibling *routes* claim (a
+directory claims its subtree when a `.vue` route exists somewhere under it; a
+`[param].vue` sibling claims every single-segment path), computed fresh per
+page load, so adding a sibling route in dev takes effect on the next reload.
+
+The stamp names routes only, and only on catch-all pages: it is serialized
+into HTML every visitor can read, so non-route siblings (`notes.txt`, a stray
+script) are never enumerated into it. The trade: the client router cannot know
+about plain files living under the base, which the server serves by the
+real-file rule above. Give a link to one. Say `/wiki/files/spec.pdf`: a
+`download` or `target` attribute; the click interceptor always leaves those
+alone.
+
+## Skeletons
+
+A second template block marked `skeleton` shows inside `#app` before the
+bundle hydrates: `mount()` replaces it the moment the real component is up:
+
+```html
+<template skeleton>
+  <div class="pulse">loading shipments…</div>
+</template>
+
+<template>
+  <ShipmentTable :rows="rows" />
+</template>
+```
+
+**The skeleton is static markup, injected verbatim, and that is a security
+decision, not a shortcut.** It is never compiled and never rendered on the
+server, so interpolations do not evaluate and nothing request- or
+session-derived can reach it: a server-rendered skeleton cached across
+requests would serve one user's data to another. Two consequences: bindings
+inside it are inert text, and scoped styles do not apply to it (the scope
+attributes are stamped by the compiler it never meets), style it with plain
+classes from an unscoped block.
 
 ## `<script server>`
 
@@ -141,11 +297,51 @@ literals and comments, so a literal `"</script>"` inside server code does not
 truncate the block and leak the remainder into the client bundle
 ([`vue/src/utils.ts`](../../packages/plugins/vue/src/utils.ts)).
 
+### Reaching the request: `getRequest()` and `getBody()`
+
+Import them. They work in the block and in anything the block calls:
+
+```ts
+import { getRequest } from '@bakery-framework/core'
+import { getBody } from '@bakery-framework/plugin-vue'
+
+export function viewerId(): number | undefined {
+  return getRequest().session.get('userId')
+}
+
+export function submittedName(): string | undefined {
+  return getBody<{ name?: string }>()?.name
+}
+```
+
+That helper can live in its own file under `src/shared/`, and it still sees
+the request: both read an `AsyncLocalStorage` the framework enters once per
+request, so they survive an `await` and cross a module boundary.
+
+`getRequest()` **throws** outside a request, because the only two places that
+happens are a WebSocket event (which has `ws.data` instead) and boot-time
+code, and both are mistakes rather than states to branch on. `getBody()`
+returns `undefined` instead, because a GET with no payload and no route
+params is an ordinary request.
+
+The older way still works and nothing needs rewriting: `req` and `body` are
+injected into the block as parameters, described below. Prefer the imports in
+new code for three reasons. They carry the real types, where the parameters
+are `any` and the ambient declaration claimed a `Request` the runtime never
+promised. They reach a helper, where a parameter stops at the block. And they
+need no ambient declaration to resolve, which is the one that bites: the
+`req` and `body` globals are declared in `plugin-vue/src/vue.d.ts`, and that
+file reaches an editor only if it lands in whatever tsconfig project the
+editor resolves for the SFC. The generated project naming it lives under
+`.cache/tsconfig/`, which is not an ancestor of `src/`, so for an SFC it
+usually does not, and the symptom is `req` unresolved with nothing to point
+at.
+
 ### `req` and `body` are parameters, not globals
 
 The block is compiled into a module whose default export is, literally:
 
-```ts no-check — the generated wrapper, shown for shape; `__bkry_` names are internal
+```ts no-check: the generated wrapper, shown for shape; `__bkry_` names are internal
 export default async function __bkry_server(
   req: any,
   body: any,
@@ -158,7 +354,7 @@ export default async function __bkry_server(
 
 So `req` and `body` resolve as function parameters injected by the compiler
 ([`vue/src/utils.ts`](../../packages/plugins/vue/src/utils.ts)). They are
-not ambient globals, and they exist *only* inside a `<script server>` block —
+not ambient globals, and they exist *only* inside a `<script server>` block,
 writing `req.headers` anywhere else is a `ReferenceError` at runtime. `body` is
 the parsed request body merged with the route params.
 
@@ -170,8 +366,8 @@ which is the usual way a server block reuses an API handler.
 
 | Export form | Meaning |
 | --- | --- |
-| `export const x = …` | page data — serialised into the HTML and destructured into the client script |
-| `export function f()` / `export const f = () => {}` | a **server action** — the client gets an RPC stub of the same name |
+| `export const x = …` | page data: serialized into the HTML and destructured into the client script |
+| `export function f()` / `export const f = () => {}` | a **server action**: the client gets an RPC stub of the same name |
 | `export async function middleware(req, body)` | runs before everything else; returning a `Response` short-circuits |
 | `export default {…}` or `export default fn` | merged into the page data, or returned directly if it is a `Response` |
 
@@ -225,11 +421,11 @@ Dispatch is restricted, and each restriction has a test behind it
 ([`vue/src/actions.ts`](../../packages/plugins/vue/src/actions.ts),
 [`vue-plugin.test.ts`](../../packages/plugins/vue/src/vue-plugin.test.ts)):
 
-- **POST with `Content-Type: application/json` only** — 405 and 415 otherwise.
+- **POST with `Content-Type: application/json` only**, 405 and 415 otherwise.
   This keeps actions outside the set of CORS-simple requests a foreign page can
   issue without a preflight, so a cross-site `<form>` or `<img src>` cannot
   invoke one.
-- **Same-origin only** — a mismatched `Origin`, or a `Sec-Fetch-Site` other
+- **Same-origin only**: a mismatched `Origin`, or a `Sec-Fetch-Site` other
   than `same-origin`/`none`, is rejected with 403.
 - **Only exported functions are callable.** Data exports are not; `middleware`
   and `default` are explicitly excluded; and `Object.prototype` members
@@ -250,7 +446,7 @@ separated ([`vue/src/handler.ts`](../../packages/plugins/vue/src/handler.ts)):
 - A component **without** a server block, and every **root** script, is
   compiled once and written to `.cache/vue/`, keyed by source mtime.
   The root script reads its data from `globalThis.__vue_server`, which the
-  shell sets — so the cached file contains no user data.
+  shell sets, so the cached file contains no user data.
 - A **subcomponent with** a server block is compiled once into a template
   holding a placeholder token, kept in a 500-entry LRU, and this request's data
   is spliced in on the way out. That response carries
@@ -265,35 +461,28 @@ module, and older compilations of the same source are pruned.
 Server data is embedded with `escapeScriptJson`, which escapes `<`, `/` and the
 JS line terminators U+2028/U+2029 that raw JSON allows. A value containing
 `</script><script>alert(1)</script>` cannot close the tag early. Page titles go
-through `escapeHtml`. Both are core helpers re-exported by the plugin — the
+through `escapeHtml`. Both are core helpers re-exported by the plugin: the
 framework owns escaping, so core never has to depend on this package
 ([`vue/src/utils.ts`](../../packages/plugins/vue/src/utils.ts)).
 
-## Known bug: a server block with no `<script setup>` renders blank
+## Fixed: a server block with no `<script setup>` used to render blank
 
-If a component has a `<script server>` block that exports anything, but no
-`<script setup>` block, the page renders as a blank white screen with a
-`ReferenceError: __sfc__ is not defined` in the browser console.
-
-The mechanism: to expose server data and action stubs, the plugin prepends a
-plain `<script>` block containing `const { … } = …` declarations
-([`vue/src/handler.ts`](../../packages/plugins/vue/src/handler.ts)).
-That block has no `export default`. `assembleComponent` creates the component
-object by *rewriting* `export default` into `const __sfc__ = `
-([`vue/src/compile.ts`](../../packages/plugins/vue/src/compile.ts)) — with
-nothing to rewrite, `__sfc__` is never declared, and the very next line assigns
-`__sfc__.render`.
-
-Workaround: add a `<script setup>` block, even an empty one. A component whose
-server block exports nothing is unaffected, because no script is injected.
+A component with a `<script server>` block that exported anything, but no
+`<script setup>`, rendered a blank page with
+`ReferenceError: __sfc__ is not defined`: the injected server-data block has
+no `export default`, so `assembleComponent` had nothing to rewrite into
+`const __sfc__ =`. The documented workaround (add a setup block) is now
+injected automatically when the component lacks one. (A detail that made the
+workaround itself flaky: the SFC parser *discards* a block whose content is
+only whitespace, so a truly empty `<script setup></script>` never worked,
+the injected block carries a comment for exactly that reason.)
 
 ## Limitations
 
-- **No SSR.** The shell ships an empty `#app`; first paint waits for the module
-  and the Vue runtime. Server data is inlined into the HTML, so there is no
-  second round trip for data, but there is no server-rendered markup.
+- **No SSR.** The served HTML is a mount point, not markup. See
+  [Client-rendered only](#client-rendered-only).
 - **A page cannot have both a plain `<script>` and a server block that exports
-  anything** — the injected block would be a second plain `<script>`, which the
+  anything**: the injected block would be a second plain `<script>`, which the
   SFC parser rejects as a duplicate. Use `<script setup>`.
 - Template interpolations are wrapped in a `$fmt()` call, resolved from
   `globalThis.$fmt` at runtime and falling back to identity if the application

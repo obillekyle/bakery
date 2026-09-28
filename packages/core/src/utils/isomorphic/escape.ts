@@ -4,7 +4,7 @@
  * These live in `isomorphic/` because both sides need them: the HTML pipeline
  * and the Vue plugin escape on the way out, and the client bundle escapes when
  * building DOM strings. Nothing here may reference `Bun.*`, node builtins, or
- * DOM globals — this module is compiled into the browser bundle as-is.
+ * DOM globals: this module is compiled into the browser bundle as-is.
  */
 
 const HTML_ESCAPES: Record<string, string> = {

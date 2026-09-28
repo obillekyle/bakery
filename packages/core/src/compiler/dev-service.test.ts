@@ -108,7 +108,7 @@ describe('classifyWatchEvent', () => {
     expect(classifyWatchEvent('public/logo.png')).toBe('ignored')
   })
 
-  test('honours the ignore list', () => {
+  test('honors the ignore list', () => {
     expect(classifyWatchEvent('schema.ts')).toBe('ignored')
     expect(classifyWatchEvent('.cache/x.ts')).toBe('ignored')
   })
@@ -119,7 +119,7 @@ describe('classifyWatchEvent', () => {
    * dev server ran flushed the route cache and reloaded the browser.
    *
    * The data directory is un-dotted, so it cannot ride on any "ignore hidden
-   * directories" rule — it has to be listed by name, and this pins that.
+   * directories" rule: it has to be listed by name, and this pins that.
    */
   test('ignores the data directory', () => {
     expect(classifyWatchEvent('bakery/backups/schema.1722902400000.ts')).toBe(
@@ -143,7 +143,7 @@ describe('classifyWatchEvent', () => {
  * Every dev-worker boot used to run a full ORM schema sync, which dominated
  * restart time. The worker now hashes the schema sources before syncing and
  * skips the sync when nothing changed since the last *successful* one. The
- * decision is pure so every branch — and especially the fail-closed ones — is
+ * decision is pure so every branch (and especially the fail-closed ones) is
  * pinned here.
  */
 describe('classifySchemaSync', () => {
@@ -171,7 +171,7 @@ describe('classifySchemaSync', () => {
   })
 
   test('fails closed when the current hash cannot be computed', () => {
-    // `null` means the schema sources could not be read/resolved — an
+    // `null` means the schema sources could not be read/resolved: an
     // indeterminate state must re-sync, never silently skip (convention 2's
     // fail-closed clause, applied to a non-guard).
     expect(classifySchemaSync({ ...base, currentHash: null })).toBe('sync')
@@ -185,8 +185,8 @@ describe('classifySchemaSync', () => {
 })
 
 /**
- * The dev error overlay was unreachable in practice. `notifyError` — the only
- * producer of the `{type:'error'}` frame `client/livereload.ts` renders — had
+ * The dev error overlay was unreachable in practice. `notifyError`: the only
+ * producer of the `{type:'error'}` frame `client/livereload.ts` renders: had
  * exactly one caller in non-test source: the `catch` around `processFileEvent`
  * in the watcher loop, which can only fire on an internal/IO fault.
  *
@@ -217,7 +217,7 @@ describe('classifyDevError', () => {
 
   test('a record with no usable code is treated as a server error', () => {
     // `extractErrorData` fills errorCode on every path it owns, so arriving
-    // without one means a malformed record — surface it, do not swallow it.
+    // without one means a malformed record. Surface it, do not swallow it.
     expect(classifyDevError({})).toBe('overlay')
     expect(classifyDevError(undefined)).toBe('overlay')
     expect(classifyDevError({ errorCode: '500' } as any)).toBe('overlay')
@@ -235,7 +235,7 @@ describe('formatDevErrorFrame', () => {
     const frame = formatDevErrorFrame(err, {
       url: 'http://localhost:3284/broken',
     })
-    expect(frame.title).toBe('500 Unexpected token — /broken')
+    expect(frame.title).toBe('500 Unexpected token: /broken')
     expect(frame.body).toBe(err.errorBody)
   })
 
@@ -319,7 +319,7 @@ describe('createDevErrorPlugin', () => {
       { url: 'http://localhost:3284/page' } as Request,
     )
 
-    expect(seen).toEqual([['500 boom — /page', 'stack']])
+    expect(seen).toEqual([['500 boom: /page', 'stack']])
   })
 
   test('stays quiet for a 4xx', () => {
@@ -337,7 +337,7 @@ describe('createDevErrorPlugin', () => {
 
   /**
    * `PluginHooks.onError` returns the first plugin response it gets and stops.
-   * This plugin observes only — anything but a nullish return would replace the
+   * This plugin observes only: anything but a nullish return would replace the
    * app's error page with the overlay plugin's answer.
    */
   test('never answers the request', () => {
@@ -366,7 +366,7 @@ describe('registerDevErrorOverlay', () => {
     expect(plugins.map(p => p.name)).toEqual([DEV_ERROR_PLUGIN, 'app-plugin'])
   })
 
-  test('is idempotent — a second registration would double every frame', () => {
+  test('is idempotent: a second registration would double every frame', () => {
     const plugins: any[] = []
 
     expect(registerDevErrorOverlay(plugins)).toBe('registered')
@@ -375,7 +375,7 @@ describe('registerDevErrorOverlay', () => {
   })
 
   test('reports unavailable rather than throwing on a hostile list', () => {
-    // Not `undefined` — that is the default-parameter path, covered below.
+    // Not `undefined`: that is the default-parameter path, covered below.
     expect(registerDevErrorOverlay(null)).toBe('unavailable')
     expect(registerDevErrorOverlay('nope')).toBe('unavailable')
     expect(registerDevErrorOverlay({ length: 1 })).toBe('unavailable')
@@ -442,7 +442,7 @@ describe('isCreatedRouteModule', () => {
     expect(isCreatedRouteModule('src/new-page.jsx', 'rename', true)).toBe(true)
   })
 
-  test('an edited page does not — that is the fast path', () => {
+  test('an edited page does not. That is the fast path', () => {
     // Measured on Windows: an in-place write emits only `change`.
     expect(isCreatedRouteModule('src/page.tsx', 'change', true)).toBe(false)
   })

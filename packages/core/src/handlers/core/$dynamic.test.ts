@@ -9,6 +9,7 @@ import {
 import { fs } from '../../utils'
 import { type Route, RouteData } from './$base'
 import { DynamicHandler } from './$dynamic'
+import { DynamicErrorHandler } from './$error'
 
 const ROUTE_DIR = fs.resolve(process.cwd(), '.cache/__dynamic-test__')
 const ECHO = `${ROUTE_DIR}/echo.ts` as fs.AbsolutePath
@@ -88,7 +89,7 @@ describe('DynamicHandler.executeModule', () => {
  * serve root, and it must not be behind a `.forbidden` marker.
  *
  * Three of those are filesystem work and one is a regex test, so the order they
- * run in is a performance decision — but only if a rejected entry never shadows
+ * run in is a performance decision, but only if a rejected entry never shadows
  * a later one. These pin that: in each case the *first* entry in the cache
  * matches the path and is rejected, and the answer must still be the second.
  */
@@ -116,6 +117,17 @@ describe('DynamicHandler.findDynamicRoute', () => {
     await Bun.write(HIDDEN, 'export default () => 1\n')
     await Bun.write(`${SCAN_DIR}/hidden/.forbidden`, '')
     __setTestConfig({ root: SCAN_DIR })
+
+    // `GONE` is the point of three tests below: an entry whose file is not
+    // there. Left implicit, that precondition is a property of the *host*, and
+    // it silently stopped holding. A glob escape in `$routing.ts` let route
+    // discovery resolve outside `SCAN_DIR` entirely and match a file Windows
+    // had created at `C:\`, so `resolveRoute` returned an `Info` for a path
+    // six levels above the serve root and the three tests failed on this
+    // machine while Linux CI stayed green. Asserting it here means a future
+    // recurrence names the precondition that broke instead of presenting as an
+    // unrelated assertion failure.
+    expect(await Bun.file(GONE).exists()).toBe(false)
   })
 
   afterAll(() => {
@@ -161,7 +173,7 @@ describe('DynamicHandler.findDynamicRoute', () => {
   })
 
   test('canHandle agrees with resolveRoute for every cache state', async () => {
-    // `canHandle` may answer from a cache — it already does for `this.cache` —
+    // `canHandle` may answer from a cache: it already does for `this.cache`,
     // so what has to hold is that it never disagrees with what `resolveRoute`
     // is about to decide, in either direction.
     for (const [label, seeded] of [
@@ -178,12 +190,16 @@ describe('DynamicHandler.findDynamicRoute', () => {
 
     seed(info(LIVE))
     expect(await ScanHandler.canHandle('/other/1/2')).toBe(false)
-    // A literal `[id]` in the URL is never a route, cache or no cache.
+    // A literal route-template spelling in the URL is never a route, cache or
+    // no cache, all three forms, since the `!` keeps the optional spelling
+    // out of RX_CATCHALL's reach.
     expect(await ScanHandler.canHandle('/item/[id]')).toBe(false)
+    expect(await ScanHandler.canHandle('/docs/[...slug]')).toBe(false)
+    expect(await ScanHandler.canHandle('/docs/[...slug!]')).toBe(false)
   })
 })
 
-describe('findDynamicRoute — catch-all ordering', () => {
+describe('findDynamicRoute: catch-all ordering', () => {
   // Isolated per-class caches: the dynamicCache registry is keyed by class
   // identity, so a subclass never pollutes TSXHandler/ApiHandler state.
   class OrderingHandler extends DynamicHandler {}
@@ -249,11 +265,11 @@ describe('findDynamicRoute — catch-all ordering', () => {
     expect(OrderingHandler.findDynamicRoute('/gone/x/y')).toBeNull()
     const hit = OrderingHandler.findDynamicRoute('/docs/a/b/c')
     expect(hit!.path).toBe(fs.relative(CA_ROOT, files.catchAll))
-    expect(hit!.getParams('/docs/a/b/c')).toEqual({ slug: 'a/b/c' })
+    expect(hit!.getParams('/docs/a/b/c')).toEqual({ slug: ['a', 'b', 'c'] })
   })
 })
 
-describe('findDynamicRoute — catch-alls yield to real files', () => {
+describe('findDynamicRoute: catch-alls yield to real files', () => {
   class YieldHandler extends DynamicHandler {}
   const Y_ROOT = fs.resolve(ROUTE_DIR, 'yield')
 
@@ -283,6 +299,137 @@ describe('findDynamicRoute — catch-alls yield to real files', () => {
   test('and still answers when it does not', () => {
     const hit = YieldHandler.findDynamicRoute('/site/some/page')
     expect(hit).not.toBeNull()
-    expect(hit!.getParams('/site/some/page')).toEqual({ rest: 'some/page' })
+    expect(hit!.getParams('/site/some/page')).toEqual({
+      rest: ['some', 'page'],
+    })
+  })
+})
+
+/**
+ * The real-file rule has to see through compiled extensions. `TSHandler`
+ * serves `provides.ts` at `/site/provides` and `/site/provides.js`, so
+ * neither spelling names a file on disk: a literal stat missed both and a
+ * catch-all page above the module's handler (58 vs 50 in the report) served
+ * HTML to a browser that asked for a module. `servedSourceExists` probes the
+ * registered dynamic extensions against the extensionless base, read from the
+ * live registry so a plugin's extension counts without core naming it.
+ */
+describe('findDynamicRoute: catch-alls yield to compiled sources', () => {
+  class SourceYieldHandler extends DynamicHandler {}
+  class TsLikeHandler extends DynamicHandler {
+    static get config() {
+      return { ext: ['ts'], dir: Bakery.serveRoot, include: ['**/*'] }
+    }
+  }
+  const S_ROOT = fs.resolve(ROUTE_DIR, 'source-yield')
+
+  beforeAll(async () => {
+    await Bun.write(
+      `${S_ROOT}/site/[...rest].tsx`,
+      'export default () => null\n',
+    )
+    await Bun.write(`${S_ROOT}/site/provides.ts`, 'export default () => 1\n')
+    __setTestConfig({ root: S_ROOT } as any)
+    Bakery.handlers.fetch.set(TsLikeHandler, 50)
+    const info = new RouteData.Info(
+      `${S_ROOT}/site/[...rest].tsx` as fs.AbsolutePath,
+      'site/[...rest].tsx',
+    )
+    SourceYieldHandler.dynamicCache.set(info.regex!, info)
+  })
+
+  afterAll(() => {
+    __resetTestConfig()
+    Bakery.handlers.fetch.delete(TsLikeHandler)
+    SourceYieldHandler.dynamicCache.clear()
+  })
+
+  test('declines the extensionless spelling of a .ts module', () => {
+    expect(SourceYieldHandler.findDynamicRoute('/site/provides')).toBeNull()
+  })
+
+  test('declines the .js spelling too', () => {
+    expect(SourceYieldHandler.findDynamicRoute('/site/provides.js')).toBeNull()
+  })
+
+  test('still answers a path no handler can serve as a file', () => {
+    const hit = SourceYieldHandler.findDynamicRoute('/site/reports/monthly')
+    expect(hit).not.toBeNull()
+  })
+})
+
+/**
+ * An error page is a file an application put there by name. Asking the
+ * ordinary resolver for it let the dynamic matcher answer, and a catch-all
+ * answers everything.
+ *
+ * Two things went wrong at once, which is why this lives next to the routing
+ * tests rather than with the error-rendering ones. The served page was the
+ * catch-all rather than the error page: an app with a root `[...slug].tsx`
+ * rendered its wildcard for every 500, and the walk up the path prefixes ran
+ * a full dynamic resolution per segment, which is where most of the cost of a
+ * 404 came from.
+ */
+describe('error pages resolve statically, never through a catch-all', () => {
+  const ERR_ROOT = fs.resolve(ROUTE_DIR, 'errpages')
+
+  class ErrPages extends DynamicErrorHandler {
+    static get config() {
+      return {
+        ext: ['tsx'],
+        dir: Bakery.serveRoot,
+        include: ['**/error.tsx', '**/error-*.tsx'],
+      }
+    }
+  }
+
+  beforeAll(async () => {
+    // A catch-all at the root and nothing else. Every error-page probe this
+    // handler makes (/error-404, /error, and the same pair per prefix) is a
+    // path the catch-all matches.
+    await Bun.write(`${ERR_ROOT}/[...slug].tsx`, 'export default () => null\n')
+    __setTestConfig({ root: ERR_ROOT } as any)
+  })
+
+  afterAll(() => {
+    __resetTestConfig()
+    ErrPages.cache.clear()
+    ErrPages.dynamicCache.clear()
+  })
+
+  test('a root catch-all does not become the error page', async () => {
+    ErrPages.cache.clear()
+    ErrPages.dynamicCache.clear()
+
+    const info = await ErrPages.resolveRoute('/deep/missing/page')
+    expect(info?.path ?? null).toBeNull()
+  })
+
+  test('a real error page is still found', async () => {
+    ErrPages.cache.clear()
+    ErrPages.dynamicCache.clear()
+    await Bun.write(`${ERR_ROOT}/error.tsx`, 'export default () => null\n')
+
+    const info = await ErrPages.resolveRoute('/deep/missing/page')
+    expect(info?.path).toBe('error.tsx')
+
+    await rm(`${ERR_ROOT}/error.tsx`, { force: true })
+  })
+
+  test('the code-specific page wins over the default one', async () => {
+    ErrPages.cache.clear()
+    ErrPages.dynamicCache.clear()
+    await Bun.write(`${ERR_ROOT}/error.tsx`, 'export default () => null\n')
+    await Bun.write(`${ERR_ROOT}/error-404.tsx`, 'export default () => null\n')
+
+    const info = await ErrPages.resolveRoute('/nope', {
+      errorCode: 404,
+      errorText: 'Not Found',
+      errorBody: '',
+    } as any)
+    expect(info?.path).toBe('error-404.tsx')
+
+    await rm(`${ERR_ROOT}/error.tsx`, { force: true })
+    await rm(`${ERR_ROOT}/error-404.tsx`, { force: true })
   })
 })

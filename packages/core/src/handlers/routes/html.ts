@@ -78,8 +78,8 @@ async function sharedHandler(
   // through `{{...}}` *and* through the `__PAGE_PARAMS__` script injected
   // into every page, so the raw stack was published in PROD even by a
   // template that never mentioned it. Guarded because `errorData` is
-  // `undefined` for an ordinary page — `DEFAULT_ERROR` only exists on the
-  // error handler — and the spread below tolerates that where the helper,
+  // `undefined` for an ordinary page (`DEFAULT_ERROR` only exists on the
+  // error handler), and the spread below tolerates that where the helper,
   // deliberately strict about the shape it redacts, does not.
   // Annotated because `beginPageRoute` hands back real `Handler.Error.Data`
   // where this used to read an untyped `(this as any).DEFAULT_ERROR`: the

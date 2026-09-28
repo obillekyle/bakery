@@ -6,7 +6,7 @@ import type { SQLAdapter } from './base'
  *
  * Deliberately **not** an emitter and **not** a listener array. This sits in
  * the hot path of every statement the ORM runs, so the cost of having the
- * feature at all has to be a single null read when nobody is watching — see
+ * feature at all has to be a single null read when nobody is watching. See
  * `observe()` below, which returns the driver's own value untouched in that
  * case. An emitter would allocate an event object and walk a list per query
  * whether or not anything subscribed.
@@ -22,12 +22,12 @@ import type { SQLAdapter } from './base'
 export type QueryMethod = 'all' | 'run' | 'get' | 'values' | 'iterate'
 
 export interface QueryEvent {
-  /** The statement as handed to the driver, before dialect normalisation. */
+  /** The statement as handed to the driver, before dialect normalization. */
   sql: string
   /** Wall-clock duration in milliseconds, fractional. */
   ms: number
   /**
-   * Rows the statement produced, or `null` when it cannot be known — a failed
+   * Rows the statement produced, or `null` when it cannot be known: a failed
    * statement, or a result shape the adapter does not describe as an array.
    * For `run` this is the *affected* row count, not a result set.
    */
@@ -47,7 +47,7 @@ export interface QueryEvent {
    * observer receives is one `logger.info` away from a log file, an analytics
    * table or a dashboard panel. Defaulting this on would turn "add a slow
    * query panel" into a credential leak that nobody reviewed. Callers that
-   * genuinely need bindings — a local query profiler, say — must ask, and are
+   * genuinely need bindings (a local query profiler, say) must ask, and are
    * then responsible for what they do with them.
    */
   params?: readonly unknown[]
@@ -73,7 +73,7 @@ let includeParams = false
  * call installed, so a test that forgets to restore cannot silently unhook a
  * later one.
  *
- * ```ts no-check — illustrative: the app decides where slow queries go
+ * ```ts no-check: illustrative: the app decides where slow queries go
  * import { setQueryObserver } from '@bakery-framework/orm'
  *
  * setQueryObserver(event => {
@@ -150,7 +150,7 @@ async function timed<R>(
         rows: null,
         driver,
         method,
-        // Normalised so `error` is a reliable "did this throw" signal: a driver
+        // Normalized so `error` is a reliable "did this throw" signal: a driver
         // that rejects with `undefined` would otherwise be indistinguishable
         // from success.
         error: error ?? new Error('query failed with no error value'),
@@ -165,8 +165,8 @@ async function timed<R>(
  * Wrap one executor entry point so it reports to the observer.
  *
  * The unobserved path is the `if` below and nothing else: no timer read, no
- * event object, and the underlying call's own return value — which for `all`
- * and `run` may legitimately be synchronous — passes straight through.
+ * event object, and the underlying call's own return value (which for `all`
+ * and `run` may legitimately be synchronous) passes straight through.
  */
 export function observe<R>(
   driver: SQLAdapter.Driver,
@@ -182,7 +182,7 @@ export function observe<R>(
 ): (sqlText: string, params?: unknown[]) => Promise<R> | R
 // Two overloads because the executor's five entry points are not one shape.
 // `get` and `values` are declared to return a promise unconditionally, while
-// `all` and `run` may legitimately be synchronous — and the implementation
+// `all` and `run` may legitimately be synchronous, and the implementation
 // signature, which has to admit both, cannot narrow to the former on its own.
 // Without the first overload `createExecutor` fails to satisfy `Executor`.
 export function observe<R>(
@@ -201,7 +201,7 @@ export function observe<R>(
  * `iterate` is a stream, so its duration means something different from the
  * other four, and the choice here is deliberate:
  *
- * - `ms` spans from the call to `iterate()` until iteration **ends** — the
+ * - `ms` spans from the call to `iterate()` until iteration **ends**: the
  *   generator is exhausted, throws, or the consumer breaks out of the loop.
  *   That includes whatever the consumer did between yields, so an `iterate`
  *   event is not comparable with an `all` event and must not be averaged into
@@ -254,7 +254,7 @@ export function observeIterate(
     // The source is created here rather than inside `drain`, and `started` with
     // it: an async generator body does not run until the first `next()`, so
     // both would otherwise be deferred to whenever the consumer got round to
-    // pulling — and the statement would be issued later than it is today.
+    // pulling, and the statement would be issued later than it is today.
     const started = performance.now()
     return drain(driver, iterate(sqlText, params), sqlText, params, started)
   }

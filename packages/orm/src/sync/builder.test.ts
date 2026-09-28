@@ -13,7 +13,7 @@ const silentMessages: any = new Proxy({}, { get: () => () => {} })
  * `db:sync --choose=db` writes schema.ts from the database, and the sync engine
  * generates one when none exists. Since the framework no longer imports
  * schema.ts for types, a generated file that omits the registration block
- * leaves the ORM silently untyped — it runs, but every column is `any`.
+ * leaves the ORM silently untyped: it runs, but every column is `any`.
  *
  * That is exactly the failure the schema registry was introduced to prevent, so
  * the generator's output contract is pinned here.
@@ -63,8 +63,8 @@ describe('generated schema registers itself', () => {
 
 /**
  * The generator only ever emitted the `DBInfo` namespace. For a project on the
- * `orm/` folder layout the write target is `orm/schema.ts` — which `index.ts`
- * re-exports — so a regeneration replaced every `table()` value with a
+ * `orm/` folder layout the write target is `orm/schema.ts`, which `index.ts`
+ * re-exports, so a regeneration replaced every `table()` value with a
  * namespace *and* added a second `declare module '@bakery-framework/orm/schema-registry'`
  * block colliding with the one `index.ts` already declares. `--choose=db` did
  * it on demand; a sync involving `old()` wrappers did it implicitly.
@@ -103,12 +103,12 @@ describe('the generated shape follows the layout it is written into', () => {
     // `qty` is nullable *and* defaults to 0, which `Field` cannot spell: its one
     // convention is that a null default means nullable. Emitting `Field.Int(0)`
     // would quietly turn a nullable column NOT NULL, so it falls through to a
-    // plain object literal — constraints *are* objects, so this needs no helper
+    // plain object literal: constraints *are* objects, so this needs no helper
     // and imports nothing.
     // `as const` matters and is not cosmetic. `table()` takes
     // `C extends Record<string, unknown>`, which does not preserve literals, so
     // without it `type: 'integer'` widens to `type: string` and `InferSchema`
-    // has nothing to match — every column spelled this way infers as a string.
+    // has nothing to match, every column spelled this way infers as a string.
     // Invisible in the `DBInfo` layout, whose whole object is already `as const`.
     expect(source).toContain(
       "qty: { type: 'integer', default: 0, nullable: true } as const,",
@@ -117,7 +117,7 @@ describe('the generated shape follows the layout it is written into', () => {
     // `label` is NOT NULL with no default, and it now says so.
     //
     // **This assertion used to read `Field.String(null)`, pinning the loss as
-    // known behaviour** — the comment beside it called it "the column
+    // known behavior**: the comment beside it called it "the column
     // formatter's long-standing round-trip loss". It was not merely cosmetic:
     // `Field`'s convention is that a null default *means* nullable, so the
     // generated schema redefined the column, and the next sync planned to
@@ -149,7 +149,7 @@ describe('the generated shape follows the layout it is written into', () => {
     const source = await generate('folder')
     // Exactly the helpers used, and no more: `Field` and `table`. The column
     // `Field` cannot name is an object literal, and `Field.Date.now()` replaces
-    // the old `dateNow` marker import — so neither `value` nor `dateNow`
+    // the old `dateNow` marker import, so neither `value` nor `dateNow`
     // appears, and there is no longer a `value` to import.
     expect(source).toContain(
       "import { Field, table } from '@bakery-framework/orm'",
@@ -183,7 +183,7 @@ describe('the generated shape follows the layout it is written into', () => {
     try {
       // As a file:// URL, for the same reason `entry` above is one. A bare
       // Windows absolute path resolved when this file ran alone and failed
-      // inside the full suite with `Cannot find module … from ''` — the
+      // inside the full suite with `Cannot find module … from ''`: the
       // importer context differs, and a drive-lettered path is not a specifier.
       // Deterministic, not flaky: 5/5 alone, 3/3 failures in the suite.
       const module = await import(Bun.pathToFileURL(path).href)
@@ -193,7 +193,7 @@ describe('the generated shape follows the layout it is written into', () => {
           // This is now a real round trip, and the DDL is the thing to compare
           // against: `label TEXT NOT NULL` (no default) and `note TEXT`
           // (nullable). Both used to come back as nullable-with-a-null-default
-          // — the loss the comment here used to excuse.
+          //: the loss the comment here used to excuse.
           label: { type: 'string' },
           note: { type: 'string', default: null, nullable: true },
           qty: { type: 'integer', default: 0, nullable: true },
@@ -233,7 +233,7 @@ describe('the previous schema is preserved before it is overwritten', () => {
 
     const schemaPath = `${Bakery.dataDir}/__preserve-test__.ts`
     const original =
-      '// hand written, and the only copy — schema.ts is gitignored\n'
+      '// hand written, and the only copy, schema.ts is gitignored\n'
     await Bun.write(schemaPath, original)
 
     const before = await listSchemaBackups()
@@ -242,7 +242,7 @@ describe('the previous schema is preserved before it is overwritten', () => {
 
     // A *new* file, not a bigger count. `preserveExisting` prunes to ten, so
     // once the directory reaches the cap it adds one and drops one and the
-    // count never moves — making a count assertion pass until enough syncs
+    // count never moves: making a count assertion pass until enough syncs
     // have run, then fail for a reason unrelated to what it tests.
     const added = after.find(name => !before.includes(name))!
     expect({ added: Boolean(added) }).toEqual({ added: true })
@@ -279,7 +279,7 @@ describe('the previous schema is preserved before it is overwritten', () => {
  * What the single-file `DBInfo` layout emits.
  *
  * Both cases below were live bugs found by generating against a real database
- * rather than by the suite — the round-trip test imports the *tables*, so
+ * rather than by the suite: the round-trip test imports the *tables*, so
  * neither the index block nor an extra table it wrote was ever exercised.
  */
 describe('the DBInfo layout emits an importable file', () => {
@@ -343,8 +343,8 @@ describe('the DBInfo layout emits an importable file', () => {
 /**
  * `orm/views.ts`, generated.
  *
- * A view has no column DDL — `CREATE VIEW x AS SELECT …` declares no types, and
- * `createView(name, sql)` takes nothing else — so each one is emitted as an
+ * A view has no column DDL (`CREATE VIEW x AS SELECT …` declares no types, and
+ * `createView(name, sql)` takes nothing else), so each one is emitted as an
  * interface plus a `view()` call, not as column builders. Emitting
  * `Field.Varchar(64)` for a view column would state a width the database
  * neither stores nor enforces.
@@ -387,7 +387,7 @@ describe('views are generated into their own module', () => {
     // collectConstraints silently keeps whichever was exported last.
     expect(tables).not.toContain('activeUsers')
     expect(views).not.toBeNull()
-    // camelCase in the schema, snake_case on the way to SQL — the same
+    // camelCase in the schema, snake_case on the way to SQL: the same
     // convention the table generator uses, so a view reads like a table.
     expect(views).toContain("view<'activeUsers', ActiveUsersView>")
   })
@@ -429,7 +429,7 @@ describe('views are generated into their own module', () => {
     // introspection can only call a JSON column `unknown`, and that a
     // `json_arrayagg(json_object(...))` column holds `{ id: number }[]` is
     // knowledge only the author has. Regenerating over it would delete exactly
-    // that work — so the generator seeds this file once and then leaves it.
+    // that work, so the generator seeds this file once and then leaves it.
     const db = new SQLiteAdapter(':memory:')
     await db
       .query('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)')
@@ -475,7 +475,7 @@ describe('views are generated into their own module', () => {
 
 /**
  * A schema generated from a database must round-trip: the next sync should have
- * nothing to do. It did not, and both defects pointed the same way — toward a
+ * nothing to do. It did not, and both defects pointed the same way: toward a
  * destructive plan against a database the schema had just been read from.
  *
  * Measured before the fix, on a two-table SQLite database:
@@ -484,7 +484,7 @@ describe('views are generated into their own module', () => {
  *     Tables to rebuild (schema modified): posts
  *
  * because `posts.author_id integer NOT NULL REFERENCES users(id)` regenerated as
- * `Field.Int(null)` — nullable, and no reference.
+ * `Field.Int(null)`, nullable, and no reference.
  */
 describe('generation is faithful enough to round-trip', () => {
   async function generateFrom(ddl: string[]): Promise<string> {
@@ -513,7 +513,7 @@ describe('generation is faithful enough to round-trip', () => {
     // `Field`'s convention is that a null default *means* nullable, so
     // `Field.Int(null)` here would redefine the column rather than describe it.
     expect(source).not.toContain('Field.Int(null)')
-    // And the column is still emitted — the fix must not drop it.
+    // And the column is still emitted: the fix must not drop it.
     expect(source).toContain('authorId')
   })
 
@@ -541,7 +541,7 @@ describe('generation is faithful enough to round-trip', () => {
 /**
  * The folder layout never seeded `indexes.ts`, while the single-file layout
  * carries an `indexes` block inside `DBInfo`. So a folder-layout schema
- * regenerated from a database declared no indexes at all — and a TS-wins sync
+ * regenerated from a database declared no indexes at all, and a TS-wins sync
  * drops what the schema does not mention. Measured: adopting a database with
  * three indexes armed the next sync to drop all three.
  */
@@ -569,7 +569,7 @@ describe('the folder layout seeds indexes.ts', () => {
     expect(indexes).toContain('Field.Index')
     expect(indexes).toContain('usernameUniq')
     expect(indexes).toContain('usersById')
-    // Imports what it uses — the single-file block once referenced identifiers
+    // Imports what it uses, the single-file block once referenced identifiers
     // it never imported, invisible because only the tables are round-tripped.
     expect(indexes).toContain("import { Field } from '@bakery-framework/orm'")
 
@@ -580,7 +580,7 @@ describe('the folder layout seeds indexes.ts', () => {
 /**
  * A referencing column reads as `Field.Foreign(parent.id)` in the folder layout.
  *
- * It used to be emitted as the object literal — correct, and four times the
+ * It used to be emitted as the object literal: correct, and four times the
  * width:
  *
  *     sectionId: { type: 'integer', default: null, nullable: true,
@@ -636,7 +636,7 @@ describe('foreign keys read as Field.Foreign in the folder layout', () => {
       'CREATE TABLE posts (id INTEGER PRIMARY KEY AUTOINCREMENT, author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE)',
     ])
     expect(source).toContain("onDelete: 'CASCADE'")
-    // NOT NULL, so no `nullable: true` — the flag that would redefine it.
+    // NOT NULL, so no `nullable: true`. The flag that would redefine it.
     expect(source).toMatch(/authorId: Field\.Foreign\(users\.id, \{ onDelete/)
   })
 

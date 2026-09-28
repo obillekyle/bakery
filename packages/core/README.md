@@ -10,7 +10,7 @@ runtime depends on Bun APIs throughout. It will not run on Node.
 bun add @bakery-framework/core @bakery-framework/cli
 ```
 
-`@bakery-framework/cli` owns the `bakery` binary that actually starts a server — core on
+`@bakery-framework/cli` owns the `bakery` binary that actually starts a server: core on
 its own is the library it starts.
 
 ## Usage
@@ -55,7 +55,7 @@ Pages are rendered server-side through Bakery's own `createElement`, so an app's
 
 `extends` alone is not enough. Bun's runtime does not follow `extends` into a
 package specifier, so without the three options repeated here every `.tsx` route
-fails with `Cannot find module 'react/jsx-dev-runtime'` — while `tsc` stays
+fails with `Cannot find module 'react/jsx-dev-runtime'`, while `tsc` stays
 perfectly happy, because it *does* follow the extends.
 
 The fastest way to get a correct setup is to let the scaffolder write one:
@@ -71,19 +71,19 @@ bun create bakery my-app
   10 req/s). The startup banner says so; `rateLimit: false` turns it off.
 - The export map is curated: only the subpaths it names can be imported, and
   everything else is private. If you need something that is not exposed, open an
-  issue rather than reaching for a deep path — it will not resolve.
+  issue rather than reaching for a deep path: it will not resolve.
 
 Full documentation lives in the
 [repository](https://github.com/obillekyle/bakery).
 
 ## License
 
-MIT with the Commons Clause v1.0 — see [LICENSE](./LICENSE). In short: use,
+MIT with the Commons Clause v1.0. See [LICENSE](./LICENSE). In short: use,
 
-**Not an OSI-approved licence.** The Commons Clause removes the right to *sell*
-the software — meaning to charge for a product or service whose value derives
+**Not an OSI-approved license.** The Commons Clause removes the right to *sell*
+the software: meaning to charge for a product or service whose value derives
 substantially from it, hosting and support included. Everything else the MIT
-licence grants is unchanged: use it, modify it, ship it inside your own product.
-If your organisation only permits OSI-approved dependencies, this will not pass
+license grants is unchanged: use it, modify it, ship it inside your own product.
+If your organization only permits OSI-approved dependencies, this will not pass
 that check.
 modify and distribute freely; selling the software itself is not granted.

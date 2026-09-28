@@ -76,7 +76,7 @@ describe('route mounts', () => {
     expect(resolveMount('/about')).toBeNull()
   })
 
-  test('normalises a prefix given without a leading slash', () => {
+  test('normalizes a prefix given without a leading slash', () => {
     clearMounts()
     mountRoutes('_demo', PLUGIN_DIR)
     expect(resolveMount('/_demo/panel')?.rest).toBe('panel')

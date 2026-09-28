@@ -118,7 +118,7 @@ describe('assembleHtml injection safety', () => {
   const page = '<html><head></head><body></body></html>'
 
   test('request params named $$head/$$body/$$prio are NOT injected as markup', () => {
-    // For GET requests `params` is the query string, so honouring these keys
+    // For GET requests `params` is the query string, so honoring these keys
     // was a reflected XSS on every dynamic page and every error page.
     const result = assembleHtml(page, {
       $$head: '<script>alert(1)</script>',
@@ -130,7 +130,7 @@ describe('assembleHtml injection safety', () => {
     expect(result).not.toContain('alert(3)')
   })
 
-  test('server-supplied injects are still honoured', () => {
+  test('server-supplied injects are still honored', () => {
     const result = assembleHtml(
       page,
       {},
@@ -410,7 +410,7 @@ describe('injectIfHtml streaming path', () => {
   test('head tag beyond the probe window falls back to buffered', async () => {
     // 80KB of comment padding before <head>: the streamed path cannot know
     // whether to use the prepend fallback until it has seen this much, so it
-    // must buffer instead — and the output must still be byte-identical.
+    // must buffer instead, and the output must still be byte-identical.
     const html =
       `<!--${'p'.repeat(80 * 1024)}-->` +
       '<html><head></head><body><p>deep</p></body></html>'

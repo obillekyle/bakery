@@ -8,7 +8,7 @@ import { Field } from '../field'
 const MYSQL_URL = process.env.MYSQL_TEST_URL
 const PGSQL_URL = process.env.PGSQL_TEST_URL
 
-/** See adapters/nested-tx.test.ts — Bun's MySQL driver needs a pending timer. */
+/** See adapters/nested-tx.test.ts: Bun's MySQL driver needs a pending timer. */
 function alive<T>(promise: T | Promise<T>): Promise<T> {
   const timer = setTimeout(() => {}, 30_000)
   return Promise.resolve(promise).finally(() => clearTimeout(timer))
@@ -21,7 +21,7 @@ const col = (table: string, column: string) =>
  * Composite foreign keys.
  *
  * `cols` and `refCols` have been arrays all along and every adapter emits a
- * multi-column `FOREIGN KEY (a, b) REFERENCES t (x, y)` — but there was no way
+ * multi-column `FOREIGN KEY (a, b) REFERENCES t (x, y)`, but there was no way
  * to *declare* one, so "works by construction" was the strongest claim anyone
  * could make. These tests replace construction with a live server.
  */

@@ -26,7 +26,7 @@ function hideOverlay() {
 
 /**
  * Full-viewport dev overlay for server-pushed errors and a dead dev server.
- * Built strictly with createElement/textContent — the title and body arrive
+ * Built strictly with createElement/textContent: the title and body arrive
  * over the wire and may contain markup-shaped text (stack traces quoting
  * generics, user file names); nothing here may pass through innerHTML.
  */
@@ -416,7 +416,7 @@ function connect() {
     // stopped dev server once a second, indefinitely and in lockstep.
     const delay = Math.min(1000 * 2 ** reconnectAttempts, 30_000)
     reconnectAttempts += 1
-    // A dead dev server used to mean silent reconnect attempts — the page just
+    // A dead dev server used to mean silent reconnect attempts: the page just
     // quietly stopped reloading. After a few failures (~7s of downtime with
     // the backoff above) say so; onopen dismisses it and reloads on reconnect.
     if (reconnectAttempts > 3) {

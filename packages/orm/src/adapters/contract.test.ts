@@ -10,7 +10,7 @@ import { SQLiteAdapter } from './sqlite'
  * Only SQLite was ever genuinely exercised; MySQL and Postgres were trusted on
  * faith while their identifier quoting, placeholder syntax and DDL were edited
  * repeatedly. Most of that risk is in *what SQL is generated*, which needs no
- * server — so those parts are asserted unconditionally here, and the parts that
+ * server, so those parts are asserted unconditionally here, and the parts that
  * genuinely need a database are gated on a connection string being present.
  *
  * Set MYSQL_TEST_URL / PGSQL_TEST_URL to run the live half. Without them the
@@ -24,7 +24,7 @@ const PGSQL_URL = process.env.PGSQL_TEST_URL
 describe('identifier quoting is per-dialect', () => {
   test('SQLite and Postgres use double quotes, MySQL uses backticks', () => {
     expect(new SQLiteAdapter(':memory:').quoteChar).toBe('"')
-    // Constructed without connecting — quoteChar is a static property of the
+    // Constructed without connecting. QuoteChar is a static property of the
     // dialect, not of a session.
     expect(new PGAdapter().quoteChar).toBe('"')
     expect(new MySQLAdapter().quoteChar).toBe('`')
@@ -47,10 +47,10 @@ describe('identifier quoting is per-dialect', () => {
 /**
  * The ORM emits MySQL-flavoured SQL (backticks, `?` placeholders) and each
  * adapter translates. Postgres has the most to do, and does it with a
- * quote-aware scanner — which is exactly where an off-by-one or a naive
+ * quote-aware scanner, which is exactly where an off-by-one or a naive
  * replace would corrupt a query.
  */
-describe('Postgres normalisation', () => {
+describe('Postgres normalization', () => {
   const normalize = (sql: string, params: unknown[] = []) =>
     (PGAdapter as any).normalizePostgresSQL(sql, params)
 
@@ -71,14 +71,14 @@ describe('Postgres normalisation', () => {
   })
 
   test('a doubled quote does not swallow the character after it', () => {
-    // The scanner consumed its `skipNext` flag twice — once at the top of the
-    // loop and again via `i++` — so an escaped quote ate the *next* character
+    // The scanner consumed its `skipNext` flag twice (once at the top of the
+    // loop and again via `i++`), so an escaped quote ate the *next* character
     // too. `'a''b'` came out as `'a'''`, which Postgres reads as `a'`.
     //
     // It reached a live server as a corrupted column DEFAULT: a schema saying
     // `value('string', "it's fine")` created a column whose default was
     // `it' fine`, and every row silently got the truncated value. Nothing
-    // caught it because these assertions run *before* normalisation and the
+    // caught it because these assertions run *before* normalization and the
     // MySQL/Postgres suites had never been run against a real database.
     expect(normalize("SELECT 'a''b'")).toBe("SELECT 'a''b'")
     expect(normalize("SELECT 'it''s fine'")).toBe("SELECT 'it''s fine'")
@@ -87,9 +87,23 @@ describe('Postgres normalisation', () => {
     expect(normalize("SELECT 'a''b?' , ?", [1])).toBe("SELECT 'a''b?' , $1")
   })
 
-  test('a backslash escape keeps the character it escapes', () => {
-    // Same double-consume, via handleSpecial.
-    expect(normalize("SELECT 'a\\'b'")).toBe("SELECT 'a\\'b'")
+  test('a backslash in a literal is a character, not an escape', () => {
+    // Postgres semantics (`standard_conforming_strings`): the backslash does
+    // not consume what follows, so the quote after it *closes* the literal and
+    // the scanner leaves the string exactly where the server does.
+    //
+    // The `?` after the literal is the discriminating half. Under the old
+    // MySQL-style rule the closing quote was eaten, the scanner never left the
+    // literal, and the placeholder stayed a literal `?`: the server then
+    // reported a syntax error several tokens past the backslash, which is how
+    // `ESCAPE '\'` broke. Byte-identical output alone cannot pin this: the
+    // old and new scanners emit the same characters and disagree only about
+    // where the literal ends, so only a rewrite *after* the backslash tells
+    // them apart.
+    expect(normalize("SELECT '\\' , ?", [1])).toBe("SELECT '\\' , $1")
+    expect(
+      normalize("SELECT a FROM t WHERE a LIKE ? ESCAPE '\\' OFFSET ?", [1, 2]),
+    ).toBe("SELECT a FROM t WHERE a LIKE $1 ESCAPE '\\' OFFSET $2")
   })
 
   test('leaves a ? inside a string literal alone', () => {
@@ -175,7 +189,7 @@ describe('executable round-trip', () => {
   )
 
   test.skipIf(!PGSQL_URL)(
-    'Postgres: ?-placeholders survive normalisation and execute',
+    'Postgres: ?-placeholders survive normalization and execute',
     async () => {
       const db = new PGAdapter(PGSQL_URL)
       const table = `bakery_contract_${Date.now()}`
@@ -210,7 +224,7 @@ describe('executable round-trip', () => {
  * right:
  *
  * - **MySQL** put the count in `affectedRows` and left `count` at 0, and the
- *   `??` chain read `count` first — zero is not nullish, so it never fell
+ *   `??` chain read `count` first: zero is not nullish, so it never fell
  *   through. Every write reported 0.
  * - **Postgres** guarded `count` behind `!Array.isArray(rows)`, which is never
  *   true (a write returns an empty array), so `changes` was `rows.length`.
@@ -226,7 +240,7 @@ describe('changes counts rows on every dialect', () => {
     for (const fn of cleanup) await fn()
   })
 
-  /** See adapters/nested-tx.test.ts — Bun's MySQL driver needs a pending timer. */
+  /** See adapters/nested-tx.test.ts: Bun's MySQL driver needs a pending timer. */
   function alive<T>(p: T | Promise<T>): Promise<T> {
     const t = setTimeout(() => {}, 30_000)
     return Promise.resolve(p).finally(() => clearTimeout(t))
@@ -288,6 +302,55 @@ describe('changes counts rows on every dialect', () => {
           insert3: 3,
           update3: 3,
           delete2: 2,
+        })
+      },
+    )
+  }
+
+  /**
+   * `getSchema()` must name **every** column of a composite primary key.
+   *
+   * SQLite reported only the first. `PRAGMA table_info` gives `pk` as the
+   * column's 1-based position in the key, not a boolean, and the adapter tested
+   * `c.pk === 1`, so `PRIMARY KEY (tenant_id, code)` came back as a
+   * single-column key on `tenant_id`. MySQL and Postgres were always right,
+   * which is exactly why this needs to run on all three: the bug is invisible
+   * unless you compare them.
+   *
+   * It matters beyond tidiness. Anything that derives a row's identity from
+   * `getSchema()` (a grid editor addressing a row for UPDATE, say) would
+   * build `WHERE tenant_id = ?` and hit every row in the tenant.
+   */
+  for (const [name, skip, open] of DIALECTS) {
+    test.skipIf(skip)(
+      `${name}: getSchema names every composite PK column`,
+      async () => {
+        const db = open()
+        const t = `bakery_cpk_${process.pid}`
+        const run = (s: string, ...p: unknown[]) => alive(db.query(s).run(...p))
+        cleanup.push(async () => {
+          await run(`DROP TABLE IF EXISTS ${t}`)
+          await db.close?.()
+        })
+
+        await run(`DROP TABLE IF EXISTS ${t}`)
+        await run(
+          `CREATE TABLE ${t} (${db.quote('tenant_id')} INT NOT NULL,` +
+            ` ${db.quote('code')} VARCHAR(16) NOT NULL,` +
+            ` ${db.quote('label')} VARCHAR(32),` +
+            ` PRIMARY KEY (${db.quote('tenant_id')}, ${db.quote('code')}))`,
+        )
+
+        const schema = await alive(db.getSchema())
+        const table = schema.find((s: any) => s.name === t)
+        const pkCols = table?.columns
+          .filter((c: any) => c.pk)
+          .map((c: any) => c.name)
+          .sort()
+
+        expect({ dialect: name, pkCols }).toEqual({
+          dialect: name,
+          pkCols: ['code', 'tenant_id'],
         })
       },
     )

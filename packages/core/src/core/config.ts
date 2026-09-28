@@ -38,7 +38,7 @@ const defaultConfig: Required<AppConfig> = {
   },
   onShutdown: NOOP,
   // `maxCacheSize: 500` used to sit here. Nothing in the framework ever read
-  // it — not the route LRUs, not the tiered cache — so it was a knob that
+  // it (not the route LRUs, not the tiered cache), so it was a knob that
   // typechecked, appeared in completion, and did nothing. Removed from
   // `AppConfig` at the same time; `defaultConfig` is `Required<AppConfig>`, so
   // the two can only move together.
@@ -52,7 +52,7 @@ const defaultConfig: Required<AppConfig> = {
   rateLimit: DEFAULT_RATE_LIMIT,
   trustProxy: false,
   // Empty means auto-detect, matching `head`/`body` above. There is no default
-  // *path* to give here: the default behaviour is the probe itself.
+  // *path* to give here: the default behavior is the probe itself.
   schema: '',
   root: 'src',
   hosts: {},
@@ -72,7 +72,7 @@ let configLoadError: string | null = null
 /**
  * The import failure recorded by the most recent `initConfig()` run, when a
  * `server.config.ts` was *present but failed to load*. DEV-only by
- * construction — in PROD that same condition throws out of `initConfig()`
+ * construction: in PROD that same condition throws out of `initConfig()`
  * instead of being recorded. Read by `runStartupBanner()` so the warning is
  * restated where the developer is actually looking, not just in scrollback.
  */
@@ -81,10 +81,10 @@ export function getConfigLoadError(): string | null {
 }
 
 /**
- * `hosts` folded to lower case, memoised against the object it came from.
+ * `hosts` folded to lower case, memoized against the object it came from.
  *
  * Keyed on identity rather than rebuilt per request because `hosts` is frozen
- * for the process lifetime — except under `__setTestConfig`, where a new object
+ * for the process lifetime: except under `__setTestConfig`, where a new object
  * arrives and the identity check rebuilds rather than serving a stale map.
  */
 let hostLookup: {
@@ -117,16 +117,16 @@ export async function initConfig(): Promise<Readonly<ProcessedAppConfig>> {
     const [error, loaded] = await Try.catch(import(configPath))
     if (error) {
       // Present-but-broken is not absence. This used to log one line and boot
-      // on `defaultConfig` — port 3000, no plugins, no hosts — so the
+      // on `defaultConfig` (port 3000, no plugins, no hosts), so the
       // developer debugged the vanished dashboard instead of the config that
       // never parsed. In PROD that boot must not happen: the throw lands in
       // the entry's existing catch (prod.ts / threads.ts / worker.ts), which
       // logs and exits 1. In DEV a crash would just loop the watcher, so boot
-      // — loudly, and leave the error for the startup banner to restate.
+      //: loudly, and leave the error for the startup banner to restate.
       const message = errorMsg(error)
       if (import.meta.env.PROD) {
         throw new Error(
-          `server.config.ts exists but failed to import — refusing to start on the default config.\n  file: ${configPath}\n${message}`,
+          `server.config.ts exists but failed to import: refusing to start on the default config.\n  file: ${configPath}\n${message}`,
         )
       }
       configLoadError = message
@@ -165,7 +165,7 @@ let testOverrides: Partial<ProcessedAppConfig> | null = null
  * The resolved config is frozen, so a test that needs to exercise a
  * config-dependent branch cannot simply assign to it. The alternative was
  * `mock.module('./core/config', …)`, which is process-global and never
- * restored — one file doing that left `Bakery.config` undefined for every test
+ * restored: one file doing that left `Bakery.config` undefined for every test
  * file loaded after it, and the suite stayed green only because Bun happened
  * to order that file last.
  *
@@ -246,12 +246,12 @@ function lookupHostEntry(
 
 /**
  * The canonical form of `hostname` if the app declares it under `hosts`, and
- * `''` otherwise — including when no `hosts` are configured at all.
+ * `''` otherwise, including when no `hosts` are configured at all.
  *
  * Same reasoning as `resolveHostConfig` below, which already refuses to cache
  * an unknown hostname: the value arrives on the `Host` header, so anything
- * derived from it that is *kept* — a config entry, a cache key, a file on disk
- * — has to be bounded by the configured set, or an unauthenticated client can
+ * derived from it that is *kept* (a config entry, a cache key, a file on disk
+ *) has to be bounded by the configured set, or an unauthenticated client can
  * grow it without limit. Collapsing unknown hosts to `''` puts them all in one
  * bucket, which is correct because they all get the base config and therefore
  * the same content.
@@ -276,10 +276,10 @@ export function resolveHostConfig(
   const hosts = base.hosts
   if (!hosts || !Object.keys(hosts).length) return base
 
-  // Hostnames are case-insensitive (RFC 4343) and nothing upstream normalises
+  // Hostnames are case-insensitive (RFC 4343) and nothing upstream normalizes
   // the Host header, so a request to `EXAMPLE.com` used to miss an
   // `example.com` entry and silently fall back to the base config. Both sides
-  // fold to lower case — `toLowerCase`, not `toLocaleLowerCase`, which would
+  // fold to lower case: `toLowerCase`, not `toLocaleLowerCase`, which would
   // map `I` to a dotless `ı` in a Turkish locale.
   const key = hostname.toLowerCase()
 
@@ -290,9 +290,9 @@ export function resolveHostConfig(
   if (!entry) {
     // Deliberately NOT cached. The hostname comes straight from the Host
     // header, so caching unknown values let any client grow this map without
-    // bound — one request per made-up hostname until the process runs out of
+    // bound: one request per made-up hostname until the process runs out of
     // memory. Known hosts are a fixed, small set, so only those are cached.
-    // Normalising above keeps that bound honest: without it, `EXAMPLE.com` and
+    // Normalizing above keeps that bound honest: without it, `EXAMPLE.com` and
     // `example.com` would occupy two entries for one configured host.
     return base
   }

@@ -9,8 +9,8 @@ const logger = new Logger('db-history')
 /**
  * What changed between two applied schemas, by name only.
  *
- * Names, not types — the same restraint `shapesMatch` uses and for the same
- * reason: a type comparison here would need dialect normalisation, which is the
+ * Names, not types: the same restraint `shapesMatch` uses and for the same
+ * reason: a type comparison here would need dialect normalization, which is the
  * thing the ledger exists to avoid depending on. A summary that says "column
  * changed" when a Postgres default merely re-rendered itself would be worse
  * than saying nothing.
@@ -63,7 +63,7 @@ export function isEmptyDiff(d: HistoryDiff): boolean {
   )
 }
 
-/** `applied_at` is stored as whole seconds — see `writeLedger`. */
+/** `applied_at` is stored as whole seconds. See `writeLedger`. */
 export function formatWhen(appliedAt: number): string {
   if (!Number.isFinite(appliedAt) || appliedAt <= 0) return 'unknown'
   return new Date(appliedAt * 1000).toISOString().replace('T', ' ').slice(0, 19)
@@ -102,7 +102,7 @@ export function formatEntry(
   // Only worth saying on rows that predate the payload carrying indexes,
   // because those are exactly the rows `db:rollback` will refuse.
   if (entry.indexes === undefined) {
-    lines.push('      (no index record — written before ledger v2)')
+    lines.push('      (no index record: written before ledger v2)')
   }
   return lines
 }
@@ -115,7 +115,7 @@ export class HistoryService {
   }
 
   static printHelp(): void {
-    // Program output, not a log line — the same call the other commands' usage
+    // Program output, not a log line: the same call the other commands' usage
     // text makes, and one of the two documented `console` exceptions.
     console.log(`
 Usage: bun run db:history

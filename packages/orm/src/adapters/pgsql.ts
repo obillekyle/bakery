@@ -22,11 +22,11 @@ export class PGAdapter extends SQLAdapter {
         ? connectionTarget.toString()
         : undefined
     super('postgres', undefined, target)
-    // `isOpenConnection`, not `instanceof SQL` — see the helper for why the
+    // `isOpenConnection`, not `instanceof SQL`. See the helper for why the
     // latter throws rather than answering.
     //
     // Pool options apply only when this opens its own connection. A handle
-    // handed in is already someone else's pool — notably a transaction's, where
+    // handed in is already someone else's pool: notably a transaction's, where
     // re-sizing anything would be meaningless.
     this.sql = isOpenConnection(connectionTarget)
       ? (connectionTarget as SQL)
@@ -57,16 +57,23 @@ export class PGAdapter extends SQLAdapter {
 
   private static handleSpecial(
     char: string,
-    nextChar: string | undefined,
+    // Underscored because it is deliberately unread: the branch that would
+    // have used it is the backslash branch, and the comment below is why
+    // there is not one. Kept in the signature so the shape matches
+    // `handleSpecial` in the other two adapters.
+    _nextChar: string | undefined,
     state: PGSQLParserState,
   ): string | null {
-    if (char === '\\') {
-      if ((state.inSingleQuote || state.inDoubleQuote) && nextChar) {
-        state.skipNext = true
-        return `\\${nextChar}`
-      }
-      return char
-    }
+    // No backslash branch, deliberately. Postgres with
+    // `standard_conforming_strings`: the server default since 9.1, and what
+    // every connection here runs under: treats a backslash inside a `'…'`
+    // literal as an ordinary character. This scanner used to apply MySQL's
+    // rule instead: `\` consumed the next character, so the `'` closing a
+    // `'\'` literal was eaten, the scanner stayed "inside" a literal the
+    // server had already closed, and every `?` after it was left unrewritten,
+    // which is how `ESCAPE '\'` produced a syntax error several tokens
+    // downstream. The server's parse is the only one that matters; the scanner
+    // now agrees with it by having no opinion about backslashes at all.
     if (char === '`') {
       return !state.inSingleQuote && !state.inDoubleQuote ? '"' : char
     }
@@ -89,7 +96,7 @@ export class PGAdapter extends SQLAdapter {
       skipNext: false,
       paramsLength: params.length,
     }
-    // `skipNext` is consumed in exactly one place — the `i++` below — and
+    // `skipNext` is consumed in exactly one place (the `i++` below), and
     // cleared there.
     //
     // It used to be consumed twice: a top-of-loop
@@ -100,9 +107,8 @@ export class PGAdapter extends SQLAdapter {
     // default containing an apostrophe silently lost the rest of its value, and
     // the same applied to a backslash escape. Values bind as parameters, so
     // this
-    // only ever reached literals the framework itself emits — DDL defaults —
-    // which is why it survived: `ddl.test.ts` asserts the SQL *before*
-    // normalisation, and no live server ran until now.
+    // only ever reached literals the framework itself emits (DDL defaults),     // which is why it survived: `ddl.test.ts` asserts the SQL *before*
+    // normalization, and no live server ran until now.
     for (let i = 0; i < sql.length; i++) {
       const char = sql[i]
       const nextChar = sql[i + 1]
@@ -142,15 +148,15 @@ export class PGAdapter extends SQLAdapter {
         PGAdapter.normalizePostgresSQL(sql, params),
         params,
       )) as any
-      // `count` is authoritative on Postgres for every command — it is the
-      // row count from the command tag — so it is read first and `rows.length`
+      // `count` is authoritative on Postgres for every command (it is the
+      // row count from the command tag), so it is read first and `rows.length`
       // is only a fallback.
       //
       // It used to be the other way round, behind an `Array.isArray` check
       // that was always true: Bun returns an *array* for a write too, just an
       // empty one, so the `count` branch was unreachable and `changes` was
       // `rows.length`. `UPDATE` and `DELETE` return no rows, so both reported
-      // 0. `INSERT` was right only by accident — the `RETURNING *` appended
+      // 0. `INSERT` was right only by accident: the `RETURNING *` appended
       // above happens to make `rows.length` the number inserted.
       const changes = Number(
         rows?.count ?? (Array.isArray(rows) ? rows.length : 0),
@@ -246,57 +252,73 @@ export class PGAdapter extends SQLAdapter {
     return new PGAdapter(sql as SQL)
   }
 
-  async getSchema(): Promise<SQLAdapter.TableDetails[]> {
+  async getSchema(
+    options?: SQLAdapter.SchemaOptions,
+  ): Promise<SQLAdapter.TableDetails[]> {
     const res = (await this.query(
       'SELECT table_name AS name, table_type AS type' +
         ' FROM information_schema.tables' +
         " WHERE table_schema NOT IN ('pg_catalog', 'information_schema')" +
         ' ORDER BY table_name',
     ).all()) as any[]
-    const tablesWithDetails: SQLAdapter.TableDetails[] = []
-
-    for (const t of res) {
-      const qName = this.quote(t.name)
-      const [countRes, cols, pkCols, idxs] = (await Promise.all([
-        this.query(`SELECT COUNT(*)::int as count FROM ${qName}`).get(),
-        this.query(
-          'SELECT column_name AS name, data_type AS type,' +
-            ' is_nullable AS is_nullable' +
-            ' FROM information_schema.columns' +
-            ' WHERE table_name = ?' +
-            " AND table_schema NOT IN ('pg_catalog', 'information_schema')" +
-            ' ORDER BY ordinal_position',
-        ).all(t.name),
-        this.query(
-          'SELECT a.attname AS name' +
-            ' FROM pg_index i' +
-            ' JOIN pg_attribute a ON a.attrelid = i.indrelid' +
-            ' AND a.attnum = ANY(i.indkey)' +
-            ` WHERE i.indisprimary AND i.indrelid = ${qName}::regclass`,
-        ).all(),
-        this.query(
-          'SELECT indexname AS name, indexdef AS def' +
-            ' FROM pg_indexes' +
-            " WHERE schemaname NOT IN ('pg_catalog', 'information_schema')" +
-            ' AND tablename = ?',
-        ).all(t.name),
-      ])) as [SQLAdapter.CountRow, any[], any[], any[]]
-      tablesWithDetails.push({
-        name: t.name,
-        rowCount: countRes?.count || 0,
-        columns: cols.map(c => ({
-          name: c.name,
-          type: c.type,
-          notnull: c.is_nullable === 'NO',
-          pk: pkCols.some(pk => pk.name === c.name),
-        })),
-        indexes: idxs.map(i => ({
-          name: i.name,
-          unique: /UNIQUE/i.test(i.def),
-        })),
-      })
-    }
-    return tablesWithDetails
+    // One wave rather than N. The four queries per table were already
+    // concurrent; the loop around them awaited each table in turn, so a
+    // 20-table schema cost 20 sequential round-trip waves. See the note in
+    // sqlite.ts about the COUNT(*), which is a full scan here too.
+    return await Promise.all(
+      res.map(async t => {
+        const qName = this.quote(t.name)
+        const [countRes, cols, pkCols, idxs] = (await Promise.all([
+          options?.rowCounts
+            ? this.query(`SELECT COUNT(*)::int as count FROM ${qName}`).get()
+            : null,
+          this.query(
+            'SELECT column_name AS name, data_type AS type,' +
+              ' is_nullable AS is_nullable' +
+              ' FROM information_schema.columns' +
+              ' WHERE table_name = ?' +
+              " AND table_schema NOT IN ('pg_catalog', 'information_schema')" +
+              ' ORDER BY ordinal_position',
+          ).all(t.name),
+          // `::regclass` casts a **string**, so the table name binds as a
+          // parameter. It used to interpolate `qName` (a double-quoted
+          // *identifier*), which Postgres reads as a column reference, so this
+          // threw `column "<table>" does not exist` for every table and took the
+          // whole of `getSchema()` down with it on this dialect.
+          //
+          // The quiet case was worse than the loud one: a table with a column of
+          // the same name resolved, casting that column's *value* to a regclass
+          // and reporting some other table's primary key as this one's.
+          this.query(
+            'SELECT a.attname AS name' +
+              ' FROM pg_index i' +
+              ' JOIN pg_attribute a ON a.attrelid = i.indrelid' +
+              ' AND a.attnum = ANY(i.indkey)' +
+              ' WHERE i.indisprimary AND i.indrelid = ?::regclass',
+          ).all(t.name),
+          this.query(
+            'SELECT indexname AS name, indexdef AS def' +
+              ' FROM pg_indexes' +
+              " WHERE schemaname NOT IN ('pg_catalog', 'information_schema')" +
+              ' AND tablename = ?',
+          ).all(t.name),
+        ])) as [SQLAdapter.CountRow | null, any[], any[], any[]]
+        return {
+          name: t.name,
+          rowCount: options?.rowCounts ? countRes?.count || 0 : null,
+          columns: cols.map(c => ({
+            name: c.name,
+            type: c.type,
+            notnull: c.is_nullable === 'NO',
+            pk: pkCols.some(pk => pk.name === c.name),
+          })),
+          indexes: idxs.map(i => ({
+            name: i.name,
+            unique: /UNIQUE/i.test(i.def),
+          })),
+        }
+      }),
+    )
   }
 
   async getData(
@@ -314,10 +336,15 @@ export class PGAdapter extends SQLAdapter {
       new Set(cols.map(c => c.name)),
     )
     const tName = this.quote(tableName)
-    const countRes = (await this.query(
-      `SELECT COUNT(*) as count FROM ${tName}${whereSql}`,
-    ).get(...whereParams)) as SQLAdapter.CountRow
-    const totalRows = countRes?.count || 0
+    // See `TableDataOptions.knownTotal`: the count is almost the whole cost
+    // of a page, and a caller that has already counted can say so.
+    const reuse = SQLAdapter.usableTotal(options.knownTotal)
+    const countRes = reuse
+      ? null
+      : ((await this.query(
+          `SELECT COUNT(*) as count FROM ${tName}${whereSql}`,
+        ).get(...whereParams)) as SQLAdapter.CountRow)
+    const totalRows = reuse ? options.knownTotal! : countRes?.count || 0
     const rows = (await this.query(
       `SELECT ctid::text AS rowid, * FROM ${tName}` +
         `${whereSql}${orderSql} LIMIT ? OFFSET ?`,
@@ -426,7 +453,7 @@ export class PGAdapter extends SQLAdapter {
       }
 
       // is_identity/identity_generation are selected because an identity column
-      // — what colDef() emits — carries a NULL column_default; only the legacy
+      // (what colDef() emits) carries a NULL column_default; only the legacy
       // serial style leaves a nextval(...) marker there.
       const cols = (await this.query(
         'SELECT column_name, data_type, is_nullable, column_default,' +
@@ -461,24 +488,24 @@ export class PGAdapter extends SQLAdapter {
       )
         continue
       const m = r.indexdef.match(/\(([^)]+)\)/)
+      const raw: string[] = m
+        ? m[1].split(',').map((c: string) => c.trim().replace(/"/g, ''))
+        : []
       dbIndexes[Case.camel(r.indexname)] = {
         type: /UNIQUE/i.test(r.indexdef) ? 'unique' : 'index',
         table: Case.camel(r.tablename),
-        cols: m
-          ? m[1]
-              .split(',')
-              .map((c: string) => Case.camel(c.trim().replace(/"/g, '')))
-          : [],
+        cols: raw.map(Case.camel),
+        rawCols: raw,
       }
     }
     return dbIndexes
   }
-  // Two patterns because Postgres does not store DDL text — it stores a parsed
+  // Two patterns because Postgres does not store DDL text: it stores a parsed
   // expression and re-renders it, and how it renders depends on the version.
   // PG 14+ reports `(EXTRACT(epoch FROM now()))::integer`; PG <= 13 parses
   // EXTRACT into `date_part('epoch'::text, now())`, which the EXTRACT pattern
   // does not match. Missing it means the column diffs dirty on every single
-  // sync — the same perpetual-rebuild failure the SQLite quote bug caused.
+  // sync: the same perpetual-rebuild failure the SQLite quote bug caused.
   override readonly dateNowDefaults: string[] = [
     'EXTRACT(EPOCH FROM',
     'DATE_PART',
@@ -494,7 +521,7 @@ export class PGAdapter extends SQLAdapter {
   // `gen_random_uuid()` is built in from Postgres 13; before that it lived in
   // the pgcrypto extension. Postgres reports it back as
   // `gen_random_uuid()`, so unlike the epoch expression the emitted form and
-  // the match pattern coincide — stated rather than assumed, because the two
+  // the match pattern coincide: stated rather than assumed, because the two
   // being equal here is a coincidence of this expression, not a rule.
   override readonly uuidDefaults: string[] = ['GEN_RANDOM_UUID']
   override readonly uuidExpression: string = 'gen_random_uuid()'
@@ -509,7 +536,7 @@ export class PGAdapter extends SQLAdapter {
       ),
     }
     // Postgres calls it 'character varying' and reports null for TEXT, so the
-    // guard has less to do here than on MySQL — but it is the same guard.
+    // guard has less to do here than on MySQL, but it is the same guard.
     const length = this.sizedTextLength(
       String(col.data_type || col.udt_name || ''),
       col.character_maximum_length,
@@ -530,11 +557,11 @@ export class PGAdapter extends SQLAdapter {
       // Postgres does not store the DDL text of a default; it re-renders the
       // parsed expression and appends the column's type. `''` comes back as
       // `''::character varying` and `'x'` as `'x'::text`, neither of which
-      // equals what the schema says — so the column diffs on every sync.
+      // equals what the schema says, so the column diffs on every sync.
       //
       // The cast is only stripped when it ends the string, which leaves
       // `nextval('seq'::regclass)` and the `%dateNow%` expressions alone: both
-      // end in `)`, and both are recognised elsewhere.
+      // end in `)`, and both are recognized elsewhere.
       if (typeof def === 'string') {
         const bare = def.replace(/::[\w ]+$/, '').trim()
         const quoted = /^'([\s\S]*)'$/.exec(bare)

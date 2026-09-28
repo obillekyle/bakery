@@ -217,7 +217,7 @@
     // Re-queried, not the `cards` list captured above: that one is a snapshot
     // from page load, so a card added later never got a shimmer and one
     // removed kept a stale rect. The entry animation above still uses the
-    // snapshot deliberately — it should stagger the cards that were there.
+    // snapshot deliberately: it should stagger the cards that were there.
     const current = Array.from(
       document.querySelectorAll<HTMLElement>('.glass-effect'),
     )
@@ -236,10 +236,10 @@
 
   /**
    * The observer fires for every subtree mutation, and `updateRects` reads
-   * `getBoundingClientRect` once per card — a forced synchronous layout. Calling
+   * `getBoundingClientRect` once per card: a forced synchronous layout. Calling
    * it directly bought one full layout pass per mutation; coalescing into a
    * frame makes the cost proportional to frames instead. Same fix, same reason,
-   * as `parts/effects.ts` in the dashboard plugin — the two files are separate
+   * as `parts/effects.ts` in the dashboard plugin: the two files are separate
    * copies on purpose (an app must not import a plugin's client internals), so
    * a fix to one is worth checking against the other.
    */

@@ -4,9 +4,11 @@ import {
   unlink as nodeUnlink,
 } from 'node:fs/promises'
 import { LRUCache } from '@bakery-framework/core/cache/lru'
-import { Bakery } from '@bakery-framework/core/core/bakery'
+import { Bakery, hostStore } from '@bakery-framework/core/core/bakery'
 import { Logger } from '@bakery-framework/core/logger'
 import { fs, is, Try } from '@bakery-framework/core/utils'
+import { runWithServerBody } from './server-context'
+import type { HostContext } from '@bakery-framework/core/core/bakery'
 import type { ParsedCacheEntry, ServerResponseOptions, VueMeta } from './types'
 
 const logger = new Logger('vue')
@@ -32,7 +34,7 @@ export const RX_IMPORT_VUE_FILE =
 export const RX_EXPORT_BRACE = /\bexport\s*\{([\s\S]*?)\}/g
 export const RX_EXPORT_HANGING = /\bexport\s+(const|let|var)\s+(\w+)\s*=\s*/g
 export const RX_EXPORT_FUNCTION = /\bexport\s+(?:async\s+)?function\s+(\w+)/g
-/** `export const fn = async (a) => {}` / `= function () {}` — callable, not data. */
+/** `export const fn = async (a) => {}` / `= function () {}`: callable, not data. */
 export const RX_EXPORT_CALLABLE_CONST =
   /\bexport\s+(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:function\b|(?:\([^)]*\)|\w+)\s*=>)/g
 export const RX_TOP_LEVEL_IMPORT =
@@ -61,10 +63,10 @@ const CLOSING_TAG = '</script'
 /**
  * Find the `</script>` that actually closes a server block, skipping ones that
  * appear inside string literals, template literals, or comments. A plain
- * non-greedy regex stops at the first match — so server code containing
+ * non-greedy regex stops at the first match, so server code containing
  * `"</script>"` would be cut short and its remainder left in the client bundle.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character scanner — locates a block end past nested quotes
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character scanner, locates a block end past nested quotes
 function findServerScriptEnd(raw: string, start: number): number {
   let index = start
 
@@ -191,9 +193,9 @@ export function rewriteRelativeImports(
 /**
  * Find where the expression starting at `start` ends. Tracks bracket depth and
  * skips strings/comments, so a multi-line object, function, or arrow body
- * survives intact — stopping at the first newline breaks all three.
+ * survives intact: stopping at the first newline breaks all three.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character scanner — brace and quote state machine
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character scanner, brace and quote state machine
 function findExpressionEnd(code: string, start: number): number {
   let depth = 0
   let index = start
@@ -378,12 +380,12 @@ export function compileServerBlock(
   const ${p}actions = new Set(${actionAllowList})
 
   // NOTE: the top-level statements below run before middleware. Middleware can
-  // stop the response but cannot stop top-level code from executing — put
+  // stop the response but cannot stop top-level code from executing. Put
   // auth-gated work inside an exported function, not at the top level.
   export default async function ${p}server(req: any, body: any, actionName?: string, actionArgs?: any[]) {
     const ${p}result: any = {}
 
-    // The allow-list is static — it is this script's own exports — so it can
+    // The allow-list is static (it is this script's own exports), so it can
     // be answered before a line of the component runs. It used to be checked
     // after the body, which meant naming an action that does not exist still
     // executed every top-level statement in the file; with \`__vue_file\`
@@ -432,6 +434,34 @@ ${
     return ${p}result
   }
   `
+}
+
+/**
+ * Run `fn` in a host store that carries `req`.
+ *
+ * Preserves an outer store when there is one: it holds the host config and
+ * hostname the router resolved, and only `req` needs adding. Outside one
+ * (a test driving a route directly, a direct handler call) it builds a
+ * minimal context from the process config, which is what `Bakery.config`
+ * already falls back to.
+ */
+function runInRequest<T>(req: Request, fn: () => T): T {
+  const outer = hostStore.getStore()
+  if (outer) return hostStore.run({ ...outer, req }, fn)
+
+  // No outer store: carry the request and leave `config` unread.
+  //
+  // A plain `{ config: Bakery.config, ... }` throws "Config has not been
+  // initialized" the moment this runs before `initConfig()`, which is every
+  // test that drives a route directly, so the eager read reintroduced the
+  // failure it was added to fix. A getter defers it to whoever actually
+  // wants the config, and nothing in a block that only needs `req` does.
+  const ctx = { hostname: '', req } as HostContext
+  Object.defineProperty(ctx, 'config', {
+    get: () => Bakery.config,
+    enumerable: true,
+  })
+  return hostStore.run(ctx, fn)
 }
 
 /** Drop stale compiled versions of the same source so the cache dir stays bounded. */
@@ -524,7 +554,21 @@ export async function getServerResponse(options: ServerResponseOptions) {
     })
     const execPromise = Promise.resolve(
       is.function(exported)
-        ? exported(req, body, actionName, actionArgs)
+        ? // The block runs inside a store carrying its own request, so
+          // `getRequest()` works whatever the caller did. Depending on an
+          // outer store looked fine because the worker always enters one,
+          // and then every test that drives a route directly got a throw,
+          // which `getServerResponse` swallows into `{}`: a guard block
+          // stopped redirecting and served 200. Entering it here is what
+          // makes the function total.
+          //
+          // An outer store is preserved rather than replaced: it carries the
+          // host config and hostname this request resolved.
+          runInRequest(req, () =>
+            runWithServerBody(body, () =>
+              exported(req, body, actionName, actionArgs),
+            ),
+          )
         : exported,
     )
     const params = await Promise.race([execPromise, timeoutPromise])
@@ -549,6 +593,33 @@ export async function getServerResponse(options: ServerResponseOptions) {
       `Server script error in ${id}: ${err?.message || err} at ${req.url}`,
       'error',
     )
+
+    // **A block that declares a guard fails closed.**
+    //
+    // The generated wrapper runs the block's top-level statements and *then*
+    // calls `middleware`, so a throw anywhere above skips the guard
+    // completely. Returning `{}` here then served the route: a `/admin/*`
+    // page answering 200 to an anonymous caller because a query threw. Not
+    // hypothetical, and not only the obvious causes: the block only has to
+    // throw, so a database being down, a null deref or a typo all reach it.
+    //
+    // Convention 2 names this shape exactly: a guard "returns the rejection,
+    // not `null`, on any indeterminate state". A guard that ceased to exist
+    // is the most indeterminate state there is.
+    //
+    // Only when a guard is declared. A data-only block that throws still
+    // renders the page with no data, which is the documented behavior and is
+    // a visible failure rather than a silent one: the page is obviously
+    // broken, and nothing was protecting it.
+    //
+    // The declaration is read from the source, not from the result, because
+    // there is no result: the module threw before its exports existed. That
+    // is the same static list `compileServerBlock` already builds to decide
+    // which exports are callable as actions.
+    if (collectExportedFunctionNames(script).includes('middleware')) {
+      return new Response('Internal Server Error', { status: 500 })
+    }
+
     return {}
   } finally {
     clearTimeout(timer)
@@ -570,8 +641,44 @@ export function rewriteVueImports(code: string): string {
 export const RX_VUE_META = /^<meta(?![\w-])((?:"[^"]*"|'[^']*'|[^>])*?)\/>/i
 const RX_META_SKIPPABLE = /^\s+|^<!--[\s\S]*?-->/
 
+/**
+ * Extract a `<template skeleton>` block: its inner markup goes into the HTML
+ * shell's `#app` so the user sees something before the bundle hydrates, and
+ * the block is removed from the SFC, the compiler allows only one template.
+ *
+ * **Static by design, and the design is a security decision.** The markup is
+ * injected verbatim: never compiled, never rendered on the server, so
+ * interpolations do not evaluate and nothing request- or session-derived can
+ * end up in it. A server-rendered skeleton cached across requests would serve
+ * one user's data to another. Scoped styles do not reach it either: the
+ * scope attributes are stamped by the compiler this block never meets.
+ *
+ * One block per file; nested `<template>` elements inside it are not
+ * supported (the lazy match ends at the first closing tag).
+ */
+export function parseSkeleton(raw: string): {
+  skeleton: string | null
+  clean: string
+} {
+  const match = raw.match(
+    /<template\s+skeleton(?:\s(?:"[^"]*"|'[^']*'|[^>])*)?>([\s\S]*?)<\/template>/i,
+  )
+  if (!match) return { skeleton: null, clean: raw }
+
+  const skeleton = match[1].trim()
+  return {
+    skeleton: skeleton || null,
+    clean: raw.replace(match[0], ''),
+  }
+}
+
 export function parseVueMeta(raw: string): { meta: VueMeta; clean: string } {
-  const meta: VueMeta = { moduleOnly: false, pageOnly: false, title: null }
+  const meta: VueMeta = {
+    moduleOnly: false,
+    pageOnly: false,
+    title: null,
+    layout: true,
+  }
 
   // Directives live in the file prologue only. Walking forward from the start
   // (rather than scanning the whole file) keeps a `<meta />` inside a template
@@ -595,6 +702,7 @@ export function parseVueMeta(raw: string): { meta: VueMeta; clean: string } {
     const attrs = tag[1]
     if (/\bmodule-only\b/i.test(attrs)) meta.moduleOnly = true
     if (/\bpage-only\b/i.test(attrs)) meta.pageOnly = true
+    if (/\bno-layout\b/i.test(attrs)) meta.layout = false
 
     const titleMatch = attrs.match(
       /\btitle\s*=\s*"([^"]*)"|\btitle\s*=\s*'([^']*)'/i,

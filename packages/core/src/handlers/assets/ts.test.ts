@@ -47,7 +47,7 @@ afterAll(async () => {
 
 describe('TSHandler.handle', () => {
   test('a failed compile is a 500, not a 404', async () => {
-    // The route exists — the server failed to build it. Serving that as 404
+    // The route exists, the server failed to build it. Serving that as 404
     // told the developer the file was missing.
     const res = await NullCompileHandler.handle('/page.js')
 
@@ -66,7 +66,7 @@ describe('TSHandler.handle', () => {
   test('a syntax error is a 500 from here, not a throw past the handler', async () => {
     // The measured blackout: the transpiler threw out of `compile()` and
     // unwound all the way to the worker, so this branch never ran and the log
-    // said `Unhandled Server Error: Unexpected end of file` — no file, no
+    // said `Unhandled Server Error: Unexpected end of file`, no file, no
     // line. `compileText` now catches with the path in hand, logs
     // `compLog.COMPILE_FAIL`, and returns null so the 500 comes from here.
     const res = await RealCompileHandler.handle('/broken.js')
@@ -79,9 +79,45 @@ describe('TSHandler.handle', () => {
   test('a file that compiles is still served', async () => {
     const res = await RealCompileHandler.handle('/page.js')
 
-    // A BunFile from the cache, not a Response — the success path must not
+    // A BunFile from the cache, not a Response. The success path must not
     // have been disturbed by the failure path.
     expect(res).not.toBeInstanceOf(Response)
     expect(await (res as Bun.BunFile).size).toBeGreaterThan(0)
   })
+})
+
+/**
+ * Directory imports resolve server-side, in every spelling the browser can
+ * produce, which is what made `compileText`'s `/index`-appending rewrite
+ * removable. That rewrite was a regex over transpiled JavaScript, the same
+ * class that once rewrote string literals that merely looked like imports;
+ * these pins are the load-bearing half of its removal.
+ */
+describe('directory imports resolve to their index', () => {
+  const DIRS = fs.resolve(ROOT, 'dirs')
+
+  class DirHandler extends TSHandler {
+    static get cacheDir() {
+      return fs.resolve(DIRS, '.cache')
+    }
+    static get config() {
+      return { ext: ['ts'], dir: DIRS }
+    }
+  }
+
+  beforeAll(async () => {
+    await Bun.write(`${DIRS}/lib/index.ts`, 'export const shelf = 7\n')
+    await Bun.write(`${DIRS}/deep/nested/index.ts`, 'export const bin = 9\n')
+  })
+
+  for (const path of ['/lib', '/lib.js', '/deep/nested', '/deep/nested.js']) {
+    test(`${path} serves the compiled index`, async () => {
+      const res = await DirHandler.handle(path)
+      const body =
+        res instanceof Response
+          ? await res.text()
+          : await (res as Bun.BunFile).text()
+      expect(body).toContain(path.includes('lib') ? 'shelf' : 'bin')
+    })
+  }
 })

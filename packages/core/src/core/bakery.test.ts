@@ -102,7 +102,7 @@ describe('hostKey', () => {
 
   /**
    * The key becomes a cache *filename*, and `getOrCreateCachedFile` writes
-   * three files per entry with no bound and no eviction — so a key derived
+   * three files per entry with no bound and no eviction, so a key derived
    * straight from the `Host` header is an unauthenticated disk and inode fill.
    * `resolveHostConfig` already refuses to cache an unknown hostname for this
    * exact reason; the file caches were missed.

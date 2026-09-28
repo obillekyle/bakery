@@ -20,7 +20,7 @@ describe('the schema ledger', () => {
     // `__bakery_schema` comes back as `bakerySchema`. Matching only the literal
     // name stripped nothing, the ledger appeared in its own diff as an
     // undeclared table, the shape check failed forever, and the ledger was
-    // therefore never used — silently, with every test still green.
+    // therefore never used: silently, with every test still green.
     for (const alias of [LEDGER_TABLE, 'bakerySchema', '__bakery_schema']) {
       const stripped = stripLedger({ led: {}, [alias]: {} } as any)
       expect(Object.keys(stripped)).toEqual(['led'])
@@ -55,8 +55,8 @@ describe('the schema ledger', () => {
 
   test('a snake_case declared name is not drift against camelCase introspection', () => {
     // The ledger stores the keys of the TypeScript schema; getConstraints()
-    // camelCases everything it reads back. `view('published_posts', …)` — which
-    // is what `bun create bakery` generates — therefore appeared on both sides
+    // camelCases everything it reads back. `view('published_posts', …)` (which
+    // is what `bun create bakery` generates) therefore appeared on both sides
     // under different spellings, and every sync of every scaffolded app
     // reported a drifted database and fell back to introspection for good.
     const ledger = { users: { id: {} }, published_posts: { id: {} } } as any
@@ -64,7 +64,7 @@ describe('the schema ledger', () => {
     expect(shapesMatch(ledger, live).ok).toBe(true)
   })
 
-  test('columns compare on the normalised spelling too', () => {
+  test('columns compare on the normalized spelling too', () => {
     expect(
       shapesMatch(
         { a: { created_at: {} } } as any,
@@ -74,11 +74,11 @@ describe('the schema ledger', () => {
   })
 
   test('a genuinely missing table is still drift, whatever its spelling', () => {
-    // The fix must not turn the check off. Normalising both sides is the whole
+    // The fix must not turn the check off. Normalizing both sides is the whole
     // change; a table that is absent stays absent under any casing.
     const gone = shapesMatch({ published_posts: {} } as any, {} as any)
     expect(gone.ok).toBe(false)
-    // Reported under the name the reader declared, not the normalised key.
+    // Reported under the name the reader declared, not the normalized key.
     if (!gone.ok) expect(gone.reason).toContain('published_posts')
   })
 

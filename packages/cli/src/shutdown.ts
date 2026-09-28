@@ -11,7 +11,7 @@ let running: Promise<void> | null = null
  *
  * The same bound the cluster master applies to a worker's pre-terminate flush,
  * for the same reason it states: *a wedged worker must delay shutdown, not
- * prevent it*. The standalone path did not honour that — `runShutdownSequence()`
+ * prevent it*. The standalone path did not honor that: `runShutdownSequence()`
  * gated `process.exit(0)` with no deadline, so one hook that never settled meant
  * SIGINT never terminated the process and Ctrl-C appeared to do nothing.
  */
@@ -20,7 +20,7 @@ export const SHUTDOWN_TIMEOUT_MS = FLUSH_TIMEOUT_MS
 /**
  * The two teardown steps that close process-wide resources. Behind a seam
  * because a test that ran the real ones would close the cache database and the
- * ORM connection for every test file scheduled after it — see `__setTestDb` in
+ * ORM connection for every test file scheduled after it. See `__setTestDb` in
  * `orm/connection.ts` for the same pattern and the same reason.
  */
 export interface ShutdownTeardown {
@@ -43,7 +43,7 @@ const defaultTeardown: ShutdownTeardown = {
 
 let testTeardown: ShutdownTeardown | null = null
 
-/** Test seam — see `ShutdownTeardown`. */
+/** Test seam. See `ShutdownTeardown`. */
 export function __setTestTeardown(teardown: ShutdownTeardown): void {
   testTeardown = teardown
 }
@@ -55,28 +55,28 @@ export function __resetTestTeardown(): void {
 /**
  * Run every teardown step this process owns, once.
  *
- * Memoised rather than guarded by a boolean: a cluster worker can be asked to
+ * Memoized rather than guarded by a boolean: a cluster worker can be asked to
  * flush by the master *and* receive a signal, and the second caller has to wait
  * for the first run to finish rather than race it or skip it.
  *
  * ## Order
  *
- * 1. `Bakery.config.onShutdown()` — the application's own hook.
- * 2. `Bakery.shutdownHooks` — framework internals (tiered-cache flush, session
+ * 1. `Bakery.config.onShutdown()`: the application's own hook.
+ * 2. `Bakery.shutdownHooks`: framework internals (tiered-cache flush, session
  *    prune timer).
- * 3. `PluginHooks.onShutdown()` — plugins.
- * 4. Resource close — the shared cache database, then the ORM connection.
+ * 3. `PluginHooks.onShutdown()`, plugins.
+ * 4. Resource close: the shared cache database, then the ORM connection.
  *
  * The app goes first because it is the only participant that can still need the
  * framework intact: step 2 flushes the session/cache tier, so an app hook that
  * wants to write a last session value has to run before it, not after. That is
  * also the exact reverse of startup, where `runStartupBanner()` calls
- * `PluginHooks.onStart()` and then `config.onStart()` last — last up, first down.
+ * `PluginHooks.onStart()` and then `config.onStart()` last: last up, first down.
  *
- * Step 4 exists because steps 1–3 all still write. `cache/tiered.ts` used to
+ * Step 4 exists because steps 1 to 3 all still write. `cache/tiered.ts` used to
  * close the shared cache database inside its own step-2 hook, which is
  * registered at module-evaluation time and so runs *first* of all the framework
- * hooks — before every plugin. The analytics plugin's shutdown flush binds that
+ * hooks: before every plugin. The analytics plugin's shutdown flush binds that
  * same handle, so its statements threw and its page-hit and history deltas were
  * dropped on every clean stop. The ORM connection was closed by nothing at all:
  * `closeDB()` had exactly one caller, the `db:sync` CLI, so a SIGINT abandoned
@@ -84,7 +84,7 @@ export function __resetTestTeardown(): void {
  *
  * Every step is isolated: a throwing hook is reported and the rest still run.
  * A shutdown that aborts halfway loses precisely the data this sequence exists
- * to save. The whole sequence is bounded by `timeoutMs` for the same reason —
+ * to save. The whole sequence is bounded by `timeoutMs` for the same reason:
  * losing the tail of a flush beats never exiting.
  */
 export function runShutdownSequence(
@@ -94,7 +94,7 @@ export function runShutdownSequence(
   return running
 }
 
-/** Test seam — see `__setTestConfig`. Clears the once-per-process memo. */
+/** Test seam. See `__setTestConfig`. Clears the once-per-process memo. */
 export function __resetShutdownSequence(): void {
   running = null
 }
@@ -139,7 +139,7 @@ async function shutdown(): Promise<void> {
   }
 
   // Inside the step, not above it: an `await import()` that fails throws, and
-  // out here that rejection escaped the sequence entirely — taking the resource
+  // out here that rejection escaped the sequence entirely, taking the resource
   // close below with it and, in `worker.ts`, the `process.exit(0)` that follows.
   await step('plugin onShutdown', async () => {
     const { PluginHooks } = await import('@bakery-framework/core/core/plugins')

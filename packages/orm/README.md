@@ -24,9 +24,9 @@ export const posts = table('posts', {
 ```
 
 Register it so the query builder is typed. Without this block everything still
-runs — the columns are just permissive `any`:
+runs: the columns are just permissive `any`:
 
-```ts no-check — ./schema is the sibling file from the block above, which only exists in a real app
+```ts no-check: ./schema is the sibling file from the block above, which only exists in a real app
 // orm/index.ts
 import type { InferOptionals, InferSchema, InferViews } from '@bakery-framework/orm'
 import * as model from './schema'
@@ -54,7 +54,7 @@ const rows = await DB.from('posts').selectAll('posts').array()
 await DB.Insert.into('posts').values({ title: 'Hello', body: 'World' }).run()
 ```
 
-Identifiers are snake_cased on the way to SQL — `createdAt` becomes
+Identifiers are snake_cased on the way to SQL: `createdAt` becomes
 `created_at`. Values always bind as parameters.
 
 ## Schema sync
@@ -68,7 +68,7 @@ process.exit(0)
 
 Diffs the database against your schema and applies the difference, prompting
 before anything destructive. `NODE_ENV=production` makes destructive changes
-refuse rather than prompt — set it on any deployed host.
+refuse rather than prompt. Set it on any deployed host.
 
 ## Adapters
 
@@ -78,11 +78,11 @@ round-trips in CI, which is not the same as being battle-tested.
 
 ## License
 
-MIT with the Commons Clause v1.0 — see [LICENSE](./LICENSE).
+MIT with the Commons Clause v1.0. See [LICENSE](./LICENSE).
 
-**Not an OSI-approved licence.** The Commons Clause removes the right to *sell*
-the software — meaning to charge for a product or service whose value derives
+**Not an OSI-approved license.** The Commons Clause removes the right to *sell*
+the software: meaning to charge for a product or service whose value derives
 substantially from it, hosting and support included. Everything else the MIT
-licence grants is unchanged: use it, modify it, ship it inside your own product.
-If your organisation only permits OSI-approved dependencies, this will not pass
+license grants is unchanged: use it, modify it, ship it inside your own product.
+If your organization only permits OSI-approved dependencies, this will not pass
 that check.

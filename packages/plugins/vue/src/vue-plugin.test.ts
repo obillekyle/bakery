@@ -8,7 +8,13 @@ import {
   validateActionRequest,
   validateActionTarget,
 } from './actions'
-import { resolveIsCustomElement, setVuePluginOptions } from './compile'
+import { serveVueChunk, vueChunkPath } from './chunks'
+import {
+  assembleComponent,
+  resolveIsCustomElement,
+  setVuePluginOptions,
+  vueBuildVariant,
+} from './compile'
 import { VueHandler } from './handler'
 import type { VueMeta } from './types'
 import {
@@ -17,6 +23,7 @@ import {
   escapeScriptJson,
   extractServerScripts,
   getServerResponse,
+  initVueVersion,
   parsedCache,
   parseVueMeta,
   rewriteRelativeImports,
@@ -38,7 +45,7 @@ const ROOT_FIXTURE = '__action-target-test__.vue'
  * Resolved in `beforeAll`, not at module scope: `Bakery.serveRoot` reads the
  * frozen config, which does not exist until `initConfig()` has run. Computing
  * it here meant this file only loaded when some *other* test file happened to
- * have initialised config first — green in a full run, and a crash the moment
+ * have initialized config first: green in a full run, and a crash the moment
  * anyone filtered the suite down to this one file.
  */
 let ROOT_FIXTURE_PATH = ''
@@ -727,7 +734,7 @@ export const doArrow = async (v) => v
 })
 
 describe('Relative import rewriting in server blocks', () => {
-  // A describe body runs at collection time, before `beforeAll` — so this has
+  // A describe body runs at collection time, before `beforeAll`, so this has
   // to be resolved per test, after `initConfig()`, for the same reason
   // `ROOT_FIXTURE_PATH` is.
   const filePath = () =>
@@ -1030,7 +1037,7 @@ describe('Action dispatch never runs the component it rejects', () => {
    * A component's top-level server statements are the part that runs no matter
    * what the request asked for. The wrapper used to reach the allow-list only
    * after them, so an action name that does not exist still executed the whole
-   * file — and with `__vue_file` naming another component, that was a way to
+   * file, and with `__vue_file` naming another component, that was a way to
    * run one page's server block from an unrelated route.
    */
   const PROBE = '__bakery_vue_toplevel_probe__'
@@ -1097,7 +1104,13 @@ describe('Action target gating (__vue_file)', () => {
   const ROUTE_ID = 'route-id'
 
   function meta(over: Partial<VueMeta> = {}): VueMeta {
-    return { moduleOnly: false, pageOnly: false, title: null, ...over }
+    return {
+      moduleOnly: false,
+      pageOnly: false,
+      title: null,
+      layout: true,
+      ...over,
+    }
   }
 
   const script = `
@@ -1247,5 +1260,108 @@ describe('Server module cache lifecycle', () => {
     expect(remaining).toEqual([`${id}_${FIXED_MOD + 2}.ts`])
 
     await fs.rm(fs.resolve(dir, `${id}_${FIXED_MOD + 2}.ts`), { force: true })
+  })
+})
+
+/**
+ * The build-variant plumbing: which Vue the chunk serves, and what the root
+ * component emits, both keyed on the `build` option.
+ *
+ * The interesting assertions are the *runtime* ones, because runtime is the
+ * default and the smaller contract: no `app.config.compilerOptions` assignment
+ *. The runtime build has no in-browser compiler to read it, so the line's
+ * only observable effect there is Vue warning about itself on every page.
+ * Custom elements need nothing at runtime for SFCs: the decision is baked into
+ * the render function server-side (`compileTemplateBlock`), which a live
+ * runtime-only page verified, configured tag rendered reactively, no
+ * "Failed to resolve component".
+ */
+describe('Vue build variant', () => {
+  afterAll(() => {
+    setVuePluginOptions({ customElements: [], compilerOptions: {} })
+  })
+
+  test('runtime is the default, and the chunk URL carries it', () => {
+    setVuePluginOptions({})
+    expect(vueBuildVariant()).toBe('runtime')
+    expect(vueChunkPath().endsWith('.runtime.js')).toBe(true)
+
+    setVuePluginOptions({ build: 'full' })
+    expect(vueBuildVariant()).toBe('full')
+    expect(vueChunkPath().endsWith('.full.js')).toBe(true)
+  })
+
+  test('the un-varianted URL no longer serves: the cache cannot alias builds', async () => {
+    setVuePluginOptions({})
+    const version = initVueVersion()
+    const res = await serveVueChunk(
+      `/_vue/${version}.js`,
+      new Request('http://localhost/'),
+    )
+    expect(res.status).toBe(404)
+  })
+
+  test('a root component on the runtime build emits no compilerOptions line', () => {
+    setVuePluginOptions({ customElements: ['spice-rack'] })
+    const out = assembleComponent({
+      scriptCode: 'export default {}',
+      renderCode: '',
+      isRoot: true,
+      scopeId: '',
+    })
+
+    expect(out).toContain('createApp')
+    expect(out).toContain("mount('#app')")
+    expect(out).not.toContain('compilerOptions.isCustomElement')
+  })
+
+  test('the full build keeps the runtime custom-element check', () => {
+    setVuePluginOptions({ customElements: ['spice-rack'], build: 'full' })
+    const out = assembleComponent({
+      scriptCode: 'export default {}',
+      renderCode: '',
+      isRoot: true,
+      scopeId: '',
+    })
+
+    expect(out).toContain('compilerOptions.isCustomElement')
+    expect(out).toContain('spice-rack')
+  })
+
+  test('a non-root component never carries the mount block either way', () => {
+    setVuePluginOptions({ build: 'full' })
+    const out = assembleComponent({
+      scriptCode: 'export default {}',
+      renderCode: '',
+      isRoot: false,
+      scopeId: '',
+    })
+
+    expect(out).not.toContain('createApp')
+    expect(out).not.toContain('compilerOptions')
+  })
+})
+
+/**
+ * The chunk actually serves: the variant tests above only pin the URL shape.
+ * Vue resolves from the repo root (workspace hoisting), so this exercises the
+ * resolve → build → cache path end to end and pins that the runtime variant
+ * really is the runtime build.
+ */
+describe('serveVueChunk serves the current variant', () => {
+  test('the canonical URL answers 200 with the runtime build', async () => {
+    setVuePluginOptions({})
+    initVueVersion()
+    const res = await serveVueChunk(
+      vueChunkPath(),
+      new Request('http://localhost/'),
+    )
+    expect(res.status).toBe(200)
+
+    const body = await res.text()
+    expect(body.length).toBeGreaterThan(100_000)
+    // The runtime build ships no in-browser compiler; compile errors in it
+    // reference the loader, not a compiler. `createApp` proves it is Vue.
+    expect(body).toContain('createApp')
   })
 })

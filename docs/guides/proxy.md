@@ -18,7 +18,7 @@ export default defineConfig({
 
 `/api/v1/users?q=x` is forwarded to `https://upstream.example.com/users?q=x`. The
 prefix is stripped, the remainder and the query string are appended, and a
-trailing slash on either side is normalised away
+trailing slash on either side is normalized away
 (`packages/core/src/handlers/routes/proxy.ts`).
 
 ## Credentials are stripped, on purpose
@@ -43,7 +43,7 @@ opposite of what most reverse proxies do.
 - `host` is dropped so `fetch` derives it from the target URL. Leaving it would
   send your hostname to the upstream, which usually produces a vhost mismatch.
 - `sec-fetch-site` is dropped because it describes the browser's relationship to
-  *your* origin and is meaningless — or actively misleading — to the upstream.
+  *your* origin and is meaningless (or actively misleading) to the upstream.
 
 **Consequence: an upstream that expects a bearer token or a session cookie will
 return 401, every time.** That is a correct outcome, not a bug, and it is why the
@@ -53,7 +53,7 @@ something else.
 Every other header passes through untouched, so a custom header set by the client
 (`X-Api-Key`, `X-Tenant`) does survive. There is no configuration to re-enable
 the four that are removed, and there is no hook for adding headers to the
-outbound request — if you need a server-held credential attached, write an API
+outbound request: if you need a server-held credential attached, write an API
 route that does the `fetch` itself.
 
 ## It outranks almost everything
@@ -92,8 +92,7 @@ Declare the more specific prefix first. Nothing warns you.
 The upstream fetch uses `redirect: 'manual'` (`proxy.ts`), so a 3xx is passed
 back to the browser with the upstream's `Location` header intact.
 
-This is deliberate: following a redirect automatically would re-send the request —
-and its remaining headers — to whatever host the upstream names, including a
+This is deliberate: following a redirect automatically would re-send the request (and its remaining headers) to whatever host the upstream names, including a
 link-local address. Manual redirects mean the browser makes that decision under
 its own rules.
 
@@ -107,21 +106,20 @@ that redirects `/login` → `/auth/login` will send the browser to
 Two response headers are removed before the response is returned
 (`proxy.ts`):
 
-- `content-encoding` — Bun already decompressed the body, so the upstream's value
+- `content-encoding`: Bun already decompressed the body, so the upstream's value
   is now a lie and the browser would try to decompress plain text.
-- `content-length` — it described the *compressed* size.
+- `content-length`: it described the *compressed* size.
 
 Status, status text and every other header (including `Set-Cookie` from the
 upstream) are passed through unchanged.
 
 ## Failures
 
-Any thrown error from the fetch — DNS failure, connection refused, TLS error —
-becomes `502 Bad Gateway` (`proxy.ts`). The upstream's own error statuses
+Any thrown error from the fetch (DNS failure, connection refused, TLS error) becomes `502 Bad Gateway` (`proxy.ts`). The upstream's own error statuses
 are passed through as-is; a 500 from upstream reaches the client as a 500.
 
 There is **no timeout**. A hanging upstream holds the request open for as long as
-Bun's default `fetch` behaviour allows. If that matters, put the call in an API
+Bun's default `fetch` behavior allows. If that matters, put the call in an API
 route with an `AbortSignal` instead of using `config.proxy`.
 
 Bodies are dropped for `GET` and `HEAD` (`proxy.ts`); every other method
@@ -158,5 +156,5 @@ checks, no path rewriting beyond the prefix strip, no header injection, no
 connection pooling beyond what `fetch` gives you.
 
 Terminate TLS and route traffic with something built for it, and use
-`config.proxy` for the case it handles well — one prefix, one upstream, no
+`config.proxy` for the case it handles well: one prefix, one upstream, no
 credentials.

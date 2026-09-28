@@ -1,10 +1,36 @@
+/**
+ * The ambients travel with the import.
+ *
+ * Erased at runtime: a type-only import with no bindings adds no module
+ * edge, only the declarations. What it buys is that anything importing from
+ * `@bakery-framework/core` gets the `Request` augmentation (`session`,
+ * `startNs`), `Bakery`, `AppConfig` and the JSX namespace, without the
+ * consuming tsconfig having to name `global.d.ts` in `files`.
+ *
+ * Before this, `getRequest().session` was an error in any project that did
+ * not, which is most of them: the ambients reach an app through the `files`
+ * list of `tsconfig.server.json`, and that list is replaced wholesale the
+ * moment an app writes its own `files`, or bypassed entirely when an editor
+ * resolves a `.vue` file to a project that does not include it. Shipping
+ * `getRequest()` while leaving its return type dependent on that wiring
+ * fixed how to reach the request and left what it is unresolved.
+ *
+ * `plugin-vue/src/vue.d.ts` has used exactly this line for the same reason.
+ */
+import type {} from '../global.d.ts'
+import type {} from '../shared.d.ts'
+import type {} from '../types.d.ts'
 import { Logger, log } from '../logger'
 import { definePlugin as _definePlugin } from '../plugins/types'
 import { Case, is, Math2, match, Try } from '../utils/common'
 import { encodeSSE, response, sse } from '../utils/http'
 import Bakery, { getHostname, hostKey, hostStore } from './bakery'
 import { getConfig, NOOP } from './config'
-import { createElement, Fragment, html } from './jsx'
+// `./context` is already in this barrel's graph: line 5 reaches it through
+// `./bakery`, which re-exports `hostStore` from exactly here, so naming it
+// adds no module edge, only a name.
+import { getFrameworkVersion, getRequest } from './context'
+import { createElement, Fragment, html, raw } from './jsx'
 
 export const defineConfig = <T extends AppConfig>(config: T): T => config
 export const definePlugin = _definePlugin
@@ -19,6 +45,7 @@ export type {
   MixedPromise,
   RouteBody,
   RouteHandler,
+  RouteParam,
   RouteResponse,
   Wrapped,
 } from '../types'
@@ -38,7 +65,7 @@ export type {
  *
  *   export default defineRoute<{ id: string }>((req, body) => …)
  *
- * `defineRoute`, not `defineHandler` — "handler" already means a registered
+ * `defineRoute`, not `defineHandler`. "handler" already means a registered
  * `Handler` subclass in this framework, and this defines a route module.
  */
 export { defineRoute } from './define-route'
@@ -52,8 +79,8 @@ export { defineRoute } from './define-route'
  * into the module graph and reorders evaluation enough to close the cycle this
  * barrel is always one step away from: it typechecks, and then 47 tests fail
  * with `ReferenceError: Cannot access 'Logger' before initialization`. Going
- * through the `utils/http` index — which line 4 already imports for `response`
- * — adds no edge at all. Every other value here follows the same rule.
+ * through the `utils/http` index (which line 4 already imports for `response`
+ *) adds no edge at all. Every other value here follows the same rule.
  */
 export {
   Bakery,
@@ -62,6 +89,40 @@ export {
   encodeSSE,
   Fragment,
   getConfig,
+  /**
+   * Opt a string out of JSX escaping.
+   *
+   * Here because it had nowhere else to be. `createElement` escapes children
+   * unless they came from itself, so `raw` is the documented way to
+   * interpolate markup an application already trusts, and it was reachable
+   * only through a `./jsx` subpath that existed to alias one file. The
+   * routing guide pointed at `@bakery-framework/core/core/jsx`, which the
+   * export map never named at all, so the documented import could not resolve
+   * for a consumer either way.
+   */
+  raw,
+  /**
+   * The version of `@bakery-framework/core` itself, read from its own manifest.
+   *
+   * **Not the app's version**, which is what `import.meta.env.BAKERY_VERSION`
+   * and `getAppVersion()` report: the compiler reads those from
+   * `<cwd>/package.json`, so in an application they answer with the
+   * application's number. The name is a long-standing misnomer and this is the
+   * one that means what "Bakery version" sounds like it means.
+   *
+   * Exported because a plugin rendering framework chrome has no other way to
+   * ask. The dashboard's footer showed a hardcoded `v3` for want of it.
+   */
+  getFrameworkVersion,
+  /**
+   * The request being served, from anywhere inside the request.
+   *
+   * Here rather than reachable only through `./core/context` because the
+   * whole point is that it needs no ambient declaration and no deep
+   * subpath to reach a file: a Vue `<script server>` block, a helper it
+   * calls, a `.tsx` page and an API route all import it the same way.
+   */
+  getRequest,
   // Multi-host helpers. Documented in docs/configuration/multi-host.md, and
   // the only reason `./core/bakery` had to be a subpath of its own.
   getHostname,

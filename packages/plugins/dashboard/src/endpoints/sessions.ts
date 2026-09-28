@@ -46,7 +46,7 @@ export async function handleUpdateSession(
     return response.json.error(400, 'Invalid payload')
 
   // Without this, editing a session could set the dashboard's own auth marker
-  // on any user's session — a permanent backdoor.
+  // on any user's session: a permanent backdoor.
   if (isReservedSessionKey(key)) {
     return response.json.error(403, 'Reserved session key')
   }

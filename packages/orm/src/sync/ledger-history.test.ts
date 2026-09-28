@@ -61,7 +61,7 @@ describe('ledger payload v2', () => {
 
     const [entry] = await readLedgerEntries(db)
     expect(entry?.constraints).toHaveProperty('led')
-    // Distinct from `{}` on purpose — "not recorded" is what `db:rollback`
+    // Distinct from `{}` on purpose. "not recorded" is what `db:rollback`
     // branches on, and an empty object would claim there were no indexes.
     expect(entry?.indexes).toBeUndefined()
     await db.close()
@@ -131,7 +131,7 @@ describe('history diffing', () => {
     expect(formatWhen(Number.NaN)).toBe('unknown')
   })
 
-  test('the oldest entry is labelled initial rather than diffed against nothing', () => {
+  test('the oldest entry is labeled initial rather than diffed against nothing', () => {
     const entry = {
       id: 1,
       appliedAt: 1_700_000_000,
@@ -170,7 +170,7 @@ describe('rollback target selection', () => {
 
   test('refuses when only one schema was ever applied', () => {
     // There is a current state but nothing before it, which is a different
-    // message from "no history" — the user has synced, just only once.
+    // message from "no history": the user has synced, just only once.
     const picked = pickTarget([entry(1)])
     expect(picked.ok).toBe(false)
     if (!picked.ok) expect(picked.code).toBe('ONLY_ONE')
@@ -196,7 +196,7 @@ describe('rollback target selection', () => {
 describe('drift detection', () => {
   test('a database with no ledger has not drifted', async () => {
     const db = new SQLiteAdapter(':memory:') as any
-    // Not "no drift because everything matches" — there is simply nothing to
+    // Not "no drift because everything matches". There is simply nothing to
     // compare against, and reporting drift here would fire on every new project.
     expect(await detectDrift(db)).toBeNull()
     await db.close()

@@ -3,33 +3,31 @@ import { Case } from '@bakery-framework/core/utils'
 import type { SQLAdapter } from '../adapters/base'
 import { SchemaBuilder } from './builder'
 import {
-  buildSyncPlan,
   calculateForeignKeyDiff,
-  calculateIndexDiff,
   collectForeignKeys,
   executeSyncPlan,
   hasOldWrappers,
-  logPlannedChanges,
-} from './helpers'
+} from './execute'
 import { writeLedger } from './ledger'
 import type { SchemaLayout } from './load'
+import { buildSyncPlan, calculateIndexDiff, logPlannedChanges } from './plan'
 import type * as SyncTypes from './types'
 
 // prettier-ignore
 export const syncMsgs = {
   GEN_TYPES: 'I Generating types...',
   // Counted rather than silently dropped: a composite key is not a property of
-  // one column, so the generator cannot spell it — but a reader who is not told
+  // one column, so the generator cannot spell it, but a reader who is not told
   // will believe the generated schema is complete.
   GEN_COMPOSITE_FK:
-    'W %y{count}%* composite foreign key(s) could not be generated as column references — declare them with %yforeign()%* beside the indexes.',
+    'W %y{count}%* composite foreign key(s) could not be generated as column references. Declare them with %yforeign()%* beside the indexes.',
   INDEXES_SEEDED: 'I Seeded %y{file}%* from the database.',
   INDEXES_KEPT:
     'I Left %y{file}%* alone: index declarations are hand-owned once seeded. Delete it and re-run to reseed.',
   MIGRATE_DONE:
     'I %gAdopted the existing database%*. No tables were changed; run %ydb:sync%* to confirm nothing is pending.',
   MIGRATE_NO_LEDGER:
-    'W Schema written, but the ledger could not be recorded — the next sync will diff against live introspection instead.',
+    'W Schema written, but the ledger could not be recorded: the next sync will diff against live introspection instead.',
   SYNC_SUCCESS: 'I %gschema.ts successfully synced%* to Database!',
   INVALID_SCHEMA: 'W %yschema.ts is invalid or corrupt. Treating as new.%*',
   NO_DBINFO: 'W %yDBInfo namespace not found in schema.ts!%*',
@@ -70,6 +68,15 @@ export const syncMsgs = {
   EXEC_SYNC_VIEW: 'D Syncing view: %y{view}%*...',
   EXEC_SYNC_CONS: 'D Syncing constraints for: %y{table}%*...',
   EXEC_ADD_INDEX: 'I Creating %y{type}%* index: %g{name}%*...',
+  // Declared late. `executeSyncPlan` has always called these two, and
+  // `messageLogger`'s proxy answers an undeclared key with a live emitter that
+  // prints `E Error message not found: EXEC_ADD_FK`, so every foreign key
+  // added or dropped on a dialect that can ALTER one logged an *error* where
+  // its ten sibling operations logged progress. Only reachable with
+  // `supportsAlterForeignKey`, which is why SQLite-only local runs never
+  // showed it.
+  EXEC_DROP_FK: 'I Dropping foreign key: %r{table}.{name}%*...',
+  EXEC_ADD_FK: 'I Adding foreign key: %g{table}%* -> %g{ref}%*...',
   CATCH_UP_SUCCESS: 'I %gDatabase successfully caught up%*!',
   PROD_FORCE_REQUIRED: 'E %rProduction requires %y--force-sync%* to proceed.%*',
   BACKUP_REQUIRED:
@@ -82,11 +89,11 @@ export const syncMsgs = {
   FATAL_ERROR:
     'E %rFATAL ERROR: Sync failed! All changes have been safely rolled back. Detail: {error}%*',
   VIEWS_SEEDED:
-    'I Seeded %y{file}%* from the database. It is yours from now on — the generator will not overwrite it.',
+    'I Seeded %y{file}%* from the database. It is yours from now on: the generator will not overwrite it.',
   VIEWS_KEPT:
     'I Left %y{file}%* alone: view interfaces are hand-owned. Delete it and re-run to reseed.',
   LEDGER_DRIFT:
-    'W %yDatabase has drifted from the last schema Bakery applied%*: {reason}. Diffing against live introspection instead of the ledger. Something changed this database outside Bakery — if that was not deliberate, check it before syncing.',
+    'W %yDatabase has drifted from the last schema Bakery applied%*: {reason}. Diffing against live introspection instead of the ledger. Something changed this database outside Bakery: if that was not deliberate, check it before syncing.',
 } as const
 
 const logger = new Logger('db-sync')
@@ -95,22 +102,14 @@ export const MESSAGES = messageLogger(logger, syncMsgs)
 /**
  * Whether a destructive sync in this process needs an explicit `--force-sync`.
  *
- * The second half used to read `process.env.PROD === 'true'`, which could
- * never be true: `core/init.ts` installs `PROD` on `process.env` with
- * `Object.defineProperties` as a getter returning a **boolean**, so the guard
- * on the most destructive operation the framework performs rested entirely on
- * `NODE_ENV`. `import.meta.env` is the same object as `process.env` and
- * `import.meta.env.PROD` is the framework's idiom for reading these flags.
- *
- * The dead term was **deleted rather than repaired**, and that is the whole
- * decision here. `import.meta.env.PROD` means only "`--dev` is absent", and
- * `db:sync` is a separate CLI invocation that never passes `--dev` — so for
- * this caller the flag is a constant `true`, carrying no information about the
- * environment at all. Activating it would not have made the guard smarter; it
- * would have made the `isProd` branch unconditional and left `handleSafetyChecks`'s
- * interactive `Proceed with sync?` unreachable for the one workflow it exists
- * for. That is dead code traded for different dead code, plus a silent UX
- * change to the documented way of applying a schema.
+ * **`NODE_ENV` is the only term, deliberately. Do not add a `PROD` check back.**
+ * There used to be a `process.env.PROD === 'true'` half that could never be
+ * true, since `core/init.ts` installs `PROD` as a getter returning a *boolean*.
+ * Repairing it rather than deleting it would have been worse: `PROD` means only
+ * "`--dev` is absent", and `db:sync` is a separate CLI invocation that never
+ * passes `--dev`, so for this caller it is a constant `true`. That would make
+ * the `isProd` branch unconditional and leave `handleSafetyChecks`'s interactive
+ * `Proceed with sync?` unreachable for the one workflow it exists for.
  *
  * `NODE_ENV` is the only term that actually says "deployment", which is what
  * the guard is protecting against. Set it, and a destructive plan requires
@@ -137,7 +136,7 @@ export class SyncEngine {
   /**
    * Record the adopted database as the schema Bakery last applied.
    *
-   * Without this, the first sync after an adoption falls back to introspection —
+   * Without this, the first sync after an adoption falls back to introspection:
    * safe, but it withdraws the thing the ledger is for, and enum member changes
    * only migrate when the diff runs against the ledger.
    *
@@ -202,7 +201,7 @@ export class SyncEngine {
     // Creating or recreating a view cannot lose anything: a view holds no data,
     // and `createView` drops and recreates in one step. Counting it as
     // destructive made a schema with a view demand `--force-sync` in production
-    // for no reason — and it matters more now that views are diffed at all,
+    // for no reason, and it matters more now that views are diffed at all,
     // because MySQL and Postgres re-render a stored body, so a run that falls
     // back to introspection sees one as changed every time.
     //
@@ -282,7 +281,7 @@ export class SyncEngine {
     {
       await using _session = new SyncSession(adapter)
       await adapter.transaction(tx =>
-        executeSyncPlan(
+        executeSyncPlan({
           tx,
           plan,
           constraints,
@@ -292,18 +291,18 @@ export class SyncEngine {
           tsFks,
           fksToAdd,
           fksToDrop,
-        ),
+        }),
       )
     }
 
     // After the transaction commits, never inside it: MySQL commits DDL
     // implicitly, so there is no unit of work these two could share anyway, and
     // writing the ledger first would claim a migration that had not happened.
-    // Best-effort by design — a sync that succeeded still succeeded, and a
+    // Best-effort by design: a sync that succeeded still succeeded, and a
     // missing ledger only costs the next run its fast path.
     // `tsIndexes`, not `adapter.getIndexes()`: the ledger records what was
     // *applied*, and re-reading the database here would record whatever the
-    // dialect reports back — the exact normalisation problem the ledger exists
+    // dialect reports back, the exact normalization problem the ledger exists
     // to route around.
     await writeLedger(adapter, constraints, tsIndexes)
 
@@ -329,7 +328,7 @@ export class SyncEngine {
     //
     // It is not `--choose=db` with a nicer name. `--choose=db` sits *after* the
     // "no changes" early return, so on a database that already matches it does
-    // nothing — which is the common case when adopting one, since the schema
+    // nothing, which is the common case when adopting one, since the schema
     // being written is derived from that same database. And it never writes the
     // ledger, so the first real sync afterwards diffs against introspection
     // instead: the one place enum changes are invisible.
@@ -338,7 +337,7 @@ export class SyncEngine {
       //
       // Passing the loaded schema in makes `syncNullableConstraints` reconcile
       // view column nullability against it, which is right for a regeneration of
-      // a schema you are keeping and wrong for this — the point of `--migrate`
+      // a schema you are keeping and wrong for this: the point of `--migrate`
       // is that the database is the source of truth, and quietly carrying a
       // detail over from the file being replaced would make the result depend on
       // what happened to be there.
@@ -360,13 +359,13 @@ export class SyncEngine {
     // column rename existed, which dated from SQLite before 3.25 (2018) having
     // no ALTER TABLE … RENAME COLUMN. Bun ships 3.53. Measured against a real
     // database, the special case lost a rename in a non-renamed table silently
-    // — reporting a perfect sync — and threw outright in the two cases where it
+    // (reporting a perfect sync), and threw outright in the two cases where it
     // did fire. See sync/engine.test.ts, which pins all four.
     const plan = await buildSyncPlan(adapter, constraints, logger, MESSAGES)
 
     // `buildSyncPlan` has always recorded which state it diffed against and
-    // nothing ever read it. Falling back to introspection is *correct* — see
-    // sync/ledger.ts — but doing it silently means a column somebody added by
+    // nothing ever read it. Falling back to introspection is *correct*. See
+    // sync/ledger.ts, but doing it silently means a column somebody added by
     // hand in production looks exactly like an ordinary run. "No ledger yet" is
     // the normal state of a fresh database and is not drift.
     if (
@@ -395,8 +394,8 @@ export class SyncEngine {
       plan.tablesToRebuild,
       beingCreated,
     )
-    // SQLite cannot ALTER a foreign key in or out — the constraint is part of
-    // the table definition — so those become table rebuilds, which recreate the
+    // SQLite cannot ALTER a foreign key in or out (the constraint is part of
+    // the table definition), so those become table rebuilds, which recreate the
     // table with the keys inline. Decided here rather than in the adapter so
     // the printed plan states the work that will actually happen.
     if (!adapter.supportsAlterForeignKey) {
@@ -425,7 +424,7 @@ export class SyncEngine {
     logPlannedChanges(plan, indexesToDrop, indexesToAdd, isDangerous, MESSAGES)
     if (argv.includes('--dry-run')) {
       // `logger.log` takes the level as its second argument. A leading 'D ' is
-      // `messageLogger` table syntax, and this is not a table — so the letter
+      // `messageLogger` table syntax, and this is not a table, so the letter
       // was printed verbatim and the level defaulted.
       //
       // `info`, not the `debug` the stray 'D' was reaching for: this line is

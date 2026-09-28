@@ -56,7 +56,7 @@ describe('createElement', () => {
 
   test('escapes plain-string children rather than trusting them as markup', () => {
     const result = createElement('ul', null, '<li>a</li>', '<li>b</li>')
-    // A bare string is data, not markup — this is the safe default.
+    // A bare string is data, not markup: this is the safe default.
     expect(String(result)).toBe(
       '<ul>&lt;li&gt;a&lt;/li&gt;&lt;li&gt;b&lt;/li&gt;</ul>',
     )

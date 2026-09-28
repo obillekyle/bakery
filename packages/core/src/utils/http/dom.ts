@@ -1,3 +1,4 @@
+import { readdir } from 'node:fs/promises'
 import { LRUCache } from '../../cache/lru'
 import { Bakery, hostStore } from '../../core/bakery'
 import type { MapOf } from '../../types'
@@ -6,7 +7,7 @@ import { Try } from '../common/try'
 import { fs } from '../fs'
 import { escapeScriptJson } from '../isomorphic/escape'
 
-// Keyed by hostname, which comes from the Host header — bounded so a client
+// Keyed by hostname, which comes from the Host header: bounded so a client
 // cannot grow it without limit by varying that header per request.
 const headBodyCache = new LRUCache<string, { head: string; body: string }>(64)
 
@@ -16,40 +17,22 @@ export function clearHeadBodyCache() {
 
 export { headBodyCache }
 
-type PackageJson = {
-  name: string
-  version: string
-  main?: string
-  module?: string
-  browser?: string | MapOf<string>
-  dependencies?: MapOf<string>
-  devDependencies?: MapOf<string>
-}
-
 let depMap = ''
 
 const hostDepMaps = new Map<string, string>()
 
 /**
- * Normalise one import-map entry, for both the process-level map and the
+ * Normalize one import-map entry, for both the process-level map and the
  * per-host maps.
  *
- * There used to be two copies of this, and they had drifted into disagreeing
- * about *what* they tested: `initHostImportMaps` switched on the entry key,
- * `initImportMap` tested the entry value. `{ foo: './.server/client/utils' }`
- * was rewritten by one path and silently left alone by the other. One helper,
- * two callers, so they cannot disagree again.
+ * One helper, two callers, deliberately: they used to be separate copies that
+ * had drifted into testing different things (one switched on the entry key,
+ * the other on the entry value), so the same input normalized two ways
+ * depending on which path saw it.
  *
- * The `.server/client/utils` special cases both copies carried are gone rather
- * than reconciled. `.server/` is the pre-split layout: those two string
- * literals were the last references to it anywhere in `packages`, `apps`,
- * `docs` or `tests`, and the directory they name no longer exists, so a value
- * pointing at it is a broken path either way. It normalises as an ordinary
- * relative specifier now.
- *
- * `@client/utils` stays, and stays keyed on the *key*: it is a live alias — it
- * is the default `importMap` entry in `core/config.ts` — and the browser
- * runtime is served from a fixed URL, so the target is not the app's to choose.
+ * `@client/utils` is keyed on the *key*: it is a live alias, the default
+ * `importMap` entry in `core/config.ts`, and the browser runtime is served from
+ * a fixed URL, so the target is not the app's to choose.
  */
 function normalizeImportEntry(key: string, value: unknown): [string, string] {
   const cleanKey = key.replace(/\*$/, '')
@@ -85,53 +68,79 @@ export function initHostImportMaps() {
   }
 }
 
-function resolveDepModule(pkgData: PackageJson, baseMod: string): string {
-  if (is.string(pkgData.browser)) return pkgData.browser as string
+let installedCache: Promise<string[]> | null = null
 
-  if (is.object(pkgData.browser)) {
-    const cleanBase = baseMod.replace(/^\.\//, '')
-    const browserField = pkgData.browser as MapOf<string>
-    const lookupKeys = [baseMod, `./${cleanBase}`, cleanBase]
-    const matchedOverride = lookupKeys.find(key => browserField[key])
-
-    return matchedOverride ? browserField[matchedOverride] : baseMod
-  }
-
-  return baseMod
+/**
+ * Every installed package, top level and scoped, as `name` and `name/`.
+ *
+ * Read from `node_modules` rather than from `dependencies`, and the difference
+ * is the whole point: a package can be installed and imported without being
+ * declared (a transitive one, or a dependency someone forgot to add), and the
+ * browser's failure for a specifier the map misses names its own rule rather
+ * than the missing entry: *"Failed to resolve module specifier 'pkg'. Relative
+ * references must start with either "/", "./", or "../"."*
+ *
+ * Cheap: one `readdir` per scope, no `package.json` reads, and memoized per
+ * process besides: the import map reads it at boot, `bundleModule` on every
+ * bundle (as its `external` list), and a `readdir` sweep per bundle is pure
+ * waste. A dev restart is a new process, so an install still shows up.
+ */
+export function installedPackages(): Promise<string[]> {
+  installedCache ??= readInstalledPackages()
+  return installedCache
 }
 
-export async function initImportMap() {
-  const pkgContent = await Try(() =>
-    Bun.file(fs.resolve(fs.cwd, 'package.json')).json(),
-  )
-  const pkg: any = pkgContent || {}
-  const map = Bakery.config.importMap || {}
-  const deps = pkg.dependencies || {}
+async function readInstalledPackages(): Promise<string[]> {
+  const root = fs.resolve(fs.cwd, 'node_modules')
+  const [err, entries] = await Try.catch(() => readdir(root))
+  if (err || !entries) return []
 
+  const names: string[] = []
+  for (const entry of entries) {
+    // `.bin`, `.cache` and friends are not packages.
+    if (entry.startsWith('.')) continue
+
+    if (!entry.startsWith('@')) {
+      names.push(entry)
+      continue
+    }
+
+    const [scopeErr, scoped] = await Try.catch(() =>
+      readdir(`${root}/${entry}`),
+    )
+    if (scopeErr || !scoped) continue
+    for (const name of scoped) {
+      if (!name.startsWith('.')) names.push(`${entry}/${name}`)
+    }
+  }
+
+  return names
+}
+
+/**
+ * Build the browser import map.
+ *
+ * **Resolution happens at the other end of the URL, and rewriting happens
+ * nowhere.** An entry maps a package to `/_nm/<name>`; `NMHandler` hands that to
+ * `Bun.build`, which applies real browser resolution: `exports` maps,
+ * conditions, the `browser` field. Naming an entry file here instead would mean
+ * reimplementing all of that, badly.
+ *
+ * Covering every installed package is what removes the need for a compile-time
+ * rewrite of bare specifiers, and the map reaches code the compiler never sees:
+ * an inline `<script type="module">` in an `.html` page arrives at the browser
+ * with its imports intact.
+ *
+ * App-declared `importMap` entries are applied last and win. One of them,
+ * `@client/utils`, does not point into `node_modules` at all.
+ */
+export async function initImportMap() {
+  const map = Bakery.config.importMap || {}
   const resolvedMap: MapOf<string> = {}
 
-  const imports = await Promise.all(
-    Object.keys(deps).map(async dep => {
-      const pkgData = await Try(
-        Bun.file(`./node_modules/${dep}/package.json`).json(),
-      )
-
-      return { dep, pkgData: pkgData as PackageJson | null }
-    }),
-  )
-
-  for (const { dep, pkgData } of imports) {
-    if (!pkgData) continue
-
-    const actualName = pkgData.name || dep
-    resolvedMap[`${actualName}/`] = `/_nm/${actualName}/`
-
-    const baseMod = pkgData.module || pkgData.main || 'index.js'
-    const mod = resolveDepModule(pkgData, baseMod)
-
-    const finalMod = typeof mod === 'string' ? mod : 'index.js'
-    resolvedMap[actualName] =
-      `/_nm/${actualName}/${finalMod.replace(/^\.\//, '')}`
+  for (const name of await installedPackages()) {
+    resolvedMap[`${name}/`] = `/_nm/${name}/`
+    resolvedMap[name] = `/_nm/${name}`
   }
 
   for (const [k, v] of Object.entries(map)) {
@@ -149,8 +158,8 @@ export namespace DOMTools {
     return `<script type="importmap">${map}</script>`
   }
 
-  export function params(params: MapOf<string>) {
-    const newParams: MapOf<string> = {}
+  export function params(params: MapOf<unknown>) {
+    const newParams: MapOf<unknown> = {}
 
     for (const [k, v] of Object.entries(params)) {
       if (k.startsWith('$$')) continue
@@ -159,7 +168,7 @@ export namespace DOMTools {
 
     // Was a hand-rolled `JSON.stringify(...).replace(/</g, ...)`, which is the
     // same job `escapeScriptJson` already does for every other inline-script
-    // payload — its docstring even said "Mirrors utils/http/dom.ts". The two
+    // payload: its docstring even said "Mirrors utils/http/dom.ts". The two
     // had drifted: this copy never escaped U+2028/U+2029.
     return `<script>window.__PAGE_PARAMS__ = ${escapeScriptJson(newParams)}</script>`
   }
@@ -181,7 +190,7 @@ export namespace DOMTools {
   }
 
   /**
-   * ResponseInit carrying `data`'s status and headers, minus Content-Length —
+   * ResponseInit carrying `data`'s status and headers, minus Content-Length:
    * injection changes the body length, so a stale value must not survive into
    * the rebuilt Response. Shared by the buffered and streamed injection paths
    * so the two cannot drift on which headers survive.

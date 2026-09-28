@@ -26,7 +26,7 @@ const rollbackMsgs = {
     'W %ySchema #{id} predates the ledger recording indexes%*, so this rollback leaves indexes exactly as they are. Tables and columns roll back; index changes made since then do not.',
   SCHEMA_REWRITTEN: 'I Rewrote %y{path}%* to match the restored schema.',
   SCHEMA_KEPT:
-    'W %y--keep-schema: schema.ts still describes the newer schema.%* The next %ydb:sync%* — including the one a dev boot runs — will apply it again and undo this rollback. Revert the file yourself, or re-run without the flag.',
+    'W %y--keep-schema: schema.ts still describes the newer schema.%* The next %ydb:sync%* (including the one a dev boot runs) will apply it again and undo this rollback. Revert the file yourself, or re-run without the flag.',
   DONE: 'I %gRollback complete%*.',
 } as const
 
@@ -127,7 +127,7 @@ changes, exactly as db:sync does.
     })
 
     // A v1 row recorded no indexes, and replaying it with an empty index set
-    // would read as "drop every index" — a silent, permanent performance
+    // would read as "drop every index": a silent, permanent performance
     // change dressed up as a rollback. Restoring the *live* indexes instead
     // means the plan contains no index work at all, which is the honest
     // degradation: it does less than asked, and says so.
@@ -163,7 +163,7 @@ changes, exactly as db:sync does.
     // The whole point of the ledger: a rollback is just a sync whose target is
     // a schema we already stored. Backups, the destructive-change prompt,
     // `--dry-run`, `--force-sync` and the new ledger row all come from
-    // `SyncEngine.run` unchanged — there is no second migration path to keep
+    // `SyncEngine.run` unchanged: there is no second migration path to keep
     // correct, which is the only reason this file is as short as it is.
     await SyncEngine.run(
       adapter,

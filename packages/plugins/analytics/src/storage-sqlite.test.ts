@@ -41,7 +41,7 @@ describe('saveAnalyticsData failure reporting', () => {
   })
 
   test('a flush that throws still does not take down its caller', async () => {
-    // The half of the old behaviour that was correct: telemetry must never be
+    // The half of the old behavior that was correct: telemetry must never be
     // able to kill what it is measuring.
     const closed = new Database(':memory:')
     closed.close()

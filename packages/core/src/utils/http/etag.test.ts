@@ -1,6 +1,7 @@
 import {
   afterAll,
   afterEach,
+  beforeAll,
   beforeEach,
   describe,
   expect,
@@ -68,7 +69,7 @@ describe('ETag.sendFile variant negotiation memo', () => {
   }
 
   /** Callers hand `sendFile` the `.zst` the cache returned, exactly as
-   * `getOrCreateCachedFile`'s callers do — negotiation starts from there. */
+   * `getOrCreateCachedFile`'s callers do: negotiation starts from there. */
   function negotiate(acceptEncoding: string, path = base) {
     return ETag.sendFile(
       Bun.file(`${path}.zst`),
@@ -224,6 +225,102 @@ describe('ETag.sendFile variant negotiation memo', () => {
   })
 })
 
+/**
+ * Range handling for file responses is Bun.serve's, not the framework's: the
+ * runtime slices any path-backed BunFile body (206 + Content-Range) and
+ * appends its own `Accept-Ranges: bytes` to the 206/416 it builds. What it
+ * never did was advertise on an ordinary 200 or a HEAD, so players that
+ * probe HEAD for `Accept-Ranges` before attempting seeks concluded seeking
+ * was unsupported and never sent a range. `sendFile` is the one funnel every
+ * file-serving handler's BunFile passes through, so the advertisement lives
+ * there. The wire-level half of this (what Bun actually emits per request
+ * shape) is pinned in `tests/static-range.test.ts`; these pin the header
+ * decision itself.
+ */
+describe('ETag.sendFile: Accept-Ranges advertisement', () => {
+  const dir = fs.resolve(import.meta.dir, '__fixtures__', 'ranges')
+  const media = fs.resolve(dir, 'clip.mp4')
+
+  beforeAll(async () => {
+    // Non-compressible on purpose: negotiation must stay out of the way.
+    await Bun.write(media, Buffer.alloc(2048, 7))
+  })
+
+  afterAll(async () => {
+    // The negotiate below memoized a variant set for a path this rm deletes.
+    // The memo self-heals on a missing base, but the process is shared across
+    // test files (convention 9's whole point), so leave no entry behind.
+    ETag.__clearNegotiationMemo()
+    await fs.rm(dir, { recursive: true, force: true })
+  })
+
+  const send = (init?: RequestInit) =>
+    ETag.sendFile(
+      Bun.file(media),
+      init ? new Request('http://localhost/clip.mp4', init) : undefined,
+    )
+
+  test('a plain GET response advertises byte ranges', () => {
+    const res = send({})
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Accept-Ranges')).toBe('bytes')
+  })
+
+  test('a HEAD response advertises: the probe players actually send', () => {
+    const res = send({ method: 'HEAD' })
+    expect(res.headers.get('Accept-Ranges')).toBe('bytes')
+  })
+
+  test('a requestless response still advertises', () => {
+    expect(send().headers.get('Accept-Ranges')).toBe('bytes')
+  })
+
+  test('a GET carrying Range leaves the header to Bun.serve', () => {
+    // Bun appends its own `Accept-Ranges: bytes` when it slices; setting it
+    // here too emitted `bytes, bytes` on every 206.
+    const res = send({ headers: { Range: 'bytes=0-99' } })
+    expect(res.headers.get('Accept-Ranges')).toBeNull()
+  })
+
+  test('a HEAD carrying Range keeps the header: Bun ignores Range on HEAD', () => {
+    const res = send({ method: 'HEAD', headers: { Range: 'bytes=0-99' } })
+    expect(res.headers.get('Accept-Ranges')).toBe('bytes')
+  })
+
+  test('an in-memory Blob never advertises: Bun serves it whole', () => {
+    const blob = new Blob([Buffer.alloc(64, 1)]) as Bun.BunFile
+    const res = ETag.sendFile(blob, new Request('http://localhost/x'))
+    expect(res.headers.get('Accept-Ranges')).toBeNull()
+  })
+
+  test('a negotiated compressed variant advertises too', async () => {
+    // Ranges over an encoded representation address the encoded bytes
+    // (RFC 9110), and Bun slices those exactly like any other file body.
+    const base = fs.resolve(dir, 'app.js')
+    await Promise.all([
+      Bun.write(base, 'export const a = 1 // '.padEnd(2048, 'x')),
+      Bun.write(`${base}.zst`, Bun.zstdCompressSync('x'.repeat(2048))),
+      Bun.write(`${base}.gz`, Bun.gzipSync('x'.repeat(2048))),
+    ])
+
+    const res = ETag.sendFile(
+      Bun.file(`${base}.zst`),
+      new Request('http://localhost/app.js', {
+        headers: { 'Accept-Encoding': 'zstd, gzip' },
+      }),
+    )
+    expect(res.headers.get('Content-Encoding')).toBe('zstd')
+    expect(res.headers.get('Accept-Ranges')).toBe('bytes')
+  })
+
+  test('the 304 short-circuit is untouched', () => {
+    const etag = ETag.fromFile(Bun.file(media))
+    const res = send({ headers: { 'if-none-match': etag } })
+    expect(res.status).toBe(304)
+    expect(res.headers.get('Accept-Ranges')).toBeNull()
+  })
+})
+
 describe('ETag', () => {
   describe('fromText', () => {
     test('returns a weak etag string', () => {
@@ -323,9 +420,9 @@ describe('ETag.sendText compression offload', () => {
     return out.slice(0, size)
   }
 
-  // Above ASYNC_COMPRESSION_MIN (32KB) — the off-thread path.
+  // Above ASYNC_COMPRESSION_MIN (32KB): the off-thread path.
   const LARGE = payload(96 * 1024)
-  // Above the 1KB compression floor, below the 32KB offload cutoff — the
+  // Above the 1KB compression floor, below the 32KB offload cutoff: the
   // path that stays synchronous.
   const SMALL = payload(4 * 1024)
 
@@ -400,7 +497,7 @@ describe('ETag.sendText compression offload', () => {
 
   test('304 short-circuits before compression, even for an offload-sized body', () => {
     // The etag embeds the negotiated variant ext, computed from headers
-    // alone — so a match must return 304 without compressing. A synchronous
+    // alone, so a match must return 304 without compressing. A synchronous
     // return is the proof: the only compressing path above the cutoff is the
     // Promise-returning one.
     const etag = `${ETag.fromText(LARGE)}.zst`

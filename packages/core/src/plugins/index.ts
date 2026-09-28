@@ -2,7 +2,7 @@
  * The plugin-authoring surface, as one barrel.
  *
  * Every other public directory in core has an `index.ts` and `plugins/` did
- * not, so `@bakery-framework/core/plugins` pointed straight at `routes.ts` — which meant
+ * not, so `@bakery-framework/core/plugins` pointed straight at `routes.ts`, which meant
  * `definePlugin` and `ServerPlugin` were only reachable through
  * `@bakery-framework/core/plugins/types`, a second subpath for one concept. It also broke
  * under TypeScript's `paths` resolution, which maps `@bakery-framework/core/plugins` to

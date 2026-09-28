@@ -1,56 +1,21 @@
-import {
-  addActiveFilter,
-  changePageSize,
-  clearActiveFilters,
-  closeEditModal,
-  closeExportMenuIfOutside,
-  closeImportModal,
-  closeInsertModal,
-  deleteTableRow,
-  exportToCSV,
-  exportToJSON,
-  fetchTableData,
-  filterTablesList,
-  handleCsvFileSelect,
-  inspectTable,
-  loadSchema,
-  nextPage,
-  openEditModal,
-  openImportModal,
-  openInsertModal,
-  prevPage,
-  removeActiveFilter,
-  runQuery,
-  selectDatabaseTable,
-  startInlineEdit,
-  submitEditRow,
-  submitImportCsv,
-  submitInsertRow,
-  toggleExportMenu,
-  toggleGridSort,
-  truncateCurrentTable,
-} from './parts/database'
-import { refreshShimmerCache } from './parts/effects'
 import { clearLogs, initLogsWebSocket, toggleLogsPlay } from './parts/logs'
 import {
   changeSessionPageSize,
   loadSessions,
   nextSessionPage,
-  openSessionKeyEditor,
   prevSessionPage,
   queueSessionSearch,
   revokeSession,
   sessionKeyAction,
 } from './parts/sessions'
+import { bindSparklineTooltips } from './parts/sparkline-tooltip'
 import {
-  bindSparklineTooltips,
   changePagesFilter,
   changeTimescale,
   initAnalyticsWebSocket,
   loadStats,
   resetAnalytics,
 } from './parts/stats'
-import { SegmentedProgress } from './parts/utils'
 
 declare const match: any
 
@@ -83,17 +48,14 @@ function switchTab(tabId: string) {
   const label = document.querySelector(`.tab-btn.active span:last-child`)
   if (crumb && label) crumb.textContent = label.textContent
 
+  // No `database` entry: that panel is static markup now (a link to the
+  // explorer at `/_db`), so there is nothing to fetch when it is shown.
   match(tabId, {
     sessions: loadSessions,
-    database: loadSchema,
     logs: initLogsWebSocket,
     'top-pages': () => loadStats(true),
   })
-
-  refreshShimmerCache()
 }
-
-window.addEventListener('click', closeExportMenuIfOutside)
 
 window.addEventListener('click', e => {
   const menu = document.getElementById('profile-menu')
@@ -109,7 +71,6 @@ window.addEventListener('click', e => {
 })
 
 const w = window as any
-w.SegmentedProgress = SegmentedProgress
 w.switchTab = switchTab
 w.resetAnalytics = resetAnalytics
 w.changePagesFilter = changePagesFilter
@@ -123,37 +84,6 @@ w.prevSessionPage = prevSessionPage
 w.nextSessionPage = nextSessionPage
 w.changeSessionPageSize = changeSessionPageSize
 w.sessionKeyAction = sessionKeyAction
-w.openSessionKeyEditor = openSessionKeyEditor
-
-w.loadSchema = loadSchema
-w.filterTablesList = filterTablesList
-w.selectDatabaseTable = selectDatabaseTable
-w.fetchTableData = fetchTableData
-w.toggleGridSort = toggleGridSort
-w.prevPage = prevPage
-w.nextPage = nextPage
-w.changePageSize = changePageSize
-w.startInlineEdit = startInlineEdit
-w.addActiveFilter = addActiveFilter
-w.removeActiveFilter = removeActiveFilter
-w.clearActiveFilters = clearActiveFilters
-w.openInsertModal = openInsertModal
-w.closeInsertModal = closeInsertModal
-w.submitInsertRow = submitInsertRow
-w.openEditModal = openEditModal
-w.closeEditModal = closeEditModal
-w.submitEditRow = submitEditRow
-w.openImportModal = openImportModal
-w.closeImportModal = closeImportModal
-w.handleCsvFileSelect = handleCsvFileSelect
-w.submitImportCsv = submitImportCsv
-w.toggleExportMenu = toggleExportMenu
-w.exportToCSV = exportToCSV
-w.exportToJSON = exportToJSON
-w.truncateCurrentTable = truncateCurrentTable
-w.deleteTableRow = deleteTableRow
-w.inspectTable = inspectTable
-w.runQuery = runQuery
 
 w.initLogsWebSocket = initLogsWebSocket
 w.toggleLogsPlay = toggleLogsPlay

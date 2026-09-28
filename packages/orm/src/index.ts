@@ -12,7 +12,7 @@ export type {
  *
  * Re-exported from the root rather than given a `./observe` subpath. The
  * export map is closed and every entry in it is public API from the moment it
- * ships, so a new subpath needs a reason — and there is none here: this is one
+ * ships, so a new subpath needs a reason, and there is none here: this is one
  * function and three types, the observer is process-wide, and an app sets it
  * once at boot next to where it already imports `DB`.
  *
@@ -34,15 +34,15 @@ export type {
  * Schema authoring, from one place.
  *
  * `table`/`alias` live in `define.ts` and the column and constraint helpers in
- * `schema-util.ts`, but that split is an implementation detail — someone
+ * `schema-util.ts`, but that split is an implementation detail: someone
  * writing `orm/schema.ts` should import from `@bakery-framework/orm` without having to
  * know which file a helper happens to sit in.
  */
 export { alias, table, view } from './define'
 export { Field } from './field'
 /**
- * `TableDef` is the **column** descriptor — `TableDef<TYPE, nullable, optional>`
- * — and it now comes from the root barrel, which is where someone writing a
+ * `TableDef` is the **column** descriptor (`TableDef<TYPE, nullable, optional>`
+ *), and it now comes from the root barrel, which is where someone writing a
  * schema would look for it.
  *
  * It did not, and that was a defect rather than an omission: the barrel used to

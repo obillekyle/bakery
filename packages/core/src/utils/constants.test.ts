@@ -50,7 +50,7 @@ describe('constants', () => {
 
 /**
  * `config.ts` joins the list into one brace-expanded glob, which is also the
- * shape the router matches against — so match through that, not through the
+ * shape the router matches against, so match through that, not through the
  * individual patterns.
  */
 describe('DEFAULT_BLOCKED_GLOBS as a matcher', () => {
@@ -90,7 +90,7 @@ describe('DEFAULT_BLOCKED_GLOBS as a matcher', () => {
 
   test('no longer bans JSON by extension', () => {
     // A web app manifest is a published asset, not a leaked source file, and
-    // `blocked` in config can only append — so a blanket `**/*.json` was a ban
+    // `blocked` in config can only append, so a blanket `**/*.json` was a ban
     // an app had no way to lift. See the note on DEFAULT_BLOCKED_GLOBS.
     const published = [
       '/manifest.json',
@@ -113,7 +113,7 @@ describe('matchBlocked', () => {
   const blocked = new Bun.Glob(`{${DEFAULT_BLOCKED_GLOBS.join(',')}}`)
 
   test('every default pattern is lower-case', () => {
-    // The normalised pass folds the path, so an upper-case character in a
+    // The normalized pass folds the path, so an upper-case character in a
     // default pattern would be unreachable on that pass.
     const shouty = DEFAULT_BLOCKED_GLOBS.filter(p => p !== p.toLowerCase())
     expect(shouty).toEqual([])
@@ -196,12 +196,12 @@ describe('normalizeBlockedPath', () => {
   })
 })
 
-describe('matchBlocked — NTFS alternate data streams', () => {
+describe('matchBlocked: NTFS alternate data streams', () => {
   /**
    * Win32 opens `x.ts::$DATA` as the bytes of `x.ts`, and `new URL()` keeps
    * the suffix in `pathname`. `normalizeBlockedPath` folded case and trailing
    * dots but left `:` alone, so every basename-anchored pattern was one
-   * suffix away from being bypassed — verified against a live server:
+   * suffix away from being bypassed: verified against a live server:
    * `/schema.ts` 403, `/schema.ts::$DATA` 200 with the file's contents.
    * `::$INDEX_ALLOCATION` does the same for a *directory* segment, which
    * reaches the directory-scoped patterns the file form cannot.

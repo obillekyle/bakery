@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bakery</title>
+<meta name="robots" content="noindex">
+<script>
+  (function () {
+    var l = window.location
+    var base = "/"
+
+    // The requested path, with the site's own prefix taken off first. Without
+    // that step a project page turns /my-repo/guides into the page
+    // "my-repo/guides", and every deep link on it 404s inside the app instead
+    // of outside it.
+    //
+    // Matched without the trailing slash, since /my-repo is a request that
+    // reaches here too and does not contain "/my-repo/" to strip. Left in, it
+    // would send the reader to /my-repo/?/my-repo.
+    var root = base.replace(/\/+$/, '')
+    var path = l.pathname
+    if (root && path.indexOf(root) === 0) path = path.slice(root.length)
+    path = path.replace(/^\/+/, '').replace(/\/+$/, '')
+
+    var rest = l.search.replace(/^\?/, '')
+
+    // Nothing to rewrite: redirecting the root to itself would loop.
+    var to = path || rest
+      ? base + '?/' + path + (rest ? '&' + rest : '') + l.hash
+      : base
+
+    l.replace(to)
+  })()
+</script>
+<meta http-equiv="refresh" content="1;url=/">
+</head>
+<body>
+<p>Taking you to <a href="/">Bakery</a>.</p>
+</body>
+</html>

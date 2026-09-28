@@ -1,3 +1,4 @@
+import { TIMESCALES, timescaleFacts } from './timescale'
 import type { AnalyticsSnapshot } from './types'
 
 export const RETENTION_MS = 30 * 24 * 3600 * 1000
@@ -14,7 +15,7 @@ export const pageHitsLog: { timestamp: number; path: string }[] = []
 export const pageHitsMap = new Map<string, number>()
 
 /**
- * Moved to `@server/logger` — LiveReloadHandler (core) owns membership, so
+ * Moved to `@server/logger`: LiveReloadHandler (core) owns membership, so
  * the registry cannot live in a plugin. Re-exported because this plugin's
  * public surface and internals read it (the `activeLoggers` gauge).
  */
@@ -29,7 +30,6 @@ type TempAccumulator = {
   apiHits: number
   pageHits: number
   uniqueRequests: number
-  dbHits: number
   errorPageHits: number
   ping: number
 }
@@ -44,7 +44,6 @@ function createAccumulator(): TempAccumulator {
     apiHits: 0,
     pageHits: 0,
     uniqueRequests: 0,
-    dbHits: 0,
     errorPageHits: 0,
     ping: 0,
   }
@@ -59,7 +58,6 @@ let routeHitsThisSecond = 0
 let apiHitsThisSecond = 0
 let pageHitsThisSecond = 0
 const uniqueRequestsThisSecond = new Set<string>()
-let dbHitsThisSecond = 0
 let errorPageHitsThisSecond = 0
 
 /**
@@ -67,7 +65,7 @@ let errorPageHitsThisSecond = 0
  * of the per-path tally.
  *
  * `pageHitsMap` is a count per path, so an entry leaving the log has to
- * decrement it — and a count that reaches zero is deleted rather than left at
+ * decrement it, and a count that reaches zero is deleted rather than left at
  * 0, which is what keeps the map from growing one dead path at a time. Both
  * pruning rules below (the retention window and the hard cap) evict from the
  * front, so both need exactly this.
@@ -104,9 +102,17 @@ export function ensurePageHitsLogPruner() {
     try {
       prunePageHitsLog(Date.now())
     } catch (_e) {
-      // swallow errors; pruner is best-effort
+      // Best-effort: a pruning failure must not take down the telemetry that
+      // is only observing the server.
     }
   }, 60_000)
+  // Started by the *first page hit*, so any process that serves one ordinary
+  // request holds the event loop open for ever without it - a script that
+  // imports the plugin and finishes its work never exits. Same class as the
+  // three core timers unref'd for A15; this one lives in a plugin and was
+  // outside what that pass looked at. Optional-called because a test may
+  // install a fake timer that has no `unref`.
+  _pageHitsLogPruneTimer.unref?.()
 }
 
 export function stopPageHitsLogPruner() {
@@ -125,7 +131,6 @@ function accumulate(temp: TempAccumulator, s: AnalyticsSnapshot) {
   temp.apiHits += s.apiHits || 0
   temp.pageHits += s.pageHits || 0
   temp.uniqueRequests += s.uniqueRequests || 0
-  temp.dbHits += s.dbHits || 0
   temp.errorPageHits += s.errorPageHits || 0
   temp.ping += s.ping || 0
 }
@@ -144,7 +149,6 @@ function finalizeAggregation(
     apiHits: temp.apiHits,
     pageHits: temp.pageHits,
     uniqueRequests: temp.uniqueRequests,
-    dbHits: temp.dbHits,
     errorPageHits: temp.errorPageHits,
     ping: Math.round(temp.ping / count),
   }
@@ -165,7 +169,6 @@ function loadAccumulator(target: TempAccumulator, loaded: any) {
       target.apiHits += s.apiHits || 0
       target.pageHits += s.pageHits || 0
       target.uniqueRequests += s.uniqueRequests || 0
-      target.dbHits += s.dbHits || 0
       target.errorPageHits += s.errorPageHits || 0
       target.ping += s.ping || 0
     }
@@ -182,7 +185,32 @@ export function isAssetPath(path: string): boolean {
   )
 }
 
+/**
+ * The analytics loop's own request does not count as traffic.
+ *
+ * `runAnalyticsTick` fetches `/_analytics/ping` through the real server once a
+ * second so it can time a round trip, and that request reaches `onRoute` like
+ * any other. The result was a permanent floor of one route hit and one unique
+ * request per second on an idle server - every chart reading 1 instead of 0,
+ * and a day's `uniqueRequests` carrying 86,400 of the loop's own pings.
+ *
+ * Exact matches, not a prefix, for the same reason `isAnalyticsPath` in
+ * `setup.ts` uses exact matches: `/_analytics/pingback` would belong to the
+ * application. The two `/api/_analytics/*` endpoints are the console asking
+ * for its own data, which is equally not application traffic.
+ */
+const SELF_PATHS = new Set([
+  '/_analytics/ping',
+  '/api/_analytics/stats',
+  '/api/_analytics/reset',
+])
+
+export function isSelfPath(path: string): boolean {
+  return SELF_PATHS.has(path)
+}
+
 export function recordRouteHit(method: string, path: string, search = '') {
+  if (SELF_PATHS.has(path)) return
   routeHitsThisSecond += 1
   if (path.startsWith('/api/')) {
     apiHitsThisSecond += 1
@@ -193,10 +221,6 @@ export function recordRouteHit(method: string, path: string, search = '') {
     pageHitsMap.set(path, (pageHitsMap.get(path) || 0) + 1)
   }
   uniqueRequestsThisSecond.add(`${method} ${path}${search}`)
-}
-
-export function recordDbHit() {
-  dbHitsThisSecond += 1
 }
 
 export function recordErrorPageHit() {
@@ -216,31 +240,34 @@ export function pushAnalyticsSnapshot(snapshot: {
     apiHits: apiHitsThisSecond,
     pageHits: pageHitsThisSecond,
     uniqueRequests: uniqueRequestsThisSecond.size,
-    dbHits: dbHitsThisSecond,
     errorPageHits: errorPageHitsThisSecond,
   }
 
   history1m.push(fullSnapshot)
   if (history1m.length > 60) history1m.shift()
 
+  // The bucket sizes were four literals here (60, 1800, 21600, 86400), and
+  // they are the same numbers the point limits and the chart intervals were
+  // built from in three other places. `samples` derives from the window and
+  // the point count, so a timescale that changes shape changes all of them.
   accumulate(temp1h, fullSnapshot)
   accumulate(temp1d, fullSnapshot)
   accumulate(temp7d, fullSnapshot)
   accumulate(temp30d, fullSnapshot)
 
-  if (temp1h.count >= 60) {
+  if (temp1h.count >= TIMESCALES['1h'].samples) {
     history1h.push(finalizeAggregation(temp1h, fullSnapshot.timestamp))
     if (history1h.length > 60) history1h.shift()
   }
-  if (temp1d.count >= 1800) {
+  if (temp1d.count >= TIMESCALES['1d'].samples) {
     history1d.push(finalizeAggregation(temp1d, fullSnapshot.timestamp))
     if (history1d.length > 48) history1d.shift()
   }
-  if (temp7d.count >= 21600) {
+  if (temp7d.count >= TIMESCALES['7d'].samples) {
     history7d.push(finalizeAggregation(temp7d, fullSnapshot.timestamp))
     if (history7d.length > 28) history7d.shift()
   }
-  if (temp30d.count >= 86400) {
+  if (temp30d.count >= TIMESCALES['30d'].samples) {
     history30d.push(finalizeAggregation(temp30d, fullSnapshot.timestamp))
     if (history30d.length > 30) history30d.shift()
   }
@@ -249,7 +276,6 @@ export function pushAnalyticsSnapshot(snapshot: {
   apiHitsThisSecond = 0
   pageHitsThisSecond = 0
   uniqueRequestsThisSecond.clear()
-  dbHitsThisSecond = 0
   errorPageHitsThisSecond = 0
 }
 
@@ -260,26 +286,15 @@ export function getLatestAnalyticsSnapshot() {
       apiHits: 0,
       pageHits: 0,
       uniqueRequests: 0,
-      dbHits: 0,
       errorPageHits: 0,
       ping: 0,
     }
   )
 }
 
+/** One of the five copies of the timescale table; see `timescale.ts`. */
 export function getHistoryLimitForTimescale(timescale: string): number {
-  switch (timescale) {
-    case '30d':
-      return 30
-    case '7d':
-      return 28
-    case '1d':
-      return 48
-    case '1h':
-      return 60
-    default:
-      return 60
-  }
+  return timescaleFacts(timescale).points
 }
 
 export function getHistoryForTimescale(timescale: string): AnalyticsSnapshot[] {
@@ -354,7 +369,6 @@ export function getFilledHistoryForTimescale(
           apiHits: null,
           pageHits: null,
           uniqueRequests: null,
-          dbHits: null,
           errorPageHits: null,
           ping: null,
         })
@@ -366,6 +380,34 @@ export function getFilledHistoryForTimescale(
 
   if (filled.length > limit) return filled.slice(-limit)
   return filled
+}
+
+/**
+ * The write half of `loadTemps`, which had no write half.
+ *
+ * `setup.ts` checked `data.temp1h` on boot and `loadTemps` knew how to restore
+ * all four buckets, but nothing ever put them in the persisted snapshot - so
+ * the check was always false and every restart began aggregating from zero. A
+ * bucket only finalizes at its full count (60 samples for 1h, 1800 for 1d), so
+ * the visible symptom was the 1h chart staying empty for up to an hour after
+ * every boot, and the longer windows correspondingly longer.
+ *
+ * Plain objects rather than the accumulators themselves: this is serialized to
+ * JSON in the `core` row, and handing out the live objects would let a caller
+ * mutate the running aggregation.
+ */
+export function snapshotTemps(): {
+  temp1h: TempAccumulator
+  temp1d: TempAccumulator
+  temp7d: TempAccumulator
+  temp30d: TempAccumulator
+} {
+  return {
+    temp1h: { ...temp1h },
+    temp1d: { ...temp1d },
+    temp7d: { ...temp7d },
+    temp30d: { ...temp30d },
+  }
 }
 
 export function loadTemps(loaded: any) {

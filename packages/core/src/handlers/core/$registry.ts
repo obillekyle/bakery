@@ -1,4 +1,5 @@
 import { LRUCache } from '../../cache/lru'
+import { hostKey } from '../../core/bakery'
 import type { Handler } from './$base'
 
 /**
@@ -30,16 +31,45 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
     }
   }
 
-  set(handlerClass: any, priority: number = 10): this {
-    super.set(handlerClass, priority)
+  /** Drop the derived views. Every mutation has to call this, not just `set`. */
+  private invalidate(): void {
     this.cachedList = null
     this.cachedGates = null
     this.cachedOrder = null
+  }
+
+  set(handlerClass: any, priority: number = 10): this {
+    super.set(handlerClass, priority)
+    this.invalidate()
     return this
   }
 
   add(handlerClass: any, priority?: number): this {
     return this.set(handlerClass, priority)
+  }
+
+  /**
+   * `delete` and `clear` invalidate too, and neither used to.
+   *
+   * `list()` memoizes the sorted handler array and only `set` cleared it, so a
+   * removed handler stayed in the list (and therefore stayed *in the request
+   * pipeline*) until something happened to add one. Registration is
+   * add-only in a served process, which is why this never bit: it is reachable
+   * only by code that unregisters, and the first thing to do that was a test.
+   *
+   * A cache that survives the removal of its input is wrong regardless of who
+   * currently calls it, and "nothing removes handlers today" is a property of
+   * the callers rather than of this class.
+   */
+  override delete(handlerClass: any): boolean {
+    const removed = super.delete(handlerClass)
+    if (removed) this.invalidate()
+    return removed
+  }
+
+  override clear(): void {
+    super.clear()
+    this.invalidate()
   }
 
   list(): T[] {
@@ -69,7 +99,7 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
    * `canHandle` without the microtask hop when the answer is synchronous.
    *
    * Most canHandles are plain predicates, and `await`ing their boolean cost a
-   * microtask hop (~426ns) per probe, 2–4 probes per request. Returns a
+   * microtask hop (~426ns) per probe, 2 to 4 probes per request. Returns a
    * boolean for a sync answer and the promise itself for an async one, so
    * callers only `await` a value that is actually a promise:
    *
@@ -97,8 +127,17 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
   // must not run twice. That constraint is what the branching encodes.
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: cache-path + side-effect-sensitive probe loop
   async resolve(path: string, req?: Request, ...rest: any[]) {
-    const host = req?.__hostname || ''
-    const pathId = `${this.id}:${host}:${path}`
+    // The **resolved** host, not the header. `__hostname` is whatever arrived
+    // in `Host`, and `routeCache` is one bounded LRU shared by every tenant, so
+    // a client varying that header minted an entry per spelling and walked the
+    // real hosts' entries out of the cache for as long as it kept asking. The
+    // file cache carried the same bug and was fixed; this one kept it.
+    //
+    // `hostKey` resolves through the multi-host config the way every other
+    // per-tenant key does, so an unknown or unconfigured host collapses to a
+    // single entry instead of one per spelling. The shape is unchanged when
+    // there is no host: `hostKey` returns the bare path.
+    const pathId = `${this.id}:${hostKey(path)}`
     const cached: any = HandlerMap.routeCache.get(pathId)
 
     // Only tracked once there is a cache hit to skip past. Middleware has
@@ -109,7 +148,7 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
     if (cached) {
       probed = new Set()
       // A cache hit skips every handler above the cached one. Ask the
-      // gatekeepers that outrank it first — the same handlers, in the same
+      // gatekeepers that outrank it first: the same handlers, in the same
       // order, a cold resolve would have reached before the cached one.
       const rank = this.order().get(cached) ?? Number.POSITIVE_INFINITY
       for (const gate of this.gatekeepers()) {

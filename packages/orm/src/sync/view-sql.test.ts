@@ -2,9 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import { formatViewBody, normalizeViewBody } from './view-sql'
 
 /**
- * A view body is compared as text, so normalising it is only safe if the result
- * is **convergent** — what you write and what the server hands back reduce to
- * the same string — and **idempotent**. Break either and the view is recreated
+ * A view body is compared as text, so normalizing it is only safe if the result
+ * is **convergent** (what you write and what the server hands back reduce to
+ * the same string), and **idempotent**. Break either and the view is recreated
  * on every sync, forever.
  *
  * The fixture is the canonical form MySQL returns for a real aggregated view:
@@ -22,7 +22,7 @@ const CANONICAL =
   'group by `shop`.`variants`.`product`) `v` on((`p`.`id` = `v`.`product`)))) ' +
   'where ((`p`.`published` = 1) and (`p`.`deleted_at` is null))'
 
-describe('view body normalisation', () => {
+describe('view body normalization', () => {
   test('is idempotent', () => {
     const once = normalizeViewBody(CANONICAL, 'shop')
     expect(normalizeViewBody(once, 'shop')).toBe(once)

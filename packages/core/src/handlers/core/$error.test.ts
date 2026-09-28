@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-// Side effect, before `asDev` captures the DEV descriptor below: init installs
-// the mode accessors, and capturing before it runs captures nothing.
+// Side effect, before `asDev` reads the DEV flag below: init is what sets it,
+// and reading before it runs reads nothing.
 import '../../core/init'
+import { setModeFlag } from '../../tests/fixtures'
 import { ErrorHandler, HandlerError } from './$error'
 
 describe('HandlerError', () => {
@@ -54,6 +55,21 @@ describe('ErrorHandler.extractErrorData', () => {
     const data = ErrorHandler.extractErrorData(res)
     expect(data.errorCode).toBe(404)
     expect(data.errorText).toBe('Not Found')
+    expect(data.errorBody).toBe('404: "Not Found"')
+  })
+
+  test('a Response with no reason-phrase gets a bare status, not `: ""`', () => {
+    // `new Response(null, { status })` leaves `statusText` empty, the
+    // framework's own forbidden-path denial in `handleRequest` is exactly this
+    // shape, and the synthesized body used to quote it anyway, so the error
+    // page rendered a literal `403: ""`.
+    const data = ErrorHandler.extractErrorData(
+      new Response(null, { status: 403 }),
+    )
+    expect(data.errorCode).toBe(403)
+    expect(data.errorText).toBe('')
+    expect(data.errorBody).toBe('403')
+    expect(data.errorBody).not.toContain('""')
   })
 
   test('extracts from object with errorCode', () => {
@@ -79,7 +95,7 @@ describe('ErrorHandler.extractErrorData', () => {
 })
 
 /**
- * The failures a developer hits most — a typo in a route file — are the ones
+ * The failures a developer hits most (a typo in a route file) are the ones
  * `extractErrorData` used to throw away.
  *
  * Bun's transpiler throws a `BuildMessage` and its resolver a `ResolveMessage`.
@@ -87,7 +103,7 @@ describe('ErrorHandler.extractErrorData', () => {
  * enumerable keys at all, so they fell through to the `is.object` branch, which
  * reads only `errorCode`/`errorText`/`errorBody` and therefore returned the
  * untouched default. Every syntax error and every bad import answered with
- * `An unexpected error occurred.` — in development too, where disclosure is the
+ * `An unexpected error occurred.`: in development too, where disclosure is the
  * entire point.
  *
  * These are built from the real transpiler rather than hand-rolled objects: the
@@ -103,7 +119,7 @@ const buildMessage = (source: string) => {
   throw new Error('expected the transpiler to reject this source')
 }
 
-describe('ErrorHandler.extractErrorData — Bun diagnostics', () => {
+describe('ErrorHandler.extractErrorData: Bun diagnostics', () => {
   test('a transpiler BuildMessage keeps its message and its position', () => {
     const data = ErrorHandler.extractErrorData(
       buildMessage('export default function ( {'),
@@ -132,7 +148,16 @@ describe('ErrorHandler.extractErrorData — Bun diagnostics', () => {
     }
 
     expect(caught?.constructor?.name).toBe('ResolveMessage')
-    expect(caught instanceof Error).toBe(false)
+
+    // Whether a `ResolveMessage` is `instanceof Error` is **Bun's choice, and
+    // it changed**: false on 1.3.14, true on 1.4.0. This used to assert `false`,
+    // which pinned the runtime's shape rather than this module's behavior and
+    // turned a Bun upgrade into a red suite for a handler that was still
+    // correct. What has to hold either way is that `extractErrorData` produces
+    // a usable diagnostic: it reaches the same fields through a different
+    // branch depending on the answer, so both branches are worth exercising and
+    // neither is worth demanding.
+    expect(typeof (caught instanceof Error)).toBe('boolean')
 
     const data = ErrorHandler.extractErrorData(caught)
     expect(data.errorCode).toBe(500)
@@ -142,7 +167,7 @@ describe('ErrorHandler.extractErrorData — Bun diagnostics', () => {
 
   test('an AggregateError of BuildMessages lists every position', () => {
     // What `import()` of a broken .tsx throws: `instanceof Error`, so it took
-    // the Error branch — but with no `stack` the branch fell back to
+    // the Error branch, but with no `stack` the branch fell back to
     // `String(error)`, which is the summary line ("4 errors building …") and
     // not one line number.
     const inner = [
@@ -177,11 +202,11 @@ describe('ErrorHandler.extractErrorData — Bun diagnostics', () => {
   })
 })
 
-describe('ErrorHandler.publicBody — diagnostics are development-only', () => {
+describe('ErrorHandler.publicBody: diagnostics are development-only', () => {
   test('production still answers a compile failure generically', () => {
     // The point of the branch above is DEV richness. A `BuildMessage` body
     // carries the failing source line and an absolute path into the tree, and
-    // it is a 500 — so the 5xx redaction must cover it exactly as it covers a
+    // it is a 500, so the 5xx redaction must cover it exactly as it covers a
     // stack.
     const data = ErrorHandler.extractErrorData(
       buildMessage('export default function ( {'),
@@ -202,27 +227,30 @@ describe('ErrorHandler.publicBody — diagnostics are development-only', () => {
 })
 
 /**
- * `import.meta.env.DEV` is a getter on `process.env` installed by `core/init`,
- * so it is swapped by descriptor and put back — not assigned to, which throws
- * once init has defined the getter, and not module-mocked, which never
- * unwinds.
+ * The synchronous `DEV` swap. `tests/fixtures.ts` owns the shared helpers, but
+ * `withEnvFlag` is deliberately async (the handlers it was written for read
+ * the flag after several awaits), and every call here is synchronous
+ * (`publicBody` and `extractErrorData` both return directly), so awaiting
+ * would only add a hop.
+ *
+ * Assignment, not a descriptor swap: the flags are `'1'`/`''` strings on
+ * `process.env` since Bun 1.4 stopped accepting accessor descriptors there.
+ * `'1'` rather than `true` because the write would coerce anyway, and the
+ * coercion of a boolean is exactly the trap: `"false"` is truthy.
  */
 function asDev<T>(fn: () => T): T {
-  const original = Object.getOwnPropertyDescriptor(process.env, 'DEV')
-  Object.defineProperty(process.env, 'DEV', {
-    get: () => true,
-    configurable: true,
-  })
+  // Always a value to restore, because of the `core/init` import at the top of
+  // this file. The `else delete` this used to fall back to removed init's flag
+  // whenever the capture had run first, leaving `import.meta.env.DEV`
+  // undefined for every later file in the run. See the mode-flag rule in
+  // tests/conventions.test.ts.
+  const original = process.env.DEV
+  setModeFlag('DEV', true)
 
   try {
     return fn()
   } finally {
-    // Always a descriptor to restore, because of the `core/init` import at the
-    // top of this file. The `else delete` this used to fall back to removed
-    // init's accessor whenever the capture had run first, leaving
-    // `import.meta.env.DEV` undefined for every later file in the run — see
-    // the mode-flag rule in tests/conventions.test.ts.
-    if (original) Object.defineProperty(process.env, 'DEV', original)
+    setModeFlag('DEV', original)
   }
 }
 
@@ -234,7 +262,7 @@ describe('ErrorHandler.publicBody', () => {
 
   test('a 5xx body never carries the stack off the process', () => {
     const data = thrown()
-    // extractErrorData must keep it — that is what the server log prints.
+    // extractErrorData must keep it. That is what the server log prints.
     expect(data.errorBody).toContain('$error.test')
     expect(ErrorHandler.publicBody(data)).not.toContain('$error.test')
     expect(ErrorHandler.publicBody(data)).not.toContain('ecr_student_entry')

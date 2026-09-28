@@ -13,8 +13,8 @@ import { SyncService } from './index'
  *
  * Driven as a subprocess rather than by calling `run()` here: the ordering is
  * the whole point, and only a real process shows what was touched on the way.
- * It also keeps `core/init.ts` — which `sync/index.ts` imports for its side
- * effects, redefining `process.env` flags process-wide — out of the test runner.
+ * It also keeps `core/init.ts`, which `sync/index.ts` imports for its side
+ * effects, redefining `process.env` flags process-wide: out of the test runner.
  * Two spawns, reused across the assertions, because each costs a few seconds.
  */
 const ENTRY = path.resolve(import.meta.dir, 'index.ts')
@@ -38,7 +38,7 @@ describe('--help is answered before anything is opened', () => {
   const cwd = path.join(tmpdir(), `bakery-help-${process.pid}-${Date.now()}`)
   let help: { out: string; exitCode: number }
   let noFlag: { out: string; exitCode: number }
-  /** Whether `<cwd>/bakery` existed after each run — sampled between them. */
+  /** Whether `<cwd>/bakery` existed after each run, sampled between them. */
   let dataAfterHelp = false
   let dataAfterNoFlag = false
 
@@ -48,7 +48,7 @@ describe('--help is answered before anything is opened', () => {
       cwd,
       stdout: 'pipe',
       stderr: 'pipe',
-      // No DB_URL, so the SQLite adapter resolves <cwd>/bakery/server.db — and
+      // No DB_URL, so the SQLite adapter resolves <cwd>/bakery/server.db, and
       // its constructor creates that directory. Its absence afterwards is the
       // evidence that nothing connected.
       env: { ...process.env, DB_URL: '', DATABASE_URL: '' },
@@ -95,7 +95,7 @@ describe('--help is answered before anything is opened', () => {
     //
     // This used to assert `exit 1` and the "foreign() is declared but not
     // implemented" message, because `foreign()` aborted the run. It no longer
-    // does — all three adapters emit and read back real foreign keys — so the
+    // does (all three adapters emit and read back real foreign keys), so the
     // fixture's `foreign()` now reaches the planner like any other declaration
     // and the run reports a plan instead of refusing.
     expect(noFlag.out).not.toContain(
@@ -107,7 +107,7 @@ describe('--help is answered before anything is opened', () => {
 })
 
 describe('the flag itself', () => {
-  test('is recognised in either spelling, and only those', () => {
+  test('is recognized in either spelling, and only those', () => {
     expect(SyncService.helpRequested(['--help'])).toBe(true)
     expect(SyncService.helpRequested(['--dry-run', '-h'])).toBe(true)
     expect(SyncService.helpRequested(['--dry-run'])).toBe(false)

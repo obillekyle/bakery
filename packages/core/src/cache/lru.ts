@@ -1,7 +1,7 @@
 export class LRUCache<K, V> extends Map<K, V> {
   /**
    * Called with the entry dropped to make room. Needed when values own a
-   * resource that must be released — an evicted prepared statement, for
+   * resource that must be released: an evicted prepared statement, for
    * instance, otherwise leaks until the process exits.
    */
   private readonly onEvict?: (key: K, value: V) => void
@@ -17,7 +17,7 @@ export class LRUCache<K, V> extends Map<K, V> {
 
   get(key: K): V | undefined {
     const val = super.get(key)
-    // `has` only to disambiguate a stored `undefined` from a miss — on the
+    // `has` only to disambiguate a stored `undefined` from a miss: on the
     // common hit this is two map operations instead of four.
     if (val === undefined && !super.has(key)) return undefined
     super.delete(key)

@@ -46,7 +46,7 @@ export class VirtualAssetHandler extends Handler {
       async function bundleClient() {
         // Bundled, not merely transpiled: these are browser entry points, and
         // the browser cannot resolve the relative imports a transpile leaves
-        // behind — they resolve against the page URL, return the HTML
+        // behind, they resolve against the page URL, return the HTML
         // fallback, and fail strict MIME checking for module scripts.
         const built = await bundleModule(masterPath as fs.AbsolutePath)
         return built.success && built.content ? built.content : null

@@ -44,17 +44,44 @@ function processGetBody(
 
 // `randomId` and `request` are exported purely so `client/globals.d.ts` can
 // declare the globals as `typeof import('./utils').randomId` / `.request`
-// instead of restating their signatures — which is how both had drifted from
+// instead of restating their signatures, which is how both had drifted from
 // this file. Nothing imports them; the bundle entry's exports are inert.
-export function randomId(length = 8) {
-  const arr = new Uint8Array(Math.ceil(length / 2))
-  crypto.getRandomValues(arr)
-  return Array.from(arr, dec => dec.toString(16).padStart(2, '0'))
-    .join('')
-    .slice(0, length)
-}
+//
+// `randomId` moved to `utils/isomorphic/misc.ts`: it was never
+// browser-specific, and a server block calling the "browser global" got a
+// ReferenceError. Imported (not re-exported directly) because the globals
+// object below needs the local binding too.
+import { randomId } from '../utils/isomorphic/misc'
+
+export { randomId }
 
 type RequestJson = RequestInit & { body?: any }
+
+/**
+ * What `request()` throws for a non-2xx envelope.
+ *
+ * It used to throw a bare `Error` carrying only the envelope's `message`,
+ * which made every structured failure unusable: a 409 whose `data` lists the
+ * conflicting rows, a 400 carrying per-field validation issues. Callers had to
+ * drop to raw `fetch` precisely for the requests where the framework's
+ * envelope was doing its job.
+ *
+ * `status` is the envelope's status, or the HTTP status when the body was not
+ * JSON at all. `data` is the envelope's `data`, `undefined` when there was
+ * none. Bound as a browser global like `request` itself, so
+ * `err instanceof RequestError` works in app code without an import.
+ */
+export class RequestError extends Error {
+  readonly status: number
+  readonly data: unknown
+
+  constructor(message: string, status: number, data?: unknown) {
+    super(message)
+    this.name = 'RequestError'
+    this.status = status
+    this.data = data
+  }
+}
 
 export async function request(
   url: string,
@@ -94,7 +121,10 @@ export async function request(
   const [err, data] = await tryCatch(response.json.bind(response))
 
   if (err) {
-    throws(`Request failed: ${err.message || 'Unknown error'}`)
+    throw new RequestError(
+      `Request failed: ${err.message || 'Unknown error'}`,
+      response.status,
+    )
   }
 
   if (
@@ -107,13 +137,19 @@ export async function request(
     if (status >= 200 && status < 300) {
       return data as JsonResponse
     }
-    throws((data as any).message)
+    // The envelope's `data` rides along: it is the part a caller can act on.
+    throw new RequestError((data as any).message, status, (data as any).data)
   }
 
   return data
 }
 
-export function formatHTML(html: string, indentWidth: number = 2): string {
+/**
+ * File-local. It was exported and nothing imported it: `client/utils.ts` is
+ * not a published subpath, so the `export` widened nothing a consumer could
+ * reach and only made the name look like part of a surface.
+ */
+function formatHTML(html: string, indentWidth: number = 2): string {
   if (!html) return ''
 
   const cleanHtml = html
@@ -159,11 +195,12 @@ Object.assign(globalThis, {
   escapeHTML,
   repeat,
   request,
+  RequestError,
   randomId,
   Bakery: {
     // **Cast rather than `import.meta.env` directly.** `ImportMeta.env` is
     // declared by `bun-types`, and this file is compiled by the *client*
-    // tsconfig, which deliberately has none — reaching for a Bun-provided type
+    // tsconfig, which deliberately has none: reaching for a Bun-provided type
     // here would undo the split it exists to enforce.
     //
     // Declaring `ImportMeta` in client/globals.d.ts instead would clash with
@@ -294,7 +331,7 @@ if (typeof document !== 'undefined') {
 
     // Prerender the same filtered list as prefetch, not every link on the page.
     // A `source: 'document'` rule with href_matches '/*' and eager eagerness
-    // ignored the exclusions above and fully loaded — and ran the JS of — every
+    // ignored the exclusions above and fully loaded (and ran the JS of) every
     // same-origin link, including things like /logout or a destructive GET.
     const urlList = Array.from(urls)
     specScript.textContent = JSON.stringify({

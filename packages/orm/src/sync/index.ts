@@ -15,7 +15,7 @@ const syncMsgs = {
     'E %rforeign() is declared but not implemented%*: {names}. No adapter emits FOREIGN KEY DDL, so it would be created as a plain index and then re-diffed on every sync. Use index() on the column and enforce the reference in your application.',
   SCHEMA_NOT_FOUND:
     'E %rConfigured schema path not found%*: {path}. %yschema%* in server.config.ts must name a file or an orm/ folder that exists; remove it to auto-detect. Generating one from the database? Create the (empty) file first, or run %ydb:sync --migrate%*.',
-  MIGRATE_SCAFFOLDED: 'I Created %y{dir}%* — the generator owns tables.ts.',
+  MIGRATE_SCAFFOLDED: 'I Created %y{dir}%*: the generator owns tables.ts.',
   MIGRATE_RETIRED:
     'I Converted to the orm/ folder. The previous %yschema.ts%* was moved to %y{to}%*, not deleted.',
 } as const
@@ -23,7 +23,7 @@ const syncMsgs = {
 const MESSAGES = messageLogger(logger, syncMsgs)
 
 /**
- * `orm/index.ts` — the one file in the folder layout nothing else writes.
+ * `orm/index.ts`: the one file in the folder layout nothing else writes.
  *
  * `tables.ts` belongs to the generator, and `views.ts` / `indexes.ts` are seeded
  * by it. This is the re-export barrel plus the type registration, and without
@@ -50,8 +50,8 @@ ${hasViews ? "export * from './views'\n" : ''}${hasIndexes ? "export * from './i
 type Model = ${model}
 
 // Without this block the ORM still runs, untyped: every table and column falls
-// back to \`any\`. The framework never imports this file at runtime — schema
-// values are loaded by path — so this is purely the type registration.
+// back to \`any\`. The framework never imports this file at runtime (schema
+// values are loaded by path), so this is purely the type registration.
 declare module '@bakery-framework/orm/schema-registry' {
   interface SchemaRegistry {
     schema: {
@@ -72,7 +72,7 @@ export class SyncService {
    *
    * Separated from `run()` so the answer is available before anything is
    * opened. It used to be the last check in `run()`, after `initConfig`,
-   * `initDB`, `loadSchema` and both fatal guards — so the one flag whose whole
+   * `initDB`, `loadSchema` and both fatal guards, so the one flag whose whole
    * job is to explain the others exited 1 on an unreachable database or a
    * single `foreign()` declaration, and creating `bakery/server.db` as a side
    * effect of asking for help.
@@ -82,7 +82,7 @@ export class SyncService {
   }
 
   static printHelp(): void {
-    // CLI usage text goes to stdout verbatim — it is program output, not a
+    // CLI usage text goes to stdout verbatim: it is program output, not a
     // log line, so it deliberately bypasses the structured logger.
     console.log(`
 Usage: bun run db:sync [--migrate] [--choose=db|ts] [--dry-run] [--force-sync] [--help]
@@ -141,7 +141,7 @@ Flags:
    *
    * Moved, never deleted: it goes to `bakery/backups/`, beside the copies the
    * generator already keeps there. `loadSchema` prefers `orm/index.ts`, so a
-   * leftover `schema.ts` would be *ignored* rather than used — which is the
+   * leftover `schema.ts` would be *ignored* rather than used, which is the
    * quiet kind of wrong, since it looks like the file still describes the app
    * while nothing reads it.
    */
@@ -178,7 +178,7 @@ Flags:
 
     // A configured path that does not exist is a config error, not an empty
     // project. Continuing would sync against no schema and then generate a new
-    // one at the wrong location — with the app's real model still sitting
+    // one at the wrong location, with the app's real model still sitting
     // where the typo missed it.
     if (loaded.missing) {
       MESSAGES.SCHEMA_NOT_FOUND({ path: loaded.missing })
@@ -193,12 +193,12 @@ Flags:
     }
 
     // `foreign()` used to abort here, because no adapter emitted FOREIGN KEY
-    // DDL and the declaration would have become a plain index — referential
+    // DDL and the declaration would have become a plain index: referential
     // integrity in appearance only. All three adapters now emit and read back
     // real foreign keys, so the guard is gone.
     //
     // `findUnsupportedForeignKeys` is kept and still exported *from
-    // `sync/load`* — it is what a future adapter without support would use to
+    // `sync/load`*: it is what a future adapter without support would use to
     // refuse rather than pretend. It is no longer imported here, which is the
     // distinction: the function has a reason to exist, the dead import did not.
 
@@ -209,14 +209,14 @@ Flags:
     // `--migrate` on a project with no schema at all creates the folder layout
     // rather than a single `schema.ts`. Adoption is exactly the case where the
     // folder earns its keep: the generator owns `tables.ts` and regenerating it
-    // cannot touch the views, indexes and registration beside it — which for an
+    // cannot touch the views, indexes and registration beside it, which for an
     // adopted database is the difference between re-running the command and
     // hand-restoring what it overwrote.
     // `--migrate` always lands on the folder layout, including from an existing
     // single-file `schema.ts`. It used to convert only from *nothing*, which
     // read as an arbitrary distinction: the reason to prefer the folder is that
     // the generator owns `tables.ts` and cannot touch the views, indexes and
-    // registration beside it — and that is worth exactly as much to a project
+    // registration beside it, and that is worth exactly as much to a project
     // that already has a schema as to one that does not.
     const adopting = SyncService.migrateRequested()
     const layout = adopting ? 'folder' : loaded.layout

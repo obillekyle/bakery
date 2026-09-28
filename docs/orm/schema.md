@@ -1,8 +1,8 @@
 # Schema
 
 A Bakery schema is a set of table declarations written in TypeScript. It is the
-input to [`db:sync`](sync.md), which makes the database match it, and — if you
-register it — the source of the types the query builder uses.
+input to [`db:sync`](sync.md), which makes the database match it, and (if you
+register it) the source of the types the query builder uses.
 
 The framework never imports your schema for types. Everything runs and
 typechecks without one; the ORM is simply untyped until you
@@ -13,7 +13,7 @@ typechecks without one; the ORM is simply untyped until you
 Two layouts, probed in this order from the app's working directory
 ([`sync/load.ts`](../../packages/orm/src/sync/load.ts)):
 
-1. **`orm/`** — one file per kind of declaration:
+1. **`orm/`**: one file per kind of declaration:
 
    | File | Holds |
    | --- | --- |
@@ -22,14 +22,14 @@ Two layouts, probed in this order from the app's working directory
    | `orm/indexes.ts` | `Field.Index()` / `Field.Unique()` |
    | `orm/index.ts` | re-exports the three, and registers the schema |
 
-2. **`schema.ts`** at the root — a single file holding everything.
+2. **`schema.ts`** at the root: a single file holding everything.
 
 The folder is preferred because `db:sync --choose=db` regenerates *tables* by
 overwriting one file. With the folder that file is `tables.ts`, and your
 hand-written views, indexes and re-exports are never touched. With one file,
 they are collateral.
 
-`tables.ts` was called `schema.ts`; the old name is still honoured when it is
+`tables.ts` was called `schema.ts`; the old name is still honored when it is
 the one on disk, so an existing project keeps working and the generator will not
 write a second file beside it.
 
@@ -88,7 +88,7 @@ export const posts = table('posts', {
 })
 ```
 
-The name is passed explicitly rather than inferred from the export binding —
+The name is passed explicitly rather than inferred from the export binding:
 inferring it would need a build step or a Proxy.
 
 Because a table is a value, its columns are values too: `posts.authorId` is a
@@ -97,7 +97,7 @@ take one argument instead of two strings, what lets `Field.Foreign()` name its
 target directly, and what makes a typo a compile error rather than a sync-time
 surprise.
 
-`table` from `@bakery-framework/orm` declares a table. `DB.table` starts a *query* — see
+`table` from `@bakery-framework/orm` declares a table. `DB.table` starts a *query*. See
 [Queries](queries.md). They are different functions with the same name.
 
 ## Columns
@@ -118,7 +118,7 @@ be, which is the point of it having a name for each case.
 | `Field.Uuid(nullable?)` | `VARCHAR(36)` | `VARCHAR(36)` | `VARCHAR(36)` | `string` |
 | `Field.Enum(members, d?)` | `VARCHAR(n)` | `VARCHAR(n)` | `VARCHAR(n)` | the union |
 | `Field.Date(d?)` | `INTEGER` | `INT` | `INTEGER` | `number` |
-| `Field.Primary()` | auto-increment integer key — see [Adapters](adapters.md) | | | `number` |
+| `Field.Primary()` | auto-increment integer key. See [Adapters](adapters.md) | | | `number` |
 | `Field.Foreign(target, o?)` | integer + `FOREIGN KEY` | | | `number` |
 
 **`null` as the default means nullable**, which is the one convention to carry
@@ -127,7 +127,7 @@ across: `Field.Varchar(64)` is `NOT NULL` with no default, `Field.Varchar(64,
 nullable.
 
 **Modifiers are not chained.** There is no `.nullable().primary()`, because a
-builder that is also a column definition breaks inference — while it was being
+builder that is also a column definition breaks inference, while it was being
 prototyped, `email` came out `string` instead of `string | null`. The named
 constructors cover the real cases without it.
 
@@ -139,7 +139,7 @@ A few carry a constraint worth knowing:
   syncing against MySQL at all.
 - **`Field.Primary()` and `Field.Foreign()` are always integers.** Primary is an
   `INTEGER PRIMARY KEY AUTOINCREMENT`, and a foreign key exists to point at one,
-  so its row type is `number` — or `number | null` with `{ nullable: true }`. For
+  so its row type is `number`, or `number | null` with `{ nullable: true }`. For
   a UUID key, use `Field.Uuid()` with `Field.Unique()`.
 - **`Field.Json`** reads back parsed on MySQL and Postgres and as a raw string on
   SQLite, so its row type is `unknown`. Narrow it where you use it rather than
@@ -152,7 +152,7 @@ A column is optional on insert when it is nullable, has a default, or
 auto-increments. That is what `InferOptionals` computes, and it is why
 `Insert.into('posts').values({ … })` does not demand an `id`.
 
-`Field` is the whole vocabulary — there is no lower-level `value()` to drop down
+`Field` is the whole vocabulary: there is no lower-level `value()` to drop down
 to, because a column descriptor is just an object. The one shape `Field` does
 not spell is **nullable *and* defaulted to something other than null**, since a
 null default is how you say nullable. Write that one literally:
@@ -171,7 +171,7 @@ like a constraint is collected, so the export name becomes the index name in the
 database.
 
 ```ts
-// orm/indexes.ts — in the folder layout this file starts with
+// orm/indexes.ts: in the folder layout this file starts with
 //   import { posts, users } from './schema'
 // The tables are inlined here so the example stands on its own.
 import { Field, table } from '@bakery-framework/orm'
@@ -227,8 +227,8 @@ export const posts = table('posts', {
 Real `FOREIGN KEY` DDL on all three dialects, read back by introspection, with
 `ON DELETE` and `ON UPDATE`. Actions default to `NO ACTION`, as SQL does.
 
-**`Field.Foreign` is always an integer** — `number` in the row type, or
-`number | null` when nullable — because `Field.Primary()` is always an
+**`Field.Foreign` is always an integer** (`number` in the row type, or
+`number | null` when nullable), because `Field.Primary()` is always an
 `INTEGER PRIMARY KEY AUTOINCREMENT` and a foreign key exists to point at one.
 
 **The target must be a primary key or carry a unique index.** SQL requires it,
@@ -239,8 +239,8 @@ than letting either happen.
 
 Two dialect details worth knowing, both handled for you:
 
-- **SQLite cannot `ALTER` a foreign key in or out** — the constraint is part of
-  the table definition — so adding or removing one becomes a table rebuild. The
+- **SQLite cannot `ALTER` a foreign key in or out** (the constraint is part of
+  the table definition), so adding or removing one becomes a table rebuild. The
   printed plan says so before it runs.
 - **SQLite enforces foreign keys only when `PRAGMA foreign_keys` is on**, and it
   defaults *off*, per connection. The adapter turns it on for every connection it
@@ -251,7 +251,7 @@ Two dialect details worth knowing, both handled for you:
 
 A key spanning more than one column uses `Field.Foreign.composite()`, which is
 variadic on both sides. It is separate from `Field.Foreign()` because the two
-return different kinds of thing — a column definition that goes *inside* a
+return different kinds of thing: a column definition that goes *inside* a
 table, versus a table-level constraint that goes *beside* one:
 
 ```ts
@@ -294,7 +294,7 @@ export const posts = table('posts', {
 ```
 
 An optional third argument transforms the data as it moves. Supplying one turns
-the change into a full table rebuild — rows are read, mapped in JavaScript, and
+the change into a full table rebuild: rows are read, mapped in JavaScript, and
 inserted into the new shape:
 
 ```ts
@@ -313,7 +313,7 @@ it regenerates the schema file from the database
 ([`sync/engine.ts`](../../packages/orm/src/sync/engine.ts)).
 
 > **In the `orm/` folder layout, that regeneration overwrites `orm/schema.ts`
-> with the single-file `DBInfo` form** — including its own registration block,
+> with the single-file `DBInfo` form**, including its own registration block,
 > which then collides with the one in `orm/index.ts`. Commit before running a
 > sync that involves `old()`, and check `git diff` afterwards. The previous
 > contents are also copied to `bakery/backups/schema.<timestamp>.ts`.
@@ -332,25 +332,25 @@ export const activeUsers = view(
 
 The columns are the shape the `SELECT` returns. They are declared rather than
 inferred because nothing here parses SQL, and they are what gives the view a row
-type — reading from it is typed exactly like reading a table.
+type: reading from it is typed exactly like reading a table.
 
 `db:sync` emits `CREATE VIEW` instead of `CREATE TABLE`, diffs the body as
-normalised text, and drops and recreates the view when it changes. Views hold no
+normalized text, and drops and recreates the view when it changes. Views hold no
 data, so there is no migration to plan.
 
 **Writes are rejected at compile time.** `InferViews` collects the names and
 `Mutation.Tables` excludes them, so `DB.Insert.into('active_users')` does not
-typecheck — nor does `Update.table` or `Delete.from`. The database would refuse
+typecheck, nor does `Update.table` or `Delete.from`. The database would refuse
 the write anyway; refusing it earlier is strictly better.
 
 ### The interface form, and what `--choose=db` writes
 
-A view has **no column DDL** — `CREATE VIEW x AS SELECT …` declares no types,
+A view has **no column DDL**: `CREATE VIEW x AS SELECT …` declares no types,
 and the sync engine only ever reads the body. So a view can be described by an
 interface instead of by column builders, which is what the generator emits into
 `orm/views.ts`:
 
-```ts no-check — generated output, shown as it is written to disk
+```ts no-check: generated output, shown as it is written to disk
 import { view } from '@bakery-framework/orm'
 
 export interface ActiveUsersView {
@@ -372,7 +372,7 @@ gives the row type a name you can use in a signature.
 **Both type arguments are written out**, and that is forced rather than
 stylistic: TypeScript stops inferring the remaining type parameters as soon as
 one is supplied, so `view<ActiveUsersView>(name, body)` would leave the name as
-`string` — and the name is what the schema map is keyed on, so the map would
+`string`, and the name is what the schema map is keyed on, so the map would
 collapse to an index signature and every mutation would stop compiling.
 
 Column references still work (`activeUsers.id`) even though the keys are known
@@ -400,12 +400,12 @@ export type NewUser = InsertOf<typeof users>
 //          ^ { name: string; id?: number; createdAt?: number }
 ```
 
-TypeScript cannot mint a *named* interface from a value — the name has to be
-written somewhere — so this is the one line that does it. Derived rather than
+TypeScript cannot mint a *named* interface from a value (the name has to be
+written somewhere), so this is the one line that does it. Derived rather than
 copied, which is the point: a hand-written `interface ActiveUsersView { … }`
 would be a second source of truth that nothing checks against the first.
 
-`RowOf` is what you read, `InsertOf` is what you write — the difference being
+`RowOf` is what you read, `InsertOf` is what you write: the difference being
 the optional columns.
 
 ## Making the schema typed
@@ -416,7 +416,7 @@ import or global re-export. The app registers itself against
 
 At the bottom of `orm/index.ts`:
 
-```ts no-check — a module augmentation retypes every other example in the shared docs compile
+```ts no-check: a module augmentation retypes every other example in the shared docs compile
 import type { InferOptionals, InferSchema, InferViews } from '@bakery-framework/orm'
 import * as model from './schema'
 
@@ -445,7 +445,7 @@ works, nothing warns. You just get no autocomplete and no compile errors for a
 misspelled column. The registration is what buys those back.
 
 The dependency has to point this way. The app depends on the framework, never
-the reverse — and the ORM's types are derived from a file that is gitignored and
+the reverse, and the ORM's types are derived from a file that is gitignored and
 may not exist.
 
 ## The single-file layout
@@ -455,7 +455,7 @@ The older form puts everything in one `schema.ts` under a `DBInfo` namespace.
 [`packages/orm/templates/schema.example.ts`](../../packages/orm/templates/schema.example.ts)
 contains:
 
-```ts no-check — a module augmentation retypes every other example in the shared docs compile
+```ts no-check: a module augmentation retypes every other example in the shared docs compile
 import { Field } from '@bakery-framework/orm'
 import {
   type ExtractOptionals,
@@ -507,12 +507,12 @@ so a project can migrate one table at a time.
 
 Write `camelCase` in TypeScript. The ORM snake-cases every identifier on the way
 to SQL, so `createdAt` is the column `created_at` and `ecrStudentEntry` is the
-table `ecr_student_entry`. Result rows come back with both spellings — the raw
-key from the driver plus a camelCase alias — so `row.created_at` and
+table `ecr_student_entry`. Result rows come back with both spellings (the raw
+key from the driver plus a camelCase alias), so `row.created_at` and
 `row.createdAt` are the same value.
 
 ## Next
 
-- [Schema sync](sync.md) — applying the schema, and what it refuses to do
+- [Schema sync](sync.md): applying the schema, and what it refuses to do
 - [Queries](queries.md)
 - [Mutations](mutations.md)

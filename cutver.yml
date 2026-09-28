@@ -1,0 +1,84 @@
+# bakery's release rules.
+# Docs: https://cutver.okyle.dev/#/reference/config
+schema: 1
+
+# A Bun monorepo: the root manifest, every workspace package, and bun.lock's
+# workspace entries all carry the same number.
+target: bun
+
+# Every publishable package goes to npm. The root is `private: true` and stays
+# where it is; `publish` is about what a *tag* produces, not about which
+# manifests get written.
+publish: true
+
+# **Without this file every branch was a stable release branch.** The default
+# is `release: ['**']`, so a push to any branch that did not match a channel
+# would have cut a stable version, the alpha work only avoided it because
+# `2.0.0-alpha` matches the alpha channel's declaring pattern, and declaring
+# beats a glob. Naming `main` makes that an intention rather than an accident.
+channels:
+  release:
+    - main
+
+  # `2.0.0-alpha` is a *declaring* branch: it names the base it is building
+  # towards, so cutver refuses to cut from it once the commits imply something
+  # higher than 2.0.0. A bare `alpha` branch declares only the channel and lets
+  # the base move on its own.
+  alpha:
+    - alpha
+    - '{version}-alpha'
+
+  beta:
+    - beta
+    - '{version}-beta'
+
+  rc:
+    - rc
+    - prerelease
+    - '{version}-rc'
+
+# **Compiled from the commit bodies, and this file is cutver's now.**
+#
+# It is rewritten whole on every release: no `## [Unreleased]`, and edits do
+# not survive. That is the trade that lets it never parse the file, so a
+# mangled changelog cannot break a release. What makes it worth taking is the
+# commit *body*: each entry is the subject plus the paragraph under it, which
+# is release-note prose already.
+#
+# `prereleases` stays off, so an alpha does not get its own heading and each
+# stable release's span reaches back to the previous *stable* tag rather than
+# dropping the commits in between.
+changelog:
+  # **The file is off. The release pages are not.**
+  #
+  # Regenerating CHANGELOG.md rewrote it whole on every release, from the
+  # commit bodies, and a commit body is deliberately exempt from the house
+  # copy rules: it is written for whoever opens the file next, not as
+  # published prose. So every release reintroduced 37 em dashes and a spread
+  # of British spellings into a tracked file, and `tests/house-style.test.ts`
+  # then refused the release.
+  #
+  # That failed in the worst available place. `publish.yml` re-runs the suite
+  # against the *tag's* tree, which is the release commit, which is the only
+  # commit carrying a freshly generated changelog: green on every branch push
+  # and red at the irreversible step. `v2.0.0-alpha.18` and `v2.0.0-rc.0` were
+  # both tagged and neither reached npm.
+  #
+  # Exempting the file from the gate was the other option and is worse: it
+  # keeps a generated artifact in the tree that no rule applies to, to hold
+  # content GitHub already renders better. The release pages below still get
+  # the summarised body, which is the copy people actually land on.
+  file: false
+
+  keep: 10
+
+  # The GitHub release body, rewritten to read like something a person wrote.
+  # `CHANGELOG.md` is never summarised: the file keeps exactly what the
+  # commits said, and only the page people land on gets the readable version.
+  #
+  # No key here on purpose: this file is committed. cutver reads
+  # CUTVER_SUMMARIZE_KEY, or GEMINI_API_KEY, from the environment.
+  summarizer:
+    connector: gemini
+    model: gemini-3.5-flash-lite
+    retry: true

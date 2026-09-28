@@ -12,7 +12,7 @@ import { DEFAULT_SESSION_TTL } from './utils/constants'
 
 /**
  * The accessed/modified split. `Session.from` used to `touch()` every session
- * it returned, which marked merely-read sessions dirty — so read-only traffic
+ * it returned, which marked merely-read sessions dirty, so read-only traffic
  * paid a JSON.stringify + SQLite write on every flush and got a fresh
  * Set-Cookie on every response, defeating If-None-Match for any page that
  * carries a session. Reading is now an *accessed* bump (memory-tier liveness

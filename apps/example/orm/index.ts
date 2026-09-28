@@ -12,7 +12,7 @@ export * from './views'
 
 /**
  * Tables *and* views: `InferSchema` reads both (a view is readable like a
- * table), and `InferViews` reads the views specifically — that is what excludes
+ * table), and `InferViews` reads the views specifically. That is what excludes
  * them from `DB.Insert.into(...)`. Importing only `./tables` here would leave
  * the view exclusion silently empty.
  *

@@ -1,6 +1,7 @@
 import { Bakery } from '../../core/bakery'
 import { handlerLog } from '../../logger'
 import { response } from '../../utils/http'
+import { parsedUrl } from '../../utils/http/url'
 import { Handler } from '../core/$base'
 
 export class ProxyHandler extends Handler {
@@ -30,7 +31,7 @@ export class ProxyHandler extends Handler {
         baseTarget +
         (trailingPath.startsWith('/') ? '' : '/') +
         trailingPath +
-        ((req as any).__parsedUrl || new URL(req.url)).search
+        parsedUrl(req).search
       break
     }
 
@@ -62,7 +63,7 @@ export class ProxyHandler extends Handler {
 
     const resHeaders = new Headers(proxyRes.headers)
     // Bun already decompressed the body, so the upstream's content-encoding is
-    // wrong — and so is its content-length, which described the compressed size.
+    // wrong, and so is its content-length, which described the compressed size.
     resHeaders.delete('content-encoding')
     resHeaders.delete('content-length')
     return new Response(proxyRes.body, {

@@ -9,7 +9,7 @@ import { handleRequest, processResponse } from '../router'
  * cover the two wiring questions they cannot: that a preflight is answered
  * *before* routing (it names its route in a header, so routing would answer the
  * wrong question), and that the headers reach responses produced by every other
- * handler — which is only true because they are applied in `processResponse`,
+ * handler, which is only true because they are applied in `processResponse`,
  * the single funnel every response passes through.
  */
 describe('CORS end to end', () => {
@@ -50,7 +50,7 @@ describe('CORS end to end', () => {
 
   test('a bare OPTIONS is not treated as a preflight', async () => {
     // No Access-Control-Request-Method, so this is an ordinary request and must
-    // fall through — otherwise an app could never serve its own OPTIONS route.
+    // fall through: otherwise an app could never serve its own OPTIONS route.
     const res = await handleRequest(
       new Request('http://localhost/api/anything', { method: 'OPTIONS' }),
     )
@@ -80,7 +80,7 @@ describe('CORS end to end', () => {
     const out = await processResponse(new Response('hello'), req)
 
     expect(out?.headers.get('Access-Control-Allow-Origin')).toBeNull()
-    // Still served — CORS governs what the browser lets script read, not
+    // Still served: CORS governs what the browser lets script read, not
     // whether the server answers.
     expect(out?.status).toBe(200)
   })

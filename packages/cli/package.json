@@ -1,6 +1,6 @@
 {
   "name": "@bakery-framework/cli",
-  "version": "1.2.3",
+  "version": "2.0.0-rc.5",
   "description": "Bakery entry point and process supervision: mode dispatch, dev watcher, cluster.",
   "keywords": [
     "bakery",
@@ -36,7 +36,7 @@
     "!src/tests"
   ],
   "engines": {
-    "bun": ">=1.3.14"
+    "bun": ">=1.4.0"
   },
   "dependencies": {
     "@bakery-framework/core": "workspace:^"

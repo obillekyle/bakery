@@ -44,7 +44,7 @@ describe('validate', () => {
 
   test('object-form path segments render as keys, not [object Object]', async () => {
     // Standard Schema allows both `'a'` and `{ key: 'a' }` in a path. A naive
-    // join renders the second as [object Object] — in the very message meant
+    // join renders the second as [object Object]: in the very message meant
     // to say which field is wrong.
     const schema: StandardSchemaLike<unknown> = {
       '~standard': {

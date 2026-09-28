@@ -8,15 +8,14 @@
  *
  * `./query` first works. `./mutation` first does not: `mutation.ts` pulls in
  * `query.ts`, whose top-level `Mutation.Insert` runs while `Mutation` is still
- * initialising, and the whole ORM dies with
+ * initializing, and the whole ORM dies with
  * `TypeError: undefined is not an object (evaluating 'Mutation.Insert')`.
  *
  * Biome's `organizeImports` sorts these alphabetically and puts `./mutation`
- * first. That happened during the 2026-08-09 sweep and cost 12 tests; the
- * compiler cannot see it, because the types are fine either way. Hence the
- * suppression.
+ * first. The compiler cannot see the breakage, because the types are fine
+ * either way. Hence the suppression.
  */
-// biome-ignore-all assist/source/organizeImports: cycle — see above
+// biome-ignore-all assist/source/organizeImports: cycle. See above
 import { DB } from './query'
 import { Mutation } from './mutation'
 

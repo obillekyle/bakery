@@ -8,7 +8,7 @@ let testDb: any = null
 
 /**
  * Test seam. Unit tests that only need a stub adapter should call this instead
- * of `mock.module('./connection', …)` — Bun's module mocks are process-global
+ * of `mock.module('./connection', …)`: Bun's module mocks are process-global
  * and are never restored, so one mocking test file silently breaks every later
  * test that needs a real connection.
  */

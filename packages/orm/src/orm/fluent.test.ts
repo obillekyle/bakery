@@ -4,10 +4,10 @@ import { __resetTestDb, __setTestDb } from '../connection'
 import { DB } from './index'
 
 /**
- * The builder's interfaces modelled a stricter grammar than either the runtime
+ * The builder's interfaces modeled a stricter grammar than either the runtime
  * or ordinary SQL: `IQBTable` exposed no orderBy/limit, and `IQBSelect` no
- * where. Both call orders always worked — the clauses are assembled and only
- * emitted at parse() — so the types, not the behaviour, were wrong.
+ * where. Both call orders always worked (the clauses are assembled and only
+ * emitted at parse()), so the types, not the behavior, were wrong.
  *
  * These assertions are as much about compilation as execution: the file is
  * typechecked, so a regression in the interface chain fails the build even if

@@ -11,7 +11,7 @@ import { fs } from '../utils'
  * request for `/schema.css` is answered by `schema.ts` (stem + the handler's
  * own extension), and `/schema` by the same. So the deny-list was asked about
  * a string that names no file, said "not blocked", and `TSHandler` compiled
- * and served the file the list exists to protect — verified against a live
+ * and served the file the list exists to protect: verified against a live
  * server: `/schema.ts` 403, `/schema.js` 200 with the file's contents.
  *
  * The check therefore has to run against the file that was *resolved*, not
@@ -59,7 +59,7 @@ describe('blocked globs apply to the resolved file, not just the request path', 
     expect(info!.path).toBe('page.ts')
   })
 
-  test('a route-only handler stays exempt — it serves names, not file bytes', async () => {
+  test('a route-only handler stays exempt: it serves names, not file bytes', async () => {
     // ApiHandler executes a module and returns its value; it never hands back
     // file contents, which is why `/api/manifest.json` must not 403. That
     // exemption has to survive this fix.

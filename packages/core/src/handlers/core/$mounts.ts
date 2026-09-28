@@ -4,7 +4,7 @@ import { fs } from '../../utils'
  * Route mounts: map a URL prefix onto a directory outside the app's serve root.
  *
  * Handlers resolve files under `Bakery.serveRoot`, so a plugin wanting to serve
- * its own pages or client assets had no choice but to hand-roll it — reading
+ * its own pages or client assets had no choice but to hand-roll it: reading
  * files itself, bundling on the fly, and reimplementing the caching and
  * containment the handler pipeline already does. `DashboardHandler` is the
  * worked example of that cost.
@@ -17,7 +17,7 @@ import { fs } from '../../utils'
  * the search dir *and* the root, so traversal cannot escape it.
  */
 export interface RouteMount {
-  /** URL prefix, leading slash, no trailing slash — e.g. `/_dashboard`. */
+  /** URL prefix, leading slash, no trailing slash, e.g. `/_dashboard`. */
   prefix: string
   /** Absolute directory the prefix resolves against. */
   dir: fs.AbsolutePath

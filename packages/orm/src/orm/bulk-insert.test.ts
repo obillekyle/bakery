@@ -7,8 +7,8 @@ import { DB } from './index'
 /**
  * One `INSERT … VALUES (…),(…),…` carries a parameter per column per row, and
  * every driver here counts them in 16 bits. Past the ceiling they do not report
- * a limit, they report a wrapped number — `expected 54464 values, received
- * 120000`, which is `120000 - 65536` — or `too many SQL variables`. Neither
+ * a limit, they report a wrapped number (`expected 54464 values, received
+ * 120000`, which is `120000 - 65536`), or `too many SQL variables`. Neither
  * names the actual problem, and both arrive only once the data is real.
  *
  * A deliberately tiny ceiling does most of the work below: the real one is
@@ -80,7 +80,7 @@ describe('parseAll() batches at the boundary', () => {
   })
 
   test('the column list is the union over every record, not the batch', () => {
-    // A per-batch union would change the statement's shape halfway through —
+    // A per-batch union would change the statement's shape halfway through,
     // the row that introduces a column would silently drop it in the batches
     // that came before.
     // Two columns, so six records per batch: the column arrives in the record
@@ -170,7 +170,7 @@ describe('a batched insert writes every row, exactly once', () => {
     expect(Number(count.c)).toBe(0)
   })
 
-  test('40,000 rows at the real ceiling — the size the bug was measured at', async () => {
+  test('40,000 rows at the real ceiling: the size the bug was measured at', async () => {
     // 120,000 parameters in one statement reported "expected 54464 values,
     // received 120000". Plain SQLiteAdapter, real 32,766 ceiling, 13 batches.
     const real = new SQLiteAdapter(':memory:')
@@ -255,7 +255,7 @@ describe('upsert carries its conflict clause on every batch', () => {
       .query("SELECT COUNT(*) AS c FROM up_big WHERE label = 'second'")
       .get()
     expect(Number(count.c)).toBe(30)
-    // Not "the last batch won" — every row, in every batch, took the update.
+    // Not "the last batch won", every row, in every batch, took the update.
     expect(Number(updated.c)).toBe(30)
     await db.query('DROP TABLE IF EXISTS up_big').run()
   })

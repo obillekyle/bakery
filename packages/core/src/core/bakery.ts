@@ -2,7 +2,7 @@ import { HandlerMap } from '../handlers/core/$registry'
 import { fs } from '../utils/fs'
 import { SharedMemoryPool } from '../utils/shared-pool'
 import { getConfig, resolveHostname } from './config'
-import { getAppVersion, hostStore } from './context'
+import { cacheDir, dataDir, getAppVersion, hostStore } from './context'
 
 export type { HostContext } from './context'
 export { hostStore } from './context'
@@ -14,7 +14,7 @@ export { hostStore } from './context'
  * one collapses to the unprefixed key. That is not cosmetic: this key becomes a
  * **filename** in five handlers, and `getOrCreateCachedFile` writes three files
  * per entry with no bound and no eviction. Prefixing the raw `Host` header let
- * any client mint an unlimited number of cache entries — 25 requests for one
+ * any client mint an unlimited number of cache entries: 25 requests for one
  * path under 25 made-up hostnames took the cache directory from 9 files to 84.
  *
  * `resolveHostConfig` already carries this reasoning for the config cache; the
@@ -69,18 +69,20 @@ export const Bakery: globalThis.Bakery = {
   get version() {
     return getAppVersion()
   },
-  sharedPool: new SharedMemoryPool(1024 * 1024),
-  // The disposable directory is the hidden one, and the precious one is not.
-  // This is the reverse of the old `.bakery/cache` + `.data` pairing, and the
-  // reversal is the whole point: `.cache` is wiped by the framework itself on
-  // every version bump and dev<->prod switch, so a `rm -rf .*` or a "clean out
-  // the dotfiles" sweep does exactly what the framework already does. The
-  // database is not disposable, so it does not live behind a leading dot where
-  // such a sweep can reach it.
-  cacheDir: `${fs.cwd}/.cache`,
-  // Holds the database and its backups. Visible, and deliberately not under
-  // `.cache`: clearing a cache must never be able to destroy data.
-  dataDir: `${fs.cwd}/bakery`,
+  // No size: the pool's own layout is the default now. It used to be asked for
+  // a megabyte, of which 9,280 bytes were the layout and the rest a region
+  // nothing read. See the constructor in `utils/shared-pool.ts`.
+  sharedPool: new SharedMemoryPool(),
+  // Defined in `core/context.ts`, which is low enough that a module needing a
+  // path does not have to import `Bakery` to get one: reaching them through
+  // here is what closed the logger cycle. These stay the reading surface for
+  // application and framework code; context is the single definition.
+  //
+  // Called here rather than forwarded through a getter, so these remain plain
+  // writable properties: `nm.test.ts` repoints them at a fixture tree, which a
+  // getter turns into `TypeError: Attempted to assign to readonly property`.
+  cacheDir: cacheDir(),
+  dataDir: dataDir(),
   startNs: Bun.nanoseconds(),
   handlers: {
     fetch: new HandlerMap(),

@@ -3,25 +3,25 @@
  *
  * Bakery had WebSockets and nothing for one-way streaming, which is the cheaper
  * half of that pair and the right shape for progress, notifications and tailing
- * — no upgrade, no protocol, reconnects handled by the browser.
+ *: no upgrade, no protocol, reconnects handled by the browser.
  *
  * A route could always return a `Response` wrapping a `ReadableStream` and it
  * would reach the client intact: `ETag.sendResponse` returns early without an
  * `ETag` header, and `injectIfHtml` ignores anything that is not HTML. What was
- * missing is the framing, and framing is where this goes wrong — a payload
+ * missing is the framing, and framing is where this goes wrong: a payload
  * containing a newline silently truncates unless every line is prefixed, and a
  * write after the client has gone throws where nobody is catching.
  */
 
 /** One event. Every field is optional except the payload. */
 export interface SSEMessage {
-  /** Serialised with `JSON.stringify` unless it is already a string. */
+  /** Serialized with `JSON.stringify` unless it is already a string. */
   data: unknown
-  /** `event:` — the client listens for this name instead of `message`. */
+  /** `event:`: the client listens for this name instead of `message`. */
   event?: string
-  /** `id:` — echoed back as `Last-Event-ID` when the browser reconnects. */
+  /** `id:`: echoed back as `Last-Event-ID` when the browser reconnects. */
   id?: string
-  /** `retry:` — how long the browser waits before reconnecting, in ms. */
+  /** `retry:`: how long the browser waits before reconnecting, in ms. */
   retry?: number
 }
 
@@ -42,7 +42,7 @@ export interface SSEOptions {
    * Milliseconds between automatic keep-alive comments. `0` disables them.
    *
    * Defaults to 15s because idle proxies and load balancers commonly cut a
-   * connection at 30–60s, and a dead SSE stream is invisible: the browser
+   * connection at 30 to 60s, and a dead SSE stream is invisible: the browser
    * reconnects silently, so the symptom is duplicated work on the server rather
    * than an error anyone sees.
    */
@@ -55,7 +55,7 @@ export interface SSEOptions {
  * Encode one message as an SSE frame.
  *
  * **Every line of `data` is prefixed.** A payload containing a newline is
- * otherwise cut short at that newline — the rest is read as a new field, and
+ * otherwise cut short at that newline: the rest is read as a new field, and
  * the client sees a truncated message rather than an error. Pretty-printed JSON
  * and stack traces both hit this.
  */
@@ -72,7 +72,7 @@ export function encodeSSE(message: SSEMessage): string {
       : JSON.stringify(message.data)
 
   // `?? ''` rather than skipping: `JSON.stringify(undefined)` is undefined, and
-  // a frame with no `data:` line at all is a comment to the client — the event
+  // a frame with no `data:` line at all is a comment to the client. The event
   // would vanish rather than arrive empty.
   for (const line of (payload ?? '').split('\n')) lines.push(`data: ${line}`)
 
@@ -116,7 +116,7 @@ export function sse(
       controller.enqueue(encoder.encode(chunk))
     } catch {
       // The client went away between the `closed` check and the enqueue. That
-      // is a normal race on every disconnect, not an error worth surfacing —
+      // is a normal race on every disconnect, not an error worth surfacing,
       // and throwing here would reject inside a timer callback, where nothing
       // is catching.
       finish()
@@ -192,7 +192,7 @@ export function sse(
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
       // nginx buffers proxied responses by default, which holds every event
-      // until the buffer fills — the stream appears to work in development and
+      // until the buffer fills: the stream appears to work in development and
       // to hang in production. This is the documented opt-out.
       'X-Accel-Buffering': 'no',
     },

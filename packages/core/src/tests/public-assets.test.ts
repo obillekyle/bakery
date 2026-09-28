@@ -31,7 +31,7 @@ async function placeFile(rel: string, contents = 'hello') {
 
 afterAll(async () => {
   await rm(join(Bakery.publicRoot, testDir), { recursive: true, force: true })
-  // uploads/ first, then public/ — inner must be gone for outer to be empty
+  // uploads/ first, then public/: inner must be gone for outer to be empty
   for (const dir of parentDirs()) {
     if (preExisting.has(dir) || !existsSync(dir)) continue
     if ((await readdir(dir)).length === 0) await rmdir(dir)

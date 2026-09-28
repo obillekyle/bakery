@@ -1,8 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": ["bun-types"],
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "bun-types"
+    ],
     "paths": {}
   },
   "include": [
@@ -12,7 +18,11 @@
     "server.config.ts",
     "schema.ts"
   ],
-  "exclude": ["node_modules", ".cache/**/*", "bakery/**/*"],
+  "exclude": [
+    "node_modules",
+    ".cache/**/*",
+    "bakery/**/*"
+  ],
   "files": [
     "../../packages/core/src/global.d.ts",
     "../../packages/core/src/shared.d.ts",

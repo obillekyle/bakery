@@ -16,7 +16,7 @@ try {
   )
 
   await initConfig()
-  // Before initImportMap() so plugin-contributed entries land in it; memoised,
+  // Before initImportMap() so plugin-contributed entries land in it; memoized,
   // so the later setupServer() call inside worker.ts does not repeat it.
   await setupPlugins()
   await initImportMap()

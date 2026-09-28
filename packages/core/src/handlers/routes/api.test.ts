@@ -50,7 +50,7 @@ describe('ApiHandler.executeModule', () => {
  * `null` out of `executeModule` had exactly one meaning, and `handle` answered
  * it with the wrong one.
  *
- * An import that *fails* — a syntax error, an unresolvable specifier — already
+ * An import that *fails* (a syntax error, an unresolvable specifier) already
  * throws from `$dynamic.ts` and becomes a 500. So the only way to reach `null`
  * is a module that loaded cleanly and exports no default: the file is on disk,
  * the router found it, and it was answered with a 404 that named nothing. The
@@ -58,7 +58,7 @@ describe('ApiHandler.executeModule', () => {
  */
 const API_ROOT = fs.resolve(process.cwd(), '.cache/__api-test__')
 
-describe('ApiHandler.handle — a module that resolves but yields nothing', () => {
+describe('ApiHandler.handle: a module that resolves but yields nothing', () => {
   beforeAll(async () => {
     await initConfig()
     await Bun.write(

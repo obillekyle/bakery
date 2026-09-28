@@ -3,7 +3,6 @@ export function renderTopPagesPanel() {
     <div id="panel-top-pages" class="panel">
       <div class="section-header">
         <h2>
-          <iconify-icon icon="lucide:file-text"></iconify-icon>
           <span>Top Visited Pages</span>
         </h2>
         <div class="timescale-selector">

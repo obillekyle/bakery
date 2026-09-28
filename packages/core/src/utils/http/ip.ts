@@ -15,7 +15,7 @@ const TRUSTED_HEADERS = [
 export function getClientIp(req: Request): string {
   // `Bakery.config`, not `getConfig()`: this runs inside the request's host
   // store, and the process config is the wrong answer under `hosts`. It was
-  // the only reader of the two that disagreed — `getHostname` and the
+  // the only reader of the two that disagreed: `getHostname` and the
   // session's `Secure` flag both read the host's `trustProxy`, so one host
   // could have its hostname and cookie resolved from its own config while
   // its client IP was resolved from the base one.

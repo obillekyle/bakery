@@ -41,6 +41,10 @@ class StringCache {
 
     if (flushIntervalMs !== undefined) {
       this.flushTimer = setInterval(() => this.flushToDisk(), flushIntervalMs)
+      // Unref'd for the reason `tiered.ts` gives: `Strings` is constructed at
+      // module scope, so importing `compiler/compiler.ts` pinned the event
+      // loop open for the life of the process.
+      this.flushTimer.unref?.()
     }
 
     registerCache(this)

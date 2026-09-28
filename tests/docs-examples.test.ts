@@ -6,7 +6,7 @@ import { rm } from 'node:fs/promises'
  *
  * This exists because of what happened to `.docs/`: 33 of its 34 files carried
  * definite factual errors, and *every* code block that imported anything was
- * broken. Not through carelessness — the packages were split, `@server/*` and
+ * broken. Not through carelessness: the packages were split, `@server/*` and
  * `@database/*` died, `foreign()` became an error, and nothing connected any
  * of that to the prose. The docs stayed coherent and confident and wrong,
  * which is worse than being obviously stale.
@@ -16,7 +16,7 @@ import { rm } from 'node:fs/promises'
  * filed against the commit that broke it, rather than against the person who
  * trusted it six months later.
  *
- * A block that is a deliberate fragment — a signature, a shape, a `…` — opts
+ * A block that is a deliberate fragment (a signature, a shape, a `…`) opts
  * out with `ts no-check`, and the checker requires a reason on the same line
  * so the escape hatch stays visible in review.
  */
@@ -48,7 +48,7 @@ const FENCE = /^```(\w+)([^\n]*)$/
  * `file` is assigned centrally, in `beforeAll`, and **must not** be assigned
  * here.
  *
- * It used to be, from a counter declared inside this function — so the counter
+ * It used to be, from a counter declared inside this function, so the counter
  * restarted at 0 for every document and each doc's `ex0.ts` overwrote the
  * previous one's. Only the last writer of each index survived to disk: 103
  * blocks across the tree produced **18** files, so 85 examples were never
@@ -56,8 +56,8 @@ const FENCE = /^```(\w+)([^\n]*)$/
  * whichever doc happened to own that index in `examples[]` rather than the doc
  * the code came from.
  *
- * That made this file's whole claim — "every example compiles, so a broken one
- * fails on the commit that breaks it" — about one-sixth true, and quietly.
+ * That made this file's whole claim ("every example compiles, so a broken one
+ * fails on the commit that breaks it") about one-sixth true, and quietly.
  */
 function extract(
   doc: string,
@@ -85,8 +85,14 @@ function extract(
 
     if (lang === 'ts' || lang === 'tsx') {
       if (/\bno-check\b/.test(meta)) {
-        // `ts no-check — why` keeps the opt-out honest.
-        if (!/no-check\s*[—-]\s*\S/.test(meta)) {
+        // `ts no-check: why` keeps the opt-out honest.
+        //
+        // One separator, not three. This accepted an em dash and a hyphen as
+        // well until 2026-09-20, and all 30 markers in the tree were written
+        // with the dash the comment above never mentioned. A lenient reader
+        // for a convention nobody can see is how the written form and the
+        // enforced form drift apart.
+        if (!/no-check\s*:\s*\S/.test(meta)) {
           skippedWithoutReason.push(`${doc}:${i + 1}  \`\`\`${lang} ${meta}`)
         }
       } else {
@@ -104,9 +110,9 @@ function extract(
 /**
  * `docs/` plus every published package README.
  *
- * The READMEs were the gap. They are the most public prose in the repo — a
+ * The READMEs were the gap. They are the most public prose in the repo: a
  * package README *is* its npm landing page, and for most readers it is the only
- * page they will ever see — and they were the one body of examples nothing
+ * page they will ever see, and they were the one body of examples nothing
  * compiled. Exactly the shape of the problem this file exists to prevent, with
  * a wider audience than `docs/`.
  */
@@ -131,7 +137,7 @@ const skippedWithoutReason: string[] = []
 
 /**
  * Spawning tsc costs several seconds, which overruns Bun's default 5s hook
- * timeout — so the compile lives in the test body, where a timeout can be
+ * timeout, so the compile lives in the test body, where a timeout can be
  * stated explicitly, and only the (fast) extraction happens in beforeAll.
  */
 function compileExamples(): string {
@@ -212,7 +218,7 @@ describe('docs examples compile against the real packages', () => {
       const example = examples[Number(match[1])]
       if (!example) continue
       failures.push(
-        `${example.doc}:${example.line} (block line ${match[2]}) — ${match[4]}`,
+        `${example.doc}:${example.line} (block line ${match[2]}), ${match[4]}`,
       )
     }
 

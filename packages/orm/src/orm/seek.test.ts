@@ -10,7 +10,7 @@ import { DB } from './query'
  * case where offset stops being reasonable. Two properties matter and both are
  * asserted against a real database rather than against emitted SQL: pages do
  * not overlap, and a row deleted mid-scan does not make a later page skip a
- * different row — which offset paging does by construction.
+ * different row, which offset paging does by construction.
  */
 describe('seek()', () => {
   let db: any
@@ -119,7 +119,7 @@ describe('seek()', () => {
   })
 
   test('offset paging skips a row in that same scenario', async () => {
-    // Not a test of seek — a test that the problem seek solves is real, so the
+    // Not a test of seek: a test that the problem seek solves is real, so the
     // one above is not asserting a difference that does not exist.
     const page1 = (await DB.from('items').paginate(1, 5).array()) as any[]
     expect(page1.map(r => r.id)).toEqual([1, 2, 3, 4, 5])

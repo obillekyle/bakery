@@ -7,7 +7,6 @@ export type AnalyticsSnapshot = {
   apiHits: number | null
   pageHits: number | null
   uniqueRequests: number | null
-  dbHits: number | null
   errorPageHits: number | null
   ping: number | null
 }

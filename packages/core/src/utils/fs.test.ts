@@ -11,9 +11,17 @@ import { fs } from './fs'
  *
  * Kept verbatim as an oracle rather than as a set of hand-written expectations:
  * the rewrite's whole claim is "same answer, fewer syscalls", and the way that
- * claim breaks is a path shape nobody thought to write a case for — a drive
+ * claim breaks is a path shape nobody thought to write a case for: a drive
  * root, a POSIX root, a directory whose name is a prefix of its sibling's.
  * Comparing against the original over a corpus tests the claim directly.
+ *
+ * **One deliberate divergence from the original, added with the containment
+ * clause.** The pre-rewrite version returned `false` for a path outside `root`,
+ * because the `while` below never ran: a guard failing open on the input it
+ * most needs to refuse. Mirroring the clause here keeps this an oracle for the
+ * *walk* (same answer, fewer syscalls, which is what it was written to prove)
+ * without also certifying the bug. Left un-mirrored it would do the opposite:
+ * fail on every out-of-root pair and pin the fail-open behavior as correct.
  */
 function referenceIsForbidden(pathToCheck: string, root: string): boolean {
   const safeResolve = (...paths: string[]) =>
@@ -21,6 +29,11 @@ function referenceIsForbidden(pathToCheck: string, root: string): boolean {
   if (!pathToCheck || !root) return false
   let curr = safeResolve(pathToCheck)
   const normalizedRoot = safeResolve(root)
+
+  const rootPrefix = normalizedRoot.endsWith('/')
+    ? normalizedRoot
+    : `${normalizedRoot}/`
+  if (curr !== normalizedRoot && !curr.startsWith(rootPrefix)) return true
 
   while (
     curr.startsWith(normalizedRoot) &&
@@ -95,6 +108,31 @@ describe('fs.isForbidden', () => {
     expect(fs.isForbidden(fs.resolve(base, 'abc'), base)).toBe(false)
   })
 
+  test('refuses a path outside the root, rather than allowing it', () => {
+    // The fail-closed clause, and the reason this guard is trusted for
+    // containment at all (`constants.ts` defers to it by name).
+    //
+    // The walk is bounded by `startsWith(root)`, so before the clause existed
+    // an out-of-root path skipped the loop entirely and returned `false` (    // "not forbidden"), which is a guard failing open on the one input it most
+    // needs to refuse. A Windows glob-escape in `$routing.ts` reached exactly
+    // this: a resolved file at `C:\` was asked about against a serve root six
+    // levels down and was told it was allowed.
+    const outside = fs.resolve(base, '../../elsewhere/secret.ts')
+    expect(outside.startsWith(`${base}/`)).toBe(false)
+    expect(fs.isForbidden(outside, base)).toBe(true)
+
+    // Traversal that resolves back inside is still judged on where it lands,
+    // not on how it was spelled: `safeResolve` collapses it first.
+    expect(fs.isForbidden(`${base}/pub/../pub/open/ok.html`, base)).toBe(false)
+
+    // A sibling whose name merely begins with the root's is outside it. This
+    // is why the clause tests for the separator rather than a bare prefix.
+    expect(fs.isForbidden(`${base}-sibling/file.ts`, base)).toBe(true)
+
+    // The root itself is inside the root.
+    expect(fs.isForbidden(base, base)).toBe(false)
+  })
+
   test('walks up only as far as the root it was given', () => {
     // `a/b` is forbidden, so a root *below* it must not see the marker above.
     expect(
@@ -148,7 +186,7 @@ describe('fs.isForbidden', () => {
   })
 
   test('a .forbidden created after a negative answer takes effect at once', async () => {
-    // This is the anti-memoisation guard. Negative results are deliberately
+    // This is the anti-memoization guard. Negative results are deliberately
     // not cached: production has no invalidator (the SIGHUP handler installed
     // in `core/init.ts` is a no-op), so a cached "not forbidden" would keep
     // serving a file an operator had just marked. If someone adds a cache
@@ -226,13 +264,13 @@ describe('fs.isForbidden', () => {
  * The per-request dedup: `isForbidden` runs 4-6x per request over overlapping
  * subtrees (router, getStatic, every level of getRoute, the dynamic-route
  * cache), and each `existsSync` miss costs ~50us on Bun/Windows. Raw probe
- * results are memoised on the current `hostStore` value — created per request
- * in worker.ts, dead when the request is — which is a different thing from the
+ * results are memoized on the current `hostStore` value: created per request
+ * in worker.ts, dead when the request is, which is a different thing from the
  * cross-request cache the regression test above ('a .forbidden created after a
  * negative answer takes effect at once') forbids. That test runs with no store
  * and must stay green untouched.
  */
-describe('fs.isForbidden — per-request probe dedup', () => {
+describe('fs.isForbidden: per-request probe dedup', () => {
   const base = fs.resolve(import.meta.dir, '__fixtures__', 'forbidden-dedup')
   const requestStore = (): HostContext => ({
     config: {} as any,
@@ -276,8 +314,8 @@ describe('fs.isForbidden — per-request probe dedup', () => {
       fs.__resetForbiddenProbe()
     }
 
-    // Five distinct levels between target and root — page.html, c, b, a and
-    // the root itself — and not one of them probed twice.
+    // Five distinct levels between target and root, page.html, c, b, a and
+    // the root itself, and not one of them probed twice.
     expect(counts.size).toBe(5)
     for (const [probe, count] of counts) {
       expect({ probe, count }).toEqual({ probe, count: 1 })
@@ -319,7 +357,7 @@ describe('fs.isForbidden — per-request probe dedup', () => {
     expect(counts.get(`${fs.resolve(base, 'm/sub')}/.forbidden`)).toBe(1)
   })
 
-  test('the memo holds probes, not verdicts — roots stay independent', async () => {
+  test('the memo holds probes, not verdicts: roots stay independent', async () => {
     const sub = fs.resolve(base, 'm/sub')
 
     // Warm the map with a walk that finds the marker above `m/sub`, then ask
@@ -348,7 +386,7 @@ describe('fs.isForbidden — per-request probe dedup', () => {
         expect(fs.isForbidden(lateDir, base)).toBe(false)
         await Bun.write(marker, '')
         // Same request: the negative probe is already recorded, and a marker
-        // dropped mid-request has no semantics to honour — the operator's
+        // dropped mid-request has no semantics to honor. The operator's
         // guarantee is "the next request sees it".
         expect(fs.isForbidden(lateDir, base)).toBe(false)
       })
@@ -454,7 +492,7 @@ describe('fs.getOrCreateCachedFile', () => {
   })
 
   test('different paths still build concurrently', async () => {
-    // Serialising every build behind one lock would fix the duplication and
+    // Serializing every build behind one lock would fix the duplication and
     // cost the parallelism; the key has to be per-path.
     let peak = 0
     let active = 0

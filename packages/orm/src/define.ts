@@ -8,15 +8,15 @@ import type {
  * Prototype: tables as values.
  *
  * Today a schema is one `constraints` object plus a hand-written `DBSchema`
- * type, and everything that references a table — indexes, foreign keys, query
- * columns — does so by string. Typos surface at sync time, or not at all.
+ * type, and everything that references a table (indexes, foreign keys, query
+ * columns) does so by string. Typos surface at sync time, or not at all.
  *
  * Here a table is a value carrying its own name and columns, so `indexes.ts`
  * and `foreign.ts` can import it, rename-symbol works across files, and an
  * identifier reaching SQL is one the framework constructed rather than one a
  * caller typed.
  *
- * The column descriptors are unchanged — the `Field` builders and the
+ * The column descriptors are unchanged: the `Field` builders and the
  * `ExtractTableTypes` mapping are reused as-is, so this is a restructuring of
  * how tables are *declared*, not of how their types are computed. That is what
  * keeps `DB.table('users')` autocompleting exactly as it does now: the derived
@@ -31,7 +31,7 @@ export type ColumnMap = Record<string, unknown>
  * from, and the columns themselves.
  *
  * **Was `TableDef`, and the rename is the point.** `schema-util.ts` exports a
- * `TableDef<T, N, O>` describing a *column* — and that is the one every
+ * `TableDef<T, N, O>` describing a *column*, and that is the one every
  * internal call site, every test and every schema file means. Both were public,
  * and the root barrel re-exported *this* one, so `import type { TableDef } from
  * '@bakery-framework/orm'` handed you a table where you asked for a column. Nothing
@@ -43,7 +43,7 @@ export interface TableRef<
   N extends string = string,
   C extends ColumnMap = ColumnMap,
 > {
-  /** The name columns qualify against — the alias, when aliased. */
+  /** The name columns qualify against: the alias, when aliased. */
   readonly __table: N
   /** The real table to read FROM. Differs from `__table` only for an alias. */
   readonly __source: string
@@ -52,7 +52,7 @@ export interface TableRef<
 
 /**
  * A reference to one column, carrying its table. This is the value that
- * replaces the `'users.id'` string — `qId` receives structured data rather
+ * replaces the `'users.id'` string: `qId` receives structured data rather
  * than text that has to be validated before it can be trusted.
  */
 export interface TableColumn<
@@ -84,7 +84,7 @@ export function table<N extends string, C extends ColumnMap>(
 }
 
 /**
- * Declare a view — a stored `SELECT` the database treats as a table.
+ * Declare a view: a stored `SELECT` the database treats as a table.
  *
  *     export const activeUsers = view(
  *       'active_users',
@@ -94,15 +94,15 @@ export function table<N extends string, C extends ColumnMap>(
  *
  * The columns are the shape the `SELECT` returns. They are declared rather than
  * inferred because nothing here parses SQL, and they are what gives the view a
- * row type — reading from it is typed exactly like reading a table.
+ * row type: reading from it is typed exactly like reading a table.
  *
  * **Writes are rejected at compile time.** `InferViews` collects these names and
  * `Mutation.Tables` excludes them, so `DB.Insert.into('active_users')` does not
  * typecheck. A view is a `SELECT`; the database would refuse the write anyway,
  * and refusing it earlier is strictly better.
  *
- * `db:sync` emits `CREATE VIEW`, diffs the body as normalised text, and drops
- * and recreates the view when it changes — views hold no data, so recreating is
+ * `db:sync` emits `CREATE VIEW`, diffs the body as normalized text, and drops
+ * and recreates the view when it changes: views hold no data, so recreating is
  * free and there is no migration to plan.
  *
  * Previously declarable only in the older `DBInfo` layout, or here by writing
@@ -122,7 +122,7 @@ export function view<N extends string, C extends ColumnMap>(
  *     export const activeUsers = view('active_users', users, 'SELECT * FROM users WHERE active = 1')
  *
  * The filtered-view case, which is the common one: the shape is the source
- * table's, so restating it is duplication that nothing checks — declare a
+ * table's, so restating it is duplication that nothing checks. Declare a
  * column the `SELECT` does not return and you find out at query time.
  *
  * The source is a **value**, not a type argument, and that is forced rather
@@ -130,7 +130,7 @@ export function view<N extends string, C extends ColumnMap>(
  * inferring the *remaining* type parameters as soon as one is supplied
  * explicitly, so `N` would fall back to `string` and the view's name would stop
  * being a literal. `__table` is what `InferConstraints` keys the schema map on,
- * so that name degrading takes `InferViews` with it — and since
+ * so that name degrading takes `InferViews` with it, and since
  * `Mutation.Tables` now excludes views, `Exclude<…, string>` is `never` and
  * *every* mutation stops compiling. Passing the table keeps both inferred.
  *
@@ -158,7 +158,7 @@ export function view<N extends string, C extends ColumnMap>(
  *
  * This is what `db:sync --choose=db` writes into `orm/views.ts`, and it is the
  * honest shape for a view: **a view has no column DDL.** `CREATE VIEW x AS
- * SELECT …` declares no types, and the sync engine only ever reads the body —
+ * SELECT …` declares no types, and the sync engine only ever reads the body.
  * `createView(name, sql)` takes nothing else, and the diff compares the two
  * bodies as text. So a view's columns exist purely to give it a row type, and
  * writing `Field.Varchar(64)` there would imply a width the database neither
@@ -166,12 +166,12 @@ export function view<N extends string, C extends ColumnMap>(
  *
  * **Both type arguments are given, and that is forced.** TypeScript stops
  * inferring the remaining type parameters as soon as one is supplied, so
- * `view<ActiveUsersView>(name, body)` would leave `N` as `string` — and `N` is
+ * `view<ActiveUsersView>(name, body)` would leave `N` as `string`, and `N` is
  * what `TablesOf` re-keys the schema map on, so the whole map collapses to an
  * index signature and every mutation stops compiling. Naming both keeps it a
  * literal. In generated code the repetition costs nothing.
  *
- * Column references still work — `activeUsers.id` — even though the keys are
+ * Column references still work: `activeUsers.id`: even though the keys are
  * known only to the type. See the implementation.
  */
 export function view<N extends string, T>(
@@ -203,8 +203,8 @@ export function view(
 /**
  * A row interface, as the descriptor map `ExtractTableTypes` reads.
  *
- * One `{ type: T[K] }` per property — which is all a descriptor needs now that
- * `type` carries the row type — plus the `_view` marker that makes
+ * One `{ type: T[K] }` per property (which is all a descriptor needs now that
+ * `type` carries the row type) plus the `_view` marker that makes
  * `ExtractViews` classify it as a view.
  */
 type ViewColumns<T> = { [K in keyof T]-?: { type: T[K] } } & { _view: string }
@@ -255,7 +255,7 @@ function viewImpl<N extends string, C extends ColumnMap>(
   // It has to be in `__columns`'s *declared type* too, not only at runtime:
   // `ExtractViews` is what `InferViews` reads and what `Mutation.Tables`
   // excludes, so erasing `_view` from the type left writes to a view
-  // compiling — the exact thing declaring one is supposed to prevent.
+  // compiling: the exact thing declaring one is supposed to prevent.
   // `ExtractTableTypes` filters the key out of the row type separately.
   return Object.assign(table(name, columns), {
     __columns: { _view: body, ...columns },
@@ -308,7 +308,7 @@ export type InferConstraints<M> = {
     : never
 }
 
-/** Row types — the derived replacement for a hand-written `DBSchema`. */
+/** Row types: the derived replacement for a hand-written `DBSchema`. */
 export type InferSchema<M> = {
   [N in keyof InferConstraints<M>]: ExtractTableTypes<InferConstraints<M>, N>
 }
@@ -332,7 +332,7 @@ export function collectConstraints(module: Record<string, unknown>) {
 
     // Skip aliases. An alias is a query-time view of an existing table, and
     // collecting one would tell the sync engine to CREATE a table named after
-    // it — so `alias(users, 'author')` would try to build an `author` table.
+    // it, so `alias(users, 'author')` would try to build an `author` table.
     if (def.__source !== def.__table) continue
 
     constraints[def.__table] = def.__columns
@@ -347,8 +347,8 @@ export function collectConstraints(module: Record<string, unknown>) {
  *     export type ActiveUsersView = RowOf<typeof activeUsers>
  *     //     ^ { id: number; name: string }
  *
- * TypeScript cannot mint a *named* interface from a value — a name has to be
- * written somewhere — so this is the one line that does it, and it stays
+ * TypeScript cannot mint a *named* interface from a value (a name has to be
+ * written somewhere), so this is the one line that does it, and it stays
  * correct when the declaration changes because it is derived rather than
  * copied. A hand-written `interface ActiveUsersView` would be a second source
  * of truth that nothing checks against the first.

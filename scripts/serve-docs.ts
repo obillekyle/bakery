@@ -1,7 +1,7 @@
 /**
  * Serve `docs/` as the published site does, for checking the page itself.
  *
- * The site is a single static HTML file with no build step — GitHub Pages hands
+ * The site is a single static HTML file with no build step: GitHub Pages hands
  * out `docs/index.html` and the markdown beside it verbatim. This is the same
  * arrangement over localhost, so what renders here is what renders there.
  *

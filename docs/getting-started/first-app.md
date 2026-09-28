@@ -3,7 +3,7 @@
 We will build a small notes app: one server-rendered page, one JSON endpoint,
 one table. There is no build step at any point.
 
-Start from the scaffolder rather than an empty directory — it writes the two
+Start from the scaffolder rather than an empty directory: it writes the two
 files that are easy to get wrong (`tsconfig.json` and `orm/index.ts`) and
 nothing else you would not have written yourself.
 
@@ -13,7 +13,7 @@ nothing else you would not have written yourself.
 bun create bakery notes
 ```
 
-Answer the prompts — or take the defaults with `--yes`, which is the ORM in and
+Answer the prompts, or take the defaults with `--yes`, which is the ORM in and
 no plugins. Then:
 
 ```bash
@@ -49,7 +49,7 @@ The generated file carries a `$comment` saying so. Keep them.
 **`orm/index.ts` is what makes the ORM typed.** It re-exports the tables and
 declares them into the framework's schema registry:
 
-```ts no-check — module augmentation plus a relative import of the reader's own tables.ts; neither resolves outside a real app
+```ts no-check: module augmentation plus a relative import of the reader's own tables.ts; neither resolves outside a real app
 import type { InferOptionals, InferSchema, InferViews } from '@bakery-framework/orm'
 import * as tables from './tables'
 import * as views from './views'
@@ -77,12 +77,12 @@ app-owned file
 ([packages/orm/src/schema-registry.ts](../../packages/orm/src/schema-registry.ts)).
 
 **Deleting it is legal.** Without a registration every table and column falls
-back to permissive `any`, and everything still runs and typechecks — the ORM is
+back to permissive `any`, and everything still runs and typechecks: the ORM is
 just untyped. The *runtime* never reads the registry; schema values are loaded by
 path.
 
 The split between `tables.ts` and `index.ts` exists because
-`db:sync --choose=db` regenerates the tables from the database — anything
+`db:sync --choose=db` regenerates the tables from the database: anything
 hand-written beside them would be collateral
 ([packages/orm/src/sync/load.ts](../../packages/orm/src/sync/load.ts)).
 
@@ -102,13 +102,13 @@ export const notes = table('notes', {
 ```
 
 Columns come from `Field`; typing `Field.` lists every kind. A `null` default
-makes the column nullable and therefore optional on insert — `Field.Varchar(255)`
+makes the column nullable and therefore optional on insert: `Field.Varchar(255)`
 without one is NOT NULL, so you must supply it. `Field.Varchar` rather than
 `Field.Text` wherever there is a default, because MySQL refuses a literal DEFAULT
 on a TEXT column.
 
 The generated `orm/views.ts` and `orm/indexes.ts` refer to the tables you just
-replaced, so empty them out too — a view or index over a table that no longer
+replaced, so empty them out too: a view or index over a table that no longer
 exists is a typecheck error, which is the schema registry doing its job.
 
 > `schema.ts` and `orm/schema.ts` are gitignored by the generated `.gitignore`
@@ -121,7 +121,7 @@ bun run db:sync
 ```
 
 This creates `bakery/server.db`, applies the schema, and prints what it did.
-Nothing is configured — SQLite at `bakery/server.db` is the default when no
+Nothing is configured: SQLite at `bakery/server.db` is the default when no
 `DB_URL` is set.
 
 You can preview instead of applying:
@@ -138,7 +138,7 @@ See [Schema sync](../orm/sync.md).
 
 ## 5. Rewrite the API route
 
-`src/api/notes.ts` — reachable at `/api/notes`, because the file is `notes.ts`
+`src/api/notes.ts`: reachable at `/api/notes`, because the file is `notes.ts`
 under `<root>/api`:
 
 ```ts
@@ -176,14 +176,14 @@ from the client, so the check above is not optional. To have the framework
 enforce it instead, pass a validator and the handler only runs on a body that
 satisfies it:
 
-```ts no-check — `mySchema` stands in for a Standard Schema the reader supplies
+```ts no-check: `mySchema` stands in for a Standard Schema the reader supplies
 export default defineRoute({ body: mySchema }, async (req, body) => {
   // `body` is the parsed value; a rejection answered 400 before you got here.
 })
 ```
 
-`body` takes any [Standard Schema](https://standardschema.dev) — zod, valibot,
-arktype — or a plain function returning the parsed value or throwing. Bakery
+`body` takes any [Standard Schema](https://standardschema.dev) (zod, valibot,
+arktype), or a plain function returning the parsed value or throwing. Bakery
 bundles none of them and depends on none of them. See
 [API routes](../guides/api-routes.md).
 
@@ -197,14 +197,14 @@ resolving the route: `GET`/`HEAD`/`OPTIONS` pass, anything else is rejected with
 403 if `Origin` disagrees with the request URL or `Sec-Fetch-Site` says
 cross-site
 ([packages/core/src/handlers/routes/api.ts](../../packages/core/src/handlers/routes/api.ts)).
-A request with *neither* header — curl, a server-to-server call — is allowed,
+A request with *neither* header (curl, a server-to-server call) is allowed,
 because browsers always send at least one. That is the intended trade-off, not an
 oversight; it means the guard protects browser users without breaking API
 clients.
 
 ## 6. Rewrite the page
 
-`src/index.tsx` — served at `/`, because `index` is the fallback route name:
+`src/index.tsx`: served at `/`, because `index` is the fallback route name:
 
 ```tsx
 import { HTMLBody } from '@bakery-framework/core'
@@ -226,8 +226,8 @@ export default HTMLBody(() => (
 ))
 ```
 
-Exporting the JSX directly — without `HTMLBody`, which is what the scaffolder
-generates — also works. `createElement` returns a `SafeHtml`, a `String`
+Exporting the JSX directly (without `HTMLBody`, which is what the scaffolder
+generates) also works. `createElement` returns a `SafeHtml`, a `String`
 *subclass* used so the renderer can tell already-escaped markup from user text
 ([packages/core/src/core/jsx.ts](../../packages/core/src/core/jsx.ts)), and this
 used to trip the handler's "is this an object?" JSON check
@@ -287,7 +287,7 @@ bun run dev
 ```
 
 Development mode checks the schema before every boot, so step 4 is really only
-needed the first time — but it only *runs* the full sync when the schema sources
+needed the first time, but it only *runs* the full sync when the schema sources
 changed since the last successful one (a content hash is recorded under
 `.cache/`), which keeps restarts fast. Pass `--sync` to force one; a failed sync
 never records the hash, so the next boot re-syncs.
@@ -302,7 +302,7 @@ curl -s http://localhost:3000/api/notes
 curl -s -X POST http://localhost:3000/api/notes -H 'Content-Type: application/json' -d '{"title":"first"}'
 ```
 
-Then `bun run typecheck` before you commit — it is `tsc --noEmit` against the
+Then `bun run typecheck` before you commit: it is `tsc --noEmit` against the
 config the scaffolder wrote, and it is the only gate that sees the schema
 registration doing its work.
 
@@ -320,28 +320,28 @@ The dev master supervises a worker process and decides per changed file
 
 **Adding a page costs a restart; editing one does not.** Bun caches the directory
 listing it resolved an import against, so a `.tsx` created after the worker
-booted cannot be imported at any specifier — the page 500s with
-`Cannot find module` — until the process restarts. The watcher spots it from the
+booted cannot be imported at any specifier (the page 500s with
+`Cannot find module`) until the process restarts. The watcher spots it from the
 `rename` event and restarts for you (~440 ms), which is why a brand-new page
 takes a beat longer to appear than an edit to an existing one (~15 ms).
 
 One thing to know about your editor: an in-place save keeps the fast path, but a
-writer that *replaces* the file — shell redirection (`> file`), or an editor that
-saves atomically by writing a temp file and renaming it over the original — looks
+writer that *replaces* the file (shell redirection (`> file`), or an editor that
+saves atomically by writing a temp file and renaming it over the original) looks
 identical to a creation and pays the restart on every save. If your dev loop
 restarts on saves you did not expect, that is why.
 
 API routes are also re-imported per request in dev with a cache-busting
 `?v=<mtime>`
 ([packages/core/src/handlers/routes/api.ts](../../packages/core/src/handlers/routes/api.ts)),
-and edits under the api directory restart the worker as well — which is what
+and edits under the api directory restart the worker as well, which is what
 picks up changes to a route's *imports*. `.tsx` pages take the cheap path
 instead: `TSXHandler` busts the module cache with the page file's mtime, so
-editing the page you are looking at shows up on the next browser reload — which
-the watcher triggers for you — without restarting the process.
+editing the page you are looking at shows up on the next browser reload (which
+the watcher triggers for you), without restarting the process.
 
 **But for pages, only the page file's mtime is checked.** A component or helper
-your `.tsx` page imports — a shared `Layout.tsx`, say — stays cached until a
+your `.tsx` page imports: a shared `Layout.tsx`, say: stays cached until a
 restart. That is the deliberate trade: editing the page itself, the
 overwhelmingly common loop, is instant; after editing a shared component, restart
 the dev server (Ctrl+C and rerun, or touch `server.config.ts`).
@@ -366,14 +366,14 @@ requested path, trying `error-<code>` then `error` at each level, so
 Custom HTML and TSX error pages are served with the real error status:
 `applyErrorStatus` in
 [packages/core/src/router.ts](../../packages/core/src/router.ts) stamps the
-error's code (400–599) onto the rendered response, so `GET /nope` on an app with
+error's code (400 to 599) onto the rendered response, so `GET /nope` on an app with
 `src/error-404.html` returns `404` with the custom page as its body. JSON errors
 under `/api/` carry their own status as before.
 
 ## Next
 
-- [Project structure](project-structure.md) — the full directory map.
-- [Routing](../guides/routing.md) — dynamic segments, priority, mounts.
-- [Queries](../orm/queries.md) — beyond `selectAll`.
-- [server.config.ts](../configuration/server-config.md) — the rest of the options.
+- [Project structure](project-structure.md): the full directory map.
+- [Routing](../guides/routing.md): dynamic segments, priority, mounts.
+- [Queries](../orm/queries.md), beyond `selectAll`.
+- [server.config.ts](../configuration/server-config.md): the rest of the options.
 </content>
