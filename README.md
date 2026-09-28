@@ -1,6 +1,6 @@
 <div align="center">
 
-<a href="https://bakery.okyle.dev"><img src="https://raw.githubusercontent.com/obillekyle/bakery/2.0.0-alpha/assets/logo.svg" alt="Bakery" title="Read the docs" width="88"></a>
+<a href="https://bakery.okyle.dev"><img src="https://raw.githubusercontent.com/obillekyle/bakery/main/assets/logo.svg" alt="Bakery" title="Read the docs" width="88"></a>
 
 # Bakery
 
@@ -10,22 +10,6 @@
   One line each. GitHub renders a single newline inside a centered block as a
   `<br>`, so a wrapped paragraph breaks mid-sentence and each badge on its own
   source line becomes its own row.
-
-  MERGE-DAY CHECKLIST. This comment is the durable copy: it is tracked, and it
-  sits next to the thing it describes. The same two items are in MONOREPO.md,
-  which is gitignored and therefore disappears on a branch switch, including
-  the branch switch this checklist exists for. Do not treat that copy as the
-  record.
-
-  1. The asset URLs below point at 2.0.0-alpha rather than main, because that
-     is the only branch the files are on: origin/main has no assets/ directory
-     at all, so a main URL today is four broken images, not a fix. Repoint them
-     when the branch merges: after that the branch ref is the broken one, and it
-     is on the project's front page.
-
-  2. Docs go live at bakery.okyle.dev only once this merges. The generated shell
-     is in the branch, not the deployed ref, so the site is stale until then
-     rather than broken. Nothing to do but know it.
 -->
 
 Filesystem routing, server-rendered JSX and a typed ORM for Bun, with no build step in development.
@@ -36,9 +20,9 @@ Filesystem routing, server-rendered JSX and a typed ORM for Bun, with no build s
 
 <div align="center">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/obillekyle/bakery/2.0.0-alpha/assets/terminal-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/obillekyle/bakery/2.0.0-alpha/assets/terminal-light.svg">
-  <img alt="bakery booting in development: the schema checked against the database, then the server listening on port 3000" src="https://raw.githubusercontent.com/obillekyle/bakery/2.0.0-alpha/assets/terminal-light.svg" width="820">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/obillekyle/bakery/main/assets/terminal-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/obillekyle/bakery/main/assets/terminal-light.svg">
+  <img alt="bakery booting in development: the schema checked against the database, then the server listening on port 3000" src="https://raw.githubusercontent.com/obillekyle/bakery/main/assets/terminal-light.svg" width="820">
 </picture>
 </div>
 
