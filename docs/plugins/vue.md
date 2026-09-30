@@ -358,6 +358,28 @@ not ambient globals, and they exist *only* inside a `<script server>` block,
 writing `req.headers` anywhere else is a `ReferenceError` at runtime. `body` is
 the parsed request body merged with the route params.
 
+Two consequences follow from that shape.
+
+**The names are taken.** A top-level `const req = getRequest()` redeclares a
+parameter, and the module does not compile. An editor does not flag it,
+because it reads the block as a module of its own. Bind the request under
+another name:
+
+```ts
+import { getRequest } from '@bakery-framework/core'
+
+const request = getRequest()
+export const viewer = request.session.get('userId')
+```
+
+A guarded block that fails to compile answers 500, the same as one that
+throws. An unguarded one renders the page with no data.
+
+**The top level runs once per call.** Every page render and every action call
+runs the whole block again with that call's request. A binding at the top
+level is therefore never shared between requests, and an exported function
+sees the request of the call that invoked it.
+
 Relative imports inside the block are rewritten to absolute paths, because the
 compiled module runs from the cache directory. That covers `import(...)` too,
 which is the usual way a server block reuses an API handler.

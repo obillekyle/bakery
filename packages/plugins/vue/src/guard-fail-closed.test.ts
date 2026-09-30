@@ -59,7 +59,48 @@ describe('a throwing server block that declares a guard', () => {
   })
 })
 
+describe('a guarded block that fails to load', () => {
+  // One step earlier than a throw: the module never loads, so there is no
+  // wrapper to run and no guard inside it. `getServerResponse` answered `{}`
+  // on that path while the rule above covered only a block that throws while
+  // running, so a guarded page that failed to load was served to anyone.
+
+  test('fails closed when the block redeclares `req`', async () => {
+    // The realistic cause. `req` is the compiled wrapper's own parameter, so
+    // a top-level `const req = getRequest()` does not compile, and it reads
+    // as correct in an editor, which sees the block as a module.
+    const res = await run(`
+      const req = 1
+      export async function middleware() {
+        return new Response(null, { status: 302 })
+      }
+    `)
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(500)
+  })
+
+  test('fails closed when an import does not resolve', async () => {
+    const res = await run(`
+      import { nothing } from './no-such-module-${process.pid}'
+      export async function middleware() {
+        return new Response(null, { status: 302 })
+      }
+      export const x = nothing
+    `)
+    expect(res).toBeInstanceOf(Response)
+    expect((res as Response).status).toBe(500)
+  })
+})
+
 describe('what deliberately did not change', () => {
+  test('a data-only block that fails to load still renders with no data', async () => {
+    // The same line as a data-only block that throws, below: nothing was
+    // protecting the route, and an empty page is a visible failure.
+    const res = await run(`const req = 1\nexport const rows = [1]`)
+    expect(res).not.toBeInstanceOf(Response)
+    expect(res).toEqual({})
+  })
+
   test('a data-only block that throws still renders the page with no data', async () => {
     // The documented behavior, and the right one: nothing was protecting this
     // route, and a page that renders empty is a visible failure rather than a

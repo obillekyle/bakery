@@ -512,6 +512,39 @@ function writeServerModule(
   return task
 }
 
+/**
+ * What a server block answers when it could not run: it failed to load, or
+ * it threw while running.
+ *
+ * **A block that declares a guard fails closed.** The generated wrapper runs
+ * the block's top-level statements and *then* calls `middleware`, so a throw
+ * anywhere above skips the guard completely, and a module that never loads
+ * has no wrapper to run at all. Returning `{}` then served the route: a
+ * `/admin/*` page answering 200 to an anonymous caller because a query threw.
+ * Not hypothetical, and not only the obvious causes: a database being down, a
+ * null deref, a typo, an import that does not resolve, or a top-level
+ * `const req` (the wrapper's own parameter) all reach it.
+ *
+ * Convention 2 names this shape exactly: a guard "returns the rejection, not
+ * `null`, on any indeterminate state". A guard that ceased to exist is the
+ * most indeterminate state there is.
+ *
+ * Only when a guard is declared. A data-only block renders the page with no
+ * data, which is the documented behavior and is a visible failure rather than
+ * a silent one: the page is obviously broken, and nothing was protecting it.
+ *
+ * The declaration is read from the source, not from the result, because there
+ * is no result: the module failed before its exports existed. That is the
+ * same static list `compileServerBlock` already builds to decide which
+ * exports are callable as actions.
+ */
+function failedBlockResponse(script: string): Response | Record<string, never> {
+  if (collectExportedFunctionNames(script).includes('middleware')) {
+    return new Response('Internal Server Error', { status: 500 })
+  }
+  return {}
+}
+
 export async function getServerResponse(options: ServerResponseOptions) {
   const { script, id, lastMod, req, body, filePath, actionName, actionArgs } =
     options
@@ -536,7 +569,9 @@ export async function getServerResponse(options: ServerResponseOptions) {
       }`,
       'error',
     )
-    return {}
+    // The load path answered `{}` on its own for as long as the throw path
+    // below failed closed, so a guarded block that failed to load was served.
+    return failedBlockResponse(script)
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -594,33 +629,7 @@ export async function getServerResponse(options: ServerResponseOptions) {
       'error',
     )
 
-    // **A block that declares a guard fails closed.**
-    //
-    // The generated wrapper runs the block's top-level statements and *then*
-    // calls `middleware`, so a throw anywhere above skips the guard
-    // completely. Returning `{}` here then served the route: a `/admin/*`
-    // page answering 200 to an anonymous caller because a query threw. Not
-    // hypothetical, and not only the obvious causes: the block only has to
-    // throw, so a database being down, a null deref or a typo all reach it.
-    //
-    // Convention 2 names this shape exactly: a guard "returns the rejection,
-    // not `null`, on any indeterminate state". A guard that ceased to exist
-    // is the most indeterminate state there is.
-    //
-    // Only when a guard is declared. A data-only block that throws still
-    // renders the page with no data, which is the documented behavior and is
-    // a visible failure rather than a silent one: the page is obviously
-    // broken, and nothing was protecting it.
-    //
-    // The declaration is read from the source, not from the result, because
-    // there is no result: the module threw before its exports existed. That
-    // is the same static list `compileServerBlock` already builds to decide
-    // which exports are callable as actions.
-    if (collectExportedFunctionNames(script).includes('middleware')) {
-      return new Response('Internal Server Error', { status: 500 })
-    }
-
-    return {}
+    return failedBlockResponse(script)
   } finally {
     clearTimeout(timer)
   }
