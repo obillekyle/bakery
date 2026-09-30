@@ -39,7 +39,7 @@
     },
     "packages/cli": {
       "name": "@bakery-framework/cli",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "bin": {
         "bakery": "./src/index.ts",
       },
@@ -55,32 +55,32 @@
     },
     "packages/core": {
       "name": "@bakery-framework/core",
-      "version": "2.0.2",
+      "version": "2.0.3",
     },
     "packages/create": {
       "name": "create-bakery",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "bin": {
         "create-bakery": "./src/index.ts",
       },
     },
     "packages/orm": {
       "name": "@bakery-framework/orm",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "dependencies": {
         "@bakery-framework/core": "workspace:^",
       },
     },
     "packages/plugins/analytics": {
       "name": "@bakery-framework/plugin-analytics",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "dependencies": {
         "@bakery-framework/core": "workspace:^",
       },
     },
     "packages/plugins/dashboard": {
       "name": "@bakery-framework/plugin-dashboard",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "dependencies": {
         "@bakery-framework/core": "workspace:^",
         "@bakery-framework/plugin-analytics": "workspace:^",
@@ -91,7 +91,7 @@
     },
     "packages/plugins/db-explorer": {
       "name": "@bakery-framework/plugin-db-explorer",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "dependencies": {
         "@bakery-framework/core": "workspace:^",
         "@bakery-framework/orm": "workspace:^",
@@ -99,7 +99,7 @@
     },
     "packages/plugins/vue": {
       "name": "@bakery-framework/plugin-vue",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "dependencies": {
         "@bakery-framework/core": "workspace:^",
       },
