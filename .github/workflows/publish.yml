@@ -250,3 +250,70 @@ jobs:
               echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Every tag gets a GitHub release page, summarized by the model named under
+  # `changelog.summarizer` in cutver.yml, with the key from this repository's
+  # secrets. Before this job nothing in CI wrote one: v1.0.0 to v2.0.0-alpha.10
+  # were written by `cutver changelog pages` run by hand, and the fourteen tags
+  # after them had no page at all until they were backfilled on 2026-09-30.
+  #
+  # A job of its own, so `publish` stays exactly what npm Trusted Publishing
+  # was configured against, and so this one can hold `contents: write` without
+  # the publish job holding it too.
+  release:
+    name: release page
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+
+    steps:
+      # Full history and every tag. `changelog.file` is false, so the notes are
+      # compiled from git, and the range between two tags has to be present.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # `--page` writes the page by cutver's page rules: made when the tag has
+      # none (marked prerelease from its version), filled when nobody wrote it,
+      # left alone when somebody did or when it is a draft. A page written by
+      # hand ahead of its tag, like the v2.0.0 draft, is never overwritten and
+      # never gets a duplicate beside it.
+      #
+      # It always exits 0, because the packages are on npm by the time it runs.
+      # A model that hangs is stopped by `timeout-minutes`, and the step after
+      # this one makes sure the tag still gets a page.
+      - name: Release notes
+        timeout-minutes: 15
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CUTVER_SUMMARIZE_KEY: ${{ secrets.CUTVER_SUMMARIZE_KEY }}
+        run: bunx cutver notes "$TAG" --page > notes.md
+
+      # Only when the step above could not make the page: it timed out, or
+      # GitHub refused it. A page that exists, published or a draft, is not
+      # touched here, and `gh release view` finds a draft by its tag too. The
+      # placeholder is one cutver counts as unwritten, so a later run fills it.
+      - name: Make sure the tag has a page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            case "$TAG" in
+              *-*) pre=--prerelease ;;
+              *)   pre= ;;
+            esac
+            [ -s notes.md ] || echo "_No release notes._" > notes.md
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes-file notes.md $pre
+          fi
