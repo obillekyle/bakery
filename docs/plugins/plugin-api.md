@@ -262,25 +262,35 @@ a high priority intercepts paths *before* the mount is consulted. Keep
 
 ## Contributing a tsconfig project
 
-On every dev boot the framework writes a TypeScript project per concern into
-`.cache/tsconfig/`
+On every dev boot, and on `bakery --types`, the framework writes a TypeScript
+project per scope into `.cache/tsconfig/` and lists each one in
+`tsconfig.bakery.json`, which the app's `tsconfig.json` references
 ([packages/core/src/compiler/tsconfig-sync.ts](../../packages/core/src/compiler/tsconfig-sync.ts)).
-Each project is standalone, made to be invoked directly against the one concern
-it covers: `vue-tsc -p .cache/tsconfig/vue.json` for SFCs,
-`tsc -p .cache/tsconfig/client.json` to hold browser code to browser rules.
-Nothing wires them into the app's own `tsconfig.json`: they used to be added
-as `references`, and because they are `noEmit` and never built, that made
-`tsc -p .` fail in any app that had booted once (TS6305 for every file both
-projects claim, TS6306/TS6310 for the reference shape itself). Core always
-writes two:
+An editor gives each file the project that claims it, and `tsc -b` checks every
+project at once. A plugin contributes a project and the framework does both
+steps, writing it and listing it; a plugin never writes `tsconfig.bakery.json`,
+and a project that fails to write is not listed.
+
+The middle file is what makes this legal. Referenced straight from the app's
+`tsconfig.json`, the generated projects made `tsc -p .` fail in any app that
+had booted once: they are `noEmit` and never built, so TS6306/TS6310 for the
+reference shape and TS6305 for every file both configs claimed. A `composite`
+file with `files: []` in between is a valid reference target, and the app's
+root claims no files of its own, which is what keeps TS6305 away. Core always
+writes three:
 
 | Project | Extends | Covers |
 | --- | --- | --- |
-| `server.json` | `core/tsconfig.server.json` | `<root>/**/api/**/*.ts`, `<root>/**/*.tsx`, `server.config.ts`, `orm/**` |
-| `client.json` | `core/tsconfig.app.json` | `<root>/**/*.ts` except the api directory |
+| `server.json` | `core/tsconfig.server.json` | everything outside `<root>` (`server.config.ts`, `orm/`, `scripts/`, `tests/`), and every `<root>/**/*.tsx` page |
+| `api.json` | `core/tsconfig.server.json` | `<root>/**/api/**/*.ts` |
+| `client.json` | `core/tsconfig.app.json` | `<root>/**/*.ts` except the api directories |
 
-The split is the point: only `server` carries `bun-types`, so `Bun.hash()` in a
-file bound for the browser is a **type error** rather than a runtime one.
+The split is the point: `server` and `api` carry `bun-types` and `client` does
+not, so `Bun.hash()` in a file bound for the browser is a **type error** rather
+than a runtime one. `api` is its own project only because a glob cannot say
+"`src/**` except `api/`". Each project can still be run on its own:
+`vue-tsc -p .cache/tsconfig/vue.json` for SFCs,
+`tsc -p .cache/tsconfig/client.json` for browser code.
 
 A plugin that brings its own file type or its own ambient globals needs a project
 to typecheck them under:
@@ -326,13 +336,15 @@ Four things are easy to get wrong here, and each was:
   a server file could import an alias only the browser can satisfy and typecheck
   clean doing it. Set it only if your project compiles browser code.
 - **A name collision is skipped, with a log.** A plugin cannot replace `server`,
-  `client`, or another plugin's project: silently winning would present as "my
-  types stopped working" three plugins later.
+  `api`, `client`, or another plugin's project: silently winning would present
+  as "my types stopped working" three plugins later.
 
 The app's root config is not the generator's to write: it is created only when
-missing (Bun's runtime reads the JSX options from it), and the one edit made to
-an existing one is removing the `references` a previous release wrote. Every
-key you wrote survives. That restraint is scar tissue twice over. See
+missing (Bun's runtime reads the JSX options from it). An existing one gets at
+most the one `references` entry for `tsconfig.bakery.json`, added as text so
+its comments survive and only when it claims no app files, and loses the direct
+references a previous release wrote. Every other key survives. That restraint
+is scar tissue twice over. See
 [Troubleshooting](../reference/troubleshooting.md#tsconfigjson-keeps-getting-rewritten)
 for both incidents.
 

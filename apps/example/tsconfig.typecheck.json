@@ -1,4 +1,16 @@
 {
-  "$comment": "The CLI gate. Inherits everything from tsconfig.json EXCEPT references: extends never carries those. That indirection existed because the dev boot used to write references to the generated .cache/tsconfig projects, and tsc -p then failed on them (TS6305 per overlapping file, TS6306/TS6310 for the unbuilt noEmit reference shape). The generator no longer produces that collision: it writes no references and strips ones it wrote before, so tsc -p apps/example is clean on its own. Kept as the gate's entry point anyway: it is immune by construction to references any stale boot leaves behind, which is exactly the class of failure it caught.",
-  "extends": "./tsconfig.json"
+  "$comment": "The CLI gate. tsconfig.json claims no app files (an editor reaches them through tsconfig.bakery.json), so this names them, and extends it for everything else: the compiler options and the ambient declarations in its files. extends never carries references, so this program does not follow the chain either, which keeps the gate a plain tsc -p over exactly these files.",
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "api/**/*.ts",
+    "server.config.ts",
+    "schema.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".cache/**/*",
+    "bakery/**/*"
+  ]
 }

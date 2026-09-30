@@ -153,12 +153,13 @@ export const __wipeCacheDir = wipe
 /**
  * The one thing in `.cache/` the wipe must not take.
  *
- * **The app's committed `tsconfig.json` *references* `.cache/tsconfig/*.json`,
- * so deleting them breaks the editor for the whole project**, not one setting,
- * everything. TypeScript reports `TS6053: File '…/server.json' not found` for
- * each reference, has no project left to put a file in, and falls back to an
- * inferred one with no ambients: `req.session`, `Bakery`, the JSX namespace and
- * the app's own schema types all stop resolving at once.
+ * **The app's `tsconfig.json` reaches `.cache/tsconfig/*.json` through
+ * `tsconfig.bakery.json`, so deleting them breaks the editor for the whole
+ * project**, not one setting, everything. TypeScript reports
+ * `TS6053: File '…/server.json' not found` for each reference, has no project
+ * left to put a file in, and falls back to an inferred one with no ambients:
+ * `Bun`, `req.session`, `Bakery`, the JSX namespace and the app's own schema
+ * types all stop resolving at once.
  *
  * That happens on every framework upgrade, because the version wipe is keyed on
  * the framework version among others. The developer sees their editor lose every

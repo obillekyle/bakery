@@ -54,19 +54,27 @@ function buildPaths(): MapOf<string[]> {
 const PROJECT_DIR = fs.resolve(APP_DIR, '.cache/tsconfig')
 
 /**
- * The two projects core always generates.
+ * The three projects core always generates.
  *
- * The split is the whole point: only `server` carries `bun-types`, so `Bun.*`
- * in a file bound for the browser is a type error rather than a runtime one.
- * Before this existed, one config covered everything and `Bun.hash()` in a
- * client file typechecked clean and failed in the browser.
+ * The split is the whole point: `server` and `api` carry `bun-types` and
+ * `client` does not, so `Bun.*` in a file bound for the browser is a type
+ * error rather than a runtime one. Before this existed, one config covered
+ * everything and `Bun.hash()` in a client file typechecked clean and failed
+ * in the browser.
  *
- * The includes overlap the app's own tsconfig, and that is fine *because
- * nothing references these projects*: each is a standalone projection of one
- * concern, pointed at directly (`tsc -p .cache/tsconfig/client.json`), and
- * subtracting the app's include would gut them into projects that check
- * nothing. What must never come back is the `references` wiring that composed
- * them with the app project. See {@link syncTSConfigProjects}.
+ * **Between them they claim every app file once**, because the app's root
+ * tsconfig claims none: it reaches these projects through
+ * `tsconfig.bakery.json` (see {@link syncTSConfigProjects}), and an editor
+ * gives a file to the first project that claims it. A file nobody claims
+ * falls into an inferred project with default options and no `bun-types`,
+ * which is how every `api/` file in a real app reported "Cannot find name
+ * 'Bun'". So `server` is defined by what it is not: everything outside the
+ * serve root (config, schema, `orm/`, `scripts/`, `tests/`, migrations) plus
+ * every `.tsx` page, which is server-rendered. `api` is its own project only
+ * because a glob cannot say "`src/**` except `api/`" in either direction.
+ *
+ * Naming an `exclude` drops TypeScript's default one, so `node_modules` and
+ * `.cache` (compiled server modules live there as `.ts`) are named again.
  *
  * Globs are app-relative here and rewritten to be relative to the generated
  * file, which sits two levels down.
@@ -86,13 +94,14 @@ export function coreProjects(): PluginTsProject[] {
         jsxFactory: 'createElement',
         jsxFragmentFactory: 'Fragment',
       },
-      include: [
-        `${root}/**/api/**/*.ts`,
-        `${root}/**/*.tsx`,
-        'server.config.ts',
-        'schema.ts',
-        'orm/**/*.ts',
-      ],
+      include: ['**/*.ts', '**/*.tsx'],
+      exclude: [`${root}/**/*.ts`, 'node_modules', '.cache'],
+    },
+    {
+      name: 'api',
+      server: true,
+      extends: '@bakery-framework/core/tsconfig.server.json',
+      include: [`${root}/**/api/**/*.ts`],
     },
     {
       name: 'client',
@@ -365,9 +374,15 @@ function isGeneratedReference(entry: unknown): boolean {
  * `allowImportingTsExtensions`, so they are unbuildable by design. Making them
  * `composite` instead would trade the errors above for a `tsc -b` build-order
  * requirement no consumer runs, and TS6305 would still fire for any root file
- * importing into one while unbuilt. The only reference shape `tsc -p`
- * tolerates from a root that has files of its own is no reference at all, so
- * the projects stand alone now and this strips what previous releases wrote.
+ * importing into one while unbuilt.
+ *
+ * **A root that has files of its own tolerates no reference into them,
+ * direct or chained.** Routed through a `composite`, `files: []` middle
+ * config, TS6306 and TS6310 go away and TS6305 does not: measured on a real
+ * app whose root claimed `src/**`, 57 of them. What works is the other
+ * direction, a root that claims nothing and reaches the projects through
+ * `tsconfig.bakery.json` (see {@link wireRoot}). This strips the direct
+ * entries previous releases wrote, which is still a repair worth making.
  *
  * Everything the developer owns is preserved: only entries into
  * `.cache/tsconfig/` are removed, a real project reference (say `../shared`)
@@ -394,6 +409,224 @@ export function stripGeneratedReferences(
   return repaired
 }
 
+/** The generated file the root config references, and how it is spelled there. */
+const CHAIN_FILE = 'tsconfig.bakery.json'
+const CHAIN_PATH = fs.resolve(APP_DIR, CHAIN_FILE)
+const CHAIN_REF = `./${CHAIN_FILE}`
+
+/**
+ * `tsconfig.bakery.json`: every generated project, listed for an editor.
+ *
+ * **The middle layer is what makes the chain legal.** The root references
+ * this file, and this file references `.cache/tsconfig/*`. A root referencing
+ * those projects directly gets TS6306 and TS6310 for pointing at
+ * non-composite, `noEmit` projects. A `composite` config with `files: []` in
+ * between is a valid target, and tsserver follows references through it.
+ * Measured on a real app with TypeScript 5.9.3: every `api/` file moved from
+ * an inferred project with no `bun-types` to the server-side project, and
+ * every other `.ts` file to `client`.
+ *
+ * The server owns this file. A plugin contributes a project through
+ * `tsconfig.project` and the generator lists it here, so a plugin never writes
+ * it, and a project that failed to write is not listed.
+ */
+export function chainConfig(names: string[]): Record<string, unknown> {
+  return {
+    $comment:
+      'GENERATED by Bakery on dev boot and by `bakery --types`. Edits are lost. tsconfig.json references this file, and it references each project in .cache/tsconfig/, which is how an editor gives a file its scope.',
+    compilerOptions: { composite: true },
+    files: [],
+    references: names.map(name => ({ path: `./.cache/tsconfig/${name}.json` })),
+  }
+}
+
+/**
+ * Write the chain file when its content changes, and say whether it did.
+ *
+ * A boot that rewrites an unchanged file dirties git every time and trains
+ * people to ignore the diff. The answer also decides when the advice for a
+ * root that claims files is worth giving (see {@link syncTSConfigProjects}).
+ */
+async function writeChain(names: string[]): Promise<boolean> {
+  const next = `${JSON.stringify(chainConfig(names), null, 2)}\n`
+  const current = fs.exists(CHAIN_PATH)
+    ? await Bun.file(CHAIN_PATH).text()
+    : null
+  if (current === next) return false
+  await Bun.write(CHAIN_PATH, next)
+  return true
+}
+
+/** Whether a root config already references the chain file, however spelled. */
+export function referencesChain(root: Record<string, unknown>): boolean {
+  const refs = root.references
+  if (!Array.isArray(refs)) return false
+  return refs.some(entry => {
+    const path = (entry as { path?: unknown } | null)?.path
+    return (
+      typeof path === 'string' &&
+      path.replace(/\\/g, '/').replace(RE_LEADING_SLASHES, '') === CHAIN_FILE
+    )
+  })
+}
+
+/**
+ * The config a root `extends`, read one level deep, or `null`.
+ *
+ * Only for {@link claimsAppFiles}: a root with no `files` or `include` of its
+ * own inherits the base's, and core's server config lists the three ambient
+ * declarations, which is what keeps such a root from claiming its whole
+ * directory.
+ */
+function baseConfigOf(
+  root: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (typeof root.extends !== 'string') return null
+  try {
+    const base = Bun.resolveSync(root.extends, APP_DIR)
+    return parseJSONC(readFileSync(base, 'utf8'))
+  } catch {
+    // Unreadable reads as "no base", which `claimsAppFiles` takes as
+    // TypeScript's default of claiming everything: the root is then left
+    // unwired, which is the direction that cannot break `tsc -p`.
+    return null
+  }
+}
+
+/**
+ * Whether a root config claims app files for itself.
+ *
+ * **A root that does cannot be wired to the chain.** Each file it shares with
+ * a generated project is redirected to that project's never-built output, and
+ * `tsc -p` fails with TS6305 once per file: 57 on the app this was measured
+ * on. Declaration files are not redirected, so a root claiming only ambient
+ * `.d.ts` files, which is what it inherits from core's server config, claims
+ * nothing that matters.
+ *
+ * TypeScript's rules, in order: the root's own `include` and `files` win over
+ * the base's; `files` without `include` claims only those files; and neither,
+ * anywhere, claims every file under the directory.
+ */
+export function claimsAppFiles(
+  root: Record<string, unknown>,
+  base: Record<string, unknown> | null,
+): boolean {
+  const pick = (key: 'include' | 'files') =>
+    key in root ? root[key] : base?.[key]
+  const include = pick('include')
+  const files = pick('files')
+
+  if (Array.isArray(include) && include.length > 0) return true
+  if (
+    Array.isArray(files) &&
+    files.some(f => typeof f === 'string' && !f.endsWith('.d.ts'))
+  ) {
+    return true
+  }
+  return include === undefined && files === undefined
+}
+
+/**
+ * Add the chain reference to a root with no `references` key, as text.
+ *
+ * **Textual, so the developer's comments survive.** `tsconfig.json` is JSONC
+ * and theirs, and a parse-and-stringify rewrite drops every comment in it.
+ * This finds the last member of the top-level object, skipping strings and
+ * comments, and adds one member after it, with a comma unless one is already
+ * there. `null` when the text has no top-level object to extend.
+ */
+export function insertChainReference(text: string): string | null {
+  const eol = text.includes('\r\n') ? '\r\n' : '\n'
+  let depth = 0
+  let inString = false
+  let escaped = false
+  let last = -1
+  let close = -1
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (c === '\\') escaped = true
+      else if (c === '"') inString = false
+      last = i
+      continue
+    }
+    if (c === '/' && text[i + 1] === '/') {
+      const end = text.indexOf('\n', i)
+      i = end === -1 ? text.length : end
+      continue
+    }
+    if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2)
+      i = end === -1 ? text.length : end + 1
+      continue
+    }
+    if (c === '"') {
+      inString = true
+      last = i
+      continue
+    }
+    if (c === ' ' || c === '\t' || c === '\n' || c === '\r') continue
+    if (c === '{' || c === '[') depth++
+    else if (c === '}' || c === ']') {
+      depth--
+      if (depth === 0 && c === '}') {
+        close = i
+        break
+      }
+    }
+    last = i
+  }
+
+  if (close === -1 || last === -1) return null
+
+  const comma = text[last] === '{' || text[last] === ',' ? '' : ','
+  const rest = text.slice(last + 1)
+  const gap = rest.startsWith('\n') || rest.startsWith('\r\n') ? '' : eol
+  return `${text.slice(0, last + 1)}${comma}${eol}  "references": [{ "path": "${CHAIN_REF}" }]${gap}${rest}`
+}
+
+/**
+ * What the root config should become, as text, or `null` for no write.
+ *
+ * Two repairs, in order. The direct references earlier releases wrote are
+ * stripped ({@link stripGeneratedReferences}). Then the chain reference is
+ * added, unless the root already has it or claims app files of its own, in
+ * which case adding it would break `tsc -p` ({@link claimsAppFiles}) and the
+ * caller says so instead.
+ *
+ * Pure, and the place the rule "a root never references `.cache/tsconfig/`"
+ * is held: the only entry it ever adds is the chain file.
+ */
+export function wireRoot(
+  text: string,
+  base: Record<string, unknown> | null,
+): { text: string | null; stripped: boolean; wired: boolean; claims: boolean } {
+  let root = parseJSONC(text) as Record<string, unknown>
+  let out: string | null = null
+
+  const repaired = stripGeneratedReferences(root)
+  if (repaired) {
+    root = repaired
+    out = `${JSON.stringify(repaired, null, 2)}\n`
+  }
+  const stripped = repaired !== null
+
+  if (referencesChain(root)) {
+    return { text: out, stripped, wired: false, claims: false }
+  }
+  if (claimsAppFiles(root, base)) {
+    return { text: out, stripped, wired: false, claims: true }
+  }
+
+  const refs = Array.isArray(root.references) ? root.references : null
+  const wired =
+    (refs ? null : insertChainReference(out ?? text)) ??
+    `${JSON.stringify({ ...root, references: [...(refs ?? []), { path: CHAIN_REF }] }, null, 2)}\n`
+  return { text: wired, stripped, wired: true, claims: false }
+}
+
 /**
  * The root config written when the app has none at all.
  *
@@ -402,6 +635,10 @@ export function stripGeneratedReferences(
  * only into a relative path, never a package specifier, so the file this
  * writes has to carry the JSX options itself, inline, exactly as the
  * scaffolder spells them.
+ *
+ * It claims no app files: it inherits only core's ambient declarations, and
+ * reaches everything else through the chain, which is the one shape the
+ * chain is legal in (see {@link claimsAppFiles}).
  */
 export function defaultRootConfig(): Record<string, unknown> {
   return {
@@ -411,50 +648,59 @@ export function defaultRootConfig(): Record<string, unknown> {
       jsxFactory: 'createElement',
       jsxFragmentFactory: 'Fragment',
     },
+    references: [{ path: CHAIN_REF }],
   }
 }
 
 /**
- * Generate the project configs, and keep the app's root tsconfig viable:
- * created with the runtime JSX options when the app has none, and stripped of
- * the `references` a previous release wrote into it.
+ * Generate the scope projects, list them in `tsconfig.bakery.json`, and wire
+ * the app's root tsconfig to that file.
  *
  * Separate from `syncTSConfigPaths` because an app can reasonably want one and
  * not the other: the paths sync has existed for a long time and rewrites a file
  * people keep in git, while this owns a directory nobody edits.
  *
- * **The generated projects are standalone on purpose; the root config does not
- * reference them.** They exist for direct invocation against the one concern
- * each covers: `vue-tsc -p .cache/tsconfig/vue.json` is the only way an SFC
- * typechecks at all, `tsc -p .cache/tsconfig/client.json` proves browser code
- * clean of `Bun.*`, and a plugin's project carries its own ambients the same
- * way. Their `include` deliberately overlaps the app's own project: they are
- * alternate projections of the same files, used *instead of* the root for
- * their slice, never composed with it. Wiring them in as `references` broke
- * `tsc -p <app>` for any consumer who had booted once (TS6305/6306/6310: the
- * measurements are on {@link stripGeneratedReferences}), and what the wiring
- * bought was less than it looked: tsserver routes a file to the project whose
- * `include` claims it, so for everything a scaffolded root claims, `src/**`,
- * `server.config.ts`, `orm/**`, the reference walk never ran anyway.
+ * **Who owns what.** `.cache/tsconfig/*.json` and `tsconfig.bakery.json` are
+ * generated, and edits to them are lost. `tsconfig.json` is the developer's:
+ * the only change made to it is the one `references` entry for the chain,
+ * inserted as text so its comments survive, plus the one-time strip of the
+ * direct references earlier releases wrote.
+ *
+ * **Why the chain.** An editor gives a file to the project that claims it.
+ * With the projects standing alone, nothing pointed an editor at them, so a
+ * root that claimed nothing left every app file in an inferred project, and
+ * `Bun` was unknown in every `api/` file. Through the chain each file gets its
+ * scope: `api/` and pages to server-side projects, other `.ts` to `client`, an
+ * SFC to plugin-vue's project. `tsc -b` checks all of them at once.
+ *
+ * **Only for a root that claims no app files.** One that does fails
+ * `tsc -p` with TS6305 once per shared file when chained, so it is left as it
+ * is, with a line saying how to move ({@link claimsAppFiles}). Said when the
+ * chain file changes rather than on every boot, since keeping the old shape
+ * can be deliberate.
+ *
+ * **A fresh clone has none of these files** until something generates them,
+ * and `tsc` then stops at TS6053 on the chain's references. `bakery --types`
+ * generates them without starting a server, so a clone, a CI job or a
+ * `typecheck` script can run it first. The cache wipe keeps
+ * `.cache/tsconfig/` for the same reason (`WIPE_KEEP` in `cache-version.ts`).
  *
  * Two earlier lessons still bind the root-config half. It used to be
  * *replaced* with a references-only stub, which silently broke every `.tsx`
  * page: Bun's runtime reads `compilerOptions.jsx*` from the root and does not
  * follow `references`, so pages transpiled against the automatic JSX runtime
  * and `GET /` answered 200 with a JSON-encoded React element tree. Hence
- * {@link defaultRootConfig} when no root exists, and surgical repair (never
+ * {@link defaultRootConfig} when no root exists, and surgical edits (never a
  * wholesale rewrite) when one does. And a boot that dirties git every time
- * trains people to ignore the diff, so an already-clean root is not rewritten.
+ * trains people to ignore the diff, so a root already in shape is not
+ * rewritten, and neither is an unchanged chain file.
  */
 export async function syncTSConfigProjects(): Promise<void> {
   try {
     const written = await writeProjects(buildPaths())
+    const chainChanged = await writeChain(written)
 
-    const current = fs.exists(APP_CONFIG_PATH)
-      ? parseJSONC(await Bun.file(APP_CONFIG_PATH).text())
-      : null
-
-    if (!current) {
+    if (!fs.exists(APP_CONFIG_PATH)) {
       await Bun.write(
         APP_CONFIG_PATH,
         `${JSON.stringify(defaultRootConfig(), null, 2)}\n`,
@@ -463,11 +709,13 @@ export async function syncTSConfigProjects(): Promise<void> {
       return
     }
 
-    const repaired = stripGeneratedReferences(current)
-    if (!repaired) return
+    const text = await Bun.file(APP_CONFIG_PATH).text()
+    const plan = wireRoot(text, baseConfigOf(parseJSONC(text)))
 
-    await Bun.write(APP_CONFIG_PATH, `${JSON.stringify(repaired, null, 2)}\n`)
-    serveLog.TSCONFIG_REFERENCES_REMOVED()
+    if (plan.text !== null) await Bun.write(APP_CONFIG_PATH, plan.text)
+    if (plan.stripped) serveLog.TSCONFIG_REFERENCES_REMOVED()
+    if (plan.wired) serveLog.TSCONFIG_CHAIN_WIRED()
+    if (plan.claims && chainChanged) serveLog.TSCONFIG_ROOT_CLAIMS_FILES()
   } catch (err: any) {
     serveLog.UNHANDLED_ERR({
       error: `TSConfig project sync error: ${errorMsg(err)}`,

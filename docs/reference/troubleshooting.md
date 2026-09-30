@@ -133,17 +133,20 @@ Two separate syncs touch it on every dev boot
   merged, so hand-written aliases there are removed; put them in a base config
   the app's `tsconfig.json` extends. `compilerOptions.baseUrl` is deleted
   unconditionally.
-- `syncTSConfigProjects` writes `.cache/tsconfig/{server,client,…}.json`. It
-  adds nothing to the root config; the one edit it can make is a repair: if an
-  earlier release wired the generated projects in as `references`, those
-  entries are removed (once, with a `Removed generated references` line).
-  References you wrote yourself, and every other key, are preserved.
+- `syncTSConfigProjects` writes `.cache/tsconfig/{server,api,client,…}.json`,
+  lists them in `tsconfig.bakery.json`, and makes at most two edits to the
+  root config. It adds `{ "path": "./tsconfig.bakery.json" }` to `references`
+  once, as text so comments survive, and only when the root claims no app
+  files. And if an earlier release wired the generated projects in directly as
+  `references`, those entries are removed (once, with a `Removed the direct
+  .cache/tsconfig/ entries` line). References written by hand, and every other
+  key, are preserved.
 
-The repair exists because those references broke `tsc -p .` in any app that had
-booted once: the generated projects are `noEmit` and never built, so
+The repair exists because direct references broke `tsc -p .` in any app that
+had booted once: the generated projects are `noEmit` and never built, so
 TypeScript reports TS6306/TS6310 for each referenced project and TS6305 for
-every file both projects claim. If your CI typecheck fails that way, boot the
-dev server once (or delete the `references` array) and it stays fixed.
+every file both projects claim. If a CI typecheck fails that way, boot the dev
+server once (or delete those `references` entries) and it stays fixed.
 
 An older sibling of that bug is worth recognizing by symptom: the sync used to
 replace the root with a references-only stub, which removed the `jsx`,
@@ -158,17 +161,36 @@ three and the page renders again.
 Comments and trailing commas are fine: the file is read with a JSONC parser.
 Failures are logged as `TSConfig sync error: …` and never abort the boot.
 
+### `Bun` is unknown in an `api/` file, or every file gets default types
+
+The editor has put the file in an *inferred* project: no config claimed it, so
+it gets TypeScript's defaults and no `bun-types`. `Cannot find name 'Bun'`
+(TS2867) in a route is the usual first sign, and `bun:test` not resolving in a
+test file is the same thing.
+
+Every app file is meant to be claimed by one generated project, reached from
+`tsconfig.json` through `tsconfig.bakery.json`. Two things break that:
+
+- **The generated files do not exist yet.** A fresh clone has no
+  `tsconfig.bakery.json` and no `.cache/tsconfig/`, and `tsc` reports TS6053
+  for the missing references. Run `bakery --types`, or boot the dev server
+  once.
+- **The root `tsconfig.json` claims app files itself**, with an `include`, or
+  with no `include` and no `files` at all, which TypeScript reads as every file
+  in the directory. The dev server then leaves it unwired and logs
+  `tsconfig.json claims app files` once. Remove the `include`, keep the
+  `references` entry, and typecheck with `tsc -b`: a root that claims files
+  and is chained fails `tsc -p` with TS6305 once per shared file.
+
 ### Checking browser code against browser rules
 
-The per-concern split lives in the generated projects, invoked directly:
-`.cache/tsconfig/server.json` carries `bun-types`; `client.json` does not, so
-`bunx tsc -p .cache/tsconfig/client.json` makes `Bun.hash()` in a file bound
-for the browser a type error rather than a runtime one. `importMap` aliases
-only reach `client.json`, because an import map is resolved *by the browser*:
-an alias that typechecked in server code would be an import the server cannot
-satisfy. The projects are standalone by design: your own `tsconfig.json` does
-not reference them, because a `references` entry to an unbuilt `noEmit`
-project is exactly what `tsc -p .` rejects (see the section above).
+The per-scope split lives in the generated projects. `.cache/tsconfig/server.json`
+and `api.json` carry `bun-types`; `client.json` does not, so `Bun.hash()` in a
+file bound for the browser is a type error rather than a runtime one, in the
+editor and under `tsc -b`. Each project can also be run on its own:
+`bunx tsc -p .cache/tsconfig/client.json`. `importMap` aliases only reach
+`client.json`, because an import map is resolved *by the browser*: an alias
+that typechecked in server code would be an import the server cannot satisfy.
 
 A plugin can contribute a project of its own; `@bakery-framework/plugin-vue` owns
 `.cache/tsconfig/vue.json`, which is what `vue-tsc` runs against. See

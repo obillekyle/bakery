@@ -123,7 +123,7 @@ bun run dev
 | --- | --- |
 | `bun run dev` | `bakery --dev` (watcher, live reload, schema check on boot |
 | `bun run start` | `bakery`) production mode, no watcher, no implicit sync |
-| `bun run typecheck` | `tsc --noEmit` |
+| `bun run typecheck` | `bakery --types && tsc -b` (writes the TypeScript projects, then checks each one) |
 | `bun run db:sync` | `bun run scripts/db-sync.ts` (with the ORM) |
 
 The port resolves `--port` → `PORT` in the environment → `port` in
@@ -154,9 +154,11 @@ Two directories appear next to the app, both gitignored:
   holding your data is the one a `rm -rf .*` cannot reach
   ([packages/core/src/core/bakery.ts](../../packages/core/src/core/bakery.ts)).
 - **`.cache/`**: compiled TypeScript, assembled HTML, bundled node modules,
-  fetched Google Fonts, generated tsconfig projects. Safe to delete at any time.
+  fetched Google Fonts, generated tsconfig projects. Safe to delete at any time,
+  though an editor loses its scope projects until the next dev boot or
+  `bakery --types` writes them again.
   Bakery clears it itself whenever the app version, the framework version or the
-  mode (dev/production) changes
+  mode (dev/production) changes, keeping the tsconfig projects
   ([packages/core/src/core/cache-version.ts](../../packages/core/src/core/cache-version.ts)).
 
 An app scaffolded without the ORM still gets a `bakery/` directory, because the
@@ -208,7 +210,7 @@ Then `tsconfig.json`:
     "jsxFactory": "createElement",
     "jsxFragmentFactory": "Fragment"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "orm/**/*.ts", "server.config.ts"]
+  "references": [{ "path": "./tsconfig.bakery.json" }]
 }
 ```
 
@@ -236,6 +238,20 @@ There are two sibling configs for code that is not server code:
 `tsconfig.app.json` for browser code, which deliberately has no `bun-types` and
 no JSX, and `tsconfig.vue.json` for `.vue` SFCs under `vue-tsc`.
 
+**It claims no files, and that is on purpose too.** The app is reached through
+`tsconfig.bakery.json`, which the dev server writes on every boot and
+`bakery --types` writes without one. It lists a generated project per scope
+under `.cache/tsconfig/`: `server` for everything outside `src/` and every
+`.tsx` page, `api` for `src/**/api/**`, `client` for the rest of `src/`, and
+one per plugin. An editor gives each file the project that claims it, so `Bun`
+resolves in a route and is an error in browser code, and `tsc -b` checks every
+project. An `include` here breaks that: `tsc -p` then fails with TS6305 once
+per file this config and a generated project both claim.
+
+A fresh clone has neither generated file, so run `bakery --types` before `tsc`,
+which is what the scaffolded `typecheck` script does (`bakery --types &&
+tsc -b`). Keep both out of git: `tsconfig.bakery.json` and `*.tsbuildinfo`.
+
 > **The dev server rewrites your `tsconfig.json`.** On every dev boot,
 > `syncTSConfigPaths()` replaces `compilerOptions.paths` wholesale with paths
 > derived from `importMap` in `server.config.ts`, deletes `baseUrl`, and
@@ -243,6 +259,10 @@ no JSX, and `tsconfig.vue.json` for `.vue` SFCs under `vue-tsc`.
 > ([packages/core/src/compiler/tsconfig-sync.ts](../../packages/core/src/compiler/tsconfig-sync.ts)).
 > It skips the write when the computed paths already match, which is why an app
 > with an empty `importMap` is left alone. Do not hand-maintain `paths` there.
+> Separately, `syncTSConfigProjects()` adds the `tsconfig.bakery.json` entry to
+> `references` once, as text so comments survive, and only when the file
+> claims no app files. One that does is left as it is, with a line in the log
+> saying how to move.
 
 ## Working on Bakery itself
 

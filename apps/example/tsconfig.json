@@ -1,4 +1,5 @@
 {
+  "$comment": "The editor's entry point, and it claims no app files: it reaches them through tsconfig.bakery.json, which the dev server generates, so each file lands in its scope project under .cache/tsconfig/. Claiming them here as well would fail tsc -p with TS6305 once per shared file. The CLI gate is tsconfig.typecheck.json, which names the files itself.",
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": [
@@ -11,23 +12,12 @@
     ],
     "paths": {}
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "api/**/*.ts",
-    "server.config.ts",
-    "schema.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    ".cache/**/*",
-    "bakery/**/*"
-  ],
   "files": [
     "../../packages/core/src/global.d.ts",
     "../../packages/core/src/shared.d.ts",
     "../../packages/core/src/types.d.ts",
     "../../packages/core/src/client/globals.d.ts",
     "../../packages/orm/src/globals.d.ts"
-  ]
+  ],
+  "references": [{ "path": "./tsconfig.bakery.json" }]
 }

@@ -302,9 +302,9 @@ curl -s http://localhost:3000/api/notes
 curl -s -X POST http://localhost:3000/api/notes -H 'Content-Type: application/json' -d '{"title":"first"}'
 ```
 
-Then `bun run typecheck` before you commit: it is `tsc --noEmit` against the
-config the scaffolder wrote, and it is the only gate that sees the schema
-registration doing its work.
+Then `bun run typecheck` before committing: it writes the TypeScript projects
+(`bakery --types`) and builds each one (`tsc -b`), and it is the only gate that
+sees the schema registration doing its work.
 
 ## What reloading does and does not do
 

@@ -7,13 +7,19 @@ import {
 } from '../core/config'
 import { fs } from '../utils/fs'
 import {
+  chainConfig,
+  claimsAppFiles,
   coreProjects,
   defaultRootConfig,
   fromProjectDir,
+  insertChainReference,
+  referencesChain,
   stripGeneratedReferences,
   syncTSConfigPaths,
+  wireRoot,
   writeProjects,
 } from './tsconfig-sync'
+import { parseJSONC } from '../utils/jsonc'
 
 beforeEach(async () => {
   clearHostConfigCache()
@@ -119,6 +125,7 @@ describe('importMap paths are scoped to the client project', () => {
     // Not `toBe(false)`: absent is the default, and asserting the default is
     // literally `false` would fail for the right reason on a plugin project.
     expect(byName.get('server')?.importMapPaths).toBeFalsy()
+    expect(byName.get('api')?.importMapPaths).toBeFalsy()
   })
 
   test('the generator gates on the flag rather than writing paths always', async () => {
@@ -132,8 +139,10 @@ describe('importMap paths are scoped to the client project', () => {
 })
 
 /**
- * The root tsconfig gains no `references`, and loses the ones a previous
- * release wrote.
+ * The root tsconfig gains no direct reference into `.cache/tsconfig/`, and
+ * loses the ones a previous release wrote. (It gains exactly one reference,
+ * to `tsconfig.bakery.json`, and only when it claims no files: see
+ * `wireRoot` below.)
  *
  * The generator used to add `references` pointing at the generated projects,
  * and that broke `tsc -p <app>` for every consumer who had booted once.
@@ -147,9 +156,9 @@ describe('importMap paths are scoped to the client project', () => {
  *   root file the referenced project also claims: `src/**`,
  *   `server.config.ts`, every `.tsx` page.
  *
- * So no include shape fixes it and no reference shape survives `tsc -p`; the
- * fix is that the generator writes no references at all and strips the ones
- * earlier releases left in tracked tsconfigs.
+ * So no include shape fixes a direct reference. The generator strips the ones
+ * earlier releases left in tracked tsconfigs, and reaches the projects
+ * through a composite middle file instead, from a root that claims nothing.
  */
 describe('stripGeneratedReferences', () => {
   const OURS = [
@@ -219,56 +228,265 @@ describe('stripGeneratedReferences', () => {
   })
 })
 
+/** What core's `tsconfig.server.json` gives a root that extends it. */
+const CORE_SERVER_BASE = {
+  files: ['./src/global.d.ts', './src/shared.d.ts', './src/types.d.ts'],
+}
+
 /**
  * An app with no root config still gets one that works at runtime: Bun reads
  * `compilerOptions.jsx*` from the root `tsconfig.json` and does not follow
  * `extends` into a package specifier, so the file must carry the options
- * inline. What it must NOT carry any more is `references`.
+ * inline. It reaches the app through the chain, and claims no files itself.
  */
 describe('defaultRootConfig', () => {
-  test('carries the runtime JSX options and no references', () => {
+  test('carries the runtime JSX options, references the chain, claims nothing', () => {
     const config = defaultRootConfig() as any
     expect(config.compilerOptions.jsx).toBe('react')
     expect(config.compilerOptions.jsxFactory).toBe('createElement')
     expect(config.compilerOptions.jsxFragmentFactory).toBe('Fragment')
-    expect('references' in config).toBe(false)
+    expect(config.references).toEqual([{ path: './tsconfig.bakery.json' }])
+    expect(claimsAppFiles(config, CORE_SERVER_BASE)).toBe(false)
   })
 })
 
 /**
- * The generator writes no `references`: asserted on the source the way the
- * `importMapPaths` gate is, because every pure-function test above would still
- * pass if `syncTSConfigProjects` grew the old wiring back.
+ * `tsconfig.bakery.json`: the middle layer. `composite` with `files: []` is
+ * what makes it a legal reference target for a root, where the `noEmit`
+ * projects it lists are not (TS6306, TS6310).
  */
-describe('the generator never wires the projects into the root config', () => {
-  test('the reference-building line stays gone, the repair stays called', async () => {
-    const source = await Bun.file(
-      fs.resolve(import.meta.dir, 'tsconfig-sync.ts'),
-    ).text()
-    // The exact construction the old generator used.
-    expect(source).not.toContain('path: `./.cache/tsconfig/')
-    expect(source).toContain('stripGeneratedReferences(current)')
+describe('chainConfig', () => {
+  test('lists every project it is given, and nothing of its own', () => {
+    const chain = chainConfig(['server', 'api', 'client', 'vue']) as any
+    expect(chain.compilerOptions).toEqual({ composite: true })
+    expect(chain.files).toEqual([])
+    expect(chain.references).toEqual([
+      { path: './.cache/tsconfig/server.json' },
+      { path: './.cache/tsconfig/api.json' },
+      { path: './.cache/tsconfig/client.json' },
+      { path: './.cache/tsconfig/vue.json' },
+    ])
   })
 })
 
 /**
- * The shipped apps carry the repaired shape. This is the assertion that bites
- * at the artifact level: it fails against any tree where a boot re-added the
- * references, which is exactly the file a consumer's `tsc -p .` reads, and
- * how `bunx tsc -p apps/example` came to fail with ten TS6305s plus a
- * TS6306/TS6310 pair per referenced project.
+ * The rule that decides whether a root can be chained, measured on a real
+ * app: a root claiming `src/**` failed `tsc -p` with 57 TS6305s once chained,
+ * and one inheriting only the ambient `.d.ts` files passed.
  */
-describe('shipped app tsconfigs reference no generated projects', () => {
+describe('claimsAppFiles', () => {
+  test('an own include claims, an empty one does not', () => {
+    expect(claimsAppFiles({ include: ['src/**/*.ts'] }, CORE_SERVER_BASE)).toBe(true)
+    expect(claimsAppFiles({ include: [] }, CORE_SERVER_BASE)).toBe(false)
+  })
+
+  test('files claim only when they are more than declarations', () => {
+    expect(claimsAppFiles({ files: ['./env.d.ts'] }, null)).toBe(false)
+    expect(claimsAppFiles({ files: ['./src/index.ts'] }, null)).toBe(true)
+    expect(claimsAppFiles({ files: [] }, null)).toBe(false)
+  })
+
+  test("inheriting core's ambients claims nothing, which is ecr's root", () => {
+    expect(claimsAppFiles({ extends: 'x', compilerOptions: {} }, CORE_SERVER_BASE)).toBe(false)
+  })
+
+  test("neither set anywhere is TypeScript's default: every file", () => {
+    expect(claimsAppFiles({ compilerOptions: {} }, null)).toBe(true)
+    expect(claimsAppFiles({ compilerOptions: {} }, {})).toBe(true)
+  })
+
+  test("each key inherits on its own, and the root's own key wins over the base's", () => {
+    // The root's `include` replaces the base's, even when empty.
+    expect(claimsAppFiles({ include: [] }, { include: ['src/**'] })).toBe(false)
+    // The root's `files` replaces the base's.
+    expect(claimsAppFiles({ files: ['./a.d.ts'] }, { files: ['./src/x.ts'] })).toBe(false)
+    // A key the root does not set comes from the base.
+    expect(claimsAppFiles({}, { include: ['src/**'] })).toBe(true)
+    // Which means setting `files` does not stop the base's `include` applying.
+    expect(claimsAppFiles({ files: ['./a.d.ts'] }, { include: ['src/**'] })).toBe(true)
+  })
+})
+
+/**
+ * The one edit made to a developer's `tsconfig.json`, done as text so that a
+ * JSONC file keeps its comments. Each case parses afterwards, with the chain
+ * reference present and every original member intact.
+ */
+describe('insertChainReference', () => {
+  const cases: Record<string, string> = {
+    'a plain object': '{\n  "extends": "x",\n  "compilerOptions": { "jsx": "react" }\n}\n',
+    'a trailing comma': '{\n  "extends": "x",\n  "compilerOptions": { "jsx": "react" },\n}\n',
+    'a comment after the last member': '{\n  "extends": "x" // mine\n}\n',
+    'a comment holding a brace': '{\n  // a } in a comment\n  "extends": "x"\n}\n',
+    'a string holding a brace': '{\n  "$comment": "a } in a string",\n  "extends": "x"\n}\n',
+    'an empty object': '{}\n',
+    'CRLF line endings': '{\r\n  "extends": "x"\r\n}\r\n',
+  }
+
+  for (const [label, text] of Object.entries(cases)) {
+    test(label, () => {
+      const out = insertChainReference(text)
+      expect(out).not.toBeNull()
+      const parsed = parseJSONC(out as string)
+      const before = parseJSONC(text)
+      expect(parsed.references).toEqual([{ path: './tsconfig.bakery.json' }])
+      for (const [key, value] of Object.entries(before)) {
+        expect(parsed[key]).toEqual(value)
+      }
+    })
+  }
+
+  test('comments survive, which a parse-and-stringify rewrite would drop', () => {
+    const out = insertChainReference('{\n  // keep me\n  "extends": "x"\n}\n')
+    expect(out).toContain('// keep me')
+  })
+
+  test('CRLF stays CRLF', () => {
+    const out = insertChainReference('{\r\n  "extends": "x"\r\n}\r\n') as string
+    expect(out.replace(/\r\n/g, '')).not.toContain('\n')
+  })
+
+  test('no top-level object, no insertion', () => {
+    expect(insertChainReference('[]')).toBeNull()
+    expect(insertChainReference('')).toBeNull()
+  })
+})
+
+/**
+ * What a boot does to the developer's root, end to end but without the disk.
+ * The property that matters is negative: nothing into `.cache/tsconfig/` is
+ * ever added, and a root that claims files is left alone.
+ */
+describe('wireRoot', () => {
+  const RUNTIME = '"compilerOptions": { "jsx": "react", "jsxFactory": "createElement" }'
+
+  test('a root claiming nothing gets the chain reference, and nothing else', () => {
+    const plan = wireRoot(`{\n  "extends": "x",\n  ${RUNTIME}\n}\n`, CORE_SERVER_BASE)
+    expect(plan.wired).toBe(true)
+    const root = parseJSONC(plan.text as string)
+    expect(root.references).toEqual([{ path: './tsconfig.bakery.json' }])
+    expect(root.compilerOptions.jsxFactory).toBe('createElement')
+    expect(plan.text).not.toContain('.cache/tsconfig')
+  })
+
+  test('a root that already has it is not rewritten', () => {
+    const text = `{\n  "extends": "x",\n  "references": [{ "path": "./tsconfig.bakery.json" }]\n}\n`
+    const plan = wireRoot(text, CORE_SERVER_BASE)
+    expect(plan).toEqual({ text: null, stripped: false, wired: false, claims: false })
+    expect(referencesChain(parseJSONC(text))).toBe(true)
+  })
+
+  test('a root claiming files is left unwired, and says so', () => {
+    const text = `{\n  "extends": "x",\n  "include": ["src/**/*.ts"]\n}\n`
+    expect(wireRoot(text, CORE_SERVER_BASE)).toEqual({
+      text: null,
+      stripped: false,
+      wired: false,
+      claims: true,
+    })
+  })
+
+  test('old direct references are stripped, then the chain is added', () => {
+    const text = `{\n  "extends": "x",\n  "references": [{ "path": "./.cache/tsconfig/server.json" }, { "path": "../shared" }]\n}\n`
+    const plan = wireRoot(text, CORE_SERVER_BASE)
+    expect(plan.stripped).toBe(true)
+    expect(plan.wired).toBe(true)
+    const root = parseJSONC(plan.text as string)
+    // The developer's own reference survives; ours is replaced by the chain.
+    expect(root.references).toEqual([
+      { path: '../shared' },
+      { path: './tsconfig.bakery.json' },
+    ])
+  })
+
+  test('a claiming root still loses the old direct references', () => {
+    const text = `{\n  "include": ["src/**/*.ts"],\n  "references": [{ "path": ".cache/tsconfig/client.json" }]\n}\n`
+    const plan = wireRoot(text, CORE_SERVER_BASE)
+    expect(plan).toMatchObject({ stripped: true, wired: false, claims: true })
+    expect(parseJSONC(plan.text as string).references).toBeUndefined()
+  })
+})
+
+/**
+ * Between them, core's projects claim each app file exactly once. A file
+ * nobody claims falls into an inferred project with no `bun-types`, which is
+ * the bug this layout exists to end, and a file claimed twice goes to
+ * whichever project an editor happens to load first.
+ *
+ * Matched with TypeScript's semantics for the two things `Bun.Glob` does not
+ * share: a pattern with no wildcard names a directory and everything under
+ * it, and `**` also matches no directory at all.
+ */
+describe('the core projects claim every app file once', () => {
+  function claims(pattern: string, path: string): boolean {
+    if (!/[*?]/.test(pattern)) {
+      return path === pattern || path.startsWith(`${pattern}/`)
+    }
+    return (
+      new Bun.Glob(pattern).match(path) ||
+      new Bun.Glob(pattern.replace(/\*\*\//g, '')).match(path)
+    )
+  }
+
+  function owners(path: string): string[] {
+    __setTestConfig({ root: 'src' } as any)
+    try {
+      return coreProjects()
+        .filter(
+          p =>
+            (p.include ?? []).some(g => claims(g, path)) &&
+            !(p.exclude ?? []).some(g => claims(g, path)),
+        )
+        .map(p => p.name)
+    } finally {
+      __resetTestConfig()
+    }
+  }
+
+  const expected: Record<string, string[]> = {
+    'src/api/auth/login.ts': ['api'],
+    'src/admin/api/students.ts': ['api'],
+    'src/composables/useData.ts': ['client'],
+    'src/index.tsx': ['server'],
+    'src/api/page.tsx': ['server'],
+    'server.config.ts': ['server'],
+    'schema.ts': ['server'],
+    'orm/tables.ts': ['server'],
+    'scripts/db-sync.ts': ['server'],
+    'tests/auth.test.ts': ['server'],
+    'migrations/001-accounts.ts': ['server'],
+    'node_modules/pkg/index.ts': [],
+    '.cache/vue/server/page.ts': [],
+  }
+
+  for (const [path, want] of Object.entries(expected)) {
+    test(path, () => {
+      expect(owners(path)).toEqual(want)
+    })
+  }
+})
+
+/**
+ * The shipped apps carry the shape the generator maintains: no direct
+ * reference into `.cache/tsconfig/`, the chain reference, and no app files of
+ * their own. The first half is the assertion that bit at the artifact level:
+ * `bunx tsc -p apps/example` once failed with ten TS6305s plus a TS6306/TS6310
+ * pair per referenced project.
+ */
+describe('shipped app tsconfigs are wired to the chain', () => {
   for (const rel of [
     'apps/example/tsconfig.json',
     'apps/starter/tsconfig.json',
   ]) {
     test(rel, async () => {
       const abs = fs.resolve(import.meta.dir, '../../../..', rel)
-      const config = (await Bun.file(abs).json()) as Record<string, unknown>
-      // null means "nothing to repair": the committed file is already the
-      // shape the generator now maintains.
+      const config = parseJSONC(await Bun.file(abs).text()) as Record<
+        string,
+        unknown
+      >
       expect(stripGeneratedReferences(config)).toBeNull()
+      expect(referencesChain(config)).toBe(true)
+      expect(claimsAppFiles(config, CORE_SERVER_BASE)).toBe(false)
     })
   }
 })
@@ -332,6 +550,7 @@ describe('writeProjects', () => {
     const projects = await generated()
 
     expect(Object.keys(projects).sort()).toEqual([
+      'api',
       'client',
       'jobs',
       'server',
@@ -342,9 +561,10 @@ describe('writeProjects', () => {
     expect(projects.client.compilerOptions.paths).toBeDefined()
     expect(projects.sfc.compilerOptions.paths).toBeDefined()
 
-    // The two that do not. An `importMap` alias here would typecheck an import
-    // the server cannot resolve: the bug this gate closes.
+    // The three that do not. An `importMap` alias here would typecheck an
+    // import the server cannot resolve: the bug this gate closes.
     expect(projects.server.compilerOptions.paths).toBeUndefined()
+    expect(projects.api.compilerOptions.paths).toBeUndefined()
     expect(projects.jobs.compilerOptions.paths).toBeUndefined()
   })
 

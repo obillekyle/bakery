@@ -512,7 +512,27 @@ describe('templateFiles with choices', () => {
       const pkg = pkgOf(templateFiles('app', range, options))
       expect(pkg.devDependencies['bun-types']).toBeDefined()
       expect(pkg.devDependencies.typescript).toBeDefined()
-      expect(pkg.scripts.typecheck).toBe('tsc --noEmit')
+      // Generate, then build: the root claims no files, so `tsc -p` on it
+      // would check nothing and report success, and a fresh clone has no
+      // tsconfig.bakery.json for `tsc -b` to follow until `--types` writes it.
+      expect(pkg.scripts.typecheck).toBe('bakery --types && tsc -b')
+    }
+  })
+
+  test('the tsconfig reaches the app through tsconfig.bakery.json and claims no files', () => {
+    for (const orm of [true, false]) {
+      const files = templateFiles('app', range, { orm, plugins: [] })
+      const tsconfig = JSON.parse(fileOf(files, 'tsconfig.json'))
+      expect(tsconfig.references).toEqual([{ path: './tsconfig.bakery.json' }])
+      // A root claiming app files as well fails `tsc -p` with TS6305 once per
+      // file it shares with a generated project.
+      expect(tsconfig.include).toBeUndefined()
+      expect(tsconfig.files).toBeUndefined()
+
+      // Both are generated, and neither belongs in a commit.
+      const ignore = fileOf(files, '.gitignore')
+      expect(ignore).toContain('\ntsconfig.bakery.json\n')
+      expect(ignore).toContain('\n*.tsbuildinfo\n')
     }
   })
 
@@ -532,8 +552,9 @@ describe('templateFiles with choices', () => {
     expect(paths(files)).not.toContain('scripts/db-sync.ts')
     expect(pkgOf(files).dependencies['@bakery-framework/orm']).toBeUndefined()
     expect(pkgOf(files).scripts['db:sync']).toBeUndefined()
-    // …and the tsconfig stops including directories that no longer exist.
-    expect(fileOf(files, 'tsconfig.json')).not.toContain('orm/**/*.ts')
+    // …and the tsconfig names no directories, with the ORM or without: the
+    // generated server project claims whatever sits outside `src/`.
+    expect(fileOf(files, 'tsconfig.json')).not.toContain('orm/')
   })
 
   test('--no-orm still ships a working API route', () => {

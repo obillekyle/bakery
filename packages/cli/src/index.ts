@@ -30,6 +30,7 @@ const threadsOption = parseThreadsOption(process.argv.slice(2))
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.log(`
 Usage: bakery [--dev] [--sync] [--threads N] [--port N]
+       bakery --types
 
 Runs the application in the current directory: the one whose
 \`server.config.ts\` sits beside it.
@@ -37,6 +38,10 @@ Runs the application in the current directory: the one whose
 Flags:
   --dev             Development: a supervisor that watches files, compiles on
                     demand and reloads the browser. Without it, production.
+  --types           Write the TypeScript projects (.cache/tsconfig/ and
+                    tsconfig.bakery.json) and exit, without starting a server.
+                    Every dev boot does the same; a fresh clone or a CI job
+                    needs it before tsc can find them.
   --sync, -s        Run the schema sync before starting. Requires
                     @bakery-framework/orm; it is an error rather than a skip
                     when that is missing, because asking for a sync and
@@ -50,6 +55,13 @@ Flags:
 Schema commands have their own help: \`bun run db:sync --help\`.
 `)
   process.exit(0)
+}
+
+// Before any mode takes over, for the same reason as `--help`: it is a
+// command, not a server, and every branch below starts one.
+if (process.argv.includes('--types')) {
+  const { writeTypes } = await import('./write-types')
+  process.exit(await writeTypes())
 }
 
 // Before any mode takes over, and before the config is read: `applyPortFlag`

@@ -13,7 +13,8 @@ layout, see [the last section](#the-framework-repo).
 notes/
   package.json          scripts + the @bakery-framework/* dependencies
   server.config.ts      optional; `root` is the only option most apps set
-  tsconfig.json         extends @bakery-framework/core/tsconfig.server.json
+  tsconfig.json         yours: extends core's server config, claims no files
+  tsconfig.bakery.json  generated: lists the projects in .cache/tsconfig/
   orm/
     tables.ts           table() declarations: the generator owns this file
     views.ts            view() declarations
@@ -217,7 +218,7 @@ Both are gitignored and neither should be committed.
 | `nm_cache/` | bundled node modules served under `/_nm/` |
 | `gf_cache/` | fetched Google Fonts CSS and font binaries |
 | `virtual/` | the compiled client runtime |
-| `tsconfig/` | the generated tsconfig projects, including any a plugin contributed |
+| `tsconfig/` | the generated tsconfig projects (`server`, `api`, `client`, and any a plugin contributed), listed in `tsconfig.bakery.json`; the version wipe keeps them |
 | `server.json` | the mode, app version and framework version the cache was built for |
 
 That last file is the invalidation key: on boot, if any of the three differs from

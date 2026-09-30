@@ -26,13 +26,21 @@ const serveMsgs = {
   TSCONFIG_SYNCED:
     'I Synced %ytsconfig.json%* paths with %yserver.config.ts%*!',
   TSCONFIG_PROJECTS_WRITTEN:
-    'I Wrote %y{count}%* tsconfig project(s) to %y.cache/tsconfig/%*',
+    'I Wrote %y{count}%* tsconfig project(s) to %y.cache/tsconfig/%*, listed in %ytsconfig.bakery.json%*, and a %ytsconfig.json%* that references it',
   // One-time repair. Previous releases wired the generated projects into the
   // app's tsconfig.json as `references`, which broke `tsc -p <app>`
   // (TS6305/6306/6310). Named so the rewrite of a tracked file comes with a
   // line saying why it happened.
   TSCONFIG_REFERENCES_REMOVED:
-    'I Removed generated %yreferences%* from %ytsconfig.json%*, the %y.cache/tsconfig/%* projects are standalone, and referencing them broke %ytsc -p%*',
+    'I Removed the direct %y.cache/tsconfig/%* entries from %yreferences%* in %ytsconfig.json%*: referencing those projects directly broke %ytsc -p%*, and %ytsconfig.bakery.json%* reaches them instead',
+  // The one edit made to a developer's tsconfig.json, named for the same
+  // reason as the repair above: a tracked file changed on boot.
+  TSCONFIG_CHAIN_WIRED:
+    'I Added %y./tsconfig.bakery.json%* to %yreferences%* in %ytsconfig.json%*: an editor now gives each file its scope project',
+  // Said when tsconfig.bakery.json is new or changed, not on every boot: a root
+  // that claims files may be kept that way on purpose, and it still works.
+  TSCONFIG_ROOT_CLAIMS_FILES:
+    'W %ytsconfig.json%* claims app files, so it is not wired to %ytsconfig.bakery.json%*: chained, it would fail %ytsc -p%* with TS6305. To give each file its scope, remove its %yinclude%* and %yfiles%*, reference %y./tsconfig.bakery.json%*, and typecheck with %ytsc -b%*',
   // A plugin asking for a project name that is taken. Named rather than
   // silent: the symptom otherwise is one plugin's types quietly not applying,
   // discovered much later and blamed on the wrong thing.

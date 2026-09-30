@@ -362,6 +362,11 @@ function gitignore(orm: boolean): string {
 # Disposable: the framework deletes it wholesale on every version bump and
 # dev<->prod switch.
 .cache
+
+# Generated on every dev boot and by \`bakery --types\`. tsconfig.json references
+# the first; \`tsc -b\` writes the second.
+tsconfig.bakery.json
+*.tsbuildinfo
 ${data}`
 }
 
@@ -436,28 +441,26 @@ ${pluginSection}
  * makes it nasty.
  *
  * `extends` still carries everything else, and is what `tsc` reads.
+ *
+ * **And it claims no files.** It reaches the app through
+ * `tsconfig.bakery.json`, which Bakery writes on every dev boot and on
+ * `bakery --types` and which lists one project per scope: server code, `api/`
+ * routes, browser code, and one per plugin. An editor then gives each file
+ * its scope, and `tsc -b` checks all of them. A root that also claimed
+ * `src/**` would fail `tsc -p` with TS6305 once per shared file, which is why
+ * there is no `include` here, and why the ORM's directories need no mention:
+ * the server project claims everything outside `src/`.
  */
-function tsconfig(orm: boolean): string {
-  const include = [
-    '"src/**/*.ts"',
-    '"src/**/*.tsx"',
-    ...(orm ? ['"orm/**/*.ts"', '"scripts/**/*.ts"'] : []),
-    '"server.config.ts"',
-  ]
-    .map(entry => `    ${entry}`)
-    .join(',\n')
-
+function tsconfig(): string {
   return `{
-  "$comment": "The three jsx* options are also set by @bakery-framework/core/tsconfig.server.json, and tsc reads them from there, but Bun's runtime does not follow 'extends' into a package specifier, only a relative path. Without them here, every .tsx page fails at runtime with \\"Cannot find module 'react/jsx-dev-runtime'\\" while typecheck stays clean. Keep them.",
+  "$comment": "Yours to edit. The three jsx* options are also set by @bakery-framework/core/tsconfig.server.json, but Bun's runtime does not follow 'extends' into a package specifier, so they are repeated for it: without them every .tsx page fails at runtime while typecheck stays clean. The app's files are reached through tsconfig.bakery.json, which Bakery generates, and claiming them here as well would break tsc.",
   "extends": "@bakery-framework/core/tsconfig.server.json",
   "compilerOptions": {
     "jsx": "react",
     "jsxFactory": "createElement",
     "jsxFragmentFactory": "Fragment"
   },
-  "include": [
-${include}
-  ]
+  "references": [{ "path": "./tsconfig.bakery.json" }]
 }
 `
 }
@@ -493,7 +496,10 @@ export function templateFiles(
     scripts: {
       dev: 'bakery --dev',
       start: 'bakery',
-      typecheck: 'tsc --noEmit',
+      // Generate first: a fresh clone has no tsconfig.bakery.json, and tsc
+      // would stop at TS6053. `-b`, because the root claims no files and
+      // `tsc -p` on it checks nothing while reporting success.
+      typecheck: 'bakery --types && tsc -b',
       ...(orm
         ? {
             'db:sync': 'bun run scripts/db-sync.ts',
@@ -539,7 +545,7 @@ export function templateFiles(
 
   const files: TemplateFile[] = [
     { path: 'package.json', contents: `${JSON.stringify(pkg, null, 2)}\n` },
-    { path: 'tsconfig.json', contents: tsconfig(orm) },
+    { path: 'tsconfig.json', contents: tsconfig() },
     { path: '.gitignore', contents: gitignore(orm) },
     { path: 'README.md', contents: readme(name, orm, plugins) },
     { path: 'server.config.ts', contents: serverConfig(plugins) },
