@@ -457,6 +457,9 @@ describe('the core projects claim every app file once', () => {
     'migrations/001-accounts.ts': ['server'],
     'node_modules/pkg/index.ts': [],
     '.cache/vue/server/page.ts': [],
+    // The ORM's schema backups: each redeclares the registry, so claiming
+    // them failed a real app's `tsc -b` with TS2717, once per backup.
+    'bakery/backups/schema.pre-migrate.1786414374865.ts': [],
   }
 
   for (const [path, want] of Object.entries(expected)) {

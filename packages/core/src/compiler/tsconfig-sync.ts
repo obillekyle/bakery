@@ -73,14 +73,22 @@ const PROJECT_DIR = fs.resolve(APP_DIR, '.cache/tsconfig')
  * every `.tsx` page, which is server-rendered. `api` is its own project only
  * because a glob cannot say "`src/**` except `api/`" in either direction.
  *
- * Naming an `exclude` drops TypeScript's default one, so `node_modules` and
- * `.cache` (compiled server modules live there as `.ts`) are named again.
+ * Naming an `exclude` drops TypeScript's default one, so `node_modules` is
+ * named again, and so are both runtime directories, taken from their one
+ * writer (`Bakery.cacheDir`, `Bakery.dataDir`). Neither holds source and both
+ * hold `.ts` files: the cache holds compiled server modules, and the data
+ * directory holds the ORM's `schema.pre-migrate.*.ts` backups, each of which
+ * redeclares the schema registry. Claimed, three of those failed a real
+ * app's `tsc -b` with TS2717.
  *
  * Globs are app-relative here and rewritten to be relative to the generated
  * file, which sits two levels down.
  */
 export function coreProjects(): PluginTsProject[] {
   const root = Bakery.config.root ?? 'src'
+  const runtime = [Bakery.cacheDir, Bakery.dataDir].map(dir =>
+    fs.relative(APP_DIR, dir).replace(/\\/g, '/'),
+  )
 
   return [
     {
@@ -95,7 +103,7 @@ export function coreProjects(): PluginTsProject[] {
         jsxFragmentFactory: 'Fragment',
       },
       include: ['**/*.ts', '**/*.tsx'],
-      exclude: [`${root}/**/*.ts`, 'node_modules', '.cache'],
+      exclude: [`${root}/**/*.ts`, 'node_modules', ...runtime],
     },
     {
       name: 'api',
