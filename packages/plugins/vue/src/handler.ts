@@ -568,8 +568,27 @@ export class VueHandler extends DynamicHandler {
       claimed?: string[]
       claimedSingle?: boolean
     },
+    /**
+     * The URL the page's own stylesheet and root script are requested
+     * through. The request route passes the page's URL; it defaults to the
+     * component's file path.
+     *
+     * **For a dynamic page the file path does not resolve.** It is
+     * `/admin/[...slug].vue`, a browser sends the brackets unencoded, and
+     * route lookup reads a requested name as a glob, where `[...slug]` is a
+     * character class: the literal file never matches, the catch-all then
+     * yields to the real file of that name, and nothing serves it. A real
+     * app's admin area answered 404 for both requests and lost its styles
+     * and its script. The page's own URL is the one address guaranteed to
+     * reach the component that rendered it; a fixed placeholder would not
+     * be, since a single-param sibling such as `admin/[id].vue` wins a
+     * one-segment URL before the catch-all does. Neither request runs the
+     * server block (see `needsServerData`), so the URL only picks the file.
+     */
+    assetPath: string = routePath,
   ) {
     const { hasCss, serverScript } = parsed
+    const assets = escapeHtml(assetPath)
     const hasServerData =
       Boolean(serverScript) || params?.errorCode !== undefined
 
@@ -619,9 +638,9 @@ export class VueHandler extends DynamicHandler {
     const prio =
       (await VueHandler.layoutCssLink(parsed)) +
       (hasCss
-        ? `<link rel="stylesheet" id="__vu_css_${id}" href="${routePath}?__vue_css=true">\n`
+        ? `<link rel="stylesheet" id="__vu_css_${id}" href="${assets}?__vue_css=true">\n`
         : '') +
-      `<script type="module" src="${routePath}?__vue_script=root"></script>`
+      `<script type="module" src="${assets}?__vue_script=root"></script>`
 
     const htmlRes = await injectIfHtml(hydrated, params, { prio })
     return htmlRes || response.error('Failed to build HTML', 500)
@@ -847,5 +866,9 @@ async function sharedHandler(
       // no reader. Skipping the stamp also skips the directory scan.
       ...(catchAll ? claimedBeside(diskFile.name ?? '') : null),
     },
+    // The page's own URL routes back to this component; see `assetPath`. An
+    // error render is the exception: its URL is the one that failed, and it
+    // would route to the error, not to the error page's component.
+    errorData ? routePath : url.pathname,
   )
 }
