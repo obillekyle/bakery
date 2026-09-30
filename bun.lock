@@ -83,8 +83,10 @@
       "version": "2.0.0",
       "dependencies": {
         "@bakery-framework/core": "workspace:^",
-        "@bakery-framework/orm": "workspace:^",
         "@bakery-framework/plugin-analytics": "workspace:^",
+      },
+      "devDependencies": {
+        "@bakery-framework/orm": "workspace:^",
       },
     },
     "packages/plugins/db-explorer": {

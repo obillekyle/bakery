@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { readdir } from 'node:fs/promises'
+import { parseJSONC } from '../packages/core/src/utils/jsonc'
 
 /**
  * The conventions in CLAUDE.md, as a failing test.
@@ -750,6 +751,46 @@ describe('release versions', () => {
         ),
       )
       actual[dir] = found?.[1] ?? 'ABSENT FROM bun.lock'
+    }
+
+    expect(actual).toEqual(expected)
+  })
+
+  /**
+   * The sections as well as the versions. `0e4b2a9` moved
+   * `@bakery-framework/orm` from the dashboard's `dependencies` to its
+   * `devDependencies` without touching bun.lock, and the lock kept it under
+   * `dependencies` for eleven days. Thirteen commits rewrote the lock in that
+   * time, twelve of them releases, and none of them touched the section. The
+   * test above reads versions only and `bun install --frozen-lockfile`
+   * accepts the mismatch, so it surfaced only when an unrelated `bun add`
+   * tried to rewrite the entry on its own.
+   *
+   * Nothing published was wrong, because `bun pm pack` takes the sections
+   * from the manifest. What a stale section costs is an unrelated lock change
+   * in whichever commit next runs a plain install. Every workspace entry is
+   * compared, the apps and the root included, by name and specifier.
+   */
+  test('bun.lock workspace dependency sections match the manifests', async () => {
+    const lock = parseJSONC(await Bun.file(`${ROOT}/bun.lock`).text())
+    const sections = [
+      'dependencies',
+      'devDependencies',
+      'peerDependencies',
+      'optionalDependencies',
+    ]
+    const expected: Record<string, unknown> = {}
+    const actual: Record<string, unknown> = {}
+
+    for (const [dir, entry] of Object.entries<Record<string, unknown>>(
+      lock.workspaces,
+    )) {
+      const manifest = await Bun.file(`${ROOT}/${dir || '.'}/package.json`).json()
+      for (const section of sections) {
+        const key = `${dir || '(root)'} ${section}`
+        expected[key] = manifest[section] ?? {}
+        actual[key] = entry[section] ?? {}
+      }
     }
 
     expect(actual).toEqual(expected)
