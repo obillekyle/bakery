@@ -4,6 +4,7 @@ import type { MapOf } from '@bakery-framework/core/types'
 import { Case, Try } from '@bakery-framework/core/utils'
 import { throws } from '@bakery-framework/core/utils/common'
 import type * as SyncTypes from '../sync/types'
+import { DatabaseMissingError, isMissingDatabase } from './missing-database'
 import { observe, observeIterate } from './observe'
 import type { Driver as RegisteredDriver } from './registry'
 
@@ -181,6 +182,12 @@ export function isOpenConnection(value: unknown): boolean {
   )
 }
 
+/** A database name as a URL path carries it, with the percent-encoding undone. */
+function decodedDatabaseName(raw: string | undefined): string | undefined {
+  if (!raw) return undefined
+  return Try.return(() => decodeURIComponent(raw), raw)
+}
+
 export function quoteIdentifier(name: string, quoteChar: string): string {
   // The `includes` guard is not redundant: `replaceAll` walks and rebuilds the
   // string even when there is nothing to replace, and an identifier containing
@@ -275,16 +282,40 @@ export function pagedIterate(
   }
 }
 
+/**
+ * `fn`, with whatever it throws passed through `explain` first.
+ */
+function explained<A extends unknown[], R>(
+  fn: (...args: A) => R | Promise<R>,
+  explain: (error: unknown) => unknown,
+): (...args: A) => Promise<R> {
+  return async (...args: A) => {
+    try {
+      return await fn(...args)
+    } catch (error) {
+      throw explain(error)
+    }
+  }
+}
+
 export function createExecutor(
-  all: SQLAdapter.Executor['all'],
-  run: SQLAdapter.Executor['run'],
+  rawAll: SQLAdapter.Executor['all'],
+  rawRun: SQLAdapter.Executor['run'],
   driver: SQLAdapter.Driver,
   options: {
     /** Replace the paging walker: for a driver that can genuinely stream. */
     iterate?: SQLAdapter.Executor['iterate']
     chunkSize?: number
+    /**
+     * Turn a driver error into one that says what to do, before any caller
+     * sees it. Applied to `all` and `run` themselves, so `get`, `values` and
+     * the paging `iterate` carry it too. See `SQLAdapter.explainError`.
+     */
+    explain?: (error: unknown) => unknown
   } = {},
 ): SQLAdapter.Executor {
+  const all = options.explain ? explained(rawAll, options.explain) : rawAll
+  const run = options.explain ? explained(rawRun, options.explain) : rawRun
   const iterate = options.iterate ?? pagedIterate(all, options.chunkSize)
   // `get` and `values` call the raw `all` rather than `exec.all`, which is a
   // behavioral detail worth stating: it is what keeps one executed statement
@@ -346,6 +377,71 @@ export abstract class SQLAdapter {
   }
 
   /**
+   * The server half of the connection URL, `host:port`, for messages. Never
+   * the URL itself, which carries the password.
+   */
+  get serverName(): string | undefined {
+    if (!this.url) return undefined
+    return Try.return(() => new URL(this.url!).host || undefined, undefined)
+  }
+
+  /**
+   * The error a query raised, or a {@link DatabaseMissingError} when it means
+   * the server has no database by this connection's name. Passed to
+   * `createExecutor` by the two server adapters; SQLite creates its file on
+   * open and has no such error to explain.
+   */
+  protected explainError(error: unknown): unknown {
+    if (!isMissingDatabase(error)) return error
+    const database = decodedDatabaseName(this.databaseName)
+    const server = this.serverName
+    if (!database || !server) return error
+    return new DatabaseMissingError(database, server, { cause: error })
+  }
+
+  /**
+   * The same server and credentials, pointed at a database that always
+   * exists there: where `CREATE DATABASE` runs. `undefined` for a dialect
+   * with no server to ask.
+   */
+  protected maintenanceUrl(): string | undefined {
+    return undefined
+  }
+
+  /** A sibling adapter on another URL, for {@link createDatabase}. */
+  protected forUrl(_url: string): SQLAdapter {
+    throw new Error(`The ${this.driver} adapter cannot open a second database.`)
+  }
+
+  /**
+   * Create the database this connection names, through a second connection
+   * to the server's maintenance database, and return its name.
+   *
+   * Not called by anything that runs on its own: `db:sync` calls it only with
+   * `--create-database` or a yes at its prompt, because creating a database
+   * needs a privilege an app's runtime role should not hold, and because a
+   * typo in `DB_URL` must not quietly become a fresh, empty database.
+   */
+  async createDatabase(): Promise<string> {
+    const database = decodedDatabaseName(this.databaseName)
+    const target = this.maintenanceUrl()
+    if (!database || !target) {
+      throw new Error(
+        database
+          ? `The ${this.driver} adapter has no server to create a database on.`
+          : `DB_URL names no database for the ${this.driver} adapter to create.`,
+      )
+    }
+    const admin = this.forUrl(target)
+    try {
+      await admin.query(`CREATE DATABASE ${admin.quote(database)}`).run()
+    } finally {
+      await admin.close()
+    }
+    return database
+  }
+
+  /**
    * Placeholder ceiling for a single statement. See
    * {@link DEFAULT_MAX_QUERY_PARAMS} for why it is one number and not three.
    *
@@ -355,6 +451,21 @@ export abstract class SQLAdapter {
    */
   get maxQueryParams(): number {
     return DEFAULT_MAX_QUERY_PARAMS
+  }
+
+  /**
+   * `url` with its database swapped for `name`, and everything else (the
+   * credentials, the host, the query string and with it `sslmode`) kept.
+   * `undefined` when there is no URL to rewrite. A static for the reason
+   * {@link usableTotal} gives.
+   */
+  static withDatabase(url: string | undefined, name: string): string | undefined {
+    if (!url) return undefined
+    return Try.return(() => {
+      const target = new URL(url)
+      target.pathname = `/${encodeURIComponent(name)}`
+      return target.toString()
+    }, undefined)
   }
 
   /**

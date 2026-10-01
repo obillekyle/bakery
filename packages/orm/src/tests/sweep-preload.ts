@@ -58,6 +58,28 @@ for (const { url, driver } of TARGETS) {
         `[sweep] dropped ${leaked.length} leaked ${driver} fixture(s) from a previous run: ${leaked.join(', ')}`,
       )
     }
+
+    // Whole databases, from `adapters/missing-database.test.ts`, which creates
+    // one to prove `--create-database` works and drops it in `afterAll`. A run
+    // killed in between leaves it behind, and nothing else would ever notice.
+    const databases =
+      driver === 'pgsql'
+        ? ((await db`SELECT datname AS name FROM pg_database`) as { name: string }[])
+        : ((await db`SELECT schema_name AS name FROM information_schema.schemata`) as {
+            name: string
+          }[])
+    const leakedDbs = databases
+      .map(r => r.name)
+      .filter(name => /^bakery_newdb_\d+$/.test(name))
+    if (leakedDbs.length) {
+      const quote = driver === 'mysql' ? '`' : '"'
+      for (const name of leakedDbs) {
+        await db.unsafe(`DROP DATABASE IF EXISTS ${quote}${name}${quote}`)
+      }
+      console.log(
+        `[sweep] dropped ${leakedDbs.length} leaked ${driver} database(s) from a previous run: ${leakedDbs.join(', ')}`,
+      )
+    }
     await db.close()
   } catch {
     // See the header: a server that is down is ordinary here, and the live

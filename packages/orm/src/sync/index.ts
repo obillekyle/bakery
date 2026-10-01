@@ -1,6 +1,13 @@
 import '@bakery-framework/core/core/init'
 
-import { Logger, messageLogger } from '@bakery-framework/core/logger'
+import {
+  isInteractive,
+  Logger,
+  messageLogger,
+} from '@bakery-framework/core/logger'
+import { Try } from '@bakery-framework/core/utils'
+import type { SQLAdapter } from '../adapters/base'
+import { DatabaseMissingError } from '../adapters/missing-database'
 import { closeDB, connection, initDB } from '../connection'
 import { loadSchema, schemaFromConfig } from './load'
 
@@ -18,6 +25,9 @@ const syncMsgs = {
   MIGRATE_SCAFFOLDED: 'I Created %y{dir}%*: the generator owns tables.ts.',
   MIGRATE_RETIRED:
     'I Converted to the orm/ folder. The previous %yschema.ts%* was moved to %y{to}%*, not deleted.',
+  DB_MISSING:
+    'E %rDatabase %y{name}%r does not exist on {server}%*. Run %ybun run db:sync --create-database%* to create it, or point DB_URL at one that exists.',
+  DB_CREATED: 'I Created database %g{name}%* on %y{server}%*.',
 } as const
 
 const MESSAGES = messageLogger(logger, syncMsgs)
@@ -85,7 +95,7 @@ export class SyncService {
     // CLI usage text goes to stdout verbatim: it is program output, not a
     // log line, so it deliberately bypasses the structured logger.
     console.log(`
-Usage: bun run db:sync [--migrate] [--choose=db|ts] [--dry-run] [--force-sync] [--help]
+Usage: bun run db:sync [--migrate] [--choose=db|ts] [--dry-run] [--force-sync] [--create-database] [--help]
 
 Flags:
   --migrate       Adopt an existing database: write the schema from what is
@@ -96,9 +106,57 @@ Flags:
   --choose=ts     Apply schema.ts to the database (TS wins, default)
   --dry-run       Preview planned changes without applying them
   --force-sync    In production, allow destructive changes
+  --create-database
+                  Create the database DB_URL names when the server does
+                  not have it. Asked in a terminal, needed without one.
   --no-ledger     Diff against live introspection, ignoring the recorded schema
   --help, -h      Show this help message
 `)
+  }
+
+  /** `--create-database`: make the database `DB_URL` names if it is missing. */
+  static createRequested(argv: string[] = process.argv.slice(2)): boolean {
+    return argv.includes('--create-database')
+  }
+
+  /**
+   * Make sure the database the connection names exists, creating it when
+   * that was asked for.
+   *
+   * `present` and `created` mean the sync can go on; `missing` means it
+   * cannot, and `DB_MISSING` has said why. Creating needs `--create-database`
+   * or a yes at the prompt, and the prompt is only asked with a terminal: an
+   * unattended run (CI, a deploy step, a container) never creates one on its
+   * own, since a typo in `DB_URL` would otherwise become a fresh, empty
+   * database with the real one untouched beside it.
+   *
+   * Any other connection failure is thrown as before. SQLite answers
+   * `present`, having created its file on open.
+   */
+  static async ensureDatabase(
+    adapter: SQLAdapter,
+    {
+      argv = process.argv.slice(2),
+      interactive = isInteractive(),
+    }: { argv?: string[]; interactive?: boolean } = {},
+  ): Promise<'present' | 'created' | 'missing'> {
+    const [error] = await Try.catch(adapter.query('SELECT 1').get())
+    if (!error) return 'present'
+    if (!(error instanceof DatabaseMissingError)) throw error
+
+    const asked =
+      SyncService.createRequested(argv) ||
+      (interactive &&
+        logger.confirm(
+          `Database "${error.database}" does not exist on ${error.server}. Create it?`,
+        ))
+    if (!asked) {
+      MESSAGES.DB_MISSING({ name: error.database, server: error.server })
+      return 'missing'
+    }
+    await adapter.createDatabase()
+    MESSAGES.DB_CREATED({ name: error.database, server: error.server })
+    return 'created'
   }
 
   /** `--migrate`: adopt what is already in the database. */
@@ -188,6 +246,13 @@ Flags:
 
     if (loaded.unreferenceable?.length) {
       MESSAGES.FOREIGN_TARGET({ refs: loaded.unreferenceable.join(', ') })
+      await closeDB()
+      return process.exit(1)
+    }
+
+    // After the schema checks, so a config error never leaves a new, empty
+    // database behind, and before anything else asks the database a question.
+    if ((await SyncService.ensureDatabase(connection)) === 'missing') {
       await closeDB()
       return process.exit(1)
     }

@@ -262,6 +262,7 @@ database, and applies the difference.
 | `--choose=db` | regenerate `schema.ts` from the database |
 | `--dry-run` | print the plan, change nothing |
 | `--force-sync` | allow destructive changes in production |
+| `--create-database` | create the database `DB_URL` names when the server lacks it ([details](../orm/sync.md#when-the-database-does-not-exist)) |
 | `--help`, `-h` | print this list |
 
 A change is **destructive** if it drops or renames a table or column, rebuilds a

@@ -175,6 +175,7 @@ export class PGAdapter extends SQLAdapter {
       return { lastInsertRowid, changes }
     },
     this.driver,
+    { explain: error => this.explainError(error) },
   )
 
   async hasCol(table: string, column: string): Promise<boolean> {
@@ -250,6 +251,15 @@ export class PGAdapter extends SQLAdapter {
 
   protected withConnection(sql: unknown): SQLAdapter {
     return new PGAdapter(sql as SQL)
+  }
+
+  /** `postgres`: the database every Postgres cluster is created with. The query string, and with it `sslmode`, is kept. */
+  protected override maintenanceUrl(): string | undefined {
+    return SQLAdapter.withDatabase(this.url, 'postgres')
+  }
+
+  protected override forUrl(url: string): SQLAdapter {
+    return new PGAdapter(url)
   }
 
   async getSchema(

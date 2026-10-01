@@ -62,7 +62,7 @@ one untouched somewhere else. See [Schema](schema.md#where-the-schema-lives).
 ## Flags
 
 ```
-bun run db:sync [--migrate] [--choose=db|ts] [--dry-run] [--force-sync] [--no-ledger] [--help]
+bun run db:sync [--migrate] [--choose=db|ts] [--dry-run] [--force-sync] [--create-database] [--no-ledger] [--help]
 ```
 
 | Flag | Effect |
@@ -72,6 +72,7 @@ bun run db:sync [--migrate] [--choose=db|ts] [--dry-run] [--force-sync] [--no-le
 | `--migrate` | Adopt an existing database: write the schema from what is there, record it, change no tables. `db:codegen` names this. |
 | `--dry-run` | Print the planned changes and stop. |
 | `--force-sync` | Skip the confirmation prompt; required for destructive changes in production. |
+| `--create-database` | Create the database `DB_URL` names when the server does not have it. A terminal asks instead; anywhere else the flag is required. See [below](#when-the-database-does-not-exist). |
 | `--no-ledger` | Diff against live introspection, ignoring the recorded schema. |
 | `--help`, `-h` | Usage. |
 
@@ -202,12 +203,39 @@ and the dialects disagree about how they complain: MySQL and Postgres refuse the
 `CREATE`, while SQLite accepts it and then fails every insert with "foreign key
 mismatch". See [Schema](schema.md#foreign-keys).
 
+## When the database does not exist
+
+Postgres and MySQL keep databases on a server, and `DB_URL` names one. When
+the server has none by that name, every query raises a `DatabaseMissingError`
+(exported from `@bakery-framework/orm/adapters`) in place of the driver's
+error. It names the database, the server (host and port, never the password)
+and the command below, and it is recognized by the servers' own codes:
+SQLSTATE `3D000` on Postgres, error `1049` on MySQL.
+
+`db:sync` checks before it asks the database anything else, and can create it:
+
+```bash
+bun run db:sync --create-database
+```
+
+It connects to the same server with the same credentials, to the database
+every server has (`postgres` on Postgres, `mysql` on MySQL), and runs
+`CREATE DATABASE` there, so the role in `DB_URL` needs the privilege to create
+one. In a terminal, `db:sync` asks rather than needing the flag; anywhere else
+(CI, a deploy step, a container) it stops with exit code 1 and names the
+command. Nothing creates a database on its own: an app's runtime role should
+not hold that privilege, and a typo in `DB_URL` would otherwise become a new,
+empty database while the real one sits untouched.
+
+SQLite has nothing to create: its file and folder are made when the connection
+opens.
+
 ## Exit codes
 
 | Code | Meaning |
 | --- | --- |
 | 0 | Synced, nothing to do, `--dry-run`, `--help`, or you declined the prompt |
-| 1 | Configured schema path missing, a reference to a non-unique target, production without `--force-sync`, or a destructive plan with no backup |
+| 1 | Configured schema path missing, a reference to a non-unique target, a missing database without `--create-database` or a yes at the prompt, production without `--force-sync`, or a destructive plan with no backup |
 | 42 | Schema regenerated during `bun run dev`: the watcher restarts the worker |
 
 ## Next

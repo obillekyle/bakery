@@ -1,4 +1,5 @@
 export * from './adapters/base'
+export * from './adapters/missing-database'
 export * from './adapters/registry'
 
 import { registerAdapter, resolveAdapter } from './adapters/registry'

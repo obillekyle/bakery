@@ -56,6 +56,7 @@ export class MySQLAdapter extends SQLAdapter {
       }
     },
     this.driver,
+    { explain: error => this.explainError(error) },
   )
 
   async hasCol(table: string, column: string): Promise<boolean> {
@@ -268,6 +269,15 @@ export class MySQLAdapter extends SQLAdapter {
 
   protected withConnection(sql: unknown): SQLAdapter {
     return new MySQLAdapter(sql as SQL)
+  }
+
+  /** `mysql`: the system database every MySQL server has, and the one Bun's client falls back to when a URL names none (measured). The query string, and with it `sslmode`, is kept. */
+  protected override maintenanceUrl(): string | undefined {
+    return SQLAdapter.withDatabase(this.url, 'mysql')
+  }
+
+  protected override forUrl(url: string): SQLAdapter {
+    return new MySQLAdapter(url)
   }
 
   async getSchema(

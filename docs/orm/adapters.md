@@ -60,6 +60,11 @@ export async function boot() {
 cache a *rejection*: a transient failure at boot would otherwise make every
 later call return the same error for the life of the process.
 
+On Postgres and MySQL, `initDB()` opens nothing: the first query makes the
+connection. So a `DB_URL` naming a database the server does not have surfaces
+there, as a `DatabaseMissingError` that names the database and the command
+that creates it. See [Schema sync](sync.md#when-the-database-does-not-exist).
+
 `connection` is a proxy that resolves the live adapter on each property access,
 so it can be imported at module scope before the database exists. `getActiveDb()`
 returns the current transaction when one is open (via `AsyncLocalStorage`) and
