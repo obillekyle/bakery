@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { Bakery } from '@bakery-framework/core/core/bakery'
 import { Logger, messageLogger } from '@bakery-framework/core/logger'
@@ -381,7 +382,13 @@ export class SQLiteAdapter extends SQLAdapter {
       base = path.basename(this.filename, ext)
     const backupDir = `${path.dirname(this.filename)}/backups`,
       backupName = `${base}.${Date.now()}${ext}`
-    await Bun.write(`${backupDir}/${backupName}`, Bun.file(this.filename))
+    await mkdir(backupDir, { recursive: true })
+    // `VACUUM INTO`, not a copy of the file. In WAL mode a commit sits in
+    // `-wal` until a checkpoint, and a copy of the main file alone came out
+    // with no table in it at all after a CREATE and 50 inserts (see
+    // `sqlite-backup.test.ts`). SQLite writes this from a read transaction,
+    // so it is consistent and holds everything committed.
+    await this.query('VACUUM INTO ?').run(`${backupDir}/${backupName}`)
     return {
       file: backupName,
       cleanupCount: await this.cleanupBackups(backupDir, base, ext, keepCount),
