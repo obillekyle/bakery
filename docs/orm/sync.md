@@ -80,8 +80,8 @@ bun run db:sync [--migrate] [--choose=db|ts] [--dry-run] [--force-sync] [--no-le
 Introspection is per-adapter; the diff is not. Working from the database's own
 column list, the plan can contain:
 
-- **tables to add** (anything in the schema the database has never seen
-- **tables to drop**) anything in the database the schema no longer declares
+- **tables to create**: anything in the schema the database has never seen
+- **tables to drop**: anything in the database the schema no longer declares
 - **tables to rename**. See below
 - **columns to add / drop / rename**
 - **tables to rebuild**: a column whose type, nullability or default no longer

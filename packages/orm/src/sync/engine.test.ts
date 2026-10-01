@@ -233,6 +233,47 @@ describe('SQLite column renames survive planning', () => {
     // exist. Nothing here should be rebuilt at all.
     expect(out).not.toContain('Tables to rebuild')
   })
+
+  // The plan has always known these (`unmappedTsTables` counts as a change and
+  // keeps their foreign keys out of the ALTER pass), and the printout never
+  // said so: a dry run on a fresh database with five tables and three indexes
+  // listed only the indexes.
+  test('a dry run names the tables it would create', async () => {
+    const db = fresh()
+    await db
+      .query('CREATE TABLE old_widgets (id INTEGER PRIMARY KEY AUTOINCREMENT)')
+      .run()
+    await db
+      .query('CREATE TABLE people (id INTEGER PRIMARY KEY AUTOINCREMENT)')
+      .run()
+
+    const out = await dryRun(db, {
+      people: { id: pk },
+      widgets: { id: pk, _oldTable: 'oldWidgets' },
+      quizzes: { id: pk, title: { type: 'string' } },
+      answers: { id: pk, body: { type: 'string' } },
+    })
+
+    const created = out
+      .split('\n')
+      .find(line => line.includes('Tables to create'))
+    expect(created).toBeDefined()
+    expect(created).toContain('quizzes')
+    expect(created).toContain('answers')
+    // A table that exists, and one arriving by rename, are not created.
+    expect(created).not.toContain('people')
+    expect(created).not.toContain('widgets')
+  })
+
+  test('on an empty database every table is listed', async () => {
+    const out = await dryRun(fresh(), {
+      creators: { id: pk },
+      quizzes: { id: pk },
+    })
+    expect(out).toContain('Tables to create')
+    expect(out).toContain('creators')
+    expect(out).toContain('quizzes')
+  })
 })
 
 describe('SQLite column renames survive execution', () => {

@@ -47,6 +47,7 @@ export const syncMsgs = {
   DANGER_ZONE: 'W %rDANGER ZONE: Destructive or major changes detected!%*',
   DROP_TABLES: 'W Tables to drop: %r{tables}%*',
   RENAME_TABLES: 'I Tables to rename: %y{tables}%*',
+  CREATE_TABLES: 'I Tables to create: %g{tables}%*',
   DROP_COLS: 'W Columns to drop: %r{cols}%*',
   RENAME_COLS: 'I Columns to rename: %y{cols}%*',
   ADD_COLS: 'I Columns to add: %g{cols}%*',

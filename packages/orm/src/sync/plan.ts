@@ -118,6 +118,15 @@ export function logPlannedChanges(
         .map(t => `${t.oldName} -> ${t.newName}`)
         .join(', '),
     })
+  // Counted as a change in `evaluateChanges` from the start and never
+  // printed, so a dry run on a fresh database listed its indexes and none of
+  // its tables. The tables are created by the last phase of the run, which
+  // emits CREATE TABLE IF NOT EXISTS for every table; this set is the ones
+  // that phase will actually create.
+  if (plan.unmappedTsTables.size)
+    MESSAGES.CREATE_TABLES({
+      tables: Array.from(plan.unmappedTsTables, t => Case.snake(t)).join(', '),
+    })
   if (plan.columnsToDrop.length)
     MESSAGES.DROP_COLS({
       cols: plan.columnsToDrop.map(c => `${c.table}.${c.column}`).join(', '),
