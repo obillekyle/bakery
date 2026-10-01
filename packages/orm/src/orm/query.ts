@@ -1079,10 +1079,8 @@ export namespace DB {
       return left
     }
     const op = operator.toUpperCase()
-    if (op === 'IS NULL' || op === 'IS NOT NULL') {
-      return `${left} ${op}`
-    }
-    // One rule, three callers. See `nullComparison`.
+    // One rule, three callers, `IS NULL` and `IS NOT NULL` included. See
+    // `nullComparison`.
     const nullOp = nullComparison(op, rightArg, isRightColumn)
     if (nullOp) return `${left} ${nullOp}`
     if (op === 'BETWEEN' && Array.isArray(rightArg)) {

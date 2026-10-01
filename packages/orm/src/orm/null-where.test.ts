@@ -166,3 +166,42 @@ describe('null in a mutation where clause', () => {
     expect(sql).toContain('IS NOT NULL')
   })
 })
+
+/**
+ * `DB.isNull()` and `DB.isNotNull()` carry their operator and no operand. The
+ * select builder special-cased them; the two mutation builders did not, so an
+ * `UPDATE` or a `DELETE` through either emitted `IS NULL NULL` and failed to
+ * parse on every dialect, through 2.0.4. The rule moved into `nullComparison`,
+ * which all three share.
+ */
+describe('isNull() and isNotNull() in every where builder', () => {
+  const whereOf = (sql: string) => sql.slice(sql.indexOf(' WHERE '))
+
+  test('select, update and delete emit the operator once, binding nothing', () => {
+    const select = DB.table('parcels').where('weight', DB.isNull()).parse()
+    const update = DB.Update.table('parcels').set({ courier: 'x' }).where('weight', DB.isNotNull()).parse()
+    const remove = DB.Delete.from('parcels').where('weight', DB.isNull()).parse()
+
+    expect(whereOf(select.sql)).toBe(' WHERE "weight" IS NULL')
+    expect(whereOf(update.sql)).toBe(' WHERE "weight" IS NOT NULL')
+    expect(whereOf(remove.sql)).toBe(' WHERE "weight" IS NULL')
+    expect(select.params).toEqual([])
+    expect(update.params).toEqual(['x'])
+    expect(remove.params).toEqual([])
+  })
+
+  test('and / or on a mutation take the same path', () => {
+    const { sql } = DB.Delete.from('parcels')
+      .where('id', 9)
+      .or('weight', DB.isNotNull())
+      .parse()
+    expect(whereOf(sql)).toBe(' WHERE "id" = ? OR "weight" IS NOT NULL')
+  })
+
+  test('the statements run', async () => {
+    const res = await DB.Update.table('parcels').set({ courier: 'weighed' }).where('weight', DB.isNotNull()).run()
+    expect((res as any).changes).toBe(1)
+    const gone = await DB.Delete.from('parcels').where('weight', DB.isNull()).run()
+    expect((gone as any).changes).toBe(1)
+  })
+})

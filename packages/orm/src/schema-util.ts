@@ -484,14 +484,21 @@ export function old(
  * function three callers share cannot drift a third time.
  *
  * A column reference on the right is a different comparison and is left alone.
+ *
+ * `IS NULL` and `IS NOT NULL` themselves (`DB.isNull()`, `DB.isNotNull()`)
+ * are the third drift, and the reason they are answered here first:
+ * `formatClause` handled them before calling this, the two `evalWhere` copies
+ * did not, and every `UPDATE` or `DELETE` through either helper emitted
+ * `IS NULL NULL`, which no dialect parses.
  */
 export function nullComparison(
   operator: string,
   right: unknown,
   isRightColumn?: boolean,
 ): string | null {
-  if (right !== null || isRightColumn) return null
   const op = operator.toUpperCase()
+  if (op === 'IS NULL' || op === 'IS NOT NULL') return op
+  if (right !== null || isRightColumn) return null
   if (op === '=') return 'IS NULL'
   if (op === '!=' || op === '<>') return 'IS NOT NULL'
   return null
