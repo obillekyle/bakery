@@ -29,10 +29,17 @@
  * somewhere else.
  */
 
+import { Logger, messageLogger } from '@bakery-framework/core/logger'
 import { Case, fs } from '@bakery-framework/core/utils'
 import { Try } from '@bakery-framework/core/utils/common'
 import { collectConstraints } from '../define'
 import type * as SyncTypes from './types'
+
+// Convention 4: logging is data, declared in a table.
+const MESSAGES = messageLogger(new Logger('db-sync'), {
+  SCHEMA_IMPORT_FAILED:
+    'W %y{file}%* could not be loaded: %r{error}%*. Sync is treating the schema as absent.',
+} as const)
 
 /**
  * Which shape the generator must write back.
@@ -147,6 +154,9 @@ async function readSchema(
   targetPath: string,
 ): Promise<LoadedSchema> {
   const [error, module] = await importFresh(entry)
+  // Still read as no schema, which `loadSchema` relies on for a broken folder
+  // entry, but no longer in silence: this is the only place the cause exists.
+  if (error) MESSAGES.SCHEMA_IMPORT_FAILED({ file: entry, error: error.message })
   if (error || !module) return emptyAt(targetPath)
 
   if (layout === 'folder') {

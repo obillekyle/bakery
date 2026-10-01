@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
+import { setLogCallback } from '@bakery-framework/core/logger'
 import { fs } from '@bakery-framework/core/utils'
 import {
   findUnsupportedForeignKeys,
@@ -273,5 +274,31 @@ describe('the folder write target honors the old filename', () => {
   test('when both exist the new name wins', async () => {
     const loaded = await loadSchema(BOTH_NAMES)
     expect(loaded.targetPath).toBe(`${BOTH_NAMES}/orm/tables.ts`)
+  })
+})
+
+/**
+ * An entry that throws on import is still read as no schema (the choice
+ * recorded in `loadSchema`), but it is no longer silent. `INVALID_SCHEMA` was
+ * declared in sync/index.ts for exactly this and never wired, so a typo in
+ * `orm/tables.ts` printed "successfully synced" and wrote a boilerplate
+ * `schema.ts`.
+ */
+describe('a schema that cannot be imported says why', () => {
+  const BROKEN = `${FIXTURES}/broken`
+
+  test('the warning names the entry and carries the import error', async () => {
+    await Bun.write(`${BROKEN}/orm/index.ts`, "throw new Error('tables.ts has a typo')\n")
+    const said: string[] = []
+    setLogCallback(entry => void said.push(entry.msg))
+    try {
+      const loaded = await loadSchema(BROKEN)
+      expect(loaded.layout).toBe('none')
+    } finally {
+      setLogCallback(() => {})
+    }
+    const warning = said.find(line => line.includes('could not be loaded'))
+    expect(warning).toContain('orm/index.ts')
+    expect(warning).toContain('tables.ts has a typo')
   })
 })
