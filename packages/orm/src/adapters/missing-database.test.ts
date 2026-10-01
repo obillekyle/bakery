@@ -93,11 +93,15 @@ const LIVE = [
 ]
 
 for (const { label, url, open, maintenance } of LIVE) {
-  describe.skipIf(!url)(`${label}: a database that does not exist`, () => {
+  // `test.skipIf` per test, as the other live files do, and not a skipped
+  // `describe`: Bun counts the hooks of a skipped block as skipped tests, so
+  // this file reported 14 tests without servers and 12 with them.
+  const skip = !url
+  describe(`${label}: a database that does not exist`, () => {
     // Matched by the sweep in tests/sweep-preload.ts, should a run die
     // before afterAll drops it.
     const name = `bakery_newdb_${process.pid}`
-    const target = SQLAdapter.withDatabase(url, name)!
+    const target = SQLAdapter.withDatabase(url, name) ?? ''
     const opened: SQLAdapter[] = []
     const connect = () => {
       const db = open(target)
@@ -106,6 +110,7 @@ for (const { label, url, open, maintenance } of LIVE) {
     }
 
     afterAll(async () => {
+      if (skip) return
       for (const db of opened) await db.close()
       const admin = open(SQLAdapter.withDatabase(url, maintenance)!)
       try {
@@ -115,7 +120,7 @@ for (const { label, url, open, maintenance } of LIVE) {
       }
     })
 
-    test('a query names it, instead of the driver error', async () => {
+    test.skipIf(skip)('a query names it, instead of the driver error', async () => {
       const error = await connect()
         .query('SELECT 1')
         .get()
@@ -124,7 +129,7 @@ for (const { label, url, open, maintenance } of LIVE) {
       expect((error as DatabaseMissingError).database).toBe(name)
     })
 
-    test('without the flag and without a terminal, sync refuses and says how', async () => {
+    test.skipIf(skip)('without the flag and without a terminal, sync refuses and says how', async () => {
       const said: string[] = []
       setLogCallback(entry => void said.push(entry.msg))
       try {
@@ -139,7 +144,7 @@ for (const { label, url, open, maintenance } of LIVE) {
       expect(said.join('\n')).toContain('--create-database')
     })
 
-    test('--create-database creates it, and the same connection then works', async () => {
+    test.skipIf(skip)('--create-database creates it, and the same connection then works', async () => {
       const db = connect()
       const created = await SyncService.ensureDatabase(db, {
         argv: ['--create-database'],
