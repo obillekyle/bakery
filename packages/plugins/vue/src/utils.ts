@@ -635,6 +635,35 @@ export async function getServerResponse(options: ServerResponseOptions) {
   }
 }
 
+/** A relative specifier in a static import, an export-from or a dynamic import. */
+const RX_RELATIVE_SPECIFIER =
+  /((?:\bfrom|\bimport)\s*\(?\s*)(['"])(\.{1,2}\/[^'"]*)\2/g
+
+/**
+ * Relative specifiers made absolute from the file's own place under the
+ * serve root, so a script resolves the same however deep the URL it was
+ * served from.
+ *
+ * A browser resolves a relative import against the importing script's URL.
+ * Since 2.0.4 a dynamic page's root script is served at the page's URL, which
+ * shares the source file's directory only one segment deep: at
+ * `/admin/faculty/add` the root script of `admin/[...slug].vue` resolved
+ * `../shared/usePath` to `/admin/shared/usePath`. Absolute, every file has one
+ * URL, which is also what keeps a module from loading twice under two names.
+ *
+ * Brackets are percent-encoded: a requested name is read as a glob, where a
+ * bare `[id]` is a character class and never matches the file of that name.
+ */
+export function absolutizeRelativeImports(code: string, routePath: string): string {
+  const base = `http://bakery.invalid${routePath.replace(/\\/g, '/')}`
+  return code.replace(RX_RELATIVE_SPECIFIER, (match, lead: string, quote: string, spec: string) => {
+    const url = Try.return(() => new URL(spec, base), null)
+    if (!url) return match
+    const path = url.pathname.replaceAll('[', '%5B').replaceAll(']', '%5D')
+    return `${lead}${quote}${path}${url.search}${url.hash}${quote}`
+  })
+}
+
 export function rewriteVueImports(code: string): string {
   return code.replace(
     RX_IMPORT_VUE_FILE,

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { fs } from '@bakery-framework/core/utils'
 import {
+  absolutizeRelativeImports,
   collectExportedFunctionNames,
   compileServerBlock,
   extractImportsAndBody,
@@ -343,5 +344,55 @@ describe('parseVueMeta', () => {
       title: 'Reports',
       layout: false,
     })
+  })
+})
+
+describe('absolutizeRelativeImports', () => {
+  const page = '/admin/[...slug].vue'
+
+  test("a relative specifier is resolved from the file's own directory", () => {
+    expect(
+      absolutizeRelativeImports(
+        'import{usePath}from"../shared/usePath";import D from"./pages/dashboard.vue?__vue_script=module"',
+        page,
+      ),
+    ).toBe(
+      'import{usePath}from"/shared/usePath";import D from"/admin/pages/dashboard.vue?__vue_script=module"',
+    )
+  })
+
+  test('static, export-from, side-effect and dynamic forms all move', () => {
+    const out = absolutizeRelativeImports(
+      [
+        "import a from './a'",
+        "export * from './b'",
+        "import './c.css'",
+        "const d = await import('./d.vue')",
+      ].join('\n'),
+      page,
+    )
+    expect(out).toContain("from '/admin/a'")
+    expect(out).toContain("from '/admin/b'")
+    expect(out).toContain("import '/admin/c.css'")
+    expect(out).toContain("import('/admin/d.vue')")
+  })
+
+  test('the hash survives, and a bracketed file is percent-encoded', () => {
+    expect(absolutizeRelativeImports('import x from "./x.ts#frag"', page)).toBe(
+      'import x from "/admin/x.ts#frag"',
+    )
+    expect(absolutizeRelativeImports('import P from "./[id].vue"', page)).toBe(
+      'import P from "/admin/%5Bid%5D.vue"',
+    )
+  })
+
+  test('bare, absolute and URL specifiers are left alone', () => {
+    const code = 'import{ref}from"vue";import a from"/abs/a";import b from"https://cdn.example/b.js"'
+    expect(absolutizeRelativeImports(code, page)).toBe(code)
+  })
+
+  test('a string that only looks like a path, outside an import, is left alone', () => {
+    const code = 'const hint = "./not-an-import"; console.log("../also-not")'
+    expect(absolutizeRelativeImports(code, page)).toBe(code)
   })
 })

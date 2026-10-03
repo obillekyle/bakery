@@ -15,6 +15,7 @@ import {
   JsonResponseData,
   response,
   toHash,
+  Try,
 } from '@bakery-framework/core/utils'
 import { ETag, injectIfHtml } from '@bakery-framework/core/utils/http'
 
@@ -44,12 +45,23 @@ import {
   parseVueMeta,
   RX_EXPORT_BRACE,
   RX_EXPORT_HANGING,
+  absolutizeRelativeImports,
   rewriteVueImports,
   VUE_SERVER_DATA_TOKEN,
 } from './utils'
 
 function normalizePath(path: string) {
   return path.endsWith('.js') ? path.slice(0, -3) : path
+}
+
+/**
+ * Whether a request names the route's file itself, rather than reaching it
+ * through a route parameter. Decoded, because an import of a bracketed file
+ * arrives percent-encoded (`absolutizeRelativeImports`).
+ */
+function requestNamesFile(path: string, routePath: string): boolean {
+  const requested = Try.return(() => decodeURIComponent(path), path)
+  return requested === routePath.replace(/\\/g, '/')
 }
 
 const RX_SERVER_DATA_TOKEN = new RegExp(`\\b${VUE_SERVER_DATA_TOKEN}\\b`, 'g')
@@ -434,6 +446,10 @@ export class VueHandler extends DynamicHandler {
     if (code.includes('.vue"') || code.includes(".vue'")) {
       code = rewriteVueImports(code)
     }
+    // After the `.vue` rewrite, which only appends a query and leaves the
+    // specifier relative. See `absolutizeRelativeImports` for why relative
+    // imports cannot survive into the browser.
+    code = absolutizeRelativeImports(code, routePath)
 
     if (serverDataReplacement !== undefined) {
       code = code.replace(RX_SERVER_DATA_TOKEN, () => serverDataReplacement)
@@ -725,6 +741,19 @@ async function sharedHandler(
     vueScriptParam !== null ||
     accept.includes('text/javascript') ||
     req.headers.get('sec-fetch-dest') === 'script'
+
+  // An import of some other file that reached this page only through a route
+  // parameter: `/admin/faculty/pages/dashboard.vue?__vue_script=module`
+  // matched by `admin/[...slug].vue`. It was answered with this page's own
+  // script, a 200 the browser took for the module it asked for, and that is
+  // what kept a whole class of wrong import URLs out of sight. Refused now.
+  // The page's own root script and stylesheet still answer at its URL: that
+  // is where 2.0.4 links them (`__vue_script=root`, `__vue_css`).
+  const isImport =
+    vueScriptParam === 'module' || (vueScriptParam === null && isScript)
+  if (isImport && !requestNamesFile(path, routePath)) {
+    return response.error('Not Found', 404)
+  }
 
   const parsed = await VueHandler.parseVueFile(
     id,
