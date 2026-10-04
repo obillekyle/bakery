@@ -202,6 +202,15 @@ export class TieredCache<K extends string | number, V> {
     return fromRAM || info.changes > 0
   }
 
+  /**
+   * The value if it is in the memory tier. Records no access and reads
+   * nothing from disk: for a caller that needs the live object, if there is
+   * one, without promoting a row that nothing is using.
+   */
+  peek(key: K): V | undefined {
+    return this.memoryStore.get(key)?.value
+  }
+
   getAccessedAt(key: K): number | undefined {
     if (this.memoryStore.has(key)) return this.memoryStore.get(key)!.accessedAt
     return (

@@ -43,7 +43,8 @@
     "./schema-util": "./src/schema-util.ts",
     "./connection": "./src/connection.ts",
     "./pool": "./src/pool.ts",
-    "./backup": "./src/backup.ts"
+    "./backup": "./src/backup.ts",
+    "./sessions": "./src/sessions.ts"
   },
   "files": [
     "src",

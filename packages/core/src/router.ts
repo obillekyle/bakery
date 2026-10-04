@@ -320,8 +320,18 @@ export async function processResponse(
   let status = 200
   let type = 'text/plain; charset=utf-8'
   if (data === WebSocketHandler.WS_UPGRADE) return
-  if (data === null || data === undefined)
-    return new Response(null, { status: 204 })
+
+  // Every other response commits the session, the empty one below included.
+  // A handler answering 204 used to skip this, so a session it wrote was
+  // never stored when it was new; with a configured store, whose writes wait
+  // for the commit, a logout answered 204 would not have ended anything.
+  const cookie = await Session.commit(req)
+
+  if (data === null || data === undefined) {
+    const empty = new Response(null, { status: 204 })
+    if (cookie) empty.headers.append('Set-Cookie', cookie)
+    return empty
+  }
 
   const resp = await (async function getResponse() {
     if (data instanceof Response) {
@@ -352,11 +362,9 @@ export async function processResponse(
     return ETag.sendText(String(data), req, type, status)
   })()
 
-  const sess = Session.getCookie(req)
-
   // append, not set: a handler may already have issued its own Set-Cookie
   // (e.g. an auth cookie from a login route) that must not be overwritten.
-  sess && resp.headers.append('Set-Cookie', sess)
+  if (cookie) resp.headers.append('Set-Cookie', cookie)
 
   // Every response funnels through here (pages, API JSON, static files, error
   // pages), so this is the one place that cannot miss one. Applied before ETag

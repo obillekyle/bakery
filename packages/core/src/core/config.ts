@@ -57,6 +57,10 @@ const defaultConfig: Required<AppConfig> = {
   // Empty means migrations mode is off, and the schema declarations are the
   // truth that db:sync enforces.
   migrations: '',
+  // No store means the built-in one: memory, with bakery/sessions.db behind
+  // it. No account key means `Session.endForAccount` has nothing to look up,
+  // and says so rather than ending nothing.
+  sessions: {},
   root: 'src',
   hosts: {},
   websocket: {
@@ -180,6 +184,15 @@ export function __setTestConfig(overrides: Partial<ProcessedAppConfig>): void {
 
 export function __resetTestConfig(): void {
   testOverrides = null
+}
+
+/**
+ * The config once `initConfig()` has run, and null before it: for code that
+ * also runs outside a server, where the defaults are the answer. Sessions are
+ * the case: a unit test or a script builds one without booting anything.
+ */
+export function peekConfig(): Readonly<ProcessedAppConfig> | null {
+  return cachedConfig ? getConfig() : null
 }
 
 export function getConfig(): Readonly<ProcessedAppConfig> {

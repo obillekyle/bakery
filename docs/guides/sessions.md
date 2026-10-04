@@ -150,7 +150,10 @@ Statics for administration (`session.ts`): `Session.count`,
 `Session.get(id)`, `Session.delete(id)`, `Session.keys()`, `Session.values()`,
 `Session.entries()`, `Session.list({ page, pageSize, sortBy, sortOrder })`, and
 an async iterator over every live session. All of them except `Session.count`
-are scoped to the current host. See below.
+are scoped to the current host. See below. Their async forms,
+`Session.total()`, `Session.end(id)`, `Session.page(options)` and
+`Session.save(session)`, work with any store; the synchronous ones read the
+built-in store (see [Sessions in the database](#sessions-in-the-database)).
 
 ## Rotate the id at the privilege boundary
 
@@ -277,8 +280,171 @@ worker keeps its own memory tier and flushes on its own 30-second timer, so a
 write on worker A may be invisible to worker B for up to that long, and B will
 keep serving its cached copy if it already has one. For a login flag this is
 usually fine; for a value read immediately after being written by a different
-request, it is not. Use sticky sessions at the proxy, or keep that value in the
-database.
+request, it is not. Use sticky sessions at the proxy, or keep the sessions
+themselves in the database (below).
+
+## Sessions in the database
+
+The built-in store keeps each worker's sessions in that worker's memory. Under
+`--threads`, a session ended in one worker lives on in another until its copy
+ages out, and a write in one may be invisible to another for half a minute.
+`databaseSessions()` from `@bakery-framework/orm/sessions` keeps them in the
+app's database instead, where every worker reads the same rows and nothing
+keeps a copy between requests:
+
+```ts
+import { defineConfig } from '@bakery-framework/core'
+import { databaseSessions } from '@bakery-framework/orm/sessions'
+
+export default defineConfig({
+  sessions: { store: databaseSessions(), account: 'accountId' },
+})
+```
+
+`account` names the session key that holds the account id. The store copies
+that value into an indexed column, which is how `Session.endForAccount()`
+finds every session of one account with a single `DELETE`.
+
+The table is the app's to create: the store never creates or alters one, which
+a database role without DDL rights could not do and migrations mode would not
+want done behind its back. One definition serves Postgres, MySQL and SQLite,
+and in migrations mode it goes in a migration file:
+
+```sql
+CREATE TABLE bakery_sessions (
+  id VARCHAR(64) NOT NULL PRIMARY KEY,
+  host VARCHAR(255) NOT NULL DEFAULT '',
+  account VARCHAR(255),
+  data TEXT NOT NULL,
+  persisted INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  accessed_at BIGINT NOT NULL,
+  expires_at BIGINT NOT NULL
+);
+CREATE INDEX bakery_sessions_account ON bakery_sessions (account, host);
+CREATE INDEX bakery_sessions_expires ON bakery_sessions (expires_at);
+```
+
+Times are epoch milliseconds. `data` holds the session as JSON and stays
+`TEXT`, because the dashboard's session search reads it as text. A different
+name goes in both places: the SQL, and `databaseSessions({ table: 'sessions' })`.
+
+Classic `db:sync` plans a drop for any table the schema leaves out, so an app
+there declares the table instead, and the sync creates it:
+
+```ts
+import { Field } from '@bakery-framework/orm'
+
+export namespace DBInfo {
+  export const constraints = {
+    bakerySessions: {
+      id: Field.Varchar(64),
+      host: Field.Varchar(255, ''),
+      account: Field.Varchar(255, null),
+      data: Field.Text(),
+      persisted: Field.Int(),
+      createdAt: Field.BigInt(),
+      accessedAt: Field.BigInt(),
+      expiresAt: Field.BigInt(),
+    },
+  } as const
+
+  export const indexes = {
+    bakerySessionsId: Field.Unique('bakerySessions', ['id']),
+    bakerySessionsAccount: Field.Index('bakerySessions', ['account', 'host']),
+    bakerySessionsExpires: Field.Index('bakerySessions', ['expiresAt']),
+  } as const
+}
+```
+
+Both are held to the store by `packages/orm/src/sessions.test.ts`, which runs
+the SQL above as written on all three databases.
+
+### Ending every session of an account
+
+```ts
+import { Session } from '@bakery-framework/core/session'
+import DB from '@bakery-framework/orm'
+
+export async function removeAccount(id: number): Promise<void> {
+  await DB.transaction(async () => {
+    await DB.Delete.from('accounts').where('accounts.id', id).run()
+    await Session.endForAccount(id)
+  })
+}
+```
+
+Inside `DB.transaction()` the store runs on the transaction's connection, so
+the account and its sessions go in one commit, or neither goes. The next
+request carrying any of those cookies, in any worker, finds no session. The
+account is matched as text, so `7` and `'7'` are one account, and without
+`sessions.account` the call throws rather than ending nothing.
+
+A request that had already read one of those sessions finishes with what it
+read, and writes nothing back: a write to a session that is no longer stored
+finds no row, stores nothing, and the response carries no cookie.
+
+### A version that ends sessions
+
+An app that keeps a version beside the account id ends sessions by moving the
+version (a password change, a role taken away) and comparing it on every
+request:
+
+```ts
+import DB from '@bakery-framework/orm'
+
+export async function currentAccount(req: Request) {
+  const id = req.session.get<number>('accountId')
+  if (!id) return null
+  const account = await DB.from('accounts').where('accounts.id', id).first()
+  if (!account || account.version !== req.session.get('version')) {
+    req.session.destroy()
+    return null
+  }
+  return account
+}
+```
+
+With the database store this holds in every worker the moment the version
+moves, since no worker keeps a copy of the session that could be stale.
+
+### What it costs
+
+A request carrying a session cookie waits for one lookup by primary key before
+anything else runs, which is what lets the rate limiter's `keyBy` and every
+handler read `req.session` without awaiting it. Measured against Postgres 16
+on loopback through the store itself, two adjacent runs with 2,000 sessions in
+the table: 0.37 ms a lookup, against 0.28 to 0.30 ms for `SELECT 1` on the
+same connection, so about 0.08 ms beyond the round trip. A renewal, an
+`UPDATE`, took 0.70 ms. A request without the cookie costs nothing.
+
+Writes happen when the built-in store would write: on a change, and when a
+cookie passes half its `Max-Age`, which renews the times without rewriting
+the data. Each write is awaited before the response leaves, so a login
+answered with a redirect finds its session on the next request, whichever
+worker takes it. Every worker deletes expired rows once a quarter hour, over
+the `expires_at` index; a read ignores them before that.
+
+Two differences from the built-in store follow from keeping no copy. Two
+requests writing one session at the same moment each write their own copy,
+and the later write wins, where the built-in store hands both requests one
+shared object. And idle expiry counts from the last write rather than the
+last read: a session read at least once in every half of its timeout never
+expires, and one left alone ends between half its timeout and all of it after
+its last request. A session written at sign-in and only read after, an
+account id and a version, is unaffected by the first.
+
+A store that cannot be read answers the request as a server error, rather
+than as a visitor with no session.
+
+### The statics with a configured store
+
+`Session.total()`, `Session.end(id)`, `Session.endForAccount(id)`,
+`Session.page(options)`, `Session.get(id)` and `Session.save(session)` work
+with any store, and the dashboard and analytics plugins use them.
+`Session.count`, `delete`, `list`, `keys`, `values`, `entries`, `create`,
+`getCookie` and `bind` read the built-in store synchronously, and throw when a
+configured store replaces it, naming what to use instead.
 
 ## Sessions outside a request
 
@@ -291,3 +457,7 @@ through a symbol the router installs on the request. An instance form,
 `session.bind(res)`, was documented here until 2.0 and never worked: it
 constructed a stand-in object carrying no such symbol, so the lookup failed
 and the cookie was silently not appended. Use the static form.
+
+With a configured store, `bind` throws, since the store's write cannot finish
+synchronously. `await Session.commit(req)` makes the write and returns the
+cookie to append, `''` when there is none.

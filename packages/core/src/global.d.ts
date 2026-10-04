@@ -156,6 +156,17 @@ declare global {
      */
     migrations?: string
 
+    /**
+     * Where sessions live, and which session key holds the account id.
+     *
+     * `store` replaces the built-in store (memory, with `bakery/sessions.db`
+     * behind it) with one every worker shares and nothing caches, such as
+     * `databaseSessions()` from `@bakery-framework/orm/sessions`. `account`
+     * names the key a store indexes, which is what lets
+     * `Session.endForAccount()` find every session of one account.
+     */
+    sessions?: import('./session').SessionOptions
+
     hosts?: Record<string, HostEntry>
   }
 

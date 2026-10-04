@@ -288,6 +288,7 @@ export function getLatestAnalyticsSnapshot() {
       uniqueRequests: 0,
       errorPageHits: 0,
       ping: 0,
+      activeSessions: 0,
     }
   )
 }

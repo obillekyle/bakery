@@ -43,6 +43,15 @@ export interface AppServer {
 export async function bootApp(
   appDir: string,
   port: number,
+  options: {
+    /**
+     * The CLI's arguments, `--sync` unless given. An app whose `DB_URL` is a
+     * shared test server passes its own: a sync there would plan against
+     * every other fixture in the database.
+     */
+    args?: string[]
+    env?: Record<string, string>
+  } = {},
 ): Promise<AppServer> {
   const base = `http://127.0.0.1:${port}`
 
@@ -64,9 +73,9 @@ export async function bootApp(
     )
   }
 
-  const server = Bun.spawn(['bun', CLI, '--sync'], {
+  const server = Bun.spawn(['bun', CLI, ...(options.args ?? ['--sync'])], {
     cwd: appDir,
-    env: { ...process.env, PORT: String(port) },
+    env: { ...process.env, ...options.env, PORT: String(port) },
     stdout: 'ignore',
     stderr: 'ignore',
   })

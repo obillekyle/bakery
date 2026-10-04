@@ -16,6 +16,13 @@ export const ANALYTICS_TICK_MS = 1000
 let lastSaveTime = 0
 
 /**
+ * The last count a store gave. A store that cannot be read keeps it, rather
+ * than failing the tick: the requests that need the store already report
+ * it, and a gap in the telemetry would report nothing.
+ */
+let lastSessionCount = 0
+
+/**
  * Flush at most once per `SAVE_THROTTLE_MS`.
  *
  * The timestamp is stamped when the write *settles*, not when it is
@@ -44,12 +51,16 @@ async function runAnalyticsTick(server: any) {
     return res.status === 200 ? getElapsed(pingStart) : res.status
   }, 0)
 
+  // Asked of whichever store holds the sessions: a COUNT(*) on the built-in
+  // one's SQLite file, one over the `expires_at` index on a database store.
+  lastSessionCount = await Try.return(() => Session.total(), lastSessionCount)
+
   const mem = process.memoryUsage()
   core.pushAnalyticsSnapshot({
     timestamp: Date.now(),
     memoryUsed: Math.round(mem.rss / 1024 / 1024),
     activeLoggers: activeLoggersCount,
-    activeSessions: Session.count,
+    activeSessions: lastSessionCount,
     ping: pingVal,
   })
 
@@ -128,7 +139,8 @@ let loopRunning = false
  *
  * A self-rescheduling `setTimeout`, not `setInterval`. The tick body makes a
  * full round trip through the server (`MiddlewareHandler`, so `onRequest` and
- * every app middleware) plus a `Session.count`, which is a SQLite `COUNT(*)`.
+ * every app middleware) plus a `Session.total()`: a SQLite `COUNT(*)` with the
+ * built-in store, a query to the database with a database one.
  * `setInterval` does not wait for an async body, so once p50 exceeded one
  * second the ticks overlapped and the in-flight pings accumulated, each adding
  * load that lengthened the next: positive feedback, from the telemetry.

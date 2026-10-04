@@ -19,7 +19,7 @@ import {
 } from '@bakery-framework/core/router'
 import { Session } from '@bakery-framework/core/session'
 import { runStartupBanner, setupServer } from '@bakery-framework/core/startup'
-import { deferredValue, Try } from '@bakery-framework/core/utils/common'
+import { Try } from '@bakery-framework/core/utils/common'
 import { parsedUrl } from '@bakery-framework/core/utils/http'
 import { COUNTER_SLOTS } from '@bakery-framework/core/utils/shared-pool'
 import { hasORM } from './orm'
@@ -269,7 +269,23 @@ try {
         const path = url.pathname
         req.startNs = Bun.nanoseconds()
         req.__hostname = hostname
-        deferredValue(req, 'session', Session.from)
+
+        // Before the limiter, whose `keyBy` may key on the account. A store
+        // that cannot be read answers the request as an error: carrying on
+        // without the session would treat every signed-in visitor as signed
+        // out for as long as the store is down.
+        const loading = Session.attach(req)
+        if (loading) {
+          const [loadError] = await Try.catch(loading)
+          if (loadError) {
+            Bakery.sharedPool.incrementCounter(COUNTER_SLOTS.TOTAL_ERRORS, 1)
+            serveLog.SESSION_LOAD_ERR({ error: errorMsg(loadError) })
+            return await processResponse(
+              await handleRequestError(path, req, loadError),
+              req,
+            )
+          }
+        }
 
         const rl = Bakery.config.rateLimit
         let ticket: RateLimitTicket | null = null

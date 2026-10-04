@@ -1,7 +1,10 @@
 import { TieredCache } from './cache/tiered'
 import { Bakery, hostKey } from './core/bakery'
+import { peekConfig, resolveHostname } from './core/config'
+import { hostStore } from './core/context'
+import { errorMsg, serveLog } from './logger/serve-log'
 import type { MapOf } from './types'
-import { hasDeferredValue } from './utils'
+import { deferredValue, hasDeferredValue } from './utils'
 import { DEFAULT_SESSION_PERSIST, DEFAULT_SESSION_TTL } from './utils/constants'
 
 /**
@@ -75,6 +78,141 @@ function inScope(key: string, scope: string): boolean {
   return key.startsWith(scope) && !key.slice(scope.length).includes(':')
 }
 
+/** A session as a {@link SessionStore} keeps it. Times are epoch milliseconds. */
+export interface StoredSession {
+  id: string
+  /** The configured host it belongs to, `''` for the default namespace. */
+  host: string
+  /**
+   * The account it belongs to, as text: the value under the key that
+   * `sessions.account` names, or null when there is none.
+   */
+  account: string | null
+  createdAt: number
+  /** When it was last written, which is when its cookie was last issued. */
+  accessedAt: number
+  /** When a store may forget it: `accessedAt` plus its idle timeout. */
+  expiresAt: number
+  persistKeys: string[]
+  data: Record<string, unknown>
+}
+
+export interface SessionListOptions {
+  search?: string
+  page: number
+  pageSize: number
+  sortBy: string
+  sortOrder: 'ASC' | 'DESC'
+}
+
+export interface SessionPage {
+  rows: Session<any>[]
+  totalRows: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+/**
+ * Where sessions live when `sessions.store` replaces the built-in store,
+ * which is memory with `bakery/sessions.db` behind it.
+ *
+ * Every method is a round trip, and nothing here keeps a session between
+ * requests. That is the point: with the built-in store each `--threads`
+ * worker serves sessions from its own memory, so a session ended in one
+ * worker lived on in another. A store every worker asks, and nobody caches,
+ * ends it for the next request in all of them.
+ * `@bakery-framework/orm/sessions` implements it over the app's database.
+ */
+export interface SessionStore {
+  /** The session under this id and host, if it is still live at `now`. */
+  load(
+    host: string,
+    id: string,
+    now: number,
+  ): Promise<StoredSession | undefined>
+  /** Store a session that has never been stored. */
+  insert(session: StoredSession): Promise<void>
+  /**
+   * Rewrite the session stored as `storedId`, which is its own id or the one
+   * it had before `regenerate()`. False when nothing is stored under that id
+   * any more, because something ended it after this request read it; then
+   * nothing is written, since an update must never bring a session back.
+   */
+  update(storedId: string, session: StoredSession): Promise<boolean>
+  /** Renew a stored session's times without rewriting it. False as for `update`. */
+  touch(
+    host: string,
+    id: string,
+    accessedAt: number,
+    expiresAt: number,
+  ): Promise<boolean>
+  /** True when a session was removed. */
+  remove(host: string, id: string): Promise<boolean>
+  /** Remove every session of one account under one host: how many went. */
+  removeAccount(host: string, account: string): Promise<number>
+  /** Live sessions across every host. */
+  count(now: number): Promise<number>
+  /**
+   * One page of the host's live sessions, and how many it has in all. A page
+   * past the end is the last page.
+   */
+  list(
+    host: string,
+    options: SessionListOptions,
+    now: number,
+  ): Promise<{ rows: StoredSession[]; totalRows: number }>
+  /** Forget what has expired by `now`: how many went. */
+  prune(now: number): Promise<number>
+}
+
+/** `sessions` in `server.config.ts`. */
+export interface SessionOptions {
+  /** Where sessions live. Omitted, the built-in store. */
+  store?: SessionStore
+  /**
+   * The session key that holds the account id. A store indexes it, so
+   * `Session.endForAccount` can end every session of one account.
+   */
+  account?: string
+}
+
+/**
+ * The configured `sessions`, or undefined before `initConfig()`. Sessions are
+ * built outside a server too (a unit test, a script), and there the defaults
+ * are the answer rather than an error.
+ */
+function sessionOptions(): SessionOptions | undefined {
+  return (hostStore.getStore()?.config ?? peekConfig())?.sessions
+}
+
+/** The configured store, or undefined for the built-in one. */
+function sessionStore(): SessionStore | undefined {
+  return sessionOptions()?.store
+}
+
+/** The host `hostKey()` would prefix, without the separator: a store's scope. */
+function sessionHost(): string {
+  return resolveHostname(hostStore.getStore()?.hostname || '')
+}
+
+/**
+ * Ids worth a lookup: `newSessionId` mints 43 of these characters. A cookie
+ * holding anything else names no session a store could have, and costs no
+ * round trip.
+ */
+const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/
+
+/** The session `attach` read for a request, where `from` finds it. */
+const PRELOADED = Symbol('bakery.session.preloaded')
+
+/** A synchronous static that reads the built-in store, called with another configured. */
+function builtInOnly(what: string, instead: string): never {
+  throw new Error(
+    `${what} reads the built-in session store, and sessions.store replaces it: use ${instead}.`,
+  )
+}
+
 export class Session<
   T extends MapOf<any> = MapOf<any>,
   TK extends keyof T | (string & {}) = keyof T | (string & {}),
@@ -99,6 +237,7 @@ export class Session<
    * would mean walking every key on every sample.
    */
   public static get count() {
+    if (sessionStore()) builtInOnly('Session.count', 'await Session.total()')
     return Session.cache.count
   }
 
@@ -116,6 +255,12 @@ export class Session<
    * request it belongs to issued a cookie this turn.
    */
   public static bind(req: Request, response?: Response) {
+    if (sessionStore()) {
+      builtInOnly(
+        'Session.bind',
+        'await Session.commit(req) and append the cookie it returns',
+      )
+    }
     if (!response) return response
 
     const cookieValue = Session.getCookie(req)
@@ -125,8 +270,15 @@ export class Session<
   }
 
   public static getCookie(req: Request): string {
+    if (sessionStore()) {
+      builtInOnly('Session.getCookie', 'await Session.commit(req)')
+    }
     if (!hasDeferredValue(req, 'session')) return ''
     const session = req.session
+
+    // Ended from outside this request (`Session.delete`, `endForAccount`):
+    // storing it again would undo that.
+    if (session.ended) return ''
 
     // Issue only when the session actually changed, or when the read path
     // flagged a half-life refresh (see `markAccessed`), not on every read.
@@ -144,12 +296,58 @@ export class Session<
     session.cookieRefreshDue = false
     session.cookieIssuedAt = clock()
 
-    // `persistedKeys` allocates an Array off the Set purely to read `.length`;
-    // `hasPersistedKeys()` reads `Set.size` and answers the same question.
-    const hasPersistedKeys = session.hasPersistedKeys()
-    const maxAgeSeconds = hasPersistedKeys
-      ? Math.floor(DEFAULT_SESSION_PERSIST / 1000)
-      : Math.floor(DEFAULT_SESSION_TTL / 1000)
+    return Session.cookieHeader(session, req)
+  }
+
+  /**
+   * Write what this request did to its session, and return the `Set-Cookie`
+   * value for the response, `''` for none. `processResponse` calls it for
+   * every response but a WebSocket upgrade, whose headers are not its to set.
+   *
+   * With the built-in store this is `getCookie`. With `sessions.store` the
+   * writes happen here, awaited, so the response leaves after the store has
+   * them: a login answered with a redirect finds its session on the next
+   * request, whichever worker takes it.
+   */
+  public static async commit(req: Request): Promise<string> {
+    const store = sessionStore()
+    if (!store) return Session.getCookie(req)
+    if (!hasDeferredValue(req, 'session')) return ''
+    return await req.session.commitTo(store, req)
+  }
+
+  /**
+   * Give the request its `req.session`. `worker.ts` calls it first, so the
+   * rate limiter's `keyBy` and every handler after it read the session
+   * synchronously.
+   *
+   * With the built-in store nothing is read until something asks: the
+   * property is deferred, and a request that never touches it costs nothing.
+   * A configured store cannot be asked synchronously, so a request carrying a
+   * session cookie waits here for one lookup by primary key, and one without
+   * a cookie does not wait at all.
+   */
+  public static attach(req: Request): Promise<void> | undefined {
+    deferredValue(req, 'session', Session.from)
+    const store = sessionStore()
+    if (!store) return undefined
+
+    const id = Session.getSessionId(req)
+    if (!SESSION_ID.test(id)) return undefined
+
+    return store.load(sessionHost(), id, clock()).then(stored => {
+      // `load` asks for live sessions only. Checked again so a store that
+      // forgets to cannot hand back an expired one.
+      if (!stored || stored.expiresAt <= clock()) return
+      const session = Session.revive(stored)
+      session.markAccessed()
+      ;(req as any)[PRELOADED] = session
+    })
+  }
+
+  /** The `Set-Cookie` value naming `session`, for the response to `req`. */
+  private static cookieHeader(session: Session<any>, req: Request): string {
+    const maxAgeSeconds = Math.floor(session.idleTimeout() / 1000)
 
     // Only believe x-forwarded-proto behind a trusted proxy: the same rule
     // getHostname and getClientIp already apply. In production default to
@@ -165,8 +363,16 @@ export class Session<
   }
 
   public static delete(reqOrId: string | Request): boolean {
+    if (sessionStore()) builtInOnly('Session.delete', 'await Session.end(id)')
     const id = this.getSessionId(reqOrId)
-    return id ? Session.cache.delete(sessionKey(id)) : false
+    if (!id) return false
+    const key = sessionKey(id)
+    // A request holding this session right now must not store it again on
+    // its way out. The memory tier hands every request the same object, so
+    // marking it reaches them all.
+    const live = Session.cache.peek(key)
+    if (live) live.ended = true
+    return Session.cache.delete(key)
   }
 
   public static create<T extends MapOf<any>>(metadata: {
@@ -174,6 +380,9 @@ export class Session<
     persistKeys: string[] | Set<string>
     data: Partial<T>
   }): Session<T> {
+    if (sessionStore()) {
+      builtInOnly('Session.create', 'req.session, which the response stores')
+    }
     const session = Session.reconstruct<T>(metadata)
     Session.cache.set(sessionKey(session.id), session)
     return session
@@ -212,6 +421,8 @@ export class Session<
   ): Session<T> {
     const rawReq = request as any
     if (rawReq._session) return rawReq._session as any
+    // A configured store was read by `attach`, before anything could ask.
+    if (sessionStore()) return rawReq[PRELOADED] ?? new Session()
     const sessionId = Session.getSessionId(request)
 
     if (sessionId) {
@@ -259,6 +470,27 @@ export class Session<
 
   protected rawData: Partial<T> = {}
   public data!: Partial<T>
+
+  /**
+   * Ended from outside the request holding it, by `Session.delete`,
+   * `Session.end` or `Session.endForAccount`: nothing it writes is stored
+   * again. `destroy()` is different: the request ending its own session may
+   * go on to start a new one.
+   */
+  private ended = false
+
+  /**
+   * With `sessions.store`: the id the store holds this session under, or null
+   * while it holds nothing. It differs from `id` after `regenerate()`, until
+   * the commit moves the row.
+   */
+  private storedId: string | null = null
+
+  /** With `sessions.store`: stored ids to remove at commit, in order. */
+  private removals: string[] = []
+
+  /** With `sessions.store`: when the store last wrote it. */
+  private storedAccessedAt: number | undefined
 
   constructor(sessid?: string, createdAt?: number) {
     sessid = sessid || newSessionId()
@@ -313,19 +545,33 @@ export class Session<
    * of maxAge, so active sessions never age out server-side either.
    */
   private markAccessed(): void {
-    const maxAgeMs = this.hasPersistedKeys()
-      ? DEFAULT_SESSION_PERSIST
-      : DEFAULT_SESSION_TTL
-    if (clock() - this.cookieIssuedAt > maxAgeMs / 2) {
+    if (clock() - this.cookieIssuedAt > this.idleTimeout() / 2) {
       this.cookieRefreshDue = true
     }
+  }
+
+  /**
+   * How long the session lives unused, which is also its cookie's Max-Age:
+   * 30 days once a key is persisted, an hour otherwise.
+   *
+   * `hasPersistedKeys()` rather than `persistedKeys.length`: the getter
+   * allocates an Array off the Set purely to read its length.
+   */
+  private idleTimeout(): number {
+    return this.hasPersistedKeys()
+      ? DEFAULT_SESSION_PERSIST
+      : DEFAULT_SESSION_TTL
   }
 
   public get isModified() {
     return this.modified
   }
   public get accessedAt() {
-    return Session.cache.getAccessedAt(sessionKey(this.id)) ?? Date.now()
+    return (
+      this.storedAccessedAt ??
+      Session.cache.getAccessedAt(sessionKey(this.id)) ??
+      Date.now()
+    )
   }
   public get persistedKeys() {
     return Array.from(this.persistKeys)
@@ -340,17 +586,15 @@ export class Session<
   }
 
   public isExpired(): boolean {
-    const accessed = this.accessedAt
-    return this.hasPersistedKeys()
-      ? Date.now() - accessed > DEFAULT_SESSION_PERSIST
-      : Date.now() - accessed > DEFAULT_SESSION_TTL
+    return Date.now() - this.accessedAt > this.idleTimeout()
   }
 
   public persist(key: keyof T | (string & {}), state: boolean = true): this {
     this.persistKeys[state ? 'add' : 'delete'](key as string)
     this.modified = true
 
-    if (this.persistKeys.size > 0) {
+    // A configured store writes at commit, like every other change.
+    if (this.persistKeys.size > 0 && !sessionStore()) {
       Session.cache.set(sessionKey(this.id), this)
     }
 
@@ -383,8 +627,13 @@ export class Session<
     // `id` is readonly to callers; rotating it is the one legitimate write.
     ;(this as { id: string }).id = newSessionId()
 
-    Session.cache.delete(sessionKey(previous))
-    Session.cache.set(sessionKey(this.id), this)
+    // A configured store moves the row at commit, from `storedId` to the new
+    // id in one statement, so a session ended meanwhile is not recreated
+    // under its new name.
+    if (!sessionStore()) {
+      Session.cache.delete(sessionKey(previous))
+      Session.cache.set(sessionKey(this.id), this)
+    }
     this.modified = true
 
     return this
@@ -398,15 +647,28 @@ export class Session<
       delete this.rawData[key as keyof T]
     }
 
+    const store = sessionStore()
     if (!this.hasPersistedKeys()) {
-      Session.cache.delete(sessionKey(this.id))
+      if (store) this.forgetStored()
+      else Session.cache.delete(sessionKey(this.id))
       this.modified = false
       // A pending half-life refresh would make `getCookie` re-store the
       // session this branch just deleted.
       this.cookieRefreshDue = false
+    } else if (store) {
+      this.modified = true
     } else {
       Session.cache.set(sessionKey(this.id), this)
     }
+  }
+
+  /**
+   * With `sessions.store`: remove the stored row at commit, and store
+   * anything written after this as a session of its own.
+   */
+  private forgetStored(): void {
+    if (this.storedId !== null) this.removals.push(this.storedId)
+    this.storedId = null
   }
 
   get<K extends keyof T>(key: K): T[K] | undefined
@@ -453,7 +715,8 @@ export class Session<
    * its own, which the response issues as usual.
    */
   public destroy(): void {
-    Session.delete(this.id)
+    if (sessionStore()) this.forgetStored()
+    else Session.cache.delete(sessionKey(this.id))
     ;(this as { id: string }).id = newSessionId()
     ;(this as { createdAt: number }).createdAt = Date.now()
     this.persistKeys.clear()
@@ -463,6 +726,82 @@ export class Session<
     this.modified = false
     this.cookieRefreshDue = false
     this.cookieIssuedAt = 0
+    this.ended = false
+  }
+
+  /**
+   * With `sessions.store`, the writes `commit` makes: the removals first and
+   * in order, then the session itself.
+   *
+   * One statement at a time, never in parallel. A pool can run two
+   * statements on two connections, and a removal overtaken by the insert
+   * queued after it (`reset()` then a write keeps the id) would remove the
+   * session just written.
+   */
+  private async commitTo(store: SessionStore, req: Request): Promise<string> {
+    const host = sessionHost()
+    for (const id of this.removals.splice(0)) await store.remove(host, id)
+    if (this.ended || (!this.modified && !this.cookieRefreshDue)) return ''
+
+    const now = clock()
+    const stored = this.toStored(host, now)
+    let kept = true
+    if (this.storedId === null) await store.insert(stored)
+    else if (this.modified) kept = await store.update(this.storedId, stored)
+    else kept = await store.touch(host, this.storedId, now, stored.expiresAt)
+
+    if (!kept) {
+      // Ended after this request read it: by `endForAccount`, by a logout in
+      // another tab, in this worker or another. Writing it back would undo
+      // that, and a new cookie would name a session that is not there.
+      this.ended = true
+      return ''
+    }
+
+    this.storedId = this.id
+    this.storedAccessedAt = now
+    this.cookieIssuedAt = now
+    this.modified = false
+    this.cookieRefreshDue = false
+    return Session.cookieHeader(this, req)
+  }
+
+  /**
+   * As a store keeps it, last written at `accessedAt`. The account is read
+   * off the key `sessions.account` names, as text, so `7` and `'7'` are one
+   * account.
+   */
+  private toStored(host: string, accessedAt: number): StoredSession {
+    const key = sessionOptions()?.account
+    const held = key ? (this.rawData as MapOf<unknown>)[key] : undefined
+    return {
+      id: this.id,
+      host,
+      account:
+        held === undefined || held === null || held === ''
+          ? null
+          : String(held),
+      createdAt: this.createdAt,
+      accessedAt,
+      expiresAt: accessedAt + this.idleTimeout(),
+      persistKeys: Array.from(this.persistKeys),
+      data: { ...this.rawData },
+    }
+  }
+
+  /** A session read from a store, remembering where it is stored. */
+  private static revive(stored: StoredSession): Session<any> {
+    const session = Session.reconstruct({
+      id: stored.id,
+      createdAt: stored.createdAt,
+      persistKeys: stored.persistKeys,
+      data: stored.data,
+      // A store writes a session exactly when its cookie is issued.
+      cookieIssuedAt: stored.accessedAt,
+    })
+    session.storedId = stored.id
+    session.storedAccessedAt = stored.accessedAt
+    return session
   }
 
   public toJSON() {
@@ -482,16 +821,134 @@ export class Session<
     }
   }
 
+  /**
+   * The live session under this id, on the current host. With a configured
+   * store this is a copy read for the caller: change it, then
+   * `await Session.save(session)`.
+   */
   static async get(sessid: string): Promise<Session<any> | undefined> {
-    return await Session.cache.get(sessionKey(sessid))
+    const store = sessionStore()
+    if (!store) return Session.cache.get(sessionKey(sessid))
+    const stored = await store.load(sessionHost(), sessid, clock())
+    return stored ? Session.revive(stored) : undefined
+  }
+
+  /**
+   * End the session under this id, on the current host: true when there was
+   * one. Unlike `Session.delete`, works with any store.
+   *
+   * A request holding that session right now finishes with what it read,
+   * and writes nothing back on its way out.
+   */
+  static async end(sessid: string): Promise<boolean> {
+    const store = sessionStore()
+    if (!store) return Session.delete(sessid)
+    return await store.remove(sessionHost(), sessid)
+  }
+
+  /**
+   * End every session of one account, on the current host: how many there
+   * were. The account is matched as text against the session key that
+   * `sessions.account` names, so `7` and `'7'` are one account.
+   *
+   * With a configured store this is one indexed `DELETE`, and since nothing
+   * caches a session between requests, the next request in every worker
+   * finds none. Inside `DB.transaction()` the database store takes part in
+   * the transaction, so removing an account and its sessions can be one
+   * commit. With the built-in store it ends what this process holds, which
+   * under `--threads` is not what another worker holds in its memory: that is
+   * the case the database store exists for.
+   */
+  static async endForAccount(account: string | number): Promise<number> {
+    const key = sessionOptions()?.account
+    if (!key) {
+      throw new Error(
+        'Session.endForAccount needs sessions.account in server.config.ts: the session key that holds the account id.',
+      )
+    }
+    const wanted = String(account)
+    const store = sessionStore()
+    if (store) return await store.removeAccount(sessionHost(), wanted)
+
+    // Collected first and deleted after: deleting rows from the table a
+    // statement is still walking is not something SQLite promises to handle.
+    const ended: string[] = []
+    for (const [id, session] of Session.entries()) {
+      const held = (session.rawData as MapOf<unknown>)[key]
+      if (held !== undefined && held !== null && String(held) === wanted) {
+        ended.push(id)
+      }
+    }
+    for (const id of ended) Session.delete(id)
+    return ended.length
+  }
+
+  /** How many sessions are live, across every host. Works with any store. */
+  static async total(): Promise<number> {
+    const store = sessionStore()
+    return store ? await store.count(clock()) : Session.cache.count
+  }
+
+  /**
+   * One page of the current host's sessions, as `Session.list` gives it, from
+   * any store. Sorted by `'id'`, `'keys'` (how many are persisted) or last
+   * access, the default.
+   */
+  static async page(options: SessionListOptions): Promise<SessionPage> {
+    const store = sessionStore()
+    if (!store) return Session.list(options)
+    const { rows, totalRows } = await store.list(
+      sessionHost(),
+      options,
+      clock(),
+    )
+    const totalPages = Math.max(1, Math.ceil(totalRows / options.pageSize))
+    return {
+      rows: rows.map(Session.revive),
+      totalRows,
+      page: Math.min(Math.max(1, options.page), totalPages),
+      pageSize: options.pageSize,
+      totalPages,
+    }
+  }
+
+  /**
+   * Store a session changed outside its own requests, such as one an admin
+   * edits from `Session.get`. False when it has been ended meanwhile, and
+   * then it stays ended.
+   *
+   * Its last access is left alone. With a configured store that time is
+   * when the session's cookie was issued, and moving it on an edit would
+   * delay the owner's cookie refresh past the cookie's own expiry.
+   */
+  static async save(session: Session<any>): Promise<boolean> {
+    const store = sessionStore()
+    if (!store) {
+      Session.cache.set(sessionKey(session.id), session)
+      return true
+    }
+    if (session.ended) return false
+    const stored = session.toStored(
+      sessionHost(),
+      session.storedAccessedAt ?? clock(),
+    )
+    if (session.storedId === null) await store.insert(stored)
+    else if (!(await store.update(session.storedId, stored))) return false
+    session.storedId = session.id
+    session.storedAccessedAt = stored.accessedAt
+    return true
   }
 
   /**
    * Every enumeration below filters to the current host and yields the bare
    * session id, not the cache key, so `Session.keys()` still returns ids the
    * dashboard can hand back to `Session.get` / `Session.delete`.
+   *
+   * They read the built-in store, synchronously, and refuse when a configured
+   * store replaces it: `Session.page()` and `Session.total()` ask any store.
    */
   static *entries(): IterableIterator<[string, Session<any>]> {
+    if (sessionStore()) builtInOnly('Session.entries', 'await Session.page()')
     const scope = sessionScope()
     for (const [key, sess] of Session.cache.entries()) {
       if (!inScope(key, scope)) continue
@@ -507,13 +964,8 @@ export class Session<
     for (const [id] of Session.entries()) yield id
   }
 
-  static list(options: {
-    search?: string
-    page: number
-    pageSize: number
-    sortBy: string
-    sortOrder: 'ASC' | 'DESC'
-  }) {
+  static list(options: SessionListOptions): SessionPage {
+    if (sessionStore()) builtInOnly('Session.list', 'await Session.page()')
     // Fast path: with no `hosts` configured every key is already in the default
     // bucket, so the cache's own SQL paging is correctly scoped and there is no
     // reason to give it up.
@@ -576,6 +1028,15 @@ export class Session<
 
 const sessionPruneTimer = setInterval(
   function cleanUpSessions() {
+    // Every worker runs this timer. Against a shared store that is one
+    // indexed DELETE each per quarter hour, and a second finds nothing.
+    const store = sessionStore()
+    if (store) {
+      store
+        .prune(clock())
+        .catch(error => serveLog.SESSION_PRUNE_ERR({ error: errorMsg(error) }))
+      return
+    }
     Session.cache.prune(DEFAULT_SESSION_TTL, '$.persistKeys')
     Session.cache.prune(DEFAULT_SESSION_PERSIST)
   },

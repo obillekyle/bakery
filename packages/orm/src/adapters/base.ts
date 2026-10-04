@@ -1227,8 +1227,11 @@ export abstract class SQLAdapter {
    * `axb`: `%` and `_` are the wildcards, and the filter passed user input
    * through untouched. The escape character itself goes first, or escaping it
    * afterwards would double the ones this method just added.
+   *
+   * Public for SQL written outside the adapter (the session store's search),
+   * which pairs it with {@link likeEscapeClause}: the two are one decision.
    */
-  protected escapeLike(value: string): string {
+  escapeLike(value: string): string {
     const e = this.likeEscape
     return value
       .split(e)

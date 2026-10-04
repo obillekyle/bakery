@@ -18,6 +18,11 @@ const serveMsgs = {
   SCHEMA_DRIFT:
     'W %yDatabase no longer matches the last schema Bakery applied%*: {reason}. Run %cdb:history%* to see what was applied, or %cdb:sync --dry-run%* to see what the difference means.',
   UNHANDLED_ERR: 'E Unhandled Server Error: %r{error}%*',
+  // A configured session store that could not be read: the request is
+  // answered as an error rather than as a visitor with no session, which
+  // would sign everybody out for as long as the store is down.
+  SESSION_LOAD_ERR: 'E Could not read the session store: %r{error}%*',
+  SESSION_PRUNE_ERR: 'E Could not prune expired sessions: %r{error}%*',
   SHUTTING_DOWN: 'W %yShutting down server...%*',
   BACKEND_CHANGE: 'I Backend change detected: %y{file}%*',
   SERVER_STARTED: 'I %gServer running at:%*',

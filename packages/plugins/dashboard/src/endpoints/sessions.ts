@@ -15,7 +15,7 @@ export async function handleGetSessions(
   const sortBy = url.searchParams.get('sortBy') || 'accessed'
   const sortOrder = url.searchParams.get('sortOrder') === 'ASC' ? 'ASC' : 'DESC'
 
-  const result = await Session.list({
+  const result = await Session.page({
     search,
     page,
     pageSize,
@@ -30,7 +30,7 @@ export async function handleDeleteSession(
   req: Request,
 ): Promise<JsonResponseData<unknown>> {
   const body = await processBody(req)
-  const deleted = body?.id && Session.delete(body.id)
+  const deleted = typeof body?.id === 'string' && (await Session.end(body.id))
   return deleted
     ? response.json.success('Session deleted')
     : response.json.error(404, 'Session not found')
@@ -55,5 +55,10 @@ export async function handleUpdateSession(
   if (!session) return response.json.error(404, 'Session not found')
 
   remove ? session.delete(key) : session.set(key, value)
+  // Stored now, in whichever store holds it. The edit used to wait for the
+  // session's own next response, and was lost if that never came.
+  if (!(await Session.save(session))) {
+    return response.json.error(404, 'Session not found')
+  }
   return response.json.success('Session updated', { id, key, value, remove })
 }

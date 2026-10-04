@@ -17,6 +17,7 @@ import {
   processResponse,
   upgradeWebsocket,
 } from './router'
+import { Session } from './session'
 import { injectIfHtml } from './utils/http'
 
 /**
@@ -196,6 +197,21 @@ describe('processResponse', () => {
     ;(req as any).startNs = Bun.nanoseconds()
     const res = await processResponse('hello', req)
     expect(res).toBeInstanceOf(Response)
+  })
+
+  // A handler that writes the session and answers with nothing: the empty
+  // response returned before the cookie was asked for, so a new session's
+  // write was lost along with its cookie.
+  test('a 204 stores the session it wrote and carries its cookie', async () => {
+    const req = new Request('http://localhost/')
+    ;(req as any).startNs = Bun.nanoseconds()
+    Session.attach(req)
+    req.session.set('seen', true)
+
+    const res = (await processResponse(null as any, req)) as Response
+    expect(res.status).toBe(204)
+    expect(res.headers.get('set-cookie')).toContain(`sId=${req.session.id}`)
+    expect((await Session.get(req.session.id))?.get('seen')).toBe(true)
   })
 })
 

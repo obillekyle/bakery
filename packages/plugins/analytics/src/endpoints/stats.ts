@@ -1,5 +1,4 @@
 import { Bakery } from '@bakery-framework/core/core/bakery'
-import { Session } from '@bakery-framework/core/session'
 import type { JsonResponseData } from '@bakery-framework/core/utils/common'
 import {
   type AuthorizeFn,
@@ -61,7 +60,9 @@ export function computeStats(
     platform: process.platform,
     arch: process.arch,
     activeLoggers: core.connectedLoggers.size,
-    activeSessions: Session.count,
+    // The tick's count, at most a second old: this runs synchronously, and
+    // a configured store can only be counted asynchronously.
+    activeSessions: latestHistory.activeSessions,
     routeHits: latestHistory.routeHits,
     apiHits: latestHistory.apiHits || 0,
     pageHits: latestHistory.pageHits || 0,
