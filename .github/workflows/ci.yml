@@ -106,7 +106,13 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      # `shell: bash` is what turns on pipefail. The default is `bash -e {0}`,
+      # under which this pipeline exits with tee's status, so a failing test
+      # left the step green; only a skip was caught, by the step below. The 14
+      # adapters runs among the last 40 green ones all reported 0 fail, so
+      # nothing was hidden yet, but nothing could have been shown either.
       - name: ORM suite against real MySQL and Postgres
+        shell: bash
         run: bun test ./packages/orm 2>&1 | tee orm-test.log
 
       # The gated tests report as *skipped* without a connection string, so a
