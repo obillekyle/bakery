@@ -16,6 +16,7 @@ import {
   type KeyResult,
   type MultiselectState,
   renderMultiselect,
+  splitKeys,
 } from './prompt'
 import {
   dependencyRange,
@@ -746,6 +747,18 @@ describe('confirm key handling', () => {
   test('ctrl-c cancels and anything else is ignored', () => {
     expect(applyConfirmKey('\x03', true).kind).toBe('cancel')
     expect(applyConfirmKey('z', true).kind).toBe('ignore')
+  })
+})
+
+describe('splitKeys', () => {
+  test('an arrow is one key, and a paste is many', () => {
+    expect(splitKeys('\x1b[B')).toEqual(['\x1b[B'])
+    expect(splitKeys(' \r')).toEqual([' ', '\r'])
+    expect(splitKeys('\x1b[A\x1b[Bx')).toEqual(['\x1b[A', '\x1b[B', 'x'])
+  })
+
+  test('a character outside the basic plane is one key', () => {
+    expect(splitKeys('a😀b')).toEqual(['a', '😀', 'b'])
   })
 })
 
