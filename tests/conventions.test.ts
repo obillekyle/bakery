@@ -257,17 +257,18 @@ describe('conventions (CLAUDE.md)', () => {
     // reproduce init's encoding locally to test what `isProductionSync()` does
     // with the flag set; its `installProdFlag` is that reproduction, and the
     // literal pair is right there next to the assertion.
-    // `claimed-cache.test.ts` is exempt for exactly the same reason: the vue
-    // plugin cannot import core's fixtures either, and `claimedBeside` behaves
-    // differently in production, so the flag has to be driven to test both
-    // halves. Its `withProdFlag` is that reproduction, and it *restores*
-    // rather than deleting: the rule below is the one that bans the other
-    // half of this hazard.
+    // The vue plugin's `tests/mode-flag.ts` is exempt for exactly the same
+    // reason: the plugin cannot import core's fixtures either, and two of its
+    // behaviors differ in production (`claimedBeside`'s memo, and reading a
+    // `bakery --build`), so the flag has to be driven to test both halves.
+    // Its `withProdFlag` is that reproduction, once for the whole plugin, and
+    // it *restores* rather than deleting: the rule below is the one that bans
+    // the other half of this hazard.
     const ALLOWED = new Set([
       'packages/core/src/core/init.ts',
       'packages/cli/src/threads.ts',
       'packages/orm/src/sync/engine.test.ts',
-      'packages/plugins/vue/src/claimed-cache.test.ts',
+      'packages/plugins/vue/src/tests/mode-flag.ts',
     ])
     const pattern = new RegExp(
       `process\\.env(?:\\.|\\[['"\`])(?:${MODE_FLAGS})(?:['"\`]\\])?\\s*=[^=]`,
@@ -788,7 +789,9 @@ describe('release versions', () => {
     for (const [dir, entry] of Object.entries<Record<string, unknown>>(
       lock.workspaces,
     )) {
-      const manifest = await Bun.file(`${ROOT}/${dir || '.'}/package.json`).json()
+      const manifest = await Bun.file(
+        `${ROOT}/${dir || '.'}/package.json`,
+      ).json()
       for (const section of sections) {
         const key = `${dir || '(root)'} ${section}`
         expected[key] = manifest[section] ?? {}

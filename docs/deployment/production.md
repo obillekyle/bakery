@@ -48,6 +48,7 @@ routes (`packages/cli/src/worker.ts`).
 | `--sync`, `-s` | Run schema sync before boot (`index.ts`) |
 | `--threads N`, `-t N` | Fork a cluster of N workers (production only) |
 | `--dev` | Development mode with the watcher and live reload |
+| `--build` | Run each plugin's build step and exit, without serving. With plugin-vue, every page is bundled ([Building for production](../plugins/vue.md#building-for-production)) |
 
 `--threads` with no number picks `min(max(1, hardwareConcurrency), 8)`
 (`index.ts`). `--threads=N` also works.
@@ -133,6 +134,11 @@ COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
 COPY . .
+
+# Vue pages bundled into the image, so the first visitor after a deploy gets
+# a handful of requests rather than one per module. Skip it without
+# plugin-vue: with nothing to build, it says so and exits 0.
+RUN bunx bakery --build
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -281,4 +287,7 @@ prevents it; only a worker that misses that deadline can lose buffered writes.
 - [ ] Database explorer either removed, or given users whose access levels you
       can defend. See [Database Explorer](../plugins/db-explorer.md).
 - [ ] Migrations run as an explicit step, with a verified backup.
+- [ ] With plugin-vue, `bakery --build` run after the last source change and
+      before the start. A build the source has moved past is not used: the
+      startup log says so, and every page is served unbuilt.
 - [ ] A stop timeout long enough for shutdown hooks.

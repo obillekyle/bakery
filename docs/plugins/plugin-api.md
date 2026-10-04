@@ -44,6 +44,7 @@ export interface ServerPlugin {
   onError?(error: Handler.Error.Data, req?: Request): ValidResponses
   onShutdown?(): MixedPromise<void>
   onCompile?(content: string, path: string): MixedPromise<string>
+  build?(config: ProcessedAppConfig): MixedPromise<void>
 }
 ```
 
@@ -61,6 +62,7 @@ interface is a hook. See
 | `onError` | on every error, before the error-handler registry | [`router.ts`](../../packages/core/src/router.ts) |
 | `onCompile` | for every file the compiler transpiles, after import rewriting | [`compiler/compiler.ts`](../../packages/core/src/compiler/compiler.ts) |
 | `onShutdown` | on SIGINT/SIGTERM, after the app's own shutdown hooks | [`cli/src/worker.ts`](../../packages/cli/src/worker.ts) |
+| `build` | under `bakery --build` only, after `setup`, with no server and no database; a throw fails the command | [`cli/src/build.ts`](../../packages/cli/src/build.ts) |
 
 Plugins run in the order they appear in `plugins: []`. There is no priority
 scale for hooks: that scale exists for handlers, which is a separate thing

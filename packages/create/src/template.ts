@@ -404,7 +404,10 @@ function readme(name: string, orm: boolean, plugins: PluginId[]): string {
         : '') +
       (plugins.includes('vue')
         ? '\n\n`vue` and `@vue/compiler-sfc` are direct dependencies rather than ' +
-          'unmet peers, so `.vue` pages compile straight after install.'
+          'unmet peers, so `.vue` pages compile straight after install.' +
+          '\n\n`bun run build` bundles the pages into a few cached files, which ' +
+          '`bun run start` then serves in place of a request per component. ' +
+          'Run it before starting, and again after changing a page.'
         : '') +
       '\n'
     : ''
@@ -509,6 +512,9 @@ export function templateFiles(
       // would stop at TS6053. `-b`, because the root claims no files and
       // `tsc -p` on it checks nothing while reporting success.
       typecheck: 'bakery --types && tsc -b',
+      // Vue pages bundled for production. Only with the plugin: without it
+      // the command has nothing to do.
+      ...(plugins.includes('vue') ? { build: 'bakery --build' } : {}),
       ...(orm
         ? {
             'db:sync': 'bun run scripts/db-sync.ts',

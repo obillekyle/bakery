@@ -111,6 +111,30 @@ export namespace PluginHooks {
     }
   }
 
+  /**
+   * Every plugin's `build`, in order. A failure is logged and the rest still
+   * run, so one command reports every plugin that cannot build rather than
+   * the first. Returns the names of the plugins that built and that failed.
+   */
+  export async function build(): Promise<{
+    built: string[]
+    failed: string[]
+  }> {
+    const built: string[] = []
+    const failed: string[] = []
+    for (const plugin of getPlugins()) {
+      if (!plugin.build) continue
+      const [err] = await Try.catch(() => plugin.build!(Bakery.config))
+      if (err) {
+        pluginLog.UNHANDLED_ERR({ error: `${plugin.name}: ${errorMsg(err)}` })
+        failed.push(plugin.name)
+      } else {
+        built.push(plugin.name)
+      }
+    }
+    return { built, failed }
+  }
+
   export async function onCompile(
     content: string,
     path: string,

@@ -24,6 +24,7 @@ import {
   validateActionRequest,
   validateActionTarget,
 } from './actions'
+import { type BuiltPage, builtPage, SERVER_MODULES_GLOBAL } from './built'
 import { serveVueChunk, VUE_CHUNK_PREFIX } from './chunks'
 import {
   compileStyleBlock,
@@ -65,6 +66,12 @@ function requestNamesFile(path: string, routePath: string): boolean {
 }
 
 const RX_SERVER_DATA_TOKEN = new RegExp(`\\b${VUE_SERVER_DATA_TOKEN}\\b`, 'g')
+
+/**
+ * What a root script reads its page's server data from: the global the shell
+ * assigns, so the cached or bundled script itself carries no user's data.
+ */
+export const ROOT_SERVER_DATA = '(globalThis.__vue_server || {})'
 
 /**
  * Compiled module code with the server-data token still in place. Components
@@ -285,6 +292,99 @@ export function claimedBeside(catchAllFile: string): {
   return result
 }
 
+/**
+ * A component's browser code: what `?__vue_script` serves, and what
+ * `bakery --build` bundles, from one compile so the two cannot drift apart.
+ *
+ * `served` is the difference between them. A served module is fetched by
+ * URL, so its `.vue` imports gain `?__vue_script=module` and its relative
+ * imports become absolute (see `absolutizeRelativeImports`), and it is named
+ * for the browser's debugger. A bundled one keeps its specifiers as written
+ * for the bundler to resolve against the file on disk.
+ *
+ * `serverData` replaces the server-data token, which only a component with a
+ * `<script server>` block carries: the request's data spliced in, or the
+ * expression a root script or a bundled component reads it from.
+ */
+export async function componentScript(options: {
+  id: string
+  routePath: string
+  isRootScript: boolean
+  parsed: ParsedCacheEntry
+  serverData?: string
+  served: boolean
+}): Promise<string> {
+  const { id, routePath, isRootScript, parsed, serverData, served } = options
+  const compiled = await compileVueFile({
+    content: parsed.cleanContent,
+    filename: routePath,
+    id: parsed.scopeId || id,
+    isRootScript,
+    layoutRoute: isRootScript ? parsed.layoutRoute : null,
+  })
+
+  if (compiled.errors.length) {
+    // Thrown, not logged-and-served: a template Vue could not compile has
+    // the raw unparseable expression in its render function, so serving it
+    // is a browser-side SyntaxError behind a 200 and an empty page, the
+    // report that surfaced this described exactly that. The throw lands in
+    // the error registry as a 500 that names the file and the error, or
+    // fails `bakery --build` naming the same.
+    throw new Error(
+      `Vue compile failed (${routePath}): ${compiled.errors.join('; ')}`,
+    )
+  }
+
+  let code = compiled.code
+
+  if (served) {
+    if (code.includes('.vue"') || code.includes(".vue'")) {
+      code = rewriteVueImports(code)
+    }
+    // After the `.vue` rewrite, which only appends a query and leaves the
+    // specifier relative. See `absolutizeRelativeImports` for why relative
+    // imports cannot survive into the browser.
+    code = absolutizeRelativeImports(code, routePath)
+  }
+
+  if (serverData !== undefined) {
+    code = code.replace(RX_SERVER_DATA_TOKEN, () => serverData)
+  }
+
+  if (!isRootScript) {
+    for (const style of compiled.styles) {
+      if (style.code) {
+        code += `;\n(function(){var k='__vu_css_${id}';var s=document.getElementById(k)||(function(){var el=document.createElement('style');el.id=k;document.head.appendChild(el);return el})();s.textContent=${JSON.stringify(style.code)}})()`
+      }
+    }
+  }
+
+  if (served) {
+    const sourceURL =
+      routePath.replace(/^.*[\\/]/, '').replace(/\?.*$/, '') ||
+      (isRootScript ? 'root.vue' : 'module.vue')
+    code += `\n//# sourceURL=${sourceURL}`
+  }
+
+  return code
+}
+
+/** A component's stylesheet, scoped, or '' when it has no styles. */
+export async function componentCss(
+  id: string,
+  parsed: ParsedCacheEntry,
+): Promise<string> {
+  const compiled = await Promise.all(
+    parsed.styles.map(style =>
+      compileStyleBlock({ style, id: parsed.scopeId || id }),
+    ),
+  )
+  return compiled
+    .map(s => s.code)
+    .filter(Boolean)
+    .join('\n\n')
+}
+
 export class VueHandler extends DynamicHandler {
   static get config() {
     return {
@@ -424,61 +524,21 @@ export class VueHandler extends DynamicHandler {
     return parsed
   }
 
-  private static async buildScriptCode(
+  private static buildScriptCode(
     id: string,
     routePath: string,
     isRootScript: boolean,
     parsed: ParsedCacheEntry,
     serverDataReplacement?: string,
   ) {
-    const { cleanContent, scopeId } = parsed
-    const compiled = await compileVueFile({
-      content: cleanContent,
-      filename: routePath,
-      id: scopeId || id,
+    return componentScript({
+      id,
+      routePath,
       isRootScript,
-      layoutRoute: isRootScript ? parsed.layoutRoute : null,
+      parsed,
+      serverData: serverDataReplacement,
+      served: true,
     })
-
-    if (compiled.errors.length) {
-      // Thrown, not logged-and-served: a template Vue could not compile has
-      // the raw unparseable expression in its render function, so serving it
-      // is a browser-side SyntaxError behind a 200 and an empty page, the
-      // report that surfaced this described exactly that. The throw lands in
-      // the error registry as a 500 that names the file and the error.
-      throw new Error(
-        `Vue compile failed (${routePath}): ${compiled.errors.join('; ')}`,
-      )
-    }
-
-    let code = compiled.code
-
-    if (code.includes('.vue"') || code.includes(".vue'")) {
-      code = rewriteVueImports(code)
-    }
-    // After the `.vue` rewrite, which only appends a query and leaves the
-    // specifier relative. See `absolutizeRelativeImports` for why relative
-    // imports cannot survive into the browser.
-    code = absolutizeRelativeImports(code, routePath)
-
-    if (serverDataReplacement !== undefined) {
-      code = code.replace(RX_SERVER_DATA_TOKEN, () => serverDataReplacement)
-    }
-
-    if (!isRootScript) {
-      for (const style of compiled.styles) {
-        if (style.code) {
-          code += `;\n(function(){var k='__vu_css_${id}';var s=document.getElementById(k)||(function(){var el=document.createElement('style');el.id=k;document.head.appendChild(el);return el})();s.textContent=${JSON.stringify(style.code)}})()`
-        }
-      }
-    }
-
-    const sourceURL =
-      routePath.replace(/^.*[\\/]/, '').replace(/\?.*$/, '') ||
-      (isRootScript ? 'root.vue' : 'module.vue')
-    code += `\n//# sourceURL=${sourceURL}`
-
-    return code
   }
 
   static async handleScript(
@@ -511,9 +571,7 @@ export class VueHandler extends DynamicHandler {
         ? `${id}.root.${vueBuildVariant()}${layoutTag}.js`
         : `${id}.js`
       const replacement =
-        isRootScript && hasServerScript
-          ? '(globalThis.__vue_server || {})'
-          : undefined
+        isRootScript && hasServerScript ? ROOT_SERVER_DATA : undefined
 
       return await fs.getOrCreateCachedFile(dir, fileName, lastMod, () =>
         this.buildScriptCode(id, routePath, isRootScript, parsed, replacement),
@@ -539,23 +597,15 @@ export class VueHandler extends DynamicHandler {
   }
 
   static async handleCss(id: string, parsed: ParsedCacheEntry) {
-    const { lastMod, scopeId, styles } = parsed
-
     const dir = fs.resolve(cacheDir, 'css')
     const fileName = `${id}.css`
 
-    return await fs.getOrCreateCachedFile(dir, fileName, lastMod, async () => {
-      const compiled = await Promise.all(
-        styles.map(style => compileStyleBlock({ style, id: scopeId || id })),
-      )
-
-      const css = compiled
-        .map(s => s.code)
-        .filter(Boolean)
-        .join('\n\n')
-
-      return css || null
-    })
+    return await fs.getOrCreateCachedFile(
+      dir,
+      fileName,
+      parsed.lastMod,
+      async () => (await componentCss(id, parsed)) || null,
+    )
   }
 
   /**
@@ -612,6 +662,11 @@ export class VueHandler extends DynamicHandler {
      * server block (see `needsServerData`), so the URL only picks the file.
      */
     assetPath: string = routePath,
+    /**
+     * The page as `bakery --build` made it, with the exports of the server
+     * blocks it reaches. Absent, the page is served unbundled.
+     */
+    built?: { page: BuiltPage; moduleData?: Record<string, unknown> },
   ) {
     const { hasCss, serverScript } = parsed
     const assets = escapeHtml(assetPath)
@@ -638,9 +693,14 @@ export class VueHandler extends DynamicHandler {
       ? `<script>globalThis.__vue_route = ${escapeScriptJson(route)};</script>`
       : ''
 
+    const moduleDecl =
+      built?.moduleData && Object.keys(built.moduleData).length
+        ? `<script>globalThis.${SERVER_MODULES_GLOBAL} = ${escapeScriptJson(built.moduleData)};</script>`
+        : ''
+
     let hydrated = VUE_HTML_SHELL.replace(
       '/*__SERVER_VARIABLES__*/',
-      () => serverDecl + routeDecl,
+      () => serverDecl + moduleDecl + routeDecl,
     )
 
     // Static markup, injected verbatim. See parseSkeleton for why it is
@@ -661,12 +721,26 @@ export class VueHandler extends DynamicHandler {
       )
     }
 
-    const prio =
-      (await VueHandler.layoutCssLink(parsed)) +
-      (hasCss
-        ? `<link rel="stylesheet" id="__vu_css_${id}" href="${assets}?__vue_css=true">\n`
-        : '') +
-      `<script type="module" src="${assets}?__vue_script=root"></script>`
+    // Built: the entry chunk, the chunks it imports announced beside it so
+    // the browser fetches them at once rather than after parsing the entry,
+    // and the build's stylesheets. The import map still comes first in the
+    // head (`injectIfHtml`): a module preload before it would settle module
+    // resolution without it.
+    const prio = built
+      ? built.page.css
+          .map(href => `<link rel="stylesheet" href="${escapeHtml(href)}">\n`)
+          .join('') +
+        built.page.preload
+          .map(
+            href => `<link rel="modulepreload" href="${escapeHtml(href)}">\n`,
+          )
+          .join('') +
+        `<script type="module" src="${escapeHtml(built.page.script)}"></script>`
+      : (await VueHandler.layoutCssLink(parsed)) +
+        (hasCss
+          ? `<link rel="stylesheet" id="__vu_css_${id}" href="${assets}?__vue_css=true">\n`
+          : '') +
+        `<script type="module" src="${assets}?__vue_script=root"></script>`
 
     const htmlRes = await injectIfHtml(hydrated, params, { prio })
     return htmlRes || response.error('Failed to build HTML', 500)
@@ -898,6 +972,11 @@ async function sharedHandler(
     return VueHandler.handleScript(id, routePath, false, parsed, serverValues)
   }
 
+  const page = await builtPage(Bakery.serveRoot, diskFile.name ?? '')
+  const built = page
+    ? { page, moduleData: await builtModuleData(page.serverModules, req) }
+    : undefined
+
   // `base` is the URL prefix the page owns: the file's directory. For
   // `wiki/[...page!].vue` that is `/wiki`; for a root-level catch-all it is
   // the empty string, which `defineLayout` treats as "everything".
@@ -921,5 +1000,55 @@ async function sharedHandler(
     // error render is the exception: its URL is the one that failed, and it
     // would route to the error, not to the error page's component.
     errorData ? routePath : url.pathname,
+    built,
   )
+}
+
+/**
+ * The exports of the server blocks of the components a built page reaches,
+ * keyed by route path, for the page's HTML.
+ *
+ * Served unbundled, such a component's block runs when the browser fetches
+ * the component, with that request. Bundled, there is no such request, so
+ * the blocks run here, with the page's, side by side. What they see differs
+ * in one respect: `getRequest()` is the page request, with the page's URL.
+ * The body is empty, as a module request's always was.
+ *
+ * A block answering with a response rather than data is recorded with its
+ * status for the component to throw on (`moduleServerData`).
+ */
+async function builtModuleData(
+  routePaths: string[],
+  req: Request,
+): Promise<Record<string, unknown>> {
+  const entries = await Promise.all(
+    routePaths.map(async routePath => {
+      const file = fs.resolve(Bakery.serveRoot, `.${routePath}`)
+      const disk = Bun.file(file)
+      const relPath = routePath.slice(1)
+      const id = toHash(hostKey(relPath))
+      const parsed = await VueHandler.parseVueFile(
+        id,
+        disk,
+        file,
+        disk.lastModified,
+      )
+      const result = await getServerResponse({
+        script: parsed.serverScript,
+        id,
+        lastMod: disk.lastModified,
+        req,
+        body: {},
+        filePath: file,
+      })
+      const direct = asDirectResponse(result)
+      if (!direct) return [routePath, result] as const
+      const status =
+        direct instanceof Response || direct instanceof JsonResponseData
+          ? direct.status
+          : 200
+      return [routePath, { __bakeryResponse: status }] as const
+    }),
+  )
+  return Object.fromEntries(entries)
 }

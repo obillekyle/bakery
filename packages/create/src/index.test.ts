@@ -637,6 +637,17 @@ describe('templateFiles with choices', () => {
     expect(fileOf(files, 'server.config.ts')).not.toContain('plugins:')
   })
 
+  test('an app with Vue pages gets a build script, and one without does not', () => {
+    const vue = templateFiles('app', range, { orm: true, plugins: ['vue'] })
+    expect(pkgOf(vue).scripts.build).toBe('bakery --build')
+    expect(fileOf(vue, 'README.md')).toContain('bun run build')
+
+    // With nothing to build the command says so and exits 0, so a script
+    // for it would be a command that does nothing.
+    const plain = templateFiles('app', range, { orm: true, plugins: [] })
+    expect(pkgOf(plain).scripts.build).toBeUndefined()
+  })
+
   test('ships the type toolchain the generated tsconfig needs', () => {
     // `@bakery-framework/core/tsconfig.server.json` sets `types: ["bun-types"]`
     // and core declares no dependencies, so nothing else installs it. In this

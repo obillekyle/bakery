@@ -478,6 +478,74 @@ Server-block modules are compiled to `.cache/vue/server/<id>_<mtime>.ts`
 via a write-then-rename, so a concurrent request can never import a half-written
 module, and older compilations of the same source are pruned.
 
+## Building for production
+
+Served as described above, a page costs a request per component, per imported
+module and per package: a cold admin page of 40 components measured 48 to 51
+requests in a real app, enough to run into its own rate limit when two people
+opened it from one school's network. `bakery --build` bundles every page
+instead, and a production start serves the bundles:
+
+```bash
+bunx bakery --build
+```
+
+Measured on a page of that shape (a catch-all importing twelve page
+components, seven with a server block, 40 components in all), loaded cold:
+**46 requests unbuilt, 7 built**. The shell, the client utilities, the Vue
+runtime, the page's entry chunk, the one chunk it shares with other pages, and
+two stylesheets (`tests/vue-build-serves.test.ts` counts both and fails if the
+built page needs more than eight).
+
+What the build does ([`vue/src/build.ts`](../../packages/plugins/vue/src/build.ts)):
+
+- Every `.vue` file a request could render as a page is an entry: not a
+  layout, not `module-only`, and not a file the server refuses to serve.
+  Components are compiled by the same function that serves them, so a page
+  built and the same page served cannot behave differently.
+- `Bun.build` splits the entries into chunks named by their content's hash
+  (`.cache/vue/build/`), served under `/_vue/build/` with
+  `Cache-Control: public, max-age=31536000, immutable`. A page links its entry,
+  announces the chunks it imports with `<link rel="modulepreload">`, and links
+  its stylesheets.
+- `vue` and every other import-map key stay out of the bundle, for the import
+  map to resolve: two copies of Vue in one page is broken reactivity, and the
+  runtime at `/_vue/` is the copy every unbuilt module shares. Packages are
+  bundled.
+- A component importing a `page-only` file fails the build, as that import is
+  refused when served.
+
+A production server reads the build once, when it starts, and serves from it
+only while it still matches the app: the same Vue, the same plugin options and
+import map, every file the bundle read unchanged since, and the same
+`layout.vue` files. Otherwise it logs one line naming the reason and serves
+every page unbuilt, so a stale build costs requests, never correctness.
+Development never reads a build. Run the build before starting: a server keeps
+what it found when it started.
+
+### Server blocks in a built page
+
+A component's `<script server>` block never reaches a bundle, as it never
+reaches the browser. Unbuilt, the block runs when the browser fetches the
+component, with that request. Built, there is no such request, so a page runs
+the blocks of every component it can reach, with the page request, side by
+side, and their exports arrive in the HTML beside the page's own. Three
+differences follow:
+
+- `getRequest()` inside a component's block is the page request, with the
+  page's URL. The body is empty, as a component request's always was.
+- A block runs on every load of every page that can reach its component,
+  including one the page imports with `import()` and may never show.
+- A block that answers with a response instead of data (a middleware's 401, a
+  redirect) leaves its component to throw as it loads, naming itself and the
+  status. Unbuilt, the same answer failed the component's import: the page
+  breaks either way, and now says why.
+
+Component code is in public chunks. A block's middleware guards its data, as
+it always did, and no longer the component's code: an admin page's template is
+readable by anyone who has the chunk's name. Nothing that should be secret
+belongs in a component's client code in either case.
+
 ## Escaping
 
 Server data is embedded with `escapeScriptJson`, which escapes `<`, `/` and the

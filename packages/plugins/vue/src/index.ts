@@ -72,6 +72,18 @@ export default function vuePlugin(options?: VuePluginOptions) {
      */
     onStart() {
       preloadCompiler()
+      // In production, read and check the build while the rest of boot runs,
+      // for the same reason; the first page awaits the same promise.
+      void import('./built').then(({ loadBuild }) => loadBuild())
+    },
+
+    /**
+     * `bakery --build`: every page bundled into content-hashed chunks, which
+     * a production server then serves in place of a request per module.
+     */
+    async build() {
+      const { buildVuePages } = await import('./build')
+      await buildVuePages()
     },
     onCompile(content, path) {
       if (

@@ -60,16 +60,20 @@ one of four files. Reading it alone will not tell you where requests are served.
 | `--threads N`, `-t N` | fork a cluster of N workers. **Production only** |
 | `--threads=N`, `-t=N` | same, `=` form |
 | `--sync`, `-s` | run schema sync before starting |
+| `--build` | run each plugin's build step and exit: plugin-vue bundles every page ([Building for production](../plugins/vue.md#building-for-production)). Production by construction; exits 1 if any plugin fails |
+| `--types` | write the TypeScript projects (`.cache/tsconfig/`, `tsconfig.bakery.json`) and exit |
+| `--help`, `-h` | print the flags and exit |
 | `--dev-worker` | internal: marks the spawned dev child |
 | `--thread-worker`, `--thread-id N` | internal: marks a cluster worker |
 | `--inspect*` | forwarded to the dev worker so the debugger attaches to the process that serves |
 
 That is the entire list.
 
-> **Unknown flags are silently ignored, and there is no `--help`.** The parser
-> only looks for the strings above; anything else falls through to the default
-> branch, which is *production mode*. So `bakery --help` starts a production
-> server ([packages/cli/src/index.ts](../../packages/cli/src/index.ts)).
+> **Unknown flags are silently ignored.** The parser only looks for the strings
+> above; anything else falls through to the default branch, which is
+> *production mode* ([packages/cli/src/index.ts](../../packages/cli/src/index.ts)).
+> `--help`, `--types` and `--build` are checked before any mode starts, so
+> each of them prints or writes and exits without binding a port.
 
 ### Port and host
 

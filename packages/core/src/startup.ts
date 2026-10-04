@@ -53,6 +53,19 @@ export function setupPlugins(): Promise<void> {
 }
 
 /**
+ * `bakery --build`: every plugin's `build` hook, after their setup. Returns
+ * which plugins built and which failed.
+ */
+export async function buildPlugins(): Promise<{
+  built: string[]
+  failed: string[]
+}> {
+  await setupPlugins()
+  const { PluginHooks } = await import('./core/plugins')
+  return await PluginHooks.build()
+}
+
+/**
  * Test seam, in the family of `__setTestConfig` / `__setTestDb`. The memo above
  * is process-wide by design, which is exactly what a test asserting "once"
  * needs to be able to clear between cases.

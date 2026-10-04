@@ -23,6 +23,9 @@ const serveMsgs = {
   // would sign everybody out for as long as the store is down.
   SESSION_LOAD_ERR: 'E Could not read the session store: %r{error}%*',
   SESSION_PRUNE_ERR: 'E Could not prune expired sessions: %r{error}%*',
+  BUILD_FAILED: 'E %rbakery --build failed%* in: %y{plugins}%*',
+  BUILD_NOTHING:
+    'I Nothing to build: no plugin in %yserver.config.ts%* has a build step.',
   SHUTTING_DOWN: 'W %yShutting down server...%*',
   BACKEND_CHANGE: 'I Backend change detected: %y{file}%*',
   // The banner's first line: the framework serving the app, which is the

@@ -56,6 +56,16 @@ function getDefines(): Promise<MapOf<string>> {
   return definesPromise
 }
 
+/**
+ * The `import.meta.env.*` values browser code is compiled with: the table the
+ * transpiler applies to a served `.ts` module. Public for a plugin bundling
+ * the same modules (plugin-vue's `bakery --build`), which has to apply the
+ * same values or a bundled page would read different ones than a served page.
+ */
+export function clientDefines(): Promise<MapOf<string>> {
+  return getDefines()
+}
+
 let transpilerPromise: Promise<Bun.Transpiler> | null = null
 function getTranspiler(): Promise<Bun.Transpiler> {
   transpilerPromise ??= getDefines().then(

@@ -80,6 +80,21 @@ export function vueBuildVariant(): 'runtime' | 'full' {
   return vuePluginOptions.build === 'full' ? 'full' : 'runtime'
 }
 
+/**
+ * The options that change what a template compiles to, as one string, for a
+ * build to record and a server to compare. Functions count by their source,
+ * which is as close as a running process can get to knowing they changed.
+ */
+export function vuePluginOptionsFingerprint(): string {
+  return JSON.stringify(
+    {
+      customElements: vuePluginOptions.customElements,
+      compilerOptions: vuePluginOptions.compilerOptions,
+    },
+    (_key, value) => (typeof value === 'function' ? String(value) : value),
+  )
+}
+
 export function resolveIsCustomElement(tag: string): boolean {
   const ce = vuePluginOptions?.customElements
   const userFn = vuePluginOptions?.compilerOptions?.isCustomElement

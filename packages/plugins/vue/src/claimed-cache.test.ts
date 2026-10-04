@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import '@bakery-framework/core/core/init'
 import { initConfig } from '@bakery-framework/core/core/config'
 import { __resetClaimedCache, claimedBeside } from './handler'
+import { withProdFlag } from './tests/mode-flag'
 
 /**
  * `claimedBeside` walks the catch-all's directory and recurses into every
@@ -18,28 +19,6 @@ import { __resetClaimedCache, claimedBeside } from './handler'
  * Both halves are asserted by *changing the directory underneath it*, which is
  * the only way to tell a reused answer from a recomputed one.
  */
-/**
- * Core's test fixtures are not a published subpath, so this reproduces init's
- * encoding locally: the same allowance `orm/sync/engine.test.ts` has, and for
- * the same reason. The encoding is the load-bearing part: the flags are
- * `'1'`/`''` strings since Bun 1.4 stopped accepting accessor descriptors on
- * `process.env`, and a plain `false` stores the string `"false"`, which is
- * truthy.
- */
-function withProdFlag<T>(value: boolean, fn: () => T): T {
-  // Restored, never deleted. This file imports `core/init` above, so `PROD` is
-  // always present by the time anything here runs, and deleting a flag you do
-  // not own leaves it `undefined` for every file that runs after, which is the
-  // leak `conventions.test.ts` bans outright.
-  const original = process.env.PROD
-  process.env.PROD = value ? '1' : ''
-  try {
-    return fn()
-  } finally {
-    process.env.PROD = original
-  }
-}
-
 const dirs: string[] = []
 
 function pageDir(): string {

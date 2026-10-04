@@ -89,6 +89,14 @@ export interface ServerPlugin {
   onError?(error: Handler.Error.Data, req?: Request): ValidResponses
   onShutdown?(): MixedPromise<void>
   onCompile?(content: string, path: string): MixedPromise<string>
+
+  /**
+   * `bakery --build`: work done once, ahead of a production start, such as
+   * plugin-vue bundling every page. Runs after `setup()`, with no server and
+   * no database connection. A throw fails the command, which is what lets a
+   * deploy stop on it rather than serve what did not build.
+   */
+  build?(config: ProcessedAppConfig): MixedPromise<void>
 }
 
 export function definePlugin<T extends ServerPlugin>(plugin: T): T {

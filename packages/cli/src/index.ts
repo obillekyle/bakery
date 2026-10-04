@@ -31,6 +31,7 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.log(`
 Usage: bakery [--dev] [--sync] [--threads N] [--port N]
        bakery --types
+       bakery --build
 
 Runs the application in the current directory: the one whose
 \`server.config.ts\` sits beside it.
@@ -42,6 +43,10 @@ Flags:
                     tsconfig.bakery.json) and exit, without starting a server.
                     Every dev boot does the same; a fresh clone or a CI job
                     needs it before tsc can find them.
+  --build           Run each plugin's build step and exit: plugin-vue bundles
+                    every page into a few content-hashed chunks, which a
+                    production start then serves. Run it before starting;
+                    a server keeps what it found when it started.
   --sync, -s        Run the schema sync before starting. Requires
                     @bakery-framework/orm; it is an error rather than a skip
                     when that is missing, because asking for a sync and
@@ -62,6 +67,13 @@ Schema commands have their own help: \`bun run db:sync --help\`.
 if (process.argv.includes('--types')) {
   const { writeTypes } = await import('./write-types')
   process.exit(await writeTypes())
+}
+
+// The same reasoning: a command that exits, and production by construction,
+// since it is not `--dev`.
+if (process.argv.includes('--build')) {
+  const { build } = await import('./build')
+  process.exit(await build())
 }
 
 // Before any mode takes over, and before the config is read: `applyPortFlag`

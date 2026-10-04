@@ -2,6 +2,7 @@ import { Bakery } from '@bakery-framework/core/core/bakery'
 import { Logger } from '@bakery-framework/core/logger'
 import { fs, response } from '@bakery-framework/core/utils'
 import { ETag } from '@bakery-framework/core/utils/http'
+import { BUILD_DIR, BUILD_URL, loadBuild } from './built'
 import { vueBuildVariant } from './compile'
 import { VUE_VERSION } from './utils'
 
@@ -34,11 +35,28 @@ export function vueChunkPath(): string {
   return `${VUE_CHUNK_PREFIX}${VUE_VERSION}.${vueBuildVariant()}.js`
 }
 
+/**
+ * A file `bakery --build` made. Only a name the manifest lists is served, so
+ * nothing else under the build directory, and nothing a crafted path could
+ * reach outside it, is ever handed out. Every name carries its content's
+ * hash, which is what makes caching it for a year correct.
+ */
+async function serveBuiltFile(path: string, req: Request): Promise<Response> {
+  const build = await loadBuild()
+  const name = path.slice(BUILD_URL.length)
+  if (!build?.files.has(name)) return response.error('Not Found', 404)
+
+  const res = await ETag.sendFile(Bun.file(`${BUILD_DIR}/${name}`), req)
+  res.headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  return res
+}
+
 /** Serves the self-hosted Vue runtime that `Bakery.config.importMap` points at. */
 export async function serveVueChunk(
   path: string,
   req: Request,
 ): Promise<Response> {
+  if (path.startsWith(BUILD_URL)) return serveBuiltFile(path, req)
   if (path !== vueChunkPath()) {
     return response.error('Not Found', 404)
   }
@@ -66,7 +84,7 @@ export async function serveVueChunk(
         entrypoints: [sourcePath],
         target: 'browser',
         format: 'esm',
-        // `Boolean(...)`, not the flag directly: the mode flags are `'1'`/`''` 
+        // `Boolean(...)`, not the flag directly: the mode flags are `'1'`/`''`
         // strings (`core/init.ts`), and `Bun.build` **rejects** a non-boolean
         // `minify` rather than coercing it. Core's `compiler.ts` already wrapped
         // its three; this one did not, and the build would have thrown on every
