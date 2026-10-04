@@ -3,9 +3,38 @@ import { SQL } from 'bun'
 import { type PoolOptions, withPoolOptions } from '../pool'
 import type * as SyncTypes from '../sync/types'
 import { createExecutor, isOpenConnection, SQLAdapter } from './base'
+import { pgTypeProblem } from './live-types'
 import type { ScriptDialect } from '../migrate/script'
 /** `pg_advisory_lock` key for migration runs: "bakerymg" in ASCII, 0x62616b6572796d67. */
 const MIGRATION_LOCK_KEY = '7089065371914300775'
+
+/**
+ * Tables, partitioned tables, views, materialized views and foreign tables of
+ * the current schema, a row per column. `array_agg(…::text)` because an
+ * enum's labels are of type `name`, and Bun returns an array of an unfamiliar
+ * type as its raw `{…}` string.
+ */
+const PG_LIVE_COLUMNS = `
+  SELECT c.relname AS table_name,
+         c.relkind AS kind,
+         a.attname AS column_name,
+         CASE WHEN t.typtype = 'd'
+              THEN format_type(t.typbasetype, t.typtypmod)
+              ELSE format_type(a.atttypid, a.atttypmod) END AS type,
+         NOT a.attnotnull AS nullable,
+         COALESCE(a.attnum = ANY (pk.conkey), false) AS is_primary,
+         CASE WHEN t.typtype = 'e' THEN (
+           SELECT array_agg(e.enumlabel::text ORDER BY e.enumsortorder)
+           FROM pg_enum e WHERE e.enumtypid = t.oid
+         ) END AS enum_values
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+  JOIN pg_type t ON t.oid = a.atttypid
+  LEFT JOIN pg_constraint pk ON pk.conrelid = c.oid AND pk.contype = 'p'
+  WHERE n.nspname = current_schema()
+    AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+  ORDER BY c.relname, a.attnum`
 
 interface PGSQLParserState {
   inSingleQuote: boolean
@@ -33,6 +62,39 @@ export class PGAdapter extends SQLAdapter {
     return async () => {
       await this.sql.unsafe(`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`)
     }
+  }
+
+  /**
+   * From `pg_catalog`, which shows every relation to every role, where
+   * `information_schema` shows only what the role holds a privilege on. A
+   * domain is resolved to its base type; an enum brings its labels.
+   */
+  override async liveColumns(): Promise<SQLAdapter.LiveColumn[]> {
+    const rows = (await this.sql.unsafe(PG_LIVE_COLUMNS)) as {
+      table_name: string
+      kind: string
+      column_name: string
+      type: string
+      nullable: boolean
+      is_primary: boolean
+      enum_values: string[] | null
+    }[]
+    return rows.map(row => ({
+      table: row.table_name,
+      column: row.column_name,
+      type: row.type.toLowerCase(),
+      nullable: Boolean(row.nullable),
+      primary: Boolean(row.is_primary),
+      view: row.kind === 'v' || row.kind === 'm',
+      ...(row.enum_values ? { enumValues: row.enum_values } : {}),
+    }))
+  }
+
+  override columnTypeProblem(
+    declared: SyncTypes.ColumnConstraint,
+    live: SQLAdapter.LiveColumn,
+  ): string | null {
+    return pgTypeProblem(declared, live)
   }
 
   constructor(connectionTarget?: string | URL | SQL, pool: PoolOptions = {}) {

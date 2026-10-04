@@ -8,7 +8,7 @@ actually reports.
 A schema that holds what the declarations cannot say (a trigger, a partial
 index, a CHECK beyond an enum) is better kept in SQL files:
 [migrations mode](migrations.md) applies those in order, and `db:sync` then
-changes nothing.
+only checks the declarations against the database.
 
 ```bash
 bun run db:sync

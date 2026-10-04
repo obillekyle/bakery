@@ -97,7 +97,11 @@ if (
     process.exit(1)
   }
   const { SyncService } = await import('@bakery-framework/orm/sync')
-  await SyncService.run()
+  // False is a database that does not match what the app declares: drift the
+  // migrations check found, or a Field.Sql column classic sync refused. Both
+  // were reported; serving queries typed against the wrong schema is not
+  // the safe direction.
+  if (!(await SyncService.run())) process.exit(1)
 }
 try {
   if (threadsOption !== null && !isDevWorker && !isThreadWorker && !isDev) {

@@ -3,7 +3,22 @@ import { SQL } from 'bun'
 import { type PoolOptions, withPoolOptions } from '../pool'
 import type * as SyncTypes from '../sync/types'
 import { createExecutor, isOpenConnection, SQLAdapter } from './base'
+import { mysqlTypeProblem } from './live-types'
 import type { ScriptDialect } from '../migrate/script'
+
+/** The database's tables and views, a row per column, from `information_schema`. */
+const MYSQL_LIVE_COLUMNS = `
+  SELECT c.table_name AS table_name,
+         t.table_type AS table_type,
+         c.column_name AS column_name,
+         c.column_type AS type,
+         c.is_nullable = 'YES' AS nullable,
+         c.column_key = 'PRI' AS is_primary
+  FROM information_schema.columns c
+  JOIN information_schema.tables t
+    ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+  WHERE c.table_schema = DATABASE()
+  ORDER BY c.table_name, c.ordinal_position`
 
 export class MySQLAdapter extends SQLAdapter {
   protected readonly sql: SQL
@@ -294,6 +309,37 @@ export class MySQLAdapter extends SQLAdapter {
     return async () => {
       await this.sql.unsafe("SELECT RELEASE_LOCK('bakery_migrations')")
     }
+  }
+
+  /**
+   * From `information_schema`, MySQL's only catalog. It lists what the user
+   * holds a privilege on, so a table the app's user cannot touch is reported
+   * missing, which for a query typed against it is the truth.
+   */
+  override async liveColumns(): Promise<SQLAdapter.LiveColumn[]> {
+    const rows = (await this.sql.unsafe(MYSQL_LIVE_COLUMNS)) as {
+      table_name: string
+      table_type: string
+      column_name: string
+      type: string
+      nullable: number | boolean
+      is_primary: number | boolean
+    }[]
+    return rows.map(row => ({
+      table: row.table_name,
+      column: row.column_name,
+      type: String(row.type).toLowerCase(),
+      nullable: Boolean(Number(row.nullable)),
+      primary: Boolean(Number(row.is_primary)),
+      view: row.table_type === 'VIEW',
+    }))
+  }
+
+  override columnTypeProblem(
+    declared: SyncTypes.ColumnConstraint,
+    live: SQLAdapter.LiveColumn,
+  ): string | null {
+    return mysqlTypeProblem(declared, live)
   }
 
   protected withConnection(sql: unknown): SQLAdapter {

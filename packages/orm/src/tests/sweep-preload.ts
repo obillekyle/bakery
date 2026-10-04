@@ -101,6 +101,26 @@ for (const { url, driver } of TARGETS) {
           `[sweep] dropped ${leakedSchemas.length} leaked pgsql schema(s) from a previous run: ${leakedSchemas.join(', ')}`,
         )
       }
+
+      // And roles, from the check's restricted-role test. A role belongs to
+      // the cluster, not the database, so it outlives every other cleanup.
+      // DROP OWNED revokes what it was granted here first, without which
+      // DROP ROLE refuses.
+      const roles = (await db`SELECT rolname AS name FROM pg_roles`) as {
+        name: string
+      }[]
+      const leakedRoles = roles
+        .map(r => r.name)
+        .filter(name => /^bakery_mig_\d+$/.test(name))
+      for (const name of leakedRoles) {
+        await db.unsafe(`DROP OWNED BY "${name}"`)
+        await db.unsafe(`DROP ROLE IF EXISTS "${name}"`)
+      }
+      if (leakedRoles.length) {
+        console.log(
+          `[sweep] dropped ${leakedRoles.length} leaked pgsql role(s) from a previous run: ${leakedRoles.join(', ')}`,
+        )
+      }
     }
     await db.close()
   } catch {

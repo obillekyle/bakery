@@ -9,6 +9,7 @@ import { Try } from '@bakery-framework/core/utils'
 import type { SQLAdapter } from '../adapters/base'
 import { DatabaseMissingError } from '../adapters/missing-database'
 import { closeDB, connection, initDB } from '../connection'
+import { checkSchema, sqlColumnsIn } from '../migrate/check'
 import { loadSchema, schemaFromConfig } from './load'
 
 const logger = new Logger('db-sync')
@@ -28,8 +29,15 @@ const syncMsgs = {
   DB_MISSING:
     'E %rDatabase %y{name}%r does not exist on {server}%*. Run %ybun run db:sync --create-database%* to create it, or point DB_URL at one that exists.',
   DB_CREATED: 'I Created database %g{name}%* on %y{server}%*.',
-  MIGRATIONS_MODE:
-    'I Migrations mode (%y{dir}%*): db:sync changes nothing here. %ybun run db:migrate%* applies the files.',
+  CHECK_OK:
+    'I Migrations mode (%y{dir}%*): the %y{count}%* declared table(s) match the database. db:sync changes nothing here; %ybun run db:migrate%* applies the files.',
+  CHECK_NOTHING:
+    'I Migrations mode (%y{dir}%*): no tables are declared, so there is nothing to check. %ybun run db:migrate%* applies the files.',
+  CHECK_MISMATCH: 'W {problem}',
+  CHECK_DRIFT:
+    'E %r{count} mismatch(es) between the declared tables and the database%* (migrations mode, %y{dir}%*). Correct the declarations, or write a migration; db:sync changes nothing here.',
+  SQL_NEEDS_MIGRATIONS:
+    'E %rField.Sql needs migrations mode%*: {columns}. db:sync cannot create or compare a SQL type it does not know. Set %ymigrations%* in server.config.ts, or declare these columns with another Field.',
 } as const
 
 const MESSAGES = messageLogger(logger, syncMsgs)
@@ -221,23 +229,23 @@ Flags:
     MESSAGES.MIGRATE_RETIRED({ to: to.slice(cwd.length + 1) })
   }
 
-  static async run() {
+  /**
+   * Sync, or in migrations mode check. Resolves `false` when the database and
+   * the declarations disagree in a way that is reported rather than exited on
+   * (drift found by the check, or a `Field.Sql` column in classic mode): the
+   * command exits 1 on it, `bakery --sync` refuses to serve, and the dev
+   * server reports it and serves.
+   */
+  static async run(): Promise<boolean> {
     // Before initConfig/initDB/loadSchema: help must not depend on a working
     // connection, a loadable schema, or the absence of a `foreign()`.
-    if (SyncService.helpRequested()) return SyncService.printHelp()
+    if (SyncService.helpRequested()) {
+      SyncService.printHelp()
+      return true
+    }
 
     const { initConfig } = await import('@bakery-framework/core/core/config')
     const config = await initConfig()
-
-    // In migrations mode the SQL files are the schema, and a sync built from
-    // the declarations would drop what only the files can say: a partial
-    // index, a trigger, a CHECK beyond an enum. Returns rather than exits:
-    // the dev worker and `bakery --sync` call this too, and must go on to
-    // serve.
-    if (config.migrations) {
-      MESSAGES.MIGRATIONS_MODE({ dir: config.migrations })
-      return
-    }
 
     await initDB()
     // `schema` in server.config.ts when the app sets one; otherwise prefers an
@@ -255,6 +263,21 @@ Flags:
       MESSAGES.SCHEMA_NOT_FOUND({ path: loaded.missing })
       await closeDB()
       return process.exit(1)
+    }
+
+    // In migrations mode the SQL files are the schema, and a sync built from
+    // the declarations would drop what only the files can say: a partial
+    // index, a trigger, a CHECK beyond an enum. So the declarations are only
+    // checked against the database, from the catalog, and nothing is changed.
+    if (config.migrations) {
+      return await SyncService.check(config.migrations, constraints)
+    }
+
+    const sqlColumns = sqlColumnsIn(constraints)
+    if (sqlColumns.length) {
+      MESSAGES.SQL_NEEDS_MIGRATIONS({ columns: sqlColumns.join(', ') })
+      await closeDB()
+      return false
     }
 
     if (loaded.unreferenceable?.length) {
@@ -312,10 +335,36 @@ Flags:
     }
 
     await closeDB()
+    return true
+  }
+
+  /** Migrations mode: compare the declarations with the database, report, change nothing. */
+  static async check(
+    dir: string,
+    constraints: Parameters<typeof checkSchema>[1],
+  ): Promise<boolean> {
+    try {
+      const tables = Object.keys(constraints).length
+      if (!tables) {
+        MESSAGES.CHECK_NOTHING({ dir })
+        return true
+      }
+      const mismatches = await checkSchema(connection, constraints)
+      for (const mismatch of mismatches) {
+        MESSAGES.CHECK_MISMATCH({ problem: mismatch.problem })
+      }
+      if (mismatches.length) {
+        MESSAGES.CHECK_DRIFT({ count: mismatches.length, dir })
+        return false
+      }
+      MESSAGES.CHECK_OK({ count: tables, dir })
+      return true
+    } finally {
+      await closeDB()
+    }
   }
 }
 
 if (import.meta.main) {
-  await SyncService.run()
-  process.exit(0)
+  process.exit((await SyncService.run()) ? 0 : 1)
 }

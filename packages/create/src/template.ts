@@ -355,8 +355,7 @@ declare module '@bakery-framework/orm/schema-registry' {
  */
 const DB_SYNC_SCRIPT = `import { SyncService } from '@bakery-framework/orm/sync'
 
-await SyncService.run()
-process.exit(0)
+process.exit((await SyncService.run()) ? 0 : 1)
 `
 
 function gitignore(orm: boolean): string {

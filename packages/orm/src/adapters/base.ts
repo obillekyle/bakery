@@ -21,6 +21,23 @@ export namespace SQLAdapter {
     lastInsertRowid: number | bigint | null
     changes: number
   }
+  /**
+   * A column as the database's catalog describes it, for the check that
+   * migrations mode runs in place of a sync (`migrate/check.ts`).
+   */
+  export interface LiveColumn {
+    /** As the database spells it. */
+    table: string
+    column: string
+    /** In the dialect's own spelling, lower-cased: `character varying(64)`, `int`. */
+    type: string
+    nullable: boolean
+    primary: boolean
+    /** A view's column: catalogs report every one of them nullable. */
+    view: boolean
+    /** A native enum's labels, in order, where the dialect has native enums. */
+    enumValues?: string[]
+  }
   /** The one call `executeScript` makes on a driver handle. */
   export interface ScriptHandle {
     unsafe(text: string): Promise<unknown>
@@ -623,6 +640,32 @@ export abstract class SQLAdapter {
    */
   async takeMigrationLock(): Promise<() => Promise<void>> {
     return async () => {}
+  }
+
+  /**
+   * Every column of every table and view in this connection's schema, read
+   * from the catalog alone, for the migrations-mode check. Catalog alone,
+   * because the check runs as the app's role, which may hold no privilege on
+   * some tables at all: on Postgres `information_schema` hid such a table
+   * entirely, and hid the primary key of a table the role could only read
+   * (measured), while `pg_catalog` showed both.
+   */
+  async liveColumns(): Promise<SQLAdapter.LiveColumn[]> {
+    throw new Error(
+      `The ${this.driver} adapter cannot read its catalog for the migrations check.`,
+    )
+  }
+
+  /**
+   * Why a live column's type does not match its declaration, or `null` when
+   * it does. Each adapter states its own dialect's rules: which spellings a
+   * `Field` accepts, and how a `Field.Sql` type compares.
+   */
+  columnTypeProblem(
+    _declared: SyncTypes.ColumnConstraint,
+    _live: SQLAdapter.LiveColumn,
+  ): string | null {
+    return null
   }
   protected abstract parseConstraints(
     col: unknown,

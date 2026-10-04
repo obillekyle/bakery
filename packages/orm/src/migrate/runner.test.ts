@@ -2,23 +2,21 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { SQL } from 'bun'
-import { SQLAdapter } from '../adapters/base'
-import { MySQLAdapter } from '../adapters/mysql'
-import { PGAdapter } from '../adapters/pgsql'
+import type { SQLAdapter } from '../adapters/base'
 import { SQLiteAdapter } from '../adapters/sqlite'
+import {
+  alive,
+  type Isolated,
+  LIVE_TIMEOUT,
+  ownDatabase,
+  ownSchema,
+} from '../tests/isolated'
 import { checksumOf, type MigrationFile } from './files'
 import { runMigrations } from './index'
 import { MigrationError, planMigrations, readApplied } from './runner'
 
 const MYSQL_URL = process.env.MYSQL_TEST_URL
 const PGSQL_URL = process.env.PGSQL_TEST_URL
-
-/** See adapters/nested-tx.test.ts: Bun's MySQL driver needs a pending timer. */
-function alive<T>(promise: T | Promise<T>): Promise<T> {
-  const timer = setTimeout(() => {}, 30_000)
-  return Promise.resolve(promise).finally(() => clearTimeout(timer))
-}
 
 const file = (
   name: string,
@@ -132,72 +130,10 @@ describe('planMigrations', () => {
   })
 })
 
-type Isolated = {
-  adapter: SQLAdapter
-  /** Another runner on the same isolated database or schema. */
-  another: () => SQLAdapter
-  drop: () => Promise<void>
-}
-
 type Live = {
   name: string
   skip: boolean
   open: () => Promise<Isolated>
-}
-
-/** Room for live tests: generous, since a server can be slow under the full suite. */
-const LIVE_TIMEOUT = 30_000
-
-let isolatedCount = 0
-
-/**
- * A name nothing else uses, for a schema or a database of this test's own.
- * Digits after `bakery_mig_` only, the shape `sweep-preload.ts` drops when a
- * killed run leaves one behind.
- */
-const isolatedName = () => `bakery_mig_${process.pid}${isolatedCount++}`
-
-/**
- * A Postgres schema of its own, with the runner's connection pointed at it,
- * so the ledger table and the fixtures collide with nothing. A schema rather
- * than a database: `CREATE DATABASE` copies a template and took seconds under
- * the full suite, long enough to time tests out.
- */
-async function ownSchema(url: string): Promise<Isolated> {
-  const name = isolatedName()
-  const admin = new SQL(url)
-  await alive(admin.unsafe(`CREATE SCHEMA "${name}"`))
-  const open = () =>
-    new PGAdapter(new SQL(url, { max: 1, connection: { search_path: name } }))
-  const adapter = open()
-  return {
-    adapter,
-    another: open,
-    drop: async () => {
-      await adapter.close()
-      await alive(admin.unsafe(`DROP SCHEMA IF EXISTS "${name}" CASCADE`))
-      await admin.close()
-    },
-  }
-}
-
-/** A MySQL database of its own, which on MySQL is the same thing as a schema. */
-async function ownDatabase(url: string): Promise<Isolated> {
-  const name = isolatedName()
-  const admin = new SQL(url)
-  await alive(admin.unsafe(`CREATE DATABASE \`${name}\``))
-  const open = () =>
-    new MySQLAdapter(new SQL(SQLAdapter.withDatabase(url, name)!, { max: 1 }))
-  const adapter = open()
-  return {
-    adapter,
-    another: open,
-    drop: async () => {
-      await adapter.close()
-      await alive(admin.unsafe(`DROP DATABASE IF EXISTS \`${name}\``))
-      await admin.close()
-    },
-  }
 }
 
 const LIVE: Live[] = [
@@ -208,6 +144,7 @@ const LIVE: Live[] = [
       const adapter = new SQLiteAdapter(':memory:')
       return {
         adapter,
+        name: ':memory:',
         another: () => adapter,
         drop: () => adapter.close(),
       }

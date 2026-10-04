@@ -120,6 +120,7 @@ be, which is the point of it having a name for each case.
 | `Field.Date(d?)` | `INTEGER` | `INT` | `INTEGER` | `number` |
 | `Field.Primary()` | auto-increment integer key. See [Adapters](adapters.md) | | | `number` |
 | `Field.Foreign(target, o?)` | integer + `FOREIGN KEY` | | | `number` |
+| `Field.Sql<T>(type, o?)` | the type given, in [migrations mode](migrations.md) only | | | `T` |
 
 **`null` as the default means nullable**, which is the one convention to carry
 across: `Field.Varchar(64)` is `NOT NULL` with no default, `Field.Varchar(64,
@@ -147,6 +148,13 @@ A few carry a constraint worth knowing:
 - **`Field.Date.now()`** is a marker default emitted as the dialect's "epoch
   seconds now" expression. `Field.now()` is the matching value for an `INSERT` or
   `UPDATE`.
+- **`Field.Sql<T>(type)` belongs to migrations mode**, where SQL files create
+  the columns. It names the SQL type (`numeric(5,2)`, `timestamptz`, `text[]`)
+  for the check `db:sync` runs there, and `T` is what the driver hands back,
+  which only the declaration can state: Bun returns `numeric` and `bigint` as
+  strings and `timestamptz` as a `Date`. Classic sync refuses a schema that uses
+  it, since it cannot create a type it does not know. See
+  [Migrations](migrations.md#what-dbsync-checks).
 
 A column is optional on insert when it is nullable, has a default, or
 auto-increments. That is what `InferOptionals` computes, and it is why

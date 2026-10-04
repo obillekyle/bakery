@@ -57,20 +57,31 @@ if (hasORM()) {
     const currentHash = await computeSchemaHash(schemaFromConfig(config))
     const [, stored] = await Try.catch(Bun.file(hashFile).text())
 
-    const decision = classifySchemaSync({
-      force: process.argv.includes('--sync') || process.argv.includes('-s'),
-      currentHash,
-      storedHash: stored?.trim() || null,
-      // Only meaningful for the default SQLite target; with a DB_URL there is
-      // no local file to stat, and the hash (which covers DB_URL) plus `--sync`
-      // are the levers for an externally reset database.
-      dbMissing:
-        !process.env.DB_URL &&
-        !process.env.DATABASE_URL &&
-        !(await Bun.file(`${Bakery.dataDir}/server.db`).exists()),
-    })
+    // Migrations mode checks on every boot instead: a migration changes the
+    // database without touching anything the hash covers, and the check is
+    // one catalog read that changes nothing. Its mismatches are reported and
+    // the server still boots, which is what a developer mid-migration needs.
+    const migrations = (config as Partial<ProcessedAppConfig> | undefined)
+      ?.migrations
+    const decision = migrations
+      ? 'check'
+      : classifySchemaSync({
+          force: process.argv.includes('--sync') || process.argv.includes('-s'),
+          currentHash,
+          storedHash: stored?.trim() || null,
+          // Only meaningful for the default SQLite target; with a DB_URL there is
+          // no local file to stat, and the hash (which covers DB_URL) plus `--sync`
+          // are the levers for an externally reset database.
+          dbMissing:
+            !process.env.DB_URL &&
+            !process.env.DATABASE_URL &&
+            !(await Bun.file(`${Bakery.dataDir}/server.db`).exists()),
+        })
 
-    if (decision === 'skip') {
+    if (decision === 'check') {
+      const { SyncService } = await import('@bakery-framework/orm/sync')
+      await SyncService.run()
+    } else if (decision === 'skip') {
       serveLog.SCHEMA_SYNC_SKIP()
       // Only on the skip path. When a sync runs it reports drift itself, from
       // the plan it just built; here nothing else would ever look. Measured at
@@ -86,10 +97,11 @@ if (hasORM()) {
       if (drift) serveLog.SCHEMA_DRIFT({ reason: drift.reason })
     } else {
       const { SyncService } = await import('@bakery-framework/orm/sync')
-      await SyncService.run()
-      // Recorded only after run() resolves: a failed or aborted sync must leave
-      // the previous hash (or none) behind so the next boot re-syncs.
-      if (currentHash) {
+      const synced = await SyncService.run()
+      // Recorded only after a sync that went through: a failed, aborted or
+      // refused one must leave the previous hash (or none) behind so the next
+      // boot syncs again.
+      if (synced && currentHash) {
         const [writeError] = await Try.catch(Bun.write(hashFile, currentHash))
         // A failed record is tolerated silently: its only consequence is that
         // the next boot syncs again, which is the safe direction.

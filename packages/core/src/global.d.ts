@@ -147,7 +147,8 @@ declare global {
     /**
      * The folder of SQL migration files, relative to the app's cwd, which
      * turns on migrations mode: the files are the schema's source of truth,
-     * `db:migrate` applies them in order, and `db:sync` never alters or drops
+     * `db:migrate` applies them in order, and `db:sync` only checks the
+     * declared tables against the database, never altering or dropping
      * anything. Empty (the default) leaves the declarations as the truth, the
      * way `db:sync` has always worked.
      *

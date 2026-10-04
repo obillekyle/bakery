@@ -6,6 +6,7 @@ import { Case, Try } from '@bakery-framework/core/utils'
 import { SQL } from 'bun'
 import type * as SyncTypes from '../sync/types'
 import { createExecutor, SQLAdapter } from './base'
+import { sqliteTypeProblem } from './live-types'
 
 // Convention 4: logging is data, declared in a table rather than formatted at
 // the call site.
@@ -579,6 +580,41 @@ export class SQLiteAdapter extends SQLAdapter {
     return false
   }
 
+  /** `sqlite_master` and `pragma_table_info`, SQLite's whole catalog. */
+  override async liveColumns(): Promise<SQLAdapter.LiveColumn[]> {
+    const rows = (await this.sql.unsafe(
+      `SELECT m.name AS table_name, m.type AS kind, p.name AS column_name,
+              p.type AS type, p."notnull" AS not_null, p.pk AS pk
+       FROM sqlite_master m JOIN pragma_table_info(m.name) p
+       WHERE m.type IN ('table', 'view') AND m.name NOT LIKE 'sqlite_%'
+       ORDER BY m.name, p.cid`,
+    )) as {
+      table_name: string
+      kind: string
+      column_name: string
+      type: string | null
+      not_null: number
+      pk: number
+    }[]
+    return rows.map(row => ({
+      table: row.table_name,
+      column: row.column_name,
+      type: (row.type ?? '').toLowerCase(),
+      // An INTEGER PRIMARY KEY is the rowid and cannot hold NULL, whatever
+      // `notnull` says.
+      nullable: !Number(row.not_null) && !Number(row.pk),
+      primary: Number(row.pk) > 0,
+      view: row.kind === 'view',
+    }))
+  }
+
+  override columnTypeProblem(
+    declared: SyncTypes.ColumnConstraint,
+    live: SQLAdapter.LiveColumn,
+  ): string | null {
+    return sqliteTypeProblem(declared, live)
+  }
+
   async getConstraints(): Promise<SyncTypes.DBConstraints> {
     const tables = (await this.query(
       'SELECT sql,name,type FROM sqlite_master' +
@@ -596,9 +632,9 @@ export class SQLiteAdapter extends SQLAdapter {
       // records. This one survived it: `getConstraints` runs over every table
       // the database reports, so a name carrying an apostrophe closed the
       // literal and the rest of the statement went with it.
-      const cols = (await this.query(
-        'SELECT * FROM pragma_table_info(?)',
-      ).all(table.name)) as any[]
+      const cols = (await this.query('SELECT * FROM pragma_table_info(?)').all(
+        table.name,
+      )) as any[]
 
       if (table.type === 'view') {
         const match = table.sql.match(/AS\s+(.*)/is)

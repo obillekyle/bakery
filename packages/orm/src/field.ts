@@ -295,6 +295,41 @@ export const Field = {
     (nullable: true): TableDef<unknown, true, true>
   },
 
+  /**
+   * A column whose SQL type the migration files give, for a type this
+   * vocabulary has no spelling for: `numeric(5,2)`, `timestamptz`, a `bigint`
+   * key, `text[]`. **Migrations mode only**: classic `db:sync` refuses a schema
+   * that uses it, since it cannot create or compare a type it does not know.
+   *
+   * The type argument is what the driver hands back, and it is the caller's
+   * to get right. Measured with Bun on Postgres: `numeric` and `bigint` come
+   * back as strings, `timestamptz` and `date` as a `Date`, `uuid` as a string.
+   * `db:sync` checks the SQL type against the database, not the type
+   * argument against the SQL type.
+   *
+   *     weight: Field.Sql<string>('numeric(5,2)'),
+   *     closedAt: Field.Sql<Date>('timestamptz', { nullable: true }),
+   *     createdAt: Field.Sql<Date>('timestamptz', { optional: true }),
+   *
+   * `optional` says the database fills the column when an insert leaves it
+   * out (a `DEFAULT`, an identity), so inserts may omit it.
+   */
+  Sql: ((
+    sqlType: string,
+    options: { nullable?: true; optional?: true } = {},
+  ) => {
+    const def: Record<string, unknown> = { type: 'sql', sqlType }
+    if (options.nullable) def.nullable = true
+    return def
+  }) as {
+    <T>(sqlType: string): TableDef<T, false, false>
+    <T>(sqlType: string, options: { optional: true }): TableDef<T, false, true>
+    <T>(
+      sqlType: string,
+      options: { nullable: true; optional?: true },
+    ): TableDef<T | null, true, true>
+  },
+
   /** True/false: `BOOLEAN` on Postgres, `TINYINT(1)` on MySQL. */
   Bool: <D extends boolean | null | undefined = undefined>(d?: D) =>
     column<

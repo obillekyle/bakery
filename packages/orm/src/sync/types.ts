@@ -6,6 +6,8 @@ export type ColumnType =
   | 'buffer'
   | 'bigint'
   | 'json'
+  /** `Field.Sql`: the SQL type is `sqlType`, given verbatim. Migrations mode only. */
+  | 'sql'
 
 export interface ColumnConstraint {
   type: ColumnType
@@ -35,6 +37,8 @@ export interface ColumnConstraint {
    * enum's members does not migrate on its own.**
    */
   _enum?: string[]
+  /** The SQL type of a `Field.Sql` column, as its declaration spelled it. */
+  sqlType?: string
   primary?: boolean
   autoIncrement?: boolean
   nullable?: boolean

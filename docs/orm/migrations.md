@@ -1,8 +1,8 @@
 # Migrations
 
 Migrations mode makes SQL files the source of truth for the schema. `db:migrate`
-applies the files that have not run yet, in order, and `db:sync` changes
-nothing. It is for a schema that holds what the [declarations](schema.md)
+applies the files that have not run yet, in order, and `db:sync` checks the
+declared tables against the database and changes nothing. It is for a schema that holds what the [declarations](schema.md)
 cannot say: a CHECK constraint beyond an enum, a trigger, a partial unique
 index, grants. Classic [schema sync](sync.md) would drop those, since it makes
 the database match the declarations exactly.
@@ -121,11 +121,60 @@ A run takes a lock before it reads the ledger: an advisory lock on Postgres,
 for it and then finds nothing to do. SQLite serializes writers on its own. The
 lock belongs to a session, so the runner's connection pool is one connection.
 
+## What db:sync checks
+
+In migrations mode the [declarations](schema.md) only type queries, so
+`db:sync` checks them against the database and changes nothing. It reads the
+catalog alone, as the app's own role: on Postgres `pg_catalog` rather than
+`information_schema`, which hides a table the role holds no privilege on, and
+the primary key of one it can only read.
+
+A declared column is a mismatch when a query typed by it would be wrong about
+the column:
+
+- the table or the column is not in the database;
+- the type is not one the declaration accepts. A `Field.Int()` accepts
+  `integer` and `smallint` but not `bigint`, which Bun returns as a string. A
+  width or precision the declaration states is held to exactly, and one it
+  leaves out is not asked about;
+- the declaration and the database disagree about NULL (a view's columns are
+  exempt, since catalogs report every one of them nullable);
+- the declared primary key is not the database's.
+
+A native enum's labels are compared with the declared members. A column or a
+table the database has and the declarations leave out is not a mismatch:
+queries simply never name it.
+
+For a type the rest of `Field` has no spelling for, declare the SQL type and
+what the driver returns:
+
+```ts
+import { Field, table } from '@bakery-framework/orm'
+
+export const campuses = table('campuses', {
+  id: Field.Primary(),
+  name: Field.String(),
+  weight: Field.Sql<string>('numeric(5,2)'),
+  tags: Field.Sql<string[]>('text[]', { optional: true }),
+  openedAt: Field.Sql<Date>('timestamptz', { optional: true }),
+  closedAt: Field.Sql<Date>('timestamptz', { nullable: true }),
+})
+```
+
+`optional` says the database fills the column when an insert leaves it out.
+The SQL type may use any spelling the database accepts: `timestamptz` is
+compared as `timestamp with time zone`, `int[]` as `integer[]`.
+
+```
+W campuses.weight: declared a float (double precision or real), the database has numeric(5,2).
+E 1 mismatch(es) between the declared tables and the database (migrations mode, migrations).
+```
+
 ## What else changes
 
 | | In migrations mode |
 | --- | --- |
-| `db:sync` | Changes nothing, and says so |
-| The dev server's sync on boot | Changes nothing |
-| `bakery --sync` | Changes nothing |
+| `db:sync` | Checks, changes nothing, and exits 1 on a mismatch |
+| The dev server's boot | Checks on every boot, reports, and serves |
+| `bakery --sync` | Checks, and refuses to serve on a mismatch |
 | `db:rollback` | Refuses: write a migration that undoes the change |
