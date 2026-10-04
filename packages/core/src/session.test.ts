@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { Bakery, hostStore } from './core/bakery'
 import { __resetTestConfig, __setTestConfig, initConfig } from './core/config'
-import { Session } from './session'
+import { __resetTestClock, __setTestClock, Session } from './session'
 import { deferredValue } from './utils/common'
 
 describe('Session', () => {
@@ -297,5 +297,81 @@ describe('Session.regenerate', () => {
     expect(cookie).toContain(`sId=${session.id}`)
     expect(cookie).not.toContain('sId=cookie-rotate')
     expect(cookie).toContain('HttpOnly')
+  })
+})
+
+/**
+ * `destroy()` dropped the stored entry and left the object as it was: same id,
+ * same data, and the flags that tell the response to store it. So the response
+ * stored it again whenever it had a reason to, and both reasons are ordinary.
+ * A cookie past half its Max-Age is due a refresh, which re-stores the session
+ * (a persisted login older than 15 days, an ordinary one older than 30
+ * minutes), and any write after the destroy marks it modified. Measured on
+ * 2.1.2: the request after a logout still carried the account id in both cases.
+ */
+describe('Session.destroy', () => {
+  beforeAll(async () => {
+    await initConfig()
+  })
+
+  afterAll(() => {
+    __resetTestClock()
+  })
+
+  function makeReq(id?: string): Request {
+    const req = new Request(
+      'http://localhost/',
+      id ? { headers: { cookie: `sId=${id}` } } : undefined,
+    )
+    deferredValue(req, 'session', Session.from)
+    return req
+  }
+
+  function signIn(account: number): string {
+    const req = makeReq()
+    req.session.set('accountId', account, true)
+    Session.getCookie(req)
+    return req.session.id
+  }
+
+  test('a session past half its cookie lifetime stays destroyed', () => {
+    const start = Date.now()
+    __setTestClock(() => start)
+    const id = signIn(7)
+
+    // Sixteen days on: past half of a persisted cookie's thirty.
+    __setTestClock(() => start + 16 * 24 * 60 * 60 * 1000)
+    const logout = makeReq(id)
+    logout.session.destroy()
+
+    expect(Session.getCookie(logout)).toBe('')
+    expect(makeReq(id).session.get('accountId')).toBeUndefined()
+  })
+
+  test('a write after destroy starts a new session instead of reviving the old one', () => {
+    const id = signIn(8)
+
+    const logout = makeReq(id)
+    logout.session.destroy()
+    logout.session.set('flash', 'Signed out')
+    const cookie = Session.getCookie(logout)
+
+    expect(logout.session.id).not.toBe(id)
+    expect(cookie).toContain(`sId=${logout.session.id}`)
+    expect(makeReq(id).session.get('accountId')).toBeUndefined()
+
+    const next = makeReq(logout.session.id)
+    expect(next.session.get('flash')).toBe('Signed out')
+    expect(next.session.get('accountId')).toBeUndefined()
+  })
+
+  test('nothing is stored and no cookie is issued when nothing follows the destroy', () => {
+    const id = signIn(9)
+    const logout = makeReq(id)
+    logout.session.destroy()
+
+    expect(Session.getCookie(logout)).toBe('')
+    expect(logout.session.hasData()).toBe(false)
+    expect(logout.session.persistedKeys).toEqual([])
   })
 })

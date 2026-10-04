@@ -125,7 +125,7 @@ export default function demo(req: Request) {
   session.get('itemCount', 0)        // with a default
   session.delete('cartId')           // remove one key
   session.touch()                    // force a cookie refresh
-  session.destroy()                  // drop it entirely
+  session.destroy()                  // end it; a write after starts a new one
 
   return {
     id: session.id,
@@ -171,6 +171,26 @@ export default function login(req: Request) {
 Call it on any privilege change: login, and again on logout if the session
 outlives it. `createdAt` is preserved: the session continues, only its bearer
 token changes.
+
+## Signing out
+
+`destroy()` ends the session and leaves a new, empty one in its place, under a
+fresh id. A request that stops there stores nothing and issues no cookie, so
+the id the visitor still holds names nothing. One that goes on writing starts
+an anonymous session of its own, which the response issues as usual:
+
+```ts
+export default function logout(req: Request) {
+  req.session.destroy()
+  req.session.set('flash', 'Signed out')
+  return 'ok'
+}
+```
+
+Up to 2.1.2 the object kept its id and its data after a destroy, and the
+response stored it again whenever it had a reason to: a write after the
+destroy (the flash message above), or a cookie past half its `Max-Age`, which
+is due a refresh. Either one left the visitor signed in.
 
 ## Sessions under multiple hosts
 

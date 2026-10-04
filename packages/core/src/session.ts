@@ -436,8 +436,33 @@ export class Session<
     return this
   }
 
+  /**
+   * End this session, and leave in its place a new one that nothing has
+   * written to.
+   *
+   * Dropping the stored entry was never enough on its own, because the object
+   * outlives the call: the same `req.session` reaches `getCookie` on the way
+   * out, and `getCookie` stores whatever is modified or due a cookie refresh.
+   * A login past half its cookie's Max-Age is due one, and a flash message
+   * written after the logout marks it modified, so either brought the whole
+   * session back, account id and all, under the id the visitor still held.
+   *
+   * So the object becomes a new session: a fresh id, no data, nothing
+   * persisted, nothing due. A request that stops here stores nothing and
+   * issues no cookie; one that goes on writing starts an anonymous session of
+   * its own, which the response issues as usual.
+   */
   public destroy(): void {
     Session.delete(this.id)
+    ;(this as { id: string }).id = newSessionId()
+    ;(this as { createdAt: number }).createdAt = Date.now()
+    this.persistKeys.clear()
+    for (const key of Object.keys(this.rawData)) {
+      delete this.rawData[key as keyof T]
+    }
+    this.modified = false
+    this.cookieRefreshDue = false
+    this.cookieIssuedAt = 0
   }
 
   public toJSON() {
