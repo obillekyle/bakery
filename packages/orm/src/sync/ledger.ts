@@ -1,5 +1,6 @@
 import { Case } from '@bakery-framework/core/utils'
 import type { SQLAdapter } from '../adapters/base'
+import { MIGRATIONS_TABLE } from '../migrate/runner'
 import type * as SyncTypes from './types'
 
 /**
@@ -191,11 +192,16 @@ export async function writeLedger(
  * a table the schema did not declare. Which then made the shape check fail
  * forever and the ledger never get used at all.
  */
-const LEDGER_ALIASES = new Set([
-  LEDGER_TABLE,
-  Case.camel(LEDGER_TABLE),
-  Case.snake(LEDGER_TABLE),
-])
+const LEDGER_ALIASES = new Set(
+  // The migration runner's ledger too (`migrate/runner.ts`): a database that
+  // has been migrated and is then synced the classic way must not see it as a
+  // table the schema forgot to declare, and offer to drop it.
+  [LEDGER_TABLE, MIGRATIONS_TABLE].flatMap(name => [
+    name,
+    Case.camel(name),
+    Case.snake(name),
+  ]),
+)
 
 /** The ledger must never appear in a diff, or sync would try to manage itself. */
 export function stripLedger(

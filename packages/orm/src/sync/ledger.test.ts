@@ -27,6 +27,15 @@ describe('the schema ledger', () => {
     }
   })
 
+  test("strips the migration runner's ledger too", () => {
+    // A migrated database synced the classic way would otherwise list
+    // `__bakery_migrations` as an undeclared table and offer to drop it.
+    for (const alias of ['__bakery_migrations', 'bakeryMigrations']) {
+      const stripped = stripLedger({ led: {}, [alias]: {} } as any)
+      expect(Object.keys(stripped)).toEqual(['led'])
+    }
+  })
+
   test('shape comparison ignores metadata keys and column order', () => {
     expect(
       shapesMatch(

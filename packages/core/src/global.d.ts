@@ -144,6 +144,17 @@ declare global {
      */
     schema?: string
 
+    /**
+     * The folder of SQL migration files, relative to the app's cwd, which
+     * turns on migrations mode: the files are the schema's source of truth,
+     * `db:migrate` applies them in order, and `db:sync` never alters or drops
+     * anything. Empty (the default) leaves the declarations as the truth, the
+     * way `db:sync` has always worked.
+     *
+     * A plain string for the reason `schema` is one.
+     */
+    migrations?: string
+
     hosts?: Record<string, HostEntry>
   }
 

@@ -3,6 +3,7 @@ import { SQL } from 'bun'
 import { type PoolOptions, withPoolOptions } from '../pool'
 import type * as SyncTypes from '../sync/types'
 import { createExecutor, isOpenConnection, SQLAdapter } from './base'
+import type { ScriptDialect } from '../migrate/script'
 
 export class MySQLAdapter extends SQLAdapter {
   protected readonly sql: SQL
@@ -265,6 +266,34 @@ export class MySQLAdapter extends SQLAdapter {
    */
   override get supportsFullOuterJoin(): boolean {
     return false
+  }
+
+  /** MySQL commits every DDL statement as it runs; a rollback cannot undo one. */
+  override get transactionalDDL(): boolean {
+    return false
+  }
+
+  override get scriptDialect(): ScriptDialect {
+    return 'mysql'
+  }
+
+  /**
+   * A named lock, held by the session. `GET_LOCK` waits up to its timeout and
+   * answers 1 when it has the lock and 0 when the wait ran out, so 0 has to be
+   * refused here rather than taken for success.
+   */
+  override async takeMigrationLock(): Promise<() => Promise<void>> {
+    const rows = (await this.sql.unsafe(
+      "SELECT GET_LOCK('bakery_migrations', 600) AS taken",
+    )) as { taken: unknown }[]
+    if (Number(rows[0]?.taken) !== 1) {
+      throw new Error(
+        'Another migration run has held the lock for 10 minutes. Wait for it to finish, then run db:migrate again.',
+      )
+    }
+    return async () => {
+      await this.sql.unsafe("SELECT RELEASE_LOCK('bakery_migrations')")
+    }
   }
 
   protected withConnection(sql: unknown): SQLAdapter {

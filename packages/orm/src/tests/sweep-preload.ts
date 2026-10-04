@@ -60,8 +60,10 @@ for (const { url, driver } of TARGETS) {
     }
 
     // Whole databases, from `adapters/missing-database.test.ts`, which creates
-    // one to prove `--create-database` works and drops it in `afterAll`. A run
-    // killed in between leaves it behind, and nothing else would ever notice.
+    // one to prove `--create-database` works, and `migrate/runner.test.ts`,
+    // which gives each run a database of its own so the migration ledger has
+    // nothing to collide with. Both drop theirs in `afterAll`; a run killed in
+    // between leaves one behind, and nothing else would ever notice.
     const databases =
       driver === 'pgsql'
         ? ((await db`SELECT datname AS name FROM pg_database`) as { name: string }[])
@@ -70,7 +72,7 @@ for (const { url, driver } of TARGETS) {
           }[])
     const leakedDbs = databases
       .map(r => r.name)
-      .filter(name => /^bakery_newdb_\d+$/.test(name))
+      .filter(name => /^bakery_(newdb|mig)_\d+$/.test(name))
     if (leakedDbs.length) {
       const quote = driver === 'mysql' ? '`' : '"'
       for (const name of leakedDbs) {
@@ -79,6 +81,26 @@ for (const { url, driver } of TARGETS) {
       console.log(
         `[sweep] dropped ${leakedDbs.length} leaked ${driver} database(s) from a previous run: ${leakedDbs.join(', ')}`,
       )
+    }
+
+    // Postgres schemas, from `migrate/runner.test.ts`, which gives each live
+    // test a schema of its own (a database took seconds to create). CASCADE
+    // takes the tables, functions and triggers a migration put inside.
+    if (driver === 'pgsql') {
+      const schemas = (await db`SELECT nspname AS name FROM pg_namespace`) as {
+        name: string
+      }[]
+      const leakedSchemas = schemas
+        .map(r => r.name)
+        .filter(name => /^bakery_mig_\d+$/.test(name))
+      for (const name of leakedSchemas) {
+        await db.unsafe(`DROP SCHEMA IF EXISTS "${name}" CASCADE`)
+      }
+      if (leakedSchemas.length) {
+        console.log(
+          `[sweep] dropped ${leakedSchemas.length} leaked pgsql schema(s) from a previous run: ${leakedSchemas.join(', ')}`,
+        )
+      }
     }
     await db.close()
   } catch {

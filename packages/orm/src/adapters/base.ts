@@ -3,6 +3,7 @@ import { Logger } from '@bakery-framework/core/logger'
 import type { MapOf } from '@bakery-framework/core/types'
 import { Case, Try } from '@bakery-framework/core/utils'
 import { throws } from '@bakery-framework/core/utils/common'
+import type { ScriptDialect } from '../migrate/script'
 import type * as SyncTypes from '../sync/types'
 import { DatabaseMissingError, isMissingDatabase } from './missing-database'
 import { observe, observeIterate } from './observe'
@@ -19,6 +20,10 @@ export namespace SQLAdapter {
   export interface RunResult {
     lastInsertRowid: number | bigint | null
     changes: number
+  }
+  /** The one call `executeScript` makes on a driver handle. */
+  export interface ScriptHandle {
+    unsafe(text: string): Promise<unknown>
   }
   export interface BackupResult {
     file: string
@@ -459,7 +464,10 @@ export abstract class SQLAdapter {
    * `undefined` when there is no URL to rewrite. A static for the reason
    * {@link usableTotal} gives.
    */
-  static withDatabase(url: string | undefined, name: string): string | undefined {
+  static withDatabase(
+    url: string | undefined,
+    name: string,
+  ): string | undefined {
     if (!url) return undefined
     return Try.return(() => {
       const target = new URL(url)
@@ -571,6 +579,50 @@ export abstract class SQLAdapter {
     return this.transactionDepth > 0
       ? await handle.savepoint(run)
       : await handle.transaction(run)
+  }
+
+  /**
+   * Whether DDL runs inside a transaction here and is undone by a rollback.
+   * True on Postgres and SQLite; MySQL commits each DDL statement as it runs,
+   * so a migration that fails halfway there leaves its first half applied.
+   */
+  get transactionalDDL(): boolean {
+    return true
+  }
+
+  /**
+   * How this dialect's SQL text is lexed, for reading a migration file without
+   * running it (`migrate/script.ts`): standard quotes and comments, plus
+   * Postgres's dollar quotes or MySQL's backticks and `#` comments.
+   */
+  get scriptDialect(): ScriptDialect {
+    return 'sqlite'
+  }
+
+  /**
+   * Run a migration file's text as written: every statement in it, with no
+   * parameters and no rewriting.
+   *
+   * Not `query().run()`, which is built for one statement with placeholders:
+   * the Postgres executor rewrites `?` and backticks (it does not know about
+   * comments or `$$` bodies, and measured, it turned a backtick inside a quoted
+   * default into a double quote after a `-- don't` comment), and appends
+   * `RETURNING *` to anything starting with INSERT. With no parameters, Bun
+   * sends the text over the simple protocol, which takes several statements
+   * at once on all three dialects.
+   */
+  async executeScript(text: string): Promise<void> {
+    await (this.sql as SQLAdapter.ScriptHandle).unsafe(text)
+  }
+
+  /**
+   * Take the lock that keeps two migration runs from applying the same file,
+   * and return what releases it. A no-op here: SQLite serializes writers on
+   * its own. Held for the session, so the runner's connection pool has to be
+   * a single connection.
+   */
+  async takeMigrationLock(): Promise<() => Promise<void>> {
+    return async () => {}
   }
   protected abstract parseConstraints(
     col: unknown,

@@ -54,6 +54,9 @@ const defaultConfig: Required<AppConfig> = {
   // Empty means auto-detect, matching `head`/`body` above. There is no default
   // *path* to give here: the default behavior is the probe itself.
   schema: '',
+  // Empty means migrations mode is off, and the schema declarations are the
+  // truth that db:sync enforces.
+  migrations: '',
   root: 'src',
   hosts: {},
   websocket: {

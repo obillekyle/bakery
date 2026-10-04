@@ -36,6 +36,7 @@
     "./sync/ledger": "./src/sync/ledger.ts",
     "./sync/history": "./src/sync/history.ts",
     "./sync/rollback": "./src/sync/rollback.ts",
+    "./migrate": "./src/migrate/index.ts",
     "./templates/*": "./templates/*",
     "./package.json": "./package.json",
     "./schema-registry": "./src/schema-registry.ts",

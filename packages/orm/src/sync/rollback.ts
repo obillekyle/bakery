@@ -28,6 +28,8 @@ const rollbackMsgs = {
   SCHEMA_KEPT:
     'W %y--keep-schema: schema.ts still describes the newer schema.%* The next %ydb:sync%* (including the one a dev boot runs) will apply it again and undo this rollback. Revert the file yourself, or re-run without the flag.',
   DONE: 'I %gRollback complete%*.',
+  MIGRATIONS_MODE:
+    'E %rdb:rollback does not run in migrations mode%* (%y{dir}%*): it rolls back by altering and dropping toward a stored snapshot, and the migration files are the schema here. Write a migration that undoes the change.',
 } as const
 
 const MESSAGES = messageLogger(logger, rollbackMsgs)
@@ -101,6 +103,10 @@ changes, exactly as db:sync does.
     const { initConfig } = await import('@bakery-framework/core/core/config')
     const { closeDB, connection, initDB } = await import('../connection')
     const config = await initConfig()
+    if (config.migrations) {
+      MESSAGES.MIGRATIONS_MODE({ dir: config.migrations })
+      process.exit(1)
+    }
     await initDB()
 
     const entries = await readLedgerEntries(connection)

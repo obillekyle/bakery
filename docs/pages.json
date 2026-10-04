@@ -36,6 +36,7 @@
       ["orm/queries", "Queries"],
       ["orm/mutations", "Mutations"],
       ["orm/sync", "Schema sync"],
+      ["orm/migrations", "Migrations"],
       ["orm/adapters", "Adapters"]
     ]
   },

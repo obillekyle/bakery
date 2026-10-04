@@ -5,6 +5,11 @@ one of them match the other. There are no migration files: the schema is the
 desired state, and the diff is computed each time from what the database
 actually reports.
 
+A schema that holds what the declarations cannot say (a trigger, a partial
+index, a CHECK beyond an enum) is better kept in SQL files:
+[migrations mode](migrations.md) applies those in order, and `db:sync` then
+changes nothing.
+
 ```bash
 bun run db:sync
 ```

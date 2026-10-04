@@ -28,6 +28,8 @@ const syncMsgs = {
   DB_MISSING:
     'E %rDatabase %y{name}%r does not exist on {server}%*. Run %ybun run db:sync --create-database%* to create it, or point DB_URL at one that exists.',
   DB_CREATED: 'I Created database %g{name}%* on %y{server}%*.',
+  MIGRATIONS_MODE:
+    'I Migrations mode (%y{dir}%*): db:sync changes nothing here. %ybun run db:migrate%* applies the files.',
 } as const
 
 const MESSAGES = messageLogger(logger, syncMsgs)
@@ -226,6 +228,17 @@ Flags:
 
     const { initConfig } = await import('@bakery-framework/core/core/config')
     const config = await initConfig()
+
+    // In migrations mode the SQL files are the schema, and a sync built from
+    // the declarations would drop what only the files can say: a partial
+    // index, a trigger, a CHECK beyond an enum. Returns rather than exits:
+    // the dev worker and `bakery --sync` call this too, and must go on to
+    // serve.
+    if (config.migrations) {
+      MESSAGES.MIGRATIONS_MODE({ dir: config.migrations })
+      return
+    }
+
     await initDB()
     // `schema` in server.config.ts when the app sets one; otherwise prefers an
     // orm/ folder and falls back to a single schema.ts.

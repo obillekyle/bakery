@@ -3,6 +3,9 @@ import { SQL } from 'bun'
 import { type PoolOptions, withPoolOptions } from '../pool'
 import type * as SyncTypes from '../sync/types'
 import { createExecutor, isOpenConnection, SQLAdapter } from './base'
+import type { ScriptDialect } from '../migrate/script'
+/** `pg_advisory_lock` key for migration runs: "bakerymg" in ASCII, 0x62616b6572796d67. */
+const MIGRATION_LOCK_KEY = '7089065371914300775'
 
 interface PGSQLParserState {
   inSingleQuote: boolean
@@ -15,6 +18,22 @@ interface PGSQLParserState {
 export class PGAdapter extends SQLAdapter {
   protected readonly sql: SQL
   override readonly quoteChar: string = '"'
+
+  override get scriptDialect(): ScriptDialect {
+    return 'pgsql'
+  }
+
+  /**
+   * A session advisory lock. `pg_advisory_lock` waits for the other run to
+   * release it, so a second deploy blocks and then finds nothing pending. The
+   * key is the ASCII of "bakerymg".
+   */
+  override async takeMigrationLock(): Promise<() => Promise<void>> {
+    await this.sql.unsafe(`SELECT pg_advisory_lock(${MIGRATION_LOCK_KEY})`)
+    return async () => {
+      await this.sql.unsafe(`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`)
+    }
+  }
 
   constructor(connectionTarget?: string | URL | SQL, pool: PoolOptions = {}) {
     const target =
