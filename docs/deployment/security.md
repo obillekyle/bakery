@@ -18,10 +18,18 @@ flood. The startup banner announces the limiter whenever the default value is
 in effect.
 
 Default: `{ max: 100, refill: 10 }`, burst 100, then 10 per second, keyed by
-client IP. Buckets live in a shared 1024-slot buffer
+client IP. Buckets live in a shared 16384-slot buffer
 (`packages/core/src/utils/shared-pool.ts`), so the budget is shared
 across cluster workers and two clients can hash into the same slot. It is a
-flood guard, not a per-user quota.
+flood guard, not an exact per-user quota.
+
+A URL a handler has served as an asset (a file, a compiled module, a Vue
+stylesheet or script) stops counting after its first request; a 404 never
+does. `rateLimit.routes` gives a path prefix its own budget, keyed by address
+unless the rule says otherwise, which is the shape for sign-in and password
+reset. Keys that hash to one slot share it, so a client holding thousands of
+addresses can drain other clients' buckets; lockout per account belongs with
+the account, in the database.
 
 Configure it in `server.config.ts`; see
 [Rate limiting](../configuration/server-config.md#rate-limiting).
@@ -172,8 +180,10 @@ Bakery does not do these. If you need them, they are yours to add.
   another *site*; a non-browser client sends no `Origin` and passes. Sockets
   carrying anything sensitive still authenticate inside their own `canHandle`.
   See [WebSockets](../guides/websockets.md#cross-origin-handshakes-are-refused-before-dispatch).
-- **Per-route or per-user rate limits.** One global bucket, keyed by IP unless
-  you supply `keyBy`.
+- **Exact per-user rate limits.** Rules per path prefix and a `keyBy` per
+  account exist, but buckets are hashed into 16384 shared slots, so a count is
+  per slot rather than per key. Failed sign-ins per account belong on the
+  account row.
 - **Bot detection, CAPTCHA, account lockout, audit logging.**
 
 ## `trustProxy` is a security decision

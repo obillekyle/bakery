@@ -13,6 +13,11 @@ export class NMHandler extends Handler {
     return path.startsWith('/_nm/')
   }
 
+  /** A bundled package. The bundling is bounded by what is installed, and cached. */
+  static isAsset(): boolean {
+    return true
+  }
+
   /**
    * The file a `/_nm/` path names.
    *

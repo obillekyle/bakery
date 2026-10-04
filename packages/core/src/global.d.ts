@@ -72,13 +72,7 @@ declare global {
     body?: string
     proxy?: Record<string, string>
     blocked?: string[]
-    rateLimit?:
-      | {
-          max: number
-          refill: number
-          keyBy?: (req: Request) => string
-        }
-      | false
+    rateLimit?: import('./utils/http/rate-limit').RateLimitOptions | false
   }
 
   type AppConfig = {
@@ -132,13 +126,7 @@ declare global {
 
     blocked?: string[]
 
-    rateLimit?:
-      | {
-          max: number
-          refill: number
-          keyBy?: (req: Request) => string
-        }
-      | false
+    rateLimit?: import('./utils/http/rate-limit').RateLimitOptions | false
 
     trustProxy?: boolean
 

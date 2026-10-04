@@ -23,8 +23,25 @@ import { deferredValue, Try } from '@bakery-framework/core/utils/common'
 import { parsedUrl } from '@bakery-framework/core/utils/http'
 import { COUNTER_SLOTS } from '@bakery-framework/core/utils/shared-pool'
 import { hasORM } from './orm'
-import { isErrorResult, rateLimitKey, tooManyRequests } from './pipeline'
-import { rateLimitSlot, sampleRateLimitLog } from './rate-limit'
+import {
+  answeredAsAsset,
+  bucketKey,
+  checkRateLimits,
+  compileRateLimit,
+  isErrorResult,
+  type RateLimitConfig,
+  rateLimitBucket,
+  rateLimitKey,
+  tooManyRequests,
+} from './pipeline'
+import {
+  assetKey,
+  forgetAsset,
+  isProvenAsset,
+  proveAsset,
+  rateLimitSlot,
+  sampleRateLimitLog,
+} from './rate-limit'
 import { runShutdownSequence } from './shutdown'
 
 /**
@@ -130,7 +147,109 @@ try {
   process.exit(1)
 }
 
+/**
+ * What the limiter did with a request, for `settleRequest` to finish once the
+ * response is known: the request's asset key, whether it skipped the bucket
+ * as a proven asset, and otherwise the slot it borrowed a token from.
+ */
+type RateLimitTicket = {
+  asset: bigint
+  skipped: boolean
+  slot: number
+  refill: number
+}
+
+/**
+ * Let a request in, or answer it 429.
+ *
+ * A URL some handler has already served as an asset skips the bucket (see
+ * `Handler.isAsset`). Anything else borrows a token before it is routed: the
+ * charge cannot wait for the response, because admitting first and charging
+ * afterwards lets a burst of any size through at once.
+ */
+function admitRequest(
+  rl: RateLimitConfig,
+  path: string,
+  search: string,
+  req: Request,
+  hostname: string,
+): RateLimitTicket | Response {
+  const asset = assetKey(path, search, req)
+  if (isProvenAsset(asset)) return { asset, skipped: true, slot: -1, refill: 0 }
+
+  const bucket = rateLimitBucket(compileRateLimit(rl), path)
+  const key = rateLimitKey(bucket, req, hostname)
+  const slot = rateLimitSlot(bucketKey(bucket, key))
+  if (Bakery.sharedPool.consumeToken(slot, bucket.max, bucket.refill)) {
+    return { asset, skipped: false, slot, refill: bucket.refill }
+  }
+
+  // Sampled: availability under flood: stdout is effectively synchronous on
+  // Windows, so a line per rejection replays the flood the limiter just
+  // absorbed as a logging flood. Sampled per bucket, so a client limited at
+  // sign-in and elsewhere gets a line for each.
+  const suppressed = sampleRateLimitLog(bucketKey(bucket, key))
+  if (suppressed !== null) {
+    const prefix = bucket.prefix
+    if (prefix && suppressed > 0) {
+      serveLog.RATE_LIMITED_ROUTE_SUPPRESSED({
+        ip: key,
+        prefix,
+        count: suppressed,
+      })
+    } else if (prefix) {
+      serveLog.RATE_LIMITED_ROUTE({ ip: key, prefix })
+    } else if (suppressed > 0) {
+      serveLog.RATE_LIMITED_SUPPRESSED({ ip: key, count: suppressed })
+    } else {
+      serveLog.RATE_LIMITED({ ip: key })
+    }
+  }
+  return tooManyRequests(bucket.refill)
+}
+
+/**
+ * Settle the limiter's account with a request once its response is ready.
+ *
+ * Served as an asset: its URL is remembered, and a borrowed token goes back.
+ * Skipped the bucket as a proven asset and then was not one (a deleted file,
+ * a refused range, a guard that said no): the URL is forgotten and the
+ * request is charged after the fact, so a URL that has started failing costs
+ * what any other request costs. Anything else keeps the token it spent.
+ */
+function settleRequest(
+  ticket: RateLimitTicket,
+  rl: RateLimitConfig,
+  path: string,
+  req: Request,
+  hostname: string,
+  res: Response | undefined,
+): void {
+  const handler = hostStore.getStore()?.handler
+  if (answeredAsAsset(handler, path, req, res?.status ?? 0)) {
+    proveAsset(ticket.asset)
+    if (!ticket.skipped)
+      Bakery.sharedPool.refundToken(ticket.slot, ticket.refill)
+    return
+  }
+  if (!ticket.skipped) return
+
+  forgetAsset(ticket.asset)
+  const bucket = rateLimitBucket(compileRateLimit(rl), path)
+  const key = rateLimitKey(bucket, req, hostname)
+  Bakery.sharedPool.consumeToken(
+    rateLimitSlot(bucketKey(bucket, key)),
+    bucket.max,
+    bucket.refill,
+  )
+}
+
 try {
+  // Before anything binds: a rate limit that cannot mean anything (a refill
+  // of 0, a prefix without its slash) stops the boot here, naming the field,
+  // in the catch below.
+  checkRateLimits(Bakery.config)
+
   Bakery.server = Bun.serve({
     port: PORT,
     hostname: Bakery.config.host,
@@ -153,23 +272,11 @@ try {
         deferredValue(req, 'session', Session.from)
 
         const rl = Bakery.config.rateLimit
+        let ticket: RateLimitTicket | null = null
         if (rl) {
-          const key = rateLimitKey(rl, req, hostname)
-          const slot = rateLimitSlot(key)
-          if (!Bakery.sharedPool.consumeToken(slot, rl.max, rl.refill)) {
-            // Sampled: availability under flood: stdout is effectively
-            // synchronous on Windows, so a line per rejection replays the
-            // flood the limiter just absorbed as a logging flood.
-            const suppressed = sampleRateLimitLog(key)
-            if (suppressed !== null) {
-              if (suppressed > 0) {
-                serveLog.RATE_LIMITED_SUPPRESSED({ ip: key, count: suppressed })
-              } else {
-                serveLog.RATE_LIMITED({ ip: key })
-              }
-            }
-            return tooManyRequests(rl.refill)
-          }
+          const admitted = admitRequest(rl, path, url.search, req, hostname)
+          if (admitted instanceof Response) return admitted
+          ticket = admitted
         }
 
         Bakery.sharedPool.incrementCounter(COUNTER_SLOTS.TOTAL_REQUESTS, 1)
@@ -197,7 +304,9 @@ try {
           COUNTER_SLOTS.LATENCY_SUM_MS,
           elapsedMs,
         )
-        return processResponse(resp, req)
+        const res = await processResponse(resp, req)
+        if (rl && ticket) settleRequest(ticket, rl, path, req, hostname, res)
+        return res
       })
     },
 

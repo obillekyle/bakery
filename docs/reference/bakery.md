@@ -109,7 +109,7 @@ form, and the one a plugin uses.
 | --- | --- |
 | `Bakery.version` | the **app's** version, read from `<cwd>/package.json` |
 | `Bakery.startNs` | `Bun.nanoseconds()` at process start; the epoch for request timings |
-| `Bakery.sharedPool` | a 1 MB `SharedArrayBuffer` pool: the rate-limit token buckets and the request/error counters live in it |
+| `Bakery.sharedPool` | a `SharedArrayBuffer` of 132,160 bytes: the rate-limit token buckets (16384 of them) and the request/error counters live in it |
 | `Bakery.server` | the `Bun.serve` return value, **unset until the server has started** |
 | `Bakery.shutdownHooks` | the array behind `onShutdown` |
 

@@ -269,6 +269,34 @@ export class Handler {
    */
   static namespace: string | null = null
 
+  /**
+   * Whether this handler's successful answer to `req` was an asset, which the
+   * rate limiter then stops counting: a file from the serve root, a compiled
+   * module, a stylesheet. Asked after the response, with the status already
+   * known to be under 400, so it describes what was served rather than
+   * guessing from the request.
+   *
+   * An asset's URL is remembered, and a later request for the same URL
+   * (host, path, query and `Sec-Fetch-Dest`) skips the bucket entirely, which
+   * is what keeps a page's forty modules from counting forty times, and
+   * keeps a school behind one address from sharing one budget for them. A
+   * first request still borrows a token for the duration and gets it back
+   * once this answers true.
+   *
+   * So answer true only when a successful answer costs about what reading a
+   * file costs, *and* the work behind a first answer (a compile, a bundle) is
+   * bounded by the app's own files: a client must not be able to mint new
+   * work by varying the URL. That rules out `ImageHandler`, where each new
+   * size is a new resize, and `GoogleFontHandler`, where each new family is
+   * an upstream fetch. A handler that runs app code per request (pages, API
+   * routes, middleware, Vue server blocks) is not serving an asset either.
+   *
+   * False by default, so a plugin's handler counts unless it says otherwise.
+   */
+  static isAsset(_path: string, _req: Request): boolean {
+    return false
+  }
+
   protected constructor() {}
 
   static get cache(): HandlerCache<string, Route.Info> {

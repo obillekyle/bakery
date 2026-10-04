@@ -96,12 +96,18 @@ Per request, `worker.ts` does the following
 3. `req.startNs`, and a lazily-created `req.session`.
 4. Rate limiting (on by default; `rateLimit: false` disables): a token bucket
    in a `SharedArrayBuffer`, keyed by `keyBy(req)` or the client IP, hashed
-   into 1024 slots and therefore shared across cluster workers. Over budget →
-   429 with a `Retry-After` header; rejection logging is sampled per key.
-5. `handleRequest(req)`.
+   into 16384 slots and therefore shared across cluster workers. A URL already
+   served as an asset skips it; anything else is charged to the
+   `rateLimit.routes` rule covering its path, or to the top level. Over budget
+   → 429 with a `Retry-After` header; rejection logging is sampled per key.
+5. `handleRequest(req)`, which records on the request store the handler
+   routing chose.
 6. If the result is a `Response` with status ≥ 400, or an object carrying
    `errorCode`, `handleRequestError(...)` takes over.
 7. `processResponse(result, req)` serializes whatever came back.
+8. The limiter settles: if the recorded handler's `isAsset` says the answer
+   was an asset and the status is under 400, the URL is remembered and a
+   borrowed token goes back.
 
 ### `handleRequest`
 
@@ -202,8 +208,15 @@ class MyHandler extends Handler {
   static canHandle(path: string, req: Request): boolean | Promise<boolean>
   static handle(path: string, req: Request): Handler.Response
   static initRoutes(): void | Promise<void>   // optional; clears caches at boot
+  static isAsset(path: string, req: Request): boolean   // optional; false by default
 }
 ```
+
+`isAsset` is asked after the response, and only when its status is under 400:
+true means what was served is an asset the rate limiter stops counting for
+that URL. It belongs on handlers whose answers cost about a file read, and
+whose first-request work is bounded by the app's own files; see
+[Rate limiting](../configuration/server-config.md#assets-do-not-count).
 
 `Handler.Response` is deliberately wide: `Response | Bun.BunFile | string |
 object | undefined | void`, sync or async. `processResponse` knows how to

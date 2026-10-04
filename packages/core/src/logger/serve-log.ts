@@ -67,6 +67,11 @@ const serveMsgs = {
   // lines back; the "30s" must stay in step with RATE_LIMIT_LOG_WINDOW_MS.
   RATE_LIMITED_SUPPRESSED:
     'W Rate limited: %y{ip}%* (%y{count}%* rejections suppressed in the last 30s)',
+  // The same two for a request charged to a `rateLimit.routes` rule, named by
+  // its prefix, so a sign-in limit firing reads differently from a flood.
+  RATE_LIMITED_ROUTE: 'W Rate limited: %y{ip}%* on %y{prefix}%*',
+  RATE_LIMITED_ROUTE_SUPPRESSED:
+    'W Rate limited: %y{ip}%* on %y{prefix}%* (%y{count}%* rejections suppressed in the last 30s)',
   // Printed only when the *default* limit is in effect: an unconfigured rate
   // limit silently 429s load tests and shared-NAT offices, so its existence
   // gets one announcement. An app-configured value prints nothing.

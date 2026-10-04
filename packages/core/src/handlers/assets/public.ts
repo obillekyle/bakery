@@ -8,6 +8,10 @@ export class PublicHandler extends Handler {
     return path.startsWith('/uploads/')
   }
 
+  static isAsset(): boolean {
+    return true
+  }
+
   static async handle(path: string) {
     const resolved = await getStatic(path, Bakery.publicRoot)
     if (!resolved) return response.error('Not Found')

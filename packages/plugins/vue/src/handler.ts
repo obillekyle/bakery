@@ -306,6 +306,16 @@ export class VueHandler extends DynamicHandler {
 
   static handle = sharedHandler
 
+  /**
+   * The runtime chunks, stylesheets, root scripts, and module scripts of
+   * components with no server block: what `sharedHandler` marked while
+   * serving this request. Never a page, an action, or a module whose server
+   * block ran for it, since those run app code on every request.
+   */
+  static isAsset(_path: string, req: Request): boolean {
+    return servedAsAsset.has(req)
+  }
+
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SFC parser
   static async parseVueFile(
     id: string,
@@ -713,6 +723,14 @@ async function serveIfDirect(value: any, req: Request) {
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: request handler, one branch per SFC render path
+/**
+ * Requests `sharedHandler` answered with an asset, for `VueHandler.isAsset`.
+ * Weak, so an entry lives exactly as long as its request. Recorded by the
+ * branch that serves the asset rather than worked out again from the query
+ * afterwards: the two would be one more pair of copies to keep in step.
+ */
+const servedAsAsset = new WeakSet<Request>()
+
 async function sharedHandler(
   this: typeof DynamicHandler | typeof DynamicErrorHandler,
   path: string,
@@ -720,6 +738,7 @@ async function sharedHandler(
   errors?: Handler.Error.Data,
 ) {
   if (path.startsWith(VUE_CHUNK_PREFIX)) {
+    servedAsAsset.add(req)
     return serveVueChunk(path, req)
   }
 
@@ -854,6 +873,7 @@ async function sharedHandler(
   const needsServerData = !isCss && vueScriptParam !== 'root'
 
   if (!needsServerData) {
+    servedAsAsset.add(req)
     if (isCss) return VueHandler.handleCss(id, parsed)
     return VueHandler.handleScript(id, routePath, true, parsed)
   }
@@ -872,7 +892,9 @@ async function sharedHandler(
   if (direct) return direct
 
   if (isScript) {
-    const serverValues = serverScript.trim() ? serverParams : undefined
+    const hasServerBlock = Boolean(serverScript.trim())
+    if (!hasServerBlock) servedAsAsset.add(req)
+    const serverValues = hasServerBlock ? serverParams : undefined
     return VueHandler.handleScript(id, routePath, false, parsed, serverValues)
   }
 

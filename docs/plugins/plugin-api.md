@@ -135,6 +135,13 @@ export class HealthHandler extends Handler {
 produces the response. Both are **static**: handlers are never instantiated
 (`Handler`'s constructor is `protected`).
 
+A handler that serves files or compiled browser code can declare
+`static isAsset(path, req)`. When it answers true for a response under 400, the
+rate limiter stops counting that URL
+([Rate limiting](../configuration/server-config.md#assets-do-not-count)). It is
+false by default, and should stay false for anything that runs code per
+request, or mints new work per URL the way an image resizer does.
+
 There are three independent registries: `Bakery.handlers.fetch`, `.error` and
 `.websocket`: each with its own priority scale. Higher runs first. See
 [Architecture](../reference/architecture.md) for the bands the core handlers

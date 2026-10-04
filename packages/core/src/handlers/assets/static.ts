@@ -12,6 +12,11 @@ export class StaticHandler extends Handler {
     return true
   }
 
+  /** A file from the serve root. A missing one is a 404, which never counts as an asset. */
+  static isAsset(): boolean {
+    return true
+  }
+
   static get cacheDir() {
     return fs.resolve(Bakery.cacheDir, 'static')
   }

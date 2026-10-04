@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import type { Handler } from '../handlers/core/$base'
 import { matchBlocked } from '../utils/constants'
 import { fs } from '../utils/fs'
 
@@ -35,6 +36,13 @@ export type HostContext = {
    * globs, which are frozen for the life of the store.
    */
   blockedPaths?: Map<string, boolean>
+  /**
+   * The handler routing chose for this request, set by `handleRequest` just
+   * before it is called. The rate limiter reads it once the response is
+   * ready, to ask `isAsset`. Absent when no handler answered: a CORS
+   * preflight, a plugin's `onRequest`, a forbidden path, a WebSocket upgrade.
+   */
+  handler?: typeof Handler
 }
 
 export const hostStore = new AsyncLocalStorage<HostContext>()

@@ -17,6 +17,11 @@ export class VirtualAssetHandler extends Handler {
     return fs.resolve(Bakery.cacheDir, 'virtual')
   }
 
+  /** The framework's own client files. */
+  static isAsset(): boolean {
+    return true
+  }
+
   static get clientAssets(): MapOf<string> {
     // frameworkPath, not Bakery.root: these ship with the framework, so they
     // must resolve relative to it rather than to the application's cwd.

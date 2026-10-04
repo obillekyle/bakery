@@ -20,6 +20,11 @@ export class TSHandler extends DynamicHandler {
     return fs.resolve(Bakery.cacheDir, 'ts_cache')
   }
 
+  /** A browser module, compiled once per file and cached on disk by the file. */
+  static isAsset(): boolean {
+    return true
+  }
+
   static async canHandle(path: string, req: Request) {
     if (path.endsWith('.ts')) return true
     return await super.canHandle(normalizePath(path), req)

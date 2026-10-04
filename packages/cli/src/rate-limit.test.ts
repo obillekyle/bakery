@@ -1,7 +1,19 @@
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
+import { Bakery, hostStore } from '@bakery-framework/core/core/bakery'
+import {
+  __resetTestConfig,
+  __setTestConfig,
+  initConfig,
+} from '@bakery-framework/core/core/config'
 import { SharedMemoryPool } from '@bakery-framework/core/utils/shared-pool'
 import {
+  __resetProvenAssets,
   __resetRateLimitLogState,
+  assetKey,
+  forgetAsset,
+  isProvenAsset,
+  PROVEN_ASSET_KEYS,
+  proveAsset,
   RATE_LIMIT_LOG_KEYS,
   RATE_LIMIT_LOG_WINDOW_MS,
   RATE_LIMIT_SLOTS,
@@ -29,7 +41,9 @@ function sampleKeys(count: number): string[] {
 
 describe('rateLimitSlot', () => {
   test('spreads client keys across the whole bucket range', () => {
-    const keys = sampleKeys(20_000)
+    // 200,000 distinct keys (the generator repeats only past 204,800), enough
+    // to reach nearly every one of 16384 slots by chance alone.
+    const keys = sampleKeys(200_000)
     const seen = new Set<number>()
     const counts = new Map<number, number>()
 
@@ -39,11 +53,13 @@ describe('rateLimitSlot', () => {
       counts.set(slot, (counts.get(slot) ?? 0) + 1)
     }
 
-    // The broken version reached 100 of 1024 buckets on this exact sample.
+    // The broken version reached 100 of 1024 buckets on a 20,000-key sample.
+    // At 16384 slots and this sample it reaches 1320 (measured).
     expect(seen.size).toBeGreaterThan(RATE_LIMIT_SLOTS * 0.9)
 
-    // …and put 83% of the sample in one of them. Anything sharing a bucket
-    // shares a token budget, so a hot bucket is a shared rate limit.
+    // …and put 83% of that sample in one of them, 8.4% of this one. Anything
+    // sharing a bucket shares a token budget, so a hot bucket is a shared
+    // rate limit.
     const busiest = Math.max(...counts.values())
     expect(busiest / keys.length).toBeLessThan(0.01)
   })
@@ -118,6 +134,73 @@ describe('sampleRateLimitLog', () => {
     }
 
     expect(sampleRateLimitLog('first', now + 2)).toBe(0)
+  })
+})
+
+/**
+ * The URLs a handler has served as assets, which then skip the bucket. What
+ * matters is what a key does and does not cover: a key too coarse makes a
+ * page free on its script's proof, one keyed on something unbounded grows
+ * without limit.
+ */
+describe('proven assets', () => {
+  beforeEach(() => __resetProvenAssets())
+  afterAll(() => __resetTestConfig())
+
+  const req = (url: string, dest?: string) =>
+    new Request(`http://localhost${url}`, {
+      headers: dest ? { 'sec-fetch-dest': dest } : {},
+    })
+  const key = (path: string, search = '', dest?: string) =>
+    assetKey(path, search, req(path + search, dest))
+
+  test('a URL is proven once served, and forgotten on demand', () => {
+    const k = key('/app.css')
+    expect(isProvenAsset(k)).toBe(false)
+    proveAsset(k)
+    expect(isProvenAsset(k)).toBe(true)
+    forgetAsset(k)
+    expect(isProvenAsset(k)).toBe(false)
+  })
+
+  test('what the browser is fetching is part of the key', () => {
+    // A Vue page answers its own URL with HTML for a navigation and with its
+    // root script for an import. Proving the script must not make the page
+    // free.
+    proveAsset(key('/admin/home', '', 'script'))
+    expect(isProvenAsset(key('/admin/home', '', 'script'))).toBe(true)
+    expect(isProvenAsset(key('/admin/home', '', 'document'))).toBe(false)
+    expect(isProvenAsset(key('/admin/home'))).toBe(false)
+  })
+
+  test('the query is part of the key', () => {
+    proveAsset(key('/admin/home', '?__vue_css'))
+    expect(isProvenAsset(key('/admin/home', '?__vue_css'))).toBe(true)
+    expect(isProvenAsset(key('/admin/home'))).toBe(false)
+    expect(isProvenAsset(key('/admin/home', '?__vue_action=save'))).toBe(false)
+  })
+
+  test('two configured hosts are kept apart', async () => {
+    await initConfig()
+    __setTestConfig({ hosts: { 'a.example': {}, 'b.example': {} } })
+    const under = (hostname: string) =>
+      hostStore.run({ config: Bakery.config, hostname }, () => key('/app.css'))
+
+    proveAsset(under('a.example'))
+    expect(isProvenAsset(under('a.example'))).toBe(true)
+    expect(isProvenAsset(under('b.example'))).toBe(false)
+    __resetTestConfig()
+  })
+
+  test('the set is bounded: past the limit the oldest URL is dropped', () => {
+    // The keys derive from the client's URL, so this is convention 6. An
+    // evicted URL is not lost, only unproven: its next request borrows a
+    // token and proves it again.
+    const first = key('/first.js')
+    proveAsset(first)
+    for (let i = 0; i < PROVEN_ASSET_KEYS; i++) proveAsset(key(`/f${i}.js`))
+    expect(isProvenAsset(first)).toBe(false)
+    expect(isProvenAsset(key(`/f${PROVEN_ASSET_KEYS - 1}.js`))).toBe(true)
   })
 })
 

@@ -59,7 +59,7 @@ the default from `packages/core/src/core/config.ts`.
 | `body` | `string` | `''` |
 | `proxy` | `Record<string, string>` | `{}` |
 | `blocked` | `string[]` | `[]` (added to the built-in list) |
-| `rateLimit` | `{ max, refill, keyBy? } \| false` | `{ max: 100, refill: 10 }` |
+| `rateLimit` | `{ max, refill, keyBy?, routes? } \| false` | `{ max: 100, refill: 10 }` |
 | `cors` | `CorsOptions \| null` | `null`. No header is ever written |
 | `trustProxy` | `boolean` | `false` |
 | `maxBodySize` | `number` | `20971520` (20 MiB) |
@@ -123,20 +123,90 @@ export default defineConfig({
 ```
 
 - `max`: bucket capacity, so the largest burst a single client can make.
-- `refill`: tokens added per second. Sustained throughput settles here.
-- `keyBy`, optional. Returns the string identifying the caller. Without it the
-  key is the client IP (`utils/http/ip.ts`), falling back to the hostname.
+- `refill`: tokens added per second, fractions included: `1 / 60` is one a
+  minute. Sustained throughput settles here.
+- `keyBy`, optional. Returns the string identifying the caller. Without it, or
+  when it returns nothing, the key is the client IP (`utils/http/ip.ts`),
+  falling back to the hostname.
+- `routes`, optional. Budgets for parts of the site, in buckets of their own.
+  See [Budgets per path](#budgets-per-path).
 
 The default `{ max: 100, refill: 10 }` means a client may burst 100 requests,
-then continues at 10 per second. Buckets live in a `SharedArrayBuffer` of 1024
+then continues at 10 per second. Buckets live in a `SharedArrayBuffer` of 16384
 slots indexed by a hash of the key
-(`packages/core/src/utils/shared-pool.ts`), so the limit is shared
-across cluster workers, and so two different clients can collide into one
-bucket. It is a coarse flood guard, not a per-user quota.
+(`packages/core/src/utils/shared-pool.ts`), so the limit is shared across
+cluster workers, and two different keys can land in one bucket: with a
+thousand keys active, about 6% share one. It is a flood guard, not an exact
+per-user quota.
 
 Set `rateLimit: false` to turn it off. Do that only if something in front of the
 process is already doing the job; a lone Bakery process with rate limiting off
 has no flood protection at all.
+
+### Assets do not count
+
+A URL a handler has served as an asset stops counting: files from the serve
+root and `/uploads/`, compiled `.ts` modules, bundled `/_nm/` packages, the
+framework's `/_client/` files, and a Vue page's stylesheet, root script and
+module scripts (those of components without a `<script server>` block). The
+first request for a URL borrows a token and gets it back once the response
+shows it was an asset. Later requests for that URL, from anyone on the same
+host, skip the bucket. A page of forty modules costs one request, the page.
+
+The handler that served the request decides, after the response, never the
+request itself: a path that is not there answers 404 and keeps counting, and a
+deleted file starts counting again the moment it fails. Image resizes and
+Google Fonts keep counting, since each new size or family in a URL is new work.
+A plugin's handler opts in with `static isAsset()` (see
+[Plugin API](../plugins/plugin-api.md#handlers-are-the-real-extension-point)).
+
+Each process remembers up to 5000 asset URLs (500 per cluster worker), by host,
+path, query and `Sec-Fetch-Dest`; an evicted URL borrows a token on its next
+request and is remembered again.
+
+### Budgets per path
+
+`routes` gives parts of the site buckets of their own. A request is charged to
+the rule with the longest prefix that covers its path, and to that rule only;
+a path no rule covers spends from the top level.
+
+```ts
+import { defineConfig } from '@bakery-framework/core'
+
+export default defineConfig({
+  rateLimit: {
+    max: 300,
+    refill: 30,
+    // Signed in: a bucket per account, however many share one address.
+    keyBy: req => req.session.get('accountId'),
+    routes: [
+      // Sign-in and password reset: 10 a minute per address.
+      { prefix: '/api/auth', max: 10, refill: 1 / 6 },
+    ],
+  },
+})
+```
+
+A prefix matches whole segments, ignoring case and empty segments, the way
+routing reads a path: `/api/auth` covers `/api/auth/sign-in` and
+`/API//auth/sign-in`, and not `/api/authors`. Both of those spellings reach the
+sign-in route on Windows, where the filesystem ignores case, and `//` reaches it
+everywhere, so a prefix compared as a plain string would let them through on the
+top-level budget.
+
+A rule's `keyBy` defaults to the client address, **not** to the top-level
+`keyBy`: a rule usually guards something worth attacking, and an address cannot
+be multiplied by opening more sessions. Give the rule a `keyBy` of its own to
+key it another way.
+
+A host's `rateLimit` (see [Multi-host](multi-host.md)) replaces the base one
+whole, rules included.
+
+A setting that cannot mean anything stops the server at boot, naming the field:
+a `max` below 1, a `refill` of 0 or less, a prefix without its leading `/`, two
+rules for one prefix.
+
+### Keying on a header
 
 `keyBy` receives the raw `Request`. If you key on a client-supplied header,
 remember an attacker controls it:

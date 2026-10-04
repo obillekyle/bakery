@@ -257,10 +257,13 @@ about a legitimately cross-origin client, is in
 
 The per-IP rate limit is **on by default**: a 100-request burst refilling at 10
 per second (`packages/cli/src/worker.ts`). The startup banner announces it
-whenever the default is in effect. A page that fans out to many assets or a load
-test will hit it. Set `rateLimit` in `server.config.ts`, or `rateLimit: false`
-to turn it off. In cluster mode the budget is shared across workers, not
-per worker.
+whenever the default is in effect. A load test will hit it, and so will many
+people behind one address. Assets stop counting once a URL has been served, so
+a page's modules and stylesheets are not what exhausts it, unless the first
+load after a restart asks for more new URLs at once than the burst holds. Set
+`rateLimit` in `server.config.ts` (a `keyBy` per account is the usual answer to
+a shared address), or `rateLimit: false` to turn it off. In cluster mode the
+budget is shared across workers, not per worker.
 
 ### `body` is empty or missing fields
 

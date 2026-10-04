@@ -51,6 +51,11 @@ export type {
 } from '../types'
 /** Configured in `server.config.ts`; the type is exported so an app can build one. */
 export type { CorsOptions } from '../utils/http/cors'
+export type {
+  RateLimitKey,
+  RateLimitOptions,
+  RateLimitRule,
+} from '../utils/http/rate-limit'
 export type { SSEMessage, SSEOptions, SSEStream } from '../utils/http/sse'
 // The validation surface, so an app can type its own schemas and validators.
 export type {

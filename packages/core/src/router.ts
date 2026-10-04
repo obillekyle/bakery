@@ -143,6 +143,11 @@ export async function handleRequest(req: Request) {
     return new Response('Forbidden', { status: 403 })
   }
 
+  // Recorded for the rate limiter, which asks the handler afterwards whether
+  // what it served was an asset. See `Handler.isAsset`.
+  const store = hostStore.getStore()
+  if (store) store.handler = handler
+
   return handler.handle(path, req)
 }
 

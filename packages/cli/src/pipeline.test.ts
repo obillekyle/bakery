@@ -5,9 +5,15 @@ import {
   __setTestConfig,
   initConfig,
 } from '@bakery-framework/core/core/config'
+import { Handler } from '@bakery-framework/core/handlers'
 import {
+  answeredAsAsset,
+  bucketKey,
+  checkRateLimits,
+  compileRateLimit,
   isErrorResult,
   type RateLimitConfig,
+  rateLimitBucket,
   rateLimitKey,
   tooManyRequests,
 } from './pipeline'
@@ -164,7 +170,27 @@ describe('rateLimitKey', () => {
     expect(key).toBe('abc')
   })
 
-  test('an empty keyBy result falls back to the hostname', () => {
+  test('a keyBy that returns nothing falls back to the client address', () => {
+    // The pattern this exists for: an account id when signed in, and nothing
+    // otherwise. An empty result used to go straight to the hostname, so
+    // every anonymous visitor to a host shared one bucket.
+    __setTestConfig({ trustProxy: true })
+    const signedOut = req({ 'x-forwarded-for': '9.9.9.9' })
+    expect(
+      rateLimitKey(
+        rl(() => ''),
+        signedOut,
+        'h',
+      ),
+    ).toBe('9.9.9.9')
+    expect(rateLimitKey({ keyBy: () => undefined }, signedOut, 'h')).toBe(
+      '9.9.9.9',
+    )
+    expect(rateLimitKey({ keyBy: () => null }, signedOut, 'h')).toBe('9.9.9.9')
+    __resetTestConfig()
+  })
+
+  test('an empty keyBy result with no address falls back to the hostname', () => {
     // Not cosmetic. '' is a perfectly valid key that hashes to one fixed slot,
     // so every request keyBy could not classify would share a single token
     // bucket across every host: one unclassifiable client 429s all of them.
@@ -206,5 +232,202 @@ describe('rateLimitKey', () => {
       'b.example.com',
     )
     expect(a).not.toBe(b)
+  })
+})
+
+describe('compileRateLimit', () => {
+  test('rules come out most specific first', () => {
+    const limit = compileRateLimit({
+      max: 100,
+      refill: 10,
+      routes: [
+        { prefix: '/api', max: 50, refill: 5 },
+        { prefix: '/api/auth/sign-in', max: 5, refill: 0.1 },
+        { prefix: '/api/auth', max: 10, refill: 1 },
+      ],
+    })
+    expect(limit.routes.map(r => r.prefix)).toEqual([
+      '/api/auth/sign-in',
+      '/api/auth',
+      '/api',
+    ])
+    expect(limit.base.prefix).toBe('')
+  })
+
+  test('a prefix is normalized the way routing reads a path', () => {
+    const limit = compileRateLimit({
+      max: 1,
+      refill: 1,
+      routes: [{ prefix: '/API//Auth/', max: 1, refill: 1 }],
+    })
+    expect(limit.routes[0]!.prefix).toBe('/api/auth')
+    expect(limit.routes[0]!.segments).toEqual(['api', 'auth'])
+  })
+
+  test('the same setting object is checked once', () => {
+    const rl: RateLimitConfig = { max: 1, refill: 1 }
+    expect(compileRateLimit(rl)).toBe(compileRateLimit(rl))
+  })
+
+  test('a setting that cannot mean anything names its field', () => {
+    const bad: [RateLimitConfig, RegExp][] = [
+      [{ max: 0, refill: 1 }, /rateLimit\.max must be a number of 1 or more/],
+      [{ max: 10, refill: 0 }, /rateLimit\.refill must be a number above 0/],
+      [{ max: 10, refill: Number.NaN }, /rateLimit\.refill/],
+      [{ max: 10, refill: 1, keyBy: 'ip' as any }, /rateLimit\.keyBy/],
+      [{ max: 10, refill: 1, routes: {} as any }, /rateLimit\.routes must be/],
+      [
+        { max: 10, refill: 1, routes: [{ prefix: 'api', max: 1, refill: 1 }] },
+        /rateLimit\.routes\[0\]\.prefix must be a path starting with "\/"/,
+      ],
+      [
+        { max: 10, refill: 1, routes: [{ prefix: '/a', max: 1, refill: -1 }] },
+        /rateLimit\.routes\[0\]\.refill/,
+      ],
+      [
+        {
+          max: 10,
+          refill: 1,
+          routes: [
+            { prefix: '/api/auth', max: 1, refill: 1 },
+            { prefix: '/API/auth/', max: 2, refill: 1 },
+          ],
+        },
+        /rateLimit\.routes\[1\]\.prefix covers \/api\/auth, as an earlier rule does/,
+      ],
+    ]
+    for (const [rl, message] of bad) {
+      expect(() => compileRateLimit(rl)).toThrow(message)
+    }
+  })
+})
+
+describe('checkRateLimits', () => {
+  test('names the host whose setting is broken', () => {
+    const config = {
+      rateLimit: { max: 10, refill: 1 },
+      hosts: {
+        'school.example': { rateLimit: { max: 10, refill: 0 } },
+        'quiet.example': { rateLimit: false },
+      },
+    } as unknown as ProcessedAppConfig
+    expect(() => checkRateLimits(config)).toThrow(
+      /hosts\['school\.example'\]\.rateLimit\.refill/,
+    )
+  })
+
+  test('a disabled limit has nothing to check', () => {
+    const config = {
+      rateLimit: false,
+      hosts: {},
+    } as unknown as ProcessedAppConfig
+    expect(() => checkRateLimits(config)).not.toThrow()
+  })
+})
+
+describe('rateLimitBucket', () => {
+  const limit = compileRateLimit({
+    max: 100,
+    refill: 10,
+    routes: [
+      { prefix: '/api/auth', max: 10, refill: 1 / 30 },
+      { prefix: '/api/auth/sign-in', max: 5, refill: 1 / 60 },
+    ],
+  })
+  const prefixOf = (path: string) => rateLimitBucket(limit, path).prefix
+
+  test('the longest covering prefix wins', () => {
+    expect(prefixOf('/api/auth/sign-in')).toBe('/api/auth/sign-in')
+    expect(prefixOf('/api/auth/reset')).toBe('/api/auth')
+    expect(prefixOf('/api/auth')).toBe('/api/auth')
+  })
+
+  test('a path no rule covers goes to the top level', () => {
+    expect(prefixOf('/')).toBe('')
+    expect(prefixOf('/api/notes')).toBe('')
+    expect(prefixOf('/dashboard')).toBe('')
+  })
+
+  test('segments are whole: /api/auth does not cover /api/authors', () => {
+    expect(prefixOf('/api/authors')).toBe('')
+    expect(prefixOf('/api/auth-old')).toBe('')
+  })
+
+  test('spellings routing reads as the same path get the same rule', () => {
+    // `$routing.ts` drops empty segments, so `/api//auth/sign-in` reaches
+    // `api/auth/sign-in.ts`. Matched on the raw string, that spelling would
+    // spend from the top level's 100 instead of the rule's 5.
+    expect(prefixOf('/api//auth/sign-in')).toBe('/api/auth/sign-in')
+    expect(prefixOf('//api/auth/sign-in/')).toBe('/api/auth/sign-in')
+    expect(prefixOf('/API/Auth/Sign-In')).toBe('/api/auth/sign-in')
+  })
+
+  test('with no rules every path is the top level', () => {
+    const plain = compileRateLimit({ max: 1, refill: 1 })
+    expect(rateLimitBucket(plain, '/api/auth')).toBe(plain.base)
+  })
+
+  test('a rule for / covers everything', () => {
+    const all = compileRateLimit({
+      max: 1,
+      refill: 1,
+      routes: [{ prefix: '/', max: 7, refill: 1 }],
+    })
+    expect(rateLimitBucket(all, '/anything/at/all').max).toBe(7)
+    expect(rateLimitBucket(all, '/').max).toBe(7)
+  })
+})
+
+describe('bucketKey', () => {
+  test('a rule keeps its callers apart from the top level and other rules', () => {
+    const limit = compileRateLimit({
+      max: 1,
+      refill: 1,
+      routes: [
+        { prefix: '/a', max: 1, refill: 1 },
+        { prefix: '/b', max: 1, refill: 1 },
+      ],
+    })
+    const keys = [
+      bucketKey(limit.base, '203.0.113.9'),
+      bucketKey(rateLimitBucket(limit, '/a'), '203.0.113.9'),
+      bucketKey(rateLimitBucket(limit, '/b'), '203.0.113.9'),
+    ]
+    expect(new Set(keys).size).toBe(3)
+    // The top level hashes the bare key, as it always has.
+    expect(keys[0]).toBe('203.0.113.9')
+  })
+})
+
+describe('answeredAsAsset', () => {
+  class Asset extends Handler {
+    static isAsset() {
+      return true
+    }
+  }
+  class Page extends Handler {}
+  const req = new Request('http://localhost/app.css')
+
+  test('an asset handler answering under 400 served an asset', () => {
+    expect(answeredAsAsset(Asset, '/app.css', req, 200)).toBe(true)
+    expect(answeredAsAsset(Asset, '/app.css', req, 304)).toBe(true)
+    expect(answeredAsAsset(Asset, '/app.css', req, 206)).toBe(true)
+  })
+
+  test('an error from an asset handler is not an asset', () => {
+    // What keeps a flood of made-up paths counted: StaticHandler is the
+    // fallback for every path, and a path that is not there answers 404.
+    expect(answeredAsAsset(Asset, '/nope.css', req, 404)).toBe(false)
+    expect(answeredAsAsset(Asset, '/app.css', req, 416)).toBe(false)
+    expect(answeredAsAsset(Asset, '/app.css', req, 500)).toBe(false)
+  })
+
+  test('nothing is an asset unless its handler says so', () => {
+    expect(answeredAsAsset(Page, '/', req, 200)).toBe(false)
+    expect(answeredAsAsset(undefined, '/', req, 200)).toBe(false)
+  })
+
+  test('no response at all is not an asset', () => {
+    expect(answeredAsAsset(Asset, '/ws', req, 0)).toBe(false)
   })
 })
