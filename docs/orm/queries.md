@@ -97,6 +97,21 @@ WHERE "students"."year" >= ?
 | `DB.notInList(v)` / `DB.notIn(v)` | `NOT IN` | |
 | `DB.isNull()` / `DB.isNotNull()` | `IS [NOT] NULL` | no argument |
 | `DB.between(a, b)` | `BETWEEN … AND …` | |
+| `DB.has(v)` | `@> ARRAY[v]` | array column holds `v`; Postgres only |
+| `DB.contains([…])` | `@>` | array column holds every one; Postgres only |
+| `DB.overlaps([…])` | `&&` | array column holds at least one; Postgres only |
+
+The three array operators bind their values as one Postgres array (see
+[`DB.array()`](mutations.md#arrays)), since Bun cannot bind a JavaScript array
+to an array parameter:
+
+```ts
+import DB from '@bakery-framework/orm'
+
+const graders = await DB.table('roles')
+  .where('roles.permissions', DB.has('grades.post'))
+  .array()
+```
 
 Values always bind as parameters; identifiers are validated, quoted and
 interpolated. Nothing crosses from one category to the other.

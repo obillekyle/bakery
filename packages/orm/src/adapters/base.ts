@@ -3,6 +3,7 @@ import { Logger } from '@bakery-framework/core/logger'
 import type { MapOf } from '@bakery-framework/core/types'
 import { Case, Try } from '@bakery-framework/core/utils'
 import { throws } from '@bakery-framework/core/utils/common'
+import { isArrayValue } from '../array-value'
 import type { ScriptDialect } from '../migrate/script'
 import type * as SyncTypes from '../sync/types'
 import { DatabaseMissingError, isMissingDatabase } from './missing-database'
@@ -320,6 +321,22 @@ function explained<A extends unknown[], R>(
   }
 }
 
+/**
+ * The default `bind`: parameters as they are, refusing a `DB.array()` value,
+ * which only the Postgres adapter can encode. Bound as an object it would
+ * reach the driver as `[object Object]` or a driver error naming nothing.
+ */
+function refuseArrays(driver: SQLAdapter.Driver) {
+  return (params: unknown[]): unknown[] => {
+    if (params.some(isArrayValue)) {
+      throw new Error(
+        `DB.array() writes a Postgres array, and the ${driver} adapter has no array type. Store the values as JSON (Field.Json) instead.`,
+      )
+    }
+    return params
+  }
+}
+
 export function createExecutor(
   rawAll: SQLAdapter.Executor['all'],
   rawRun: SQLAdapter.Executor['run'],
@@ -334,10 +351,28 @@ export function createExecutor(
      * the paging `iterate` carry it too. See `SQLAdapter.explainError`.
      */
     explain?: (error: unknown) => unknown
+    /**
+     * Turn the query's parameters into what the driver binds. Postgres
+     * encodes a `DB.array()` value as an array literal here; the default
+     * refuses one, since only Postgres has arrays.
+     */
+    bind?: (params: unknown[]) => unknown[]
   } = {},
 ): SQLAdapter.Executor {
-  const all = options.explain ? explained(rawAll, options.explain) : rawAll
-  const run = options.explain ? explained(rawRun, options.explain) : rawRun
+  const bind = options.bind ?? refuseArrays(driver)
+  const bound = <F extends SQLAdapter.Executor['all'] | SQLAdapter.Executor['run']>(
+    fn: F,
+  ): F =>
+    (async (sqlText: string, params: unknown[] = []) =>
+      await fn(sqlText, bind(params))) as F
+  const explainedAll = options.explain
+    ? explained(rawAll, options.explain)
+    : rawAll
+  const explainedRun = options.explain
+    ? explained(rawRun, options.explain)
+    : rawRun
+  const all = bound(explainedAll)
+  const run = bound(explainedRun)
   const iterate = options.iterate ?? pagedIterate(all, options.chunkSize)
   // `get` and `values` call the raw `all` rather than `exec.all`, which is a
   // behavioral detail worth stating: it is what keeps one executed statement

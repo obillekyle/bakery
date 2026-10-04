@@ -1,5 +1,6 @@
 import { Case, Try } from '@bakery-framework/core/utils'
 import { SQL } from 'bun'
+import { encodePgArray, isArrayValue } from '../array-value'
 import { type PoolOptions, withPoolOptions } from '../pool'
 import type * as SyncTypes from '../sync/types'
 import { createExecutor, isOpenConnection, SQLAdapter } from './base'
@@ -211,12 +212,42 @@ export class PGAdapter extends SQLAdapter {
     return result
   }
 
+  /**
+   * Plain arrays where Bun returned typed ones. Measured: an `int4[]` column
+   * comes back as an `Int32Array` (and `float4[]` as a `Float32Array`) once
+   * the query has a bound parameter, and as an ordinary array when it has
+   * none, so the same column changed type with the WHERE clause, and
+   * `JSON.stringify` wrote an Int32Array as `{"0":1,"1":2}`. A `Uint8Array`
+   * is left alone: that is a `bytea`, read as a Buffer.
+   */
+  private static plainArrays(rows: unknown): unknown {
+    if (!Array.isArray(rows)) return rows
+    for (const row of rows) {
+      if (!row || typeof row !== 'object') continue
+      for (const key in row) {
+        const value = (row as Record<string, unknown>)[key]
+        if (
+          ArrayBuffer.isView(value) &&
+          !(value instanceof Uint8Array) &&
+          !(value instanceof DataView)
+        ) {
+          ;(row as Record<string, unknown>)[key] = Array.from(
+            value as unknown as ArrayLike<unknown>,
+          )
+        }
+      }
+    }
+    return rows
+  }
+
   readonly execute: SQLAdapter.Executor = createExecutor(
     async (sqlText: string, params: unknown[] = []) =>
-      (await this.sql.unsafe(
-        PGAdapter.normalizePostgresSQL(sqlText, params),
-        params,
-      )) as any,
+      PGAdapter.plainArrays(
+        await this.sql.unsafe(
+          PGAdapter.normalizePostgresSQL(sqlText, params),
+          params,
+        ),
+      ) as any,
     async (
       sqlText: string,
       params: unknown[] = [],
@@ -256,7 +287,14 @@ export class PGAdapter extends SQLAdapter {
       return { lastInsertRowid, changes }
     },
     this.driver,
-    { explain: error => this.explainError(error) },
+    {
+      explain: error => this.explainError(error),
+      // A `DB.array()` value as the array literal Postgres casts from text.
+      bind: params =>
+        params.map(param =>
+          isArrayValue(param) ? encodePgArray(param.values) : param,
+        ),
+    },
   )
 
   async hasCol(table: string, column: string): Promise<boolean> {

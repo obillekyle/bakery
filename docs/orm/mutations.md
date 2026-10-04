@@ -68,6 +68,33 @@ The string passed to `.returning()` is interpolated into the SQL as written. It
 is not validated and not quoted. Pass a literal, never anything derived from a
 request.
 
+### Arrays
+
+A Postgres array column takes its value through `DB.array()`, in an insert, an
+update or a comparison:
+
+```ts
+import DB from '@bakery-framework/orm'
+
+await DB.Insert.into('roles')
+  .values({ name: 'registrar', permissions: DB.array(['grades.post']) })
+  .run()
+```
+
+Bun cannot bind a JavaScript array to a Postgres array parameter (measured: a
+`text[]` refuses it as a malformed literal, an `int4[]` with a protocol error),
+so `DB.array()` sends the array literal Postgres casts from text, every element
+quoted and escaped. A plain array still goes to a `json` or `jsonb` column as
+JSON. MySQL and SQLite have no array type and refuse `DB.array()` by name.
+
+Reading one back gives a plain array: Bun returns an `integer[]` as an
+`Int32Array` once a query has a bound parameter, and the adapter turns it into
+an ordinary one. Two limits are the driver's and cannot be worked around from
+here: a NULL element in an `integer[]`, and any 2-D array, make the read throw
+when the query has a parameter. Keep integer arrays free of NULLs (a CHECK does
+it). Declare an array column with
+[`Field.Array`](schema.md#columns).
+
 ## Update
 
 ```ts

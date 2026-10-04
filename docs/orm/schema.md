@@ -121,6 +121,7 @@ be, which is the point of it having a name for each case.
 | `Field.Primary()` | auto-increment integer key. See [Adapters](adapters.md) | | | `number` |
 | `Field.Foreign(target, o?)` | integer + `FOREIGN KEY` | | | `number` |
 | `Field.Sql<T>(type, o?)` | the type given, in [migrations mode](migrations.md) only | | | `T` |
+| `Field.Array(element, o?)` | `element[]`, in migrations mode, Postgres only | | | the element's type, as an array |
 
 **`null` as the default means nullable**, which is the one convention to carry
 across: `Field.Varchar(64)` is `NOT NULL` with no default, `Field.Varchar(64,
@@ -155,6 +156,11 @@ A few carry a constraint worth knowing:
   strings and `timestamptz` as a `Date`. Classic sync refuses a schema that uses
   it, since it cannot create a type it does not know. See
   [Migrations](migrations.md#what-dbsync-checks).
+- **`Field.Array('text')`** is `Field.Sql<string[]>('text[]')` with the element
+  type worked out: `integer` and the floats read as numbers, `bigint` and
+  `numeric` as strings (which is what Bun returns), `timestamptz` as a `Date`.
+  `uuid` is not offered, since Bun returns a `uuid[]` as its raw `{…}` string.
+  Values go in through [`DB.array()`](mutations.md#arrays).
 
 A column is optional on insert when it is nullable, has a default, or
 auto-increments. That is what `InferOptionals` computes, and it is why

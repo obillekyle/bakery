@@ -4,6 +4,7 @@ import { getActiveDb, txStorage } from '../connection'
 import type { AppDBSchema as DBSchema } from '../schema-registry'
 import { ColumnRef as schemaColumnRef, OperatorRef as schemaOperatorRef, SQLFunctionRef as schemaSQLFunctionRef, SQL_FUNCTIONS, WindowRef as schemaWindowRef, col as schemaCol, evalOperands, isSafeIdentifier, nullComparison, qId, qRaw } from '../schema-util'
 import { Mutation } from './mutation'
+import { ArrayValue } from '../array-value'
 
 export namespace DB {
   export type MapOf<T> = Record<string, T>
@@ -368,6 +369,31 @@ export namespace DB {
   }
   export function between<R>(minVal: R, maxVal: R): schemaOperatorRef<[R, R]> {
     return new schemaOperatorRef('BETWEEN', [minVal, maxVal])
+  }
+
+  /**
+   * A Postgres array value, for an insert, an update or a comparison:
+   * `Insert.into('roles').values({ permissions: DB.array(['grades.post']) })`.
+   * Bun cannot bind a JavaScript array to a Postgres array, so a plain one
+   * fails; see `array-value.ts`. Postgres only: the other adapters refuse it.
+   */
+  export function array<T>(values: readonly T[]): ArrayValue<T> {
+    return new ArrayValue(values)
+  }
+
+  /** `column @> values`: the array column holds every one of `values`. Postgres only. */
+  export function contains<T>(values: readonly T[]): schemaOperatorRef<T[]> {
+    return new schemaOperatorRef('@>', new ArrayValue(values) as any)
+  }
+
+  /** `column && values`: the array column holds at least one of `values`. Postgres only. */
+  export function overlaps<T>(values: readonly T[]): schemaOperatorRef<T[]> {
+    return new schemaOperatorRef('&&', new ArrayValue(values) as any)
+  }
+
+  /** `column @> ARRAY[value]`: the array column holds `value`. Postgres only. */
+  export function has<T>(value: T): schemaOperatorRef<T[]> {
+    return new schemaOperatorRef('@>', new ArrayValue([value]) as any)
   }
 
   export type SelectValue<S extends TableSchemas, J extends string> =
@@ -1213,6 +1239,10 @@ export namespace DB {
     static isNull = isNull
     static isNotNull = isNotNull
     static between = between
+    static array = array
+    static contains = contains
+    static overlaps = overlaps
+    static has = has
 
     /**
      * Both columns, the joined table and the alias go through the convention-8

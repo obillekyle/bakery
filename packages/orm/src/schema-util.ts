@@ -1,6 +1,7 @@
 import { Case } from '@bakery-framework/core/utils'
 import { is, throws } from '@bakery-framework/core/utils/common'
 import { quoteIdentifier } from './adapters/base'
+import { isArrayValue } from './array-value'
 import { getActiveDb } from './connection'
 import type * as SyncTypes from './sync/types'
 
@@ -319,6 +320,13 @@ export function evalOperands(
   }
 
   if (where === null) return 'NULL'
+
+  // A whole Postgres array, bound as one parameter; the adapter encodes it.
+  // Before the object branch below, which would read it as `{table: column}`.
+  if (isArrayValue(where)) {
+    params.push(where)
+    return '?'
+  }
 
   if (typeof where === 'object' && where !== null) {
     if (where instanceof WindowRef) {

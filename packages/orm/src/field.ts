@@ -35,6 +35,35 @@ function column<T, N extends boolean = false, O extends boolean = false>(
 /** `T` when the column is NOT NULL, `T | null` when it is nullable. */
 type Nullable<T, N extends boolean> = N extends true ? T | null : T
 
+/** The element types `Field.Array` takes. See there for why these and not `uuid`. */
+type ArrayElement =
+  | 'text'
+  | 'varchar'
+  | 'integer'
+  | 'smallint'
+  | 'bigint'
+  | 'numeric'
+  | 'real'
+  | 'double precision'
+  | 'boolean'
+  | 'timestamptz'
+  | 'jsonb'
+
+/** What Bun returns for one element of an array of `E`. */
+type ElementOf<E extends ArrayElement> = E extends
+  | 'integer'
+  | 'smallint'
+  | 'real'
+  | 'double precision'
+  ? number
+  : E extends 'boolean'
+    ? boolean
+    : E extends 'timestamptz'
+      ? Date
+      : E extends 'jsonb'
+        ? unknown
+        : string
+
 /**
  * Optional on insert when there is a default, or the column is nullable.
  *
@@ -328,6 +357,40 @@ export const Field = {
       sqlType: string,
       options: { nullable: true; optional?: true },
     ): TableDef<T | null, true, true>
+  },
+
+  /**
+   * A Postgres array column, typed by its element: `Field.Array('text')` is
+   * `text[]` and `string[]`. `Field.Sql` with the element's type, so it
+   * belongs to migrations mode too, and `db:sync` checks it as `text[]`.
+   *
+   * The element types are the ones whose arrays Bun returns as the type
+   * says, measured: `bigint` and `numeric` elements come back as strings,
+   * `timestamptz` ones as a `Date`. `uuid` is not offered, because Bun hands
+   * back a `uuid[]` as its raw `{…}` string; store such ids as `text[]`.
+   *
+   * Write one with `DB.array([...])`; a plain array cannot be bound. And keep
+   * an `integer[]` free of NULL elements (a CHECK does it): once a query has a
+   * parameter, Bun's driver throws on reading one, as it does on any 2-D
+   * array, inside the driver where nothing here can catch it first.
+   */
+  Array: (<E extends ArrayElement>(
+    element: E,
+    options: { nullable?: true; optional?: true } = {},
+  ) => {
+    const def: Record<string, unknown> = { type: 'sql', sqlType: `${element}[]` }
+    if (options.nullable) def.nullable = true
+    return def
+  }) as {
+    <E extends ArrayElement>(element: E): TableDef<ElementOf<E>[], false, false>
+    <E extends ArrayElement>(
+      element: E,
+      options: { optional: true },
+    ): TableDef<ElementOf<E>[], false, true>
+    <E extends ArrayElement>(
+      element: E,
+      options: { nullable: true; optional?: true },
+    ): TableDef<ElementOf<E>[] | null, true, true>
   },
 
   /** True/false: `BOOLEAN` on Postgres, `TINYINT(1)` on MySQL. */
