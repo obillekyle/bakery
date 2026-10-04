@@ -6,6 +6,10 @@ The scaffolder behind `bun create bakery`.
 bun create bakery my-app
 ```
 
+Leave out the directory and it asks for one, offering `bakery-app`. At a
+terminal it also asks whether to include the ORM and which plugins to add,
+unless a flag already said.
+
 Writes a working [Bakery](https://github.com/obillekyle/bakery) app: a page,
 an API route that round-trips through SQLite, a registered ORM schema, and a
 `db:sync` script. Then:
@@ -20,7 +24,10 @@ bun run dev
 
 | Flag | Effect |
 | --- | --- |
+| `--orm` / `--no-orm` | Include the ORM (`orm/`, `db:sync`), or leave it out |
+| `--plugins <list>` | Comma-separated from `vue`, `analytics`, `dashboard`, `db-explorer`, or `none` |
 | `--name <name>` | Package name, when it should differ from the directory |
+| `--yes`, `-y` | Take the defaults for anything not passed: `bakery-app`, the ORM in, no plugins |
 | `--no-install` | Write the files and stop |
 | `-h`, `--help` | Usage |
 

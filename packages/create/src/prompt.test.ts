@@ -20,14 +20,14 @@ const dir = mkdtempSync(join(tmpdir(), 'create-bakery-prompts-'))
 afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
 const SCRIPT = `
-import { confirm, multiselect } from ${JSON.stringify(PROMPT)}
+import { confirm, multiselect, text } from ${JSON.stringify(PROMPT)}
 const orm = await confirm('Include the ORM?', true)
 const plugins = await multiselect('Plugins', [
   { id: 'vue', label: 'vue' },
   { id: 'analytics', label: 'analytics' },
 ])
-const install = await confirm('Install now?', true)
-console.log('RESULT ' + JSON.stringify({ orm, plugins, install }))
+const folder = await text('Folder name', 'bakery-app')
+console.log('RESULT ' + JSON.stringify({ orm, plugins, folder }))
 `
 
 let runs = 0
@@ -79,9 +79,9 @@ describe('three prompts on one stdin', () => {
       await drive([
         ['Include the ORM?', 'n'],
         ['Plugins', ' \r'],
-        ['Install now?', 'n'],
+        ['Folder name', 'school\r'],
       ]),
-    ).toEqual({ orm: false, plugins: ['vue'], install: false })
+    ).toEqual({ orm: false, plugins: ['vue'], folder: 'school' })
   }, 20_000)
 
   test('a canceled prompt leaves stdin to the next one', async () => {
@@ -89,9 +89,9 @@ describe('three prompts on one stdin', () => {
       await drive([
         ['Include the ORM?', 'y'],
         ['Plugins', '\x03'],
-        ['Install now?', '\r'],
+        ['Folder name', '\r'],
       ]),
-    ).toEqual({ orm: true, plugins: null, install: true })
+    ).toEqual({ orm: true, plugins: null, folder: 'bakery-app' })
   }, 20_000)
 
   test('stdin closing mid-question cancels it rather than hanging', async () => {
@@ -99,8 +99,8 @@ describe('three prompts on one stdin', () => {
       await drive([
         ['Include the ORM?', '\r'],
         ['Plugins', '\r'],
-        ['Install now?', null],
+        ['Folder name', null],
       ]),
-    ).toEqual({ orm: true, plugins: [], install: null })
+    ).toEqual({ orm: true, plugins: [], folder: null })
   }, 20_000)
 })

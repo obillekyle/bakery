@@ -4,6 +4,9 @@ import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
+  chooseFolder,
+  DEFAULT_FOLDER,
+  type FolderIO,
   isScaffoldable,
   ownVersion,
   parseArgs,
@@ -13,9 +16,11 @@ import {
 import {
   applyConfirmKey,
   applyKey,
+  applyTextKey,
   type KeyResult,
   type MultiselectState,
   renderMultiselect,
+  renderText,
   splitKeys,
 } from './prompt'
 import {
@@ -70,7 +75,7 @@ describe('parseArgs', () => {
     // Not the literal ".", which is what basename() would give without the
     // resolve() first, and which is not a legal package name.
     expect(parsed.options.name).not.toBe('.')
-    expect(isValidAppName(parsed.options.name)).toBe(true)
+    expect(isValidAppName(parsed.options.name!)).toBe(true)
   })
 
   test('--no-install is respected', () => {
@@ -80,11 +85,31 @@ describe('parseArgs', () => {
     expect(parsed.options.install).toBe(false)
   })
 
-  test('no arguments prints help rather than scaffolding somewhere', () => {
-    const parsed = parseArgs([])
+  test('the directory may be left out, to be asked for', () => {
+    // It printed the help and stopped. Now `chooseFolder` asks for it, so a
+    // missing directory is not a usage error any more.
+    const parsed = parseArgs(['--no-orm'])
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.options.dir).toBeNull()
+    expect(parsed.options.name).toBeNull()
+    expect(parsed.options.orm).toBe(false)
+  })
+
+  test('--name is checked even with no directory to take it from', () => {
+    // No answer to the folder question could repair it, so it is refused
+    // before the question is asked.
+    const parsed = parseArgs(['--name', 'Has Space'])
     expect(parsed.ok).toBe(false)
     if (parsed.ok) return
-    expect(parsed.message).toContain('bun create bakery')
+    expect(parsed.message).toContain('not a usable package name')
+  })
+
+  test('--help still prints the help', () => {
+    const parsed = parseArgs(['--help'])
+    expect(parsed.ok).toBe(false)
+    if (parsed.ok) return
+    expect(parsed.message).toContain('bun create bakery [directory]')
   })
 
   test('an unknown flag is refused, not ignored', () => {
@@ -485,6 +510,98 @@ describe('resolveChoices', () => {
   })
 })
 
+describe('chooseFolder', () => {
+  /** Answers the folder question from a script, and keeps what it was told. */
+  function scripted(answers: (string | null)[]) {
+    const asked: { question: string; fallback: string }[] = []
+    const said: string[] = []
+    const io: FolderIO = {
+      ask: async (question, fallback) => {
+        asked.push({ question, fallback })
+        return answers.length ? answers.shift()! : null
+      },
+      say: line => said.push(line),
+    }
+    return { io, asked, said }
+  }
+
+  test('asks, and takes a usable answer', async () => {
+    const parent = await tmp()
+    const { io, asked } = scripted([join(parent, 'school-saas')])
+    const target = await chooseFolder({ name: null, yes: false }, io)
+    expect(target).toEqual({
+      dir: join(parent, 'school-saas'),
+      name: 'school-saas',
+    })
+    expect(asked).toEqual([
+      { question: 'Folder name', fallback: DEFAULT_FOLDER },
+    ])
+  })
+
+  test('a name that cannot be a package name is explained and asked again', async () => {
+    const parent = await tmp()
+    const { io, asked, said } = scripted([
+      join(parent, 'School SaaS'),
+      join(parent, 'school-saas'),
+    ])
+    const target = await chooseFolder({ name: null, yes: false }, io)
+    expect(target).not.toBe('unasked')
+    expect(asked.length).toBe(2)
+    expect(said).toEqual([
+      '"School SaaS" is not a usable package name. Use lowercase letters, digits, dots, dashes and underscores, starting with a letter or a digit.',
+    ])
+  })
+
+  test('a folder with files in it is explained and asked again', async () => {
+    const parent = await tmp()
+    await mkdir(join(parent, 'taken'))
+    await writeFile(join(parent, 'taken', 'notes.txt'), 'mine')
+    const taken = join(parent, 'taken')
+    const { io, said } = scripted([taken, join(parent, 'fresh')])
+    const target = await chooseFolder({ name: null, yes: false }, io)
+    expect(target).toEqual({ dir: join(parent, 'fresh'), name: 'fresh' })
+    expect(said).toEqual([
+      `${taken} already has files in it. Choose another folder.`,
+    ])
+  })
+
+  test('canceling the question is not a folder', async () => {
+    const { io } = scripted([null])
+    expect(await chooseFolder({ name: null, yes: false }, io)).toBeNull()
+  })
+
+  test('--name is offered as the folder, and stays the package name', async () => {
+    const parent = await tmp()
+    const { io, asked } = scripted([join(parent, 'web')])
+    const target = await chooseFolder(
+      { name: '@school/portal', yes: false },
+      io,
+    )
+    expect(asked[0]!.fallback).toBe('portal')
+    expect(target).toEqual({ dir: join(parent, 'web'), name: '@school/portal' })
+  })
+
+  test('--yes takes the default folder without asking', async () => {
+    const { io, asked } = scripted([])
+    const target = await chooseFolder({ name: null, yes: true }, io)
+    expect(asked).toEqual([])
+    expect(target).toEqual({
+      dir: resolve(DEFAULT_FOLDER),
+      name: DEFAULT_FOLDER,
+    })
+  })
+
+  test('with no terminal and no --yes, nothing is created', async () => {
+    // A script that forgot the directory gets told so, rather than a folder
+    // nobody named.
+    const target = await chooseFolder(
+      { name: null, yes: false },
+      { ask: null, say: () => {} },
+    )
+    expect(target).toBe('unasked')
+  })
+})
+
 describe('templateFiles with choices', () => {
   const range = '^4.0.0'
   const paths = (files: { path: string }[]) => files.map(f => f.path).sort()
@@ -747,6 +864,56 @@ describe('confirm key handling', () => {
   test('ctrl-c cancels and anything else is ignored', () => {
     expect(applyConfirmKey('\x03', true).kind).toBe('cancel')
     expect(applyConfirmKey('z', true).kind).toBe('ignore')
+  })
+})
+
+describe('text key handling', () => {
+  const type = (...keys: string[]) => {
+    let value = ''
+    for (const key of keys) {
+      const r = applyTextKey(value, key)
+      if (r.kind !== 'update') return r
+      value = r.value
+    }
+    return { kind: 'update' as const, value }
+  }
+  /** The text after typing `keys`, none of which may submit or cancel. */
+  const typed = (...keys: string[]): string => {
+    const r = type(...keys)
+    if (r.kind !== 'update') throw new Error(`expected typing, got ${r.kind}`)
+    return r.value
+  }
+
+  test('characters are typed and enter submits them', () => {
+    expect(type('s', 'a', 'a', 's', '\r')).toEqual({
+      kind: 'submit',
+      value: 'saas',
+    })
+  })
+
+  test('backspace deletes, as DEL and as the Windows console sends it', () => {
+    expect(typed('a', 'b', '\x7f', 'c', '\b', 'd')).toBe('ad')
+    expect(typed('\x7f')).toBe('')
+  })
+
+  test('arrows and other control characters are not typed', () => {
+    expect(typed('a', '\x1b[A', '\x1b[D', '\t', 'b')).toBe('ab')
+  })
+
+  test('ctrl-c and ctrl-d cancel', () => {
+    expect(type('a', '\x03').kind).toBe('cancel')
+    expect(type('\x04').kind).toBe('cancel')
+  })
+
+  test('a character outside the basic plane is deleted whole', () => {
+    expect(typed('a', '😀', '\x7f')).toBe('a')
+  })
+
+  test('the default is shown beside the question', () => {
+    const line = renderText('Folder name', 'bakery-app', 'sch')
+    expect(line).toContain('Folder name')
+    expect(line).toContain('(bakery-app)')
+    expect(line.endsWith('sch')).toBe(true)
   })
 })
 

@@ -2,7 +2,7 @@
 
 import { mkdir, readdir, writeFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
-import { confirm, isInteractive, multiselect } from './prompt'
+import { confirm, isInteractive, multiselect, text } from './prompt'
 import {
   dependencyRange,
   isValidAppName,
@@ -27,16 +27,19 @@ import {
  * drag along.
  */
 
-const HELP = `bun create bakery <directory>
+/** The folder offered when none was given, and taken under `--yes`. */
+export const DEFAULT_FOLDER = 'bakery-app'
+
+const HELP = `bun create bakery [directory]
 
 Scaffold a Bakery app.
 
-Run it without --orm/--no-orm or --plugins and it asks, so long as you are at a
-terminal. Pass either and it stops asking about that one; pass --yes and it
-stops asking entirely.
+At a terminal it asks for whatever you leave out: the directory, the ORM
+(--orm/--no-orm) and the plugins (--plugins). Pass one and it stops asking
+about that one; pass --yes and it stops asking entirely.
 
 Arguments:
-  <directory>       Where to create it. Also the package name, unless --name
+  [directory]       Where to create it. Also the package name, unless --name
                     is given. Use "." for the current directory.
 
 Options:
@@ -45,21 +48,30 @@ Options:
   --no-orm          Leave it out. The example API route keeps posts in memory.
   --plugins <list>  Comma-separated, from: ${PLUGIN_IDS.join(', ')}.
                     Use --plugins none for an explicit empty set.
-  --yes, -y         Take the defaults for anything not passed (ORM in, no
-                    plugins). What a non-interactive shell does anyway.
+  --yes, -y         Take the defaults for anything not passed: the directory
+                    ${DEFAULT_FOLDER}, the ORM in, no plugins. Without a
+                    terminal the ORM and plugins default the same way, and the
+                    directory has to be given.
   --no-install      Write the files and stop, without running bun install.
   -h, --help        This.
 
 Examples:
+  bun create bakery
   bun create bakery my-app
   bun create bakery my-app --no-orm --plugins vue
   bun create bakery . --name my-app --plugins dashboard,analytics
   bun create bakery my-app --yes
 `
 
+/** What a package name may hold, for the messages that refuse one. */
+const NAME_RULE =
+  'Use lowercase letters, digits, dots, dashes and underscores, starting with a letter or a digit'
+
 type Options = {
-  dir: string
-  name: string
+  /** As typed, or `null` when it was left out and is asked for. */
+  dir: string | null
+  /** `--name`, or `null` to take the directory's name. */
+  name: string | null
   install: boolean
   /** `null` means "not specified". Ask, or fall back to the default. */
   orm: boolean | null
@@ -171,27 +183,115 @@ export function parseArgs(
     dir = arg
   }
 
-  if (dir === null) return { ok: false, message: HELP }
+  // Checked on its own, before any folder is known: no answer to the folder
+  // question can repair a name typed on the command line.
+  if (name !== null && !isValidAppName(name)) {
+    return {
+      ok: false,
+      message: `"${name}" is not a usable package name. ${NAME_RULE}.`,
+    }
+  }
 
-  // `.` is the documented way to scaffold in place, and `basename(resolve('.'))`
-  // is the containing folder's name, which is the name the user means.
-  const resolved = resolve(dir)
-  const appName = name ?? basename(resolved)
+  // Left out, the directory is asked for once the flags are read (`chooseFolder`).
+  if (dir === null) {
+    return { ok: true, options: { dir, name, install, orm, plugins, yes } }
+  }
 
-  if (!isValidAppName(appName)) {
+  const target = resolveTarget(dir, name)
+  if (!target.ok) {
     return {
       ok: false,
       message:
-        `"${appName}" is not a usable package name: lowercase letters, ` +
-        'digits, dot, dash and underscore only, and it may not start with a ' +
-        'dot or a dash. Pass --name to choose a different one.',
+        `"${target.name}" is not a usable package name. ${NAME_RULE}, ` +
+        'or pass --name to choose a different one.',
     }
   }
 
   return {
     ok: true,
-    options: { dir: resolved, name: appName, install, orm, plugins, yes },
+    options: { ...target.target, install, orm, plugins, yes },
   }
+}
+
+/** Where the app goes, and the package name it is written with. */
+export type Target = { dir: string; name: string }
+
+/**
+ * A directory argument, and `--name` if given, as the absolute directory and
+ * the package name; or the name that cannot be one.
+ */
+export function resolveTarget(
+  dirArg: string,
+  nameArg: string | null,
+): { ok: true; target: Target } | { ok: false; name: string } {
+  // `.` is the documented way to scaffold in place, and `basename(resolve('.'))`
+  // is the containing folder's name, which is the name the user means.
+  const dir = resolve(dirArg)
+  const name = nameArg ?? basename(dir)
+  return isValidAppName(name)
+    ? { ok: true, target: { dir, name } }
+    : { ok: false, name }
+}
+
+/** How `chooseFolder` talks to the person running it. Swapped out by tests. */
+export type FolderIO = {
+  /** Ask for a line. `null` when there is no terminal to ask at. */
+  ask: ((question: string, fallback: string) => Promise<string | null>) | null
+  say: (line: string) => void
+}
+
+/**
+ * The directory, when the command line left it out.
+ *
+ * Asked for at a terminal, and asked again until the answer is usable: a
+ * folder whose name cannot be a package name, or one that already has files,
+ * is explained and asked for again rather than ending the run, since the
+ * person is right there to answer. `--yes` takes `DEFAULT_FOLDER` (or the
+ * last part of `--name`). Without a terminal there is nobody to ask, and a
+ * folder nobody named is not created: `'unasked'`.
+ *
+ * Returns `null` when the question was canceled.
+ */
+export async function chooseFolder(
+  options: Pick<Options, 'name' | 'yes'>,
+  io: FolderIO,
+): Promise<Target | null | 'unasked'> {
+  const fallback = options.name?.split('/').pop() ?? DEFAULT_FOLDER
+
+  if (options.yes || !io.ask) {
+    if (!options.yes) return 'unasked'
+    const target = resolveTarget(fallback, options.name)
+    if (!target.ok) return 'unasked'
+    if (!(await isScaffoldable(target.target.dir))) {
+      io.say(notEmpty(target.target.dir))
+      return 'unasked'
+    }
+    return target.target
+  }
+
+  for (;;) {
+    const answer = await io.ask('Folder name', fallback)
+    if (answer === null) return null
+
+    const target = resolveTarget(answer, options.name)
+    if (!target.ok) {
+      io.say(`"${target.name}" is not a usable package name. ${NAME_RULE}.`)
+      continue
+    }
+    if (!(await isScaffoldable(target.target.dir))) {
+      io.say(`${answer} already has files in it. Choose another folder.`)
+      continue
+    }
+    return target.target
+  }
+}
+
+/** Why a directory given on the command line, or by `--yes`, was refused. */
+function notEmpty(dir: string): string {
+  return (
+    `${dir} already has files in it. Bakery will not scaffold over an ` +
+    'existing directory. Pick an empty one, or empty this one first.'
+  )
 }
 
 /**
@@ -307,18 +407,40 @@ async function main(): Promise<number> {
     return parsed.message === HELP ? 0 : 1
   }
 
-  const { dir, name, install } = parsed.options
+  const { install } = parsed.options
+  const interactive = !parsed.options.yes && isInteractive()
 
-  // Checked before the prompts, not after: asking someone three questions and
-  // then refusing because the directory was never usable is the rudest possible
-  // ordering.
-  if (!(await isScaffoldable(dir))) {
-    console.log(
-      `${dir} already has files in it. Bakery will not scaffold over an ` +
-        'existing directory. Pick an empty one, or empty this one first.',
-    )
-    return 1
+  // The directory comes first, and is checked before the other questions, not
+  // after: asking someone three questions and then refusing because the
+  // directory was never usable is the rudest possible ordering.
+  let target: Target
+  if (parsed.options.dir !== null && parsed.options.name !== null) {
+    target = { dir: parsed.options.dir, name: parsed.options.name }
+    if (!(await isScaffoldable(target.dir))) {
+      console.log(notEmpty(target.dir))
+      return 1
+    }
+  } else {
+    const chosen = await chooseFolder(parsed.options, {
+      ask: interactive ? text : null,
+      say: line => console.log(line),
+    })
+    if (chosen === null) {
+      console.log('\nCanceled. Nothing was written.')
+      return 130
+    }
+    if (chosen === 'unasked') {
+      if (!parsed.options.yes) {
+        console.log(
+          'Name the directory to create the app in: bun create bakery <directory>. ' +
+            'At a terminal it asks for one instead.',
+        )
+      }
+      return 1
+    }
+    target = chosen
   }
+  const { dir, name } = target
 
   const choices = await resolveChoices(parsed.options)
   if (!choices) {

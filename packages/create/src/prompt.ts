@@ -263,3 +263,71 @@ export async function multiselect(
   }
   return chosen
 }
+
+export type TextResult =
+  | { kind: 'update'; value: string }
+  | { kind: 'submit'; value: string }
+  | { kind: 'cancel' }
+
+/**
+ * Apply one keypress to a line of text being typed.
+ *
+ * Backspace arrives as DEL (`\x7f`) from most terminals and as `\b` from the
+ * Windows console, so both delete. Escape sequences (the arrows) are ignored
+ * rather than typed, and so is any other control character.
+ */
+export function applyTextKey(value: string, key: string): TextResult {
+  if (key === KEY.ctrlC || key === KEY.ctrlD) return { kind: 'cancel' }
+  if (key === KEY.enter || key === KEY.enterLf) {
+    return { kind: 'submit', value }
+  }
+  if (key === '\x7f' || key === '\b') {
+    return { kind: 'update', value: Array.from(value).slice(0, -1).join('') }
+  }
+  const code = key.codePointAt(0) ?? 0
+  if (key.startsWith(ESC) || code < 0x20) return { kind: 'update', value }
+  return { kind: 'update', value: value + key }
+}
+
+export function renderText(
+  question: string,
+  fallback: string,
+  value: string,
+): string {
+  const hint = fallback ? ` ${DIM}(${fallback})${RESET}` : ''
+  return `${GREEN}?${RESET} ${question}${hint} ${value}`
+}
+
+/**
+ * Ask for a line of text. Enter on an empty line takes `fallback`. Returns
+ * `null` if the user canceled.
+ */
+export async function text(
+  question: string,
+  fallback: string,
+): Promise<string | null> {
+  let value = ''
+  const draw = () =>
+    write(`\r${ESC}[2K${renderText(question, fallback, value)}`)
+  draw()
+
+  let answer: string | null = null
+  await readKeys(key => {
+    const result = applyTextKey(value, key)
+    if (result.kind === 'cancel') {
+      write('\n')
+      return true
+    }
+    if (result.kind === 'submit') {
+      answer = result.value.trim() || fallback
+      write(
+        `\r${ESC}[2K${GREEN}?${RESET} ${question} ${CYAN}${answer}${RESET}\n`,
+      )
+      return true
+    }
+    value = result.value
+    draw()
+    return false
+  })
+  return answer
+}

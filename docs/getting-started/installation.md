@@ -30,8 +30,17 @@ scaffolder is a separate unscoped package rather than another verb on the
 `bakery` bin: `@bakery-framework/cli` owns that bin, and it is a dependency of
 the app you are trying to create.
 
-At a terminal it asks what to include (the ORM, and any of the three plugins) the way `bun create vite` does. Every answer is also a flag, because a
-scaffolder that can only be driven by a human cannot be put in a Dockerfile:
+At a terminal it asks for whatever the command leaves out, the way
+`bun create vite` does: the directory (offering `bakery-app`), the ORM, and
+any of the four plugins. A directory name that cannot be a package name, or a
+directory that already has files in it, is explained and asked for again.
+
+```bash
+bun create bakery
+```
+
+Every answer is also a flag or an argument, because a scaffolder that can only
+be driven by a human cannot be put in a Dockerfile:
 
 ```bash
 bun create bakery my-app --no-orm --plugins vue
@@ -48,13 +57,15 @@ bun create bakery my-app --yes
 | Flag | Effect |
 | --- | --- |
 | `--orm` / `--no-orm` | Include `orm/`, `db:sync` and `@bakery-framework/orm`, or leave them out |
-| `--plugins <list>` | Comma-separated from `vue`, `analytics`, `dashboard`. `--plugins none` is an explicit empty set |
+| `--plugins <list>` | Comma-separated from `vue`, `analytics`, `dashboard`, `db-explorer`. `--plugins none` is an explicit empty set |
 | `--name <name>` | Package name, when it should differ from the directory |
 | `--yes`, `-y` | Take the defaults for anything not passed |
 | `--no-install` | Write the files and stop, without running `bun install` |
 
-`--yes` and a non-interactive shell take the same defaults: the ORM in, no
-plugins. Passing a flag stops it asking about that one thing only.
+`--yes` takes the defaults: the directory `bakery-app`, the ORM in, no
+plugins. A non-interactive shell takes the same for the ORM and the plugins,
+and stops if the directory is missing rather than create one nobody named.
+Passing a flag stops it asking about that one thing only.
 
 The directory argument is a **path**, and `.` means the current directory. It
 doubles as the package name unless `--name` says otherwise, so
