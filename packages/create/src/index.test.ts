@@ -230,7 +230,7 @@ describe('the generated app', () => {
   })
 
   test('the dependency range follows this package, so the two cannot drift', () => {
-    expect(dependencyRange('3.1.4')).toBe('^3.1.4')
+    expect(dependencyRange('3.1.4')).toBe('^3.1.0')
 
     // The published version is the one that ships, so assert against it rather
     // than a literal: bumping create-bakery must move the range it generates.
@@ -238,7 +238,21 @@ describe('the generated app', () => {
     const pkg = JSON.parse(
       declared.find(f => f.path === 'package.json')!.contents,
     )
-    expect(pkg.dependencies['@bakery-framework/core']).toBe('^9.9.9')
+    expect(pkg.dependencies['@bakery-framework/core']).toBe('^9.9.0')
+  })
+
+  test('a patch release asks for its minor, so it installs before npm lists it', () => {
+    // create-bakery 2.1.2 wrote `^2.1.2` and was on npm's `latest` while core
+    // was still listed at 2.1.1: `bun install` found no version for minutes.
+    // A minor still moves the floor, which is the drift the test above guards.
+    expect(dependencyRange('2.1.2')).toBe('^2.1.0')
+    expect(dependencyRange('2.2.0')).toBe('^2.2.0')
+  })
+
+  test('a prerelease keeps its whole version', () => {
+    // `^2.0.0` does not match `2.0.0-rc.5`: a caret range admits prereleases
+    // only of the version it names.
+    expect(dependencyRange('2.0.0-rc.5')).toBe('^2.0.0-rc.5')
   })
 
   test('the emitted range tracks this package, not a literal', async () => {
@@ -252,7 +266,12 @@ describe('the generated app', () => {
     ).json()
 
     expect(await ownVersion()).toBe(declared.version)
-    expect(dependencyRange(await ownVersion())).toBe(`^${declared.version}`)
+    const [major, minor] = declared.version.split('.')
+    expect(dependencyRange(await ownVersion())).toBe(
+      declared.version.includes('-')
+        ? `^${declared.version}`
+        : `^${major}.${minor}.0`,
+    )
   })
 
   test('the name reaches the page and the readme, and nothing else', async () => {

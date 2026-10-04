@@ -464,12 +464,24 @@ async function main(): Promise<number> {
   console.log(`Created ${name} in ${dir} (${summary})`)
 
   if (install) {
-    const proc = Bun.spawn(['bun', 'install'], {
-      cwd: dir,
-      stdout: 'inherit',
-      stderr: 'inherit',
-    })
-    const code = await proc.exited
+    const run = (flags: string[]) =>
+      Bun.spawn(['bun', 'install', ...flags], {
+        cwd: dir,
+        stdout: 'inherit',
+        stderr: 'inherit',
+      }).exited
+
+    let code = await run([])
+    // A release a few minutes old is on npm before Bun's cached package list
+    // knows it, and the app asks for this scaffolder's own minor. On
+    // 2026-10-04, `bun create bakery@latest` 2.1.2 wrote `^2.1.2` and the
+    // install failed with "No version matching" until the cache was skipped.
+    if (code !== 0) {
+      console.log(
+        "\nRetrying with Bun's package cache skipped, in case a release is minutes old.\n",
+      )
+      code = await run(['--no-cache'])
+    }
     if (code !== 0) {
       console.log(
         '\nbun install failed. The app is written. Run it again in ' +

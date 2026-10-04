@@ -103,9 +103,19 @@ export const PLUGINS_NEEDING_ORM: readonly PluginId[] = ['db-explorer']
  * scaffolder is published in lockstep with the framework: `create-bakery@4.1.0`
  * scaffolding `^4.0.0` is the drift this avoids. Caret, so a generated app
  * picks up patches without regenerating.
+ *
+ * **The floor is this version's minor, not its patch.** A patch adds nothing
+ * a template could depend on, and asking for it exactly made every patch
+ * release uninstallable for its first minutes: create-bakery 2.1.2 reached
+ * npm's `latest` while the registry, and Bun's cached copy of it, still
+ * listed core at 2.1.1, so `^2.1.2` resolved to nothing (2026-10-04).
+ * `^2.1.0` takes 2.1.2 as soon as it is listed and 2.1.1 until then. A
+ * prerelease keeps its whole version, since `^2.0.0` would not match
+ * `2.0.0-rc.5` at all.
  */
 export function dependencyRange(ownVersion: string): string {
-  return `^${ownVersion}`
+  const release = /^(\d+)\.(\d+)\.\d+$/.exec(ownVersion)
+  return release ? `^${release[1]}.${release[2]}.0` : `^${ownVersion}`
 }
 
 /**
