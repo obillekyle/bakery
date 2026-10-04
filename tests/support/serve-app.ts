@@ -24,7 +24,12 @@ const CLI = resolve(import.meta.dir, '../../packages/cli/src/index.ts')
 
 export interface AppServer {
   base: string
-  stop(): void
+  /**
+   * Kill the server, resolving once the process has exited. Await it before
+   * deleting the app's directory: on Windows a process still exiting holds
+   * the directory, and the delete fails with EBUSY.
+   */
+  stop(): Promise<void>
 }
 
 /**
@@ -95,7 +100,13 @@ export async function bootApp(
     }
     try {
       await fetch(base)
-      return { base, stop: () => server.kill() }
+      return {
+        base,
+        stop: async () => {
+          server.kill()
+          await server.exited
+        },
+      }
     } catch {
       // Not listening yet. A connection refusal here is the ordinary state
       // during boot, which is why it is the one swallowed exception.

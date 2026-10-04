@@ -64,8 +64,8 @@ beforeAll(async () => {
   server = await bootApp(dir, PORT)
 }, 90_000)
 
-afterAll(() => {
-  server?.stop()
+afterAll(async () => {
+  await server?.stop()
   // On Windows the killed server still holds its database for a moment.
   rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
 })

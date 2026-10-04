@@ -41,8 +41,8 @@ beforeAll(async () => {
   server = await bootApp(APP, PORT)
 }, 90_000)
 
-afterAll(() => {
-  server?.stop()
+afterAll(async () => {
+  await server?.stop()
 })
 
 describe('the example app serves what it ships', () => {

@@ -139,7 +139,7 @@ describe.skipIf(!PGSQL_URL)('sessions in Postgres, served by a cluster', () => {
   }, 90_000)
 
   afterAll(async () => {
-    server?.stop()
+    await server?.stop()
     await admin?.unsafe(`DROP TABLE IF EXISTS ${SESSIONS}, ${ACCOUNTS}`)
     await admin?.close()
     // On Windows the killed server still holds its files for a moment.
