@@ -351,11 +351,17 @@ export async function componentScript(options: {
     code = code.replace(RX_SERVER_DATA_TOKEN, () => serverData)
   }
 
+  // One element per component, holding every block, joined as `componentCss`
+  // joins them for a page. The element is per component so a module evaluated
+  // again replaces its styles rather than stacking a second copy; writing each
+  // block into it in turn, as this did, kept only the last block.
   if (!isRootScript) {
-    for (const style of compiled.styles) {
-      if (style.code) {
-        code += `;\n(function(){var k='__vu_css_${id}';var s=document.getElementById(k)||(function(){var el=document.createElement('style');el.id=k;document.head.appendChild(el);return el})();s.textContent=${JSON.stringify(style.code)}})()`
-      }
+    const css = compiled.styles
+      .map(style => style.code)
+      .filter(Boolean)
+      .join('\n\n')
+    if (css) {
+      code += `;\n(function(){var k='__vu_css_${id}';var s=document.getElementById(k)||(function(){var el=document.createElement('style');el.id=k;document.head.appendChild(el);return el})();s.textContent=${JSON.stringify(css)}})()`
     }
   }
 

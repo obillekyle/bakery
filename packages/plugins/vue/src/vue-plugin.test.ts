@@ -15,7 +15,7 @@ import {
   setVuePluginOptions,
   vueBuildVariant,
 } from './compile'
-import { VueHandler } from './handler'
+import { componentScript, VueHandler } from './handler'
 import type { VueMeta } from './types'
 import {
   compileServerBlock,
@@ -199,6 +199,57 @@ export const count = 42
     expect(content).toContain('{"count":42}')
     expect(content).not.toContain('globalThis.__vue_server')
     expect(content).not.toContain('__BAKERY_VUE_SERVER_DATA__')
+  })
+
+  // Every block of a component was written into the one <style> element that
+  // component owns, by assignment, so each replaced the one before it: a
+  // scoped block followed by an unscoped block of print rules reached the page
+  // as the print rules alone (school-saas's PrintSheet.vue, 2026-10-05).
+  test('a subcomponent with two style blocks puts both on the page', async () => {
+    const { file, id } = await writeFixture(
+      'test-two-styles.vue',
+      `
+<template><div class="sheet">Sheet</div></template>
+<style scoped>
+.sheet { position: relative }
+</style>
+<style>
+@media print { body { color: black } }
+</style>
+`,
+    )
+    const parsed = await VueHandler.parseVueFile(
+      id,
+      file,
+      'test-two-styles.vue',
+      file.lastModified,
+    )
+    const code = await componentScript({
+      id,
+      routePath: '/test-two-styles.vue',
+      isRootScript: false,
+      parsed,
+      served: true,
+    })
+
+    // The injection, run as a browser runs it, against a document that keeps
+    // one element per id.
+    const injection = code.slice(
+      code.indexOf(";\n(function(){var k='__vu_css_"),
+      code.lastIndexOf('\n//# sourceURL'),
+    )
+    type El = { id: string; textContent: string }
+    const elements = new Map<string, El>()
+    new Function('document', injection)({
+      getElementById: (key: string) => elements.get(key) ?? null,
+      createElement: (): El => ({ id: '', textContent: '' }),
+      head: { appendChild: (el: El) => elements.set(el.id, el) },
+    })
+
+    expect(elements.size).toBe(1)
+    const css = [...elements.values()][0]!.textContent
+    expect(css).toContain('position: relative')
+    expect(css).toContain('@media print')
   })
 
   test('handleScript for static subcomponent without <script server> returns Bun.file', async () => {
