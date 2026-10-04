@@ -25,6 +25,9 @@ const serveMsgs = {
   SESSION_PRUNE_ERR: 'E Could not prune expired sessions: %r{error}%*',
   SHUTTING_DOWN: 'W %yShutting down server...%*',
   BACKEND_CHANGE: 'I Backend change detected: %y{file}%*',
+  // The banner's first line: the framework serving the app, which is the
+  // version a bug report needs and a log otherwise never said.
+  BAKERY_VERSION: 'I Bakery v{version}',
   SERVER_STARTED: 'I %gServer running at:%*',
   SERVER_URL: 'I   ➜ %w{type}%*: %bhttp://{host}:{port}%*',
   WATCHER_ERR: 'E Watcher error: %r{error}%*',

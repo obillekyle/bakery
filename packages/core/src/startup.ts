@@ -1,6 +1,7 @@
 import { networkInterfaces } from 'node:os'
 import { Bakery } from './core/bakery'
 import { getConfigLoadError } from './core/config'
+import { getFrameworkVersion } from './core/context'
 import { resolvePort } from './core/port'
 import {
   ApiErrorHandler,
@@ -106,6 +107,10 @@ export async function runStartupBanner(): Promise<void> {
 
   const isThreadWorker = import.meta.env.THREAD_WORKER
   if (!isThreadWorker || import.meta.env.THREAD_ID === '0') {
+    // The framework's version, from core's own manifest: not the app's,
+    // which is what `<cwd>/package.json` would have said.
+    serveLog.BAKERY_VERSION({ version: getFrameworkVersion() })
+
     if (isThreadWorker) {
       serveLog.THREAD_STARTED({ id: import.meta.env.THREAD_ID })
     } else {

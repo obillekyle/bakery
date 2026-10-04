@@ -35,6 +35,21 @@ afterEach(() => {
 
 const rateLimitLines = () => lines.filter(m => m.includes('Rate limit:'))
 
+describe('runStartupBanner, the framework version', () => {
+  test('opens with the version of the framework serving the app', async () => {
+    // Read from core's own manifest here rather than through the helper the
+    // banner uses, so a helper that read the app's package.json instead (the
+    // mistake `getAppVersion` was renamed to stop) would fail this.
+    const manifest = await Bun.file(
+      `${import.meta.dir}/../package.json`,
+    ).json()
+
+    await runStartupBanner()
+
+    expect(lines[0]).toBe(`Bakery v${manifest.version}`)
+  })
+})
+
 describe('runStartupBanner, default rate limit notice', () => {
   test('announces the default per-IP rate limit once', async () => {
     await runStartupBanner()
