@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { setLogCallback } from '@bakery-framework/core/logger'
 import { SyncService } from '../sync'
+import { LIVE_TIMEOUT } from '../tests/isolated'
 import { SQLAdapter } from './base'
 import { DatabaseMissingError, isMissingDatabase } from './missing-database'
 import { MySQLAdapter } from './mysql'
@@ -118,7 +119,7 @@ for (const { label, url, open, maintenance } of LIVE) {
       } finally {
         await admin.close()
       }
-    })
+    }, LIVE_TIMEOUT)
 
     test.skipIf(skip)('a query names it, instead of the driver error', async () => {
       const error = await connect()
@@ -127,7 +128,7 @@ for (const { label, url, open, maintenance } of LIVE) {
         .catch((e: unknown) => e)
       expect(error).toBeInstanceOf(DatabaseMissingError)
       expect((error as DatabaseMissingError).database).toBe(name)
-    })
+    }, LIVE_TIMEOUT)
 
     test.skipIf(skip)('without the flag and without a terminal, sync refuses and says how', async () => {
       const said: string[] = []
@@ -142,7 +143,7 @@ for (const { label, url, open, maintenance } of LIVE) {
         setLogCallback(() => {})
       }
       expect(said.join('\n')).toContain('--create-database')
-    })
+    }, LIVE_TIMEOUT)
 
     test.skipIf(skip)('--create-database creates it, and the same connection then works', async () => {
       const db = connect()
@@ -155,6 +156,6 @@ for (const { label, url, open, maintenance } of LIVE) {
       expect(await SyncService.ensureDatabase(db, { argv: [], interactive: false })).toBe(
         'present',
       )
-    })
+    }, LIVE_TIMEOUT)
   })
 }
