@@ -138,31 +138,70 @@ function clearLines(n: number): void {
   write(`${ESC}[0J`)
 }
 
-async function* keypresses(): AsyncGenerator<string> {
-  process.stdin.setRawMode?.(true)
-  process.stdin.resume()
-  try {
-    for await (const chunk of process.stdin) {
-      // A single read can carry a whole escape sequence, and on a fast paste it
-      // can carry several keys at once. Arrow keys are the only multi-byte
-      // sequence handled, so they are matched first and the rest is yielded
-      // character by character.
-      const text = Buffer.from(chunk).toString('utf8')
-      let i = 0
-      while (i < text.length) {
-        if (text.startsWith(`${ESC}[`, i) && i + 2 < text.length) {
-          yield text.slice(i, i + 3)
-          i += 3
-          continue
-        }
-        yield text[i]!
-        i += 1
+/**
+ * Split what one read of stdin delivered into keypresses.
+ *
+ * A single read can carry a whole escape sequence, and on a fast paste it can
+ * carry several keys at once. Arrow keys are the only multi-byte sequence
+ * handled, so they are matched first and the rest is split by character:
+ * by code point, so a character outside the basic plane stays one key.
+ */
+export function splitKeys(text: string): string[] {
+  const keys: string[] = []
+  let i = 0
+  while (i < text.length) {
+    if (text.startsWith(`${ESC}[`, i) && i + 2 < text.length) {
+      keys.push(text.slice(i, i + 3))
+      i += 3
+      continue
+    }
+    const key = String.fromCodePoint(text.codePointAt(i)!)
+    keys.push(key)
+    i += key.length
+  }
+  return keys
+}
+
+/**
+ * Hand keypresses to `onKey` until it returns true, then let go of stdin
+ * without closing it, so the next prompt can read from it too.
+ *
+ * Listeners, not `for await (const chunk of process.stdin)`. Leaving a
+ * `for await` early returns the stream's iterator, and returning a readable's
+ * iterator destroys the stream: in 2.1.1 the first prompt answered and the
+ * second died on the destroyed stdin with `AbortError: The operation was
+ * aborted`, on any terminal, whenever more than one question was asked.
+ *
+ * Keys after the answering one, in the same read, are dropped: they were
+ * typed before the next prompt was on screen.
+ */
+function readKeys(onKey: (key: string) => boolean): Promise<void> {
+  const stdin = process.stdin
+  return new Promise(resolve => {
+    const finish = () => {
+      stdin.off('data', onData)
+      stdin.off('end', onEnd)
+      stdin.setRawMode?.(false)
+      stdin.pause()
+      resolve()
+    }
+    const onData = (chunk: Buffer | string) => {
+      for (const key of splitKeys(Buffer.from(chunk).toString('utf8'))) {
+        if (onKey(key)) return finish()
       }
     }
-  } finally {
-    process.stdin.setRawMode?.(false)
-    process.stdin.pause()
-  }
+    // The other end went away. Taken as Ctrl-D, which every prompt treats as
+    // a cancel, rather than waiting for a key that cannot come.
+    const onEnd = () => {
+      onKey(KEY.ctrlD)
+      finish()
+    }
+
+    stdin.setRawMode?.(true)
+    stdin.on('data', onData)
+    stdin.on('end', onEnd)
+    stdin.resume()
+  })
 }
 
 export async function confirm(
@@ -172,17 +211,19 @@ export async function confirm(
   const suffix = fallback ? 'Y/n' : 'y/N'
   write(`${GREEN}?${RESET} ${question} ${DIM}(${suffix})${RESET} `)
 
-  for await (const key of keypresses()) {
+  let answer: boolean | null = null
+  await readKeys(key => {
     const result = applyConfirmKey(key, fallback)
-    if (result.kind === 'ignore') continue
+    if (result.kind === 'ignore') return false
     if (result.kind === 'cancel') {
       write('\n')
-      return null
+      return true
     }
+    answer = result.value
     write(`${CYAN}${result.value ? 'yes' : 'no'}${RESET}\n`)
-    return result.value
-  }
-  return null
+    return true
+  })
+  return answer
 }
 
 /** Returns the chosen ids, or `null` if the user canceled. */
@@ -191,41 +232,34 @@ export async function multiselect(
   choices: Choice[],
 ): Promise<string[] | null> {
   let state: MultiselectState = { choices, cursor: 0, selected: new Set() }
-
   let frame = renderMultiselect(question, state)
   write(`${ESC}[?25l${frame}`) // hide the cursor while redrawing
 
+  let chosen: string[] | null = null
   try {
-    for await (const key of keypresses()) {
+    await readKeys(key => {
       const result = applyKey(state, key)
-      if (result.kind === 'cancel') {
-        clearLines(frame.split('\n').length - 1)
-        return null
-      }
+      clearLines(frame.split('\n').length - 1)
+      if (result.kind === 'cancel') return true
 
-      const previous = frame
       state = result.state
-      frame = renderMultiselect(question, state)
-
       if (result.kind === 'submit') {
-        clearLines(previous.split('\n').length - 1)
-        const names = state.choices
-          .filter(c => state.selected.has(c.id))
-          .map(c => c.label)
+        const picked = state.choices.filter(c => state.selected.has(c.id))
+        const names = picked.map(c => c.label)
         write(
           `${GREEN}?${RESET} ${question} ` +
             `${CYAN}${names.length ? names.join(', ') : 'none'}${RESET}\n`,
         )
-        return state.choices
-          .filter(c => state.selected.has(c.id))
-          .map(c => c.id)
+        chosen = picked.map(c => c.id)
+        return true
       }
 
-      clearLines(previous.split('\n').length - 1)
+      frame = renderMultiselect(question, state)
       write(frame)
-    }
+      return false
+    })
   } finally {
     write(`${ESC}[?25h`) // always give the cursor back
   }
-  return null
+  return chosen
 }

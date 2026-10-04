@@ -322,7 +322,7 @@ async function main(): Promise<number> {
 
   const choices = await resolveChoices(parsed.options)
   if (!choices) {
-    console.log('\nCancelled. Nothing was written.')
+    console.log('\nCanceled. Nothing was written.')
     return 130
   }
 
