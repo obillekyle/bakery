@@ -380,8 +380,16 @@ describe.skipIf(!PGSQL_URL)(
                 ),
               ]),
             )
-            expect([...a.applied, ...b.applied]).toEqual(['0001_slow.sql'])
-            expect(b.pending).toEqual([])
+            // Whichever run took the lock applies the file, and the other
+            // waits for it and finds nothing to do. Usually the first takes
+            // it, being 100 ms ahead, but under a loaded suite the first can
+            // still be connecting when the second arrives: asserting on
+            // `b.pending` alone failed that way once in a full run
+            // (2026-10-05), with the lock behaving correctly.
+            const [took, waited] = a.applied.length ? [a, b] : [b, a]
+            expect(took.applied).toEqual(['0001_slow.sql'])
+            expect(waited.applied).toEqual([])
+            expect(waited.pending).toEqual([])
           } finally {
             await second.close()
           }
