@@ -19,6 +19,7 @@ import { errorMsg, pluginLog } from '@bakery-framework/core/logger'
 import { Case, Try } from '@bakery-framework/core/utils'
 import type { JsonResponseData } from '@bakery-framework/core/utils/common'
 import { response } from '@bakery-framework/core/utils/http'
+import { DB } from '@bakery-framework/orm/orm'
 import { currentCanWrite } from '../access'
 import { introspect, type TableFacts } from '../identity'
 import type { FieldError } from '../validate'
@@ -28,6 +29,27 @@ export type Envelope = JsonResponseData<unknown>
 export type WriteStart =
   | { ok: true; table: TableFacts; body: Record<string, unknown> }
   | { ok: false; response: Envelope }
+
+/**
+ * `DB`'s three writers, for a table named at runtime.
+ *
+ * The explorer writes to whatever the database holds, by names it reads from
+ * the database. An app that registers its schema narrows `DB.Insert.into`,
+ * `DB.Update.table` and `DB.Delete.from`, and their columns, to its own names,
+ * which are not the explorer's to know: every write here failed such an app's
+ * typecheck (11 errors in rows.ts and import.ts, 2.1.2 through 2.2.1), while
+ * this repo's gates compiled the explorer against no schema at all.
+ *
+ * `any` is the one table type that gives the builders back their unregistered
+ * shape (`never` makes the row `never`), and the ORM's own executables default
+ * to it for the same reason. What a schema would have checked, the row against
+ * the table, `validate.ts` checks against the live table instead.
+ */
+export const byName = {
+  insert: (table: string) => DB.Insert.into<any>(table),
+  update: (table: string) => DB.Update.table<any>(table),
+  delete: (table: string) => DB.Delete.from<any>(table),
+}
 
 /** A 400 carrying every field error, never only the first. */
 export function invalid(errors: FieldError[]): Envelope {

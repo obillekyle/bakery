@@ -19,7 +19,7 @@ import { DB } from '@bakery-framework/orm/orm'
 import { overLimit } from '../policy'
 import { isRollbackSignal, previewRollback } from '../preview'
 import { type FieldError, validateInsertRow } from '../validate'
-import { beginWrite, invalid, refuse } from './common'
+import { beginWrite, byName, invalid, refuse } from './common'
 
 export type OnBadRow = 'stop' | 'skip'
 
@@ -70,7 +70,7 @@ export async function handleImport(
   return await Try.return(
     async () =>
       await DB.transaction(async () => {
-        const result = await DB.Insert.into(table.name).values(records).run()
+        const result = await byName.insert(table.name).values(records).run()
         const report = {
           inserted: Number(result.changes ?? 0),
           skipped,

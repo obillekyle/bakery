@@ -32,7 +32,13 @@ import {
   validateKey,
   validatePartial,
 } from '../validate'
-import { beginWrite, type Envelope, invalid, refuse } from './common'
+import {
+  beginWrite,
+  byName,
+  type Envelope,
+  invalid,
+  refuse,
+} from './common'
 
 /**
  * A conflict, as the caller sees it: which edit, which row, and what the row
@@ -150,7 +156,7 @@ export async function handleInsertRows(
       // wraps multiple batches in one transaction, so there is nothing to add
       // here, which is exactly why the insert goes through it rather than
       // through the adapter's own `insert()`.
-      const insert = DB.Insert.into(table.name).values(records)
+      const insert = byName.insert(table.name).values(records)
       if (!returning) {
         const result = await insert.run()
         return response.json.success('inserted', {
@@ -225,7 +231,7 @@ export async function handleUpdateRow(
         const predicate = { ...key.where, ...expect.values }
         const result = await chain(
           (column, value) =>
-            DB.Update.table(table.name).set(set.values).where(column, value),
+            byName.update(table.name).set(set.values).where(column, value),
           predicate,
         ).run()
 
@@ -404,7 +410,7 @@ async function applyCollapsedGroup(
       continue
     }
 
-    let statement = DB.Update.table(table.name)
+    let statement = byName.update(table.name)
       .set(group.set)
       .where(group.column, DB.inList(chunk.map(m => m.value)))
     for (const [column, value] of Object.entries(group.expect)) {
@@ -523,7 +529,7 @@ export async function handleBulkEdit(
           const predicate = { ...edit.key, ...edit.expect }
           const result = await chain(
             (column, value) =>
-              DB.Update.table(table.name).set(edit.set).where(column, value),
+              byName.update(table.name).set(edit.set).where(column, value),
             predicate,
           ).run()
 
@@ -612,7 +618,7 @@ export async function handleDeleteRows(
           const target = prepared[index]!
           const predicate = { ...target.key, ...target.expect }
           const result = await chain(
-            (column, value) => DB.Delete.from(table.name).where(column, value),
+            (column, value) => byName.delete(table.name).where(column, value),
             predicate,
           ).run()
 

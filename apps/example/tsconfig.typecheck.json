@@ -1,12 +1,13 @@
 {
-  "$comment": "The CLI gate. tsconfig.json claims no app files (an editor reaches them through tsconfig.bakery.json), so this names them, and extends it for everything else: the compiler options and the ambient declarations in its files. extends never carries references, so this program does not follow the chain either, which keeps the gate a plain tsc -p over exactly these files.",
+  "$comment": "The CLI gate. tsconfig.json claims no app files (an editor reaches them through tsconfig.bakery.json), so this names them, and extends it for everything else: the compiler options and the ambient declarations in its files. extends never carries references, so this program does not follow the chain either, which keeps the gate a plain tsc -p over exactly these files. orm/ is the one that matters most: it registers the typed schema, and without it every file here, the plugins' sources included, compiles against an untyped ORM.",
   "extends": "./tsconfig.json",
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
     "api/**/*.ts",
     "server.config.ts",
-    "schema.ts"
+    "schema.ts",
+    "orm/**/*.ts"
   ],
   "exclude": [
     "node_modules",
