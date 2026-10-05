@@ -252,6 +252,57 @@ export const count = 42
     expect(css).toContain('@media print')
   })
 
+  // A plain `<script lang="ts">` was transpiled and written back into the
+  // descriptor before Vue saw it, and Vue edits the file by the block's
+  // original offsets: an `export default` of options came out as
+  // `returnconst __default__ = MIT)` over the code around it.
+  test('a plain <script lang="ts"> beside <script setup> compiles to code that parses', async () => {
+    const { file, id } = await writeFixture(
+      'test-plain-and-setup.vue',
+      `<script lang="ts">
+export const LIMIT = 3
+export function clamp(n: number) {
+  return Math.min(n, LIMIT)
+}
+
+export default {
+  name: 'BothNamed',
+  inheritAttrs: false,
+}
+</script>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+const count = ref(clamp(5))
+</script>
+
+<template>
+  <p>{{ count }} of {{ LIMIT }}</p>
+</template>
+`,
+    )
+    const parsed = await VueHandler.parseVueFile(
+      id,
+      file,
+      'test-plain-and-setup.vue',
+      file.lastModified,
+    )
+    const code = await componentScript({
+      id,
+      routePath: '/test-plain-and-setup.vue',
+      isRootScript: false,
+      parsed,
+      served: true,
+    })
+
+    expect(() =>
+      new Bun.Transpiler({ loader: 'js' }).transformSync(code),
+    ).not.toThrow()
+    expect(code).toContain('inheritAttrs:false')
+    expect(code).toContain('function clamp(n)')
+    expect(code).not.toContain(': number')
+  })
+
   test('handleScript for static subcomponent without <script server> returns Bun.file', async () => {
     const { file, id } = await writeFixture(
       'test-static.vue',

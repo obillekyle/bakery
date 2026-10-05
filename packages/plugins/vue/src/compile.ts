@@ -138,15 +138,14 @@ export async function compileScriptBlock(
     }
   }
 
-  if (descriptor.script && descriptor.scriptSetup) {
-    const scriptLang = descriptor.script.lang || descriptor.script.attrs?.lang
-    if (scriptLang === 'ts') {
-      // If the script block is TypeScript, we need to compile it first before passing it to the Vue compiler
-      const compiledScript = await compileText(descriptor.script.content)
-      descriptor.script.content = compiledScript
-    }
-  }
-
+  // The blocks go to Vue as written, TypeScript included: `compileScript`
+  // reads TypeScript, and `compileText` below takes the types out of what it
+  // returns. A plain `<script lang="ts">` beside `<script setup>` used to be
+  // transpiled first and written back into `descriptor.script.content`, but
+  // Vue edits the whole file by the block's original offsets, so a rewritten
+  // block put its edits in the wrong places: an `export default` of options
+  // came out as `returnconst __default__ = MIT)` over the lines around it,
+  // and the module failed to parse.
   const { compileScript } = await loadCompiler()
   const result = compileScript(descriptor, {
     id,
