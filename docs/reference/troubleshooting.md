@@ -80,18 +80,21 @@ original. Those saves pay the restart (~440 ms) every time, where an in-place
 save stays on the fast path (~15 ms). If your loop feels slow, check your
 editor's atomic-save setting before you look anywhere else.
 
-### Editing a shared component changes nothing until I restart
+### Editing a shared component restarts the dev server
 
-Only the route file's own mtime is cache-busted
-(`packages/core/src/handlers/assets/tsx.ts`). A `Layout.tsx` your page imports
-stays in Bun's module registry until the process restarts. That is the trade for
-making the common loop (editing the page itself) instant.
+Only a route file is imported cache-busted
+(`packages/core/src/handlers/core/$dynamic.ts`), so editing the page itself
+stays on the fast path (~15 ms). A module a route imports (a `Layout.tsx` your
+page uses, or a helper in a `server/` folder your API routes use) is held in
+Bun's module registry, and the watcher restarts the worker when one of them
+changes (`isLoadedModule` in `packages/core/src/compiler/dev-service.ts`).
+Measured on a minimal app: 224 to 323 ms from the save to the edit being
+served.
 
-Touching `server.config.ts` is the cheapest way to force it, since that is a
-restart trigger.
-
-The equivalent for API routes does not exist, because edits under the api
-directory already restart the worker.
+Two kinds of file still need a restart by hand: one the watcher does not watch
+(it watches `.ts`, `.tsx`, `.js`, `.jsx`, `.vue`, `.html` and `.css`, so not
+`.json`), and one the server reads with `fs` rather than importing. Touching
+`server.config.ts` is the cheapest way to force it.
 
 ### A CSS change reloads the whole page instead of hot-swapping
 

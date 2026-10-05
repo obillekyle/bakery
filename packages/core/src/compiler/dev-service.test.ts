@@ -1,4 +1,7 @@
-import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
+import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { __resetTestConfig, __setTestConfig, initConfig } from '../core/config'
 import { fs } from '../utils/fs'
 import {
@@ -11,6 +14,7 @@ import {
   formatDevErrorFrame,
   isBackendPriorityFile,
   isCreatedRouteModule,
+  isLoadedModule,
   MAX_DEV_ERROR_BODY,
   notifyError,
   notifySockets,
@@ -457,5 +461,63 @@ describe('isCreatedRouteModule', () => {
     for (const f of ['src/a.html', 'src/a.css', 'src/script/a.ts']) {
       expect(isCreatedRouteModule(f, 'rename', true)).toBe(false)
     }
+  })
+})
+
+describe('isLoadedModule', () => {
+  // Native paths, as the registry spells them: `/app` is `C:\app` on Windows.
+  const cwd = resolve('/app')
+  const key = (path: string) => join(cwd, path)
+
+  test('a module imported by a plain specifier needs a restart', () => {
+    // What a route's imports are keyed as: a helper in a top-level server/.
+    const loaded = [key('server/auth.ts')]
+    expect(isLoadedModule('server/auth.ts', loaded, cwd)).toBe(true)
+  })
+
+  test('a cache-busted route does not: its next import is a new key', () => {
+    const loaded = [`${key('src/api/me.ts')}?v=1700000000000`]
+    expect(isLoadedModule('src/api/me.ts', loaded, cwd)).toBe(false)
+  })
+
+  test('a file the server never imported does not', () => {
+    // A browser-only script, served from disk.
+    const loaded = [key('server/auth.ts')]
+    expect(isLoadedModule('src/script.ts', loaded, cwd)).toBe(false)
+  })
+
+  test.if(process.platform === 'win32')(
+    'a Windows key matches in either slash and either case',
+    () => {
+      const loaded = ['C:\\App\\Server\\Auth.ts']
+      expect(isLoadedModule('server/auth.ts', loaded, 'C:/app')).toBe(true)
+    },
+  )
+
+  describe("against Bun's own registry", () => {
+    // The rule rests on how Bun keys `require.cache`: ES modules listed, a
+    // plain import by its path, a cache-busted one with its query. A Bun that
+    // changed either would fail here rather than quietly stop restarting.
+    const dir = mkdtempSync(join(tmpdir(), 'bakery-loaded-module-'))
+
+    beforeAll(async () => {
+      writeFileSync(join(dir, 'plain.ts'), 'export const plain = 1\n')
+      writeFileSync(join(dir, 'busted.ts'), 'export const busted = 1\n')
+      await import(join(dir, 'plain.ts'))
+      await import(`${join(dir, 'busted.ts')}?v=1`)
+    })
+
+    afterAll(() => {
+      rmSync(dir, { recursive: true, force: true })
+    })
+
+    test('a plain import is listed by its path', () => {
+      expect(isLoadedModule('plain.ts', undefined, dir)).toBe(true)
+    })
+
+    test('a cache-busted import is not', () => {
+      expect(isLoadedModule('busted.ts', undefined, dir)).toBe(false)
+      expect(isLoadedModule('never-imported.ts', undefined, dir)).toBe(false)
+    })
   })
 })

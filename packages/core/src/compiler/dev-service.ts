@@ -456,9 +456,8 @@ const watchIgnores = Glob.strings(
 // restart was Bun's module registry caching the imported page module, and
 // TSXHandler now busts that per request in dev exactly as ApiHandler always
 // has. Pages take the cheap path via `tsScriptGlob` above. The one thing the
-// restart still bought (flushing *components* a page imports) is a
-// documented limitation (docs/getting-started/first-app.md): touch
-// server.config.ts or restart when editing a shared Layout.tsx.
+// restart still bought, flushing the *components* a page imports,
+// `isLoadedModule` now does for exactly the files that need it.
 const prioFilesGlob = Glob.strings('server.config.ts')
 
 /**
@@ -563,6 +562,45 @@ export function isCreatedRouteModule(
   return MODULE_ROUTE_EXT.test(filePath)
 }
 
+/**
+ * Whether `filePath` is a module this process imported through a plain
+ * specifier, so Bun's registry keeps serving the copy it already has and an
+ * edit cannot reach the running server without a restart.
+ *
+ * Routes are imported cache-busted (`bustInDev`'s `?v=<mtime>`), and the
+ * registry keys those with their query, so an edited route is not one: the
+ * next request imports it under a new key. Everything a route imports is
+ * keyed bare, and that is what used to go stale: a component a page imports
+ * (a shared `Layout.tsx`), and a helper an API route imports from outside the
+ * api directory, such as a top-level `server/` folder of permission checks.
+ * Measured in a dev app: an edit to `server/auth.ts` did not apply until a
+ * file under `src/api` was touched.
+ *
+ * `require.cache` is where Bun lists them, ES modules included (1.4.2: a
+ * static import keyed by path, `a.ts?v=1` keyed with its query). A Bun that
+ * stopped listing them would turn this back into the old behavior rather than
+ * break anything, and `dev-service.test.ts` asks the real registry, so it
+ * would say so.
+ */
+export function isLoadedModule(
+  filePath: string,
+  loaded: Iterable<string> = Object.keys(require.cache),
+  cwd: string = fs.cwd,
+): boolean {
+  const target = modulePathKey(resolve(cwd, filePath))
+  for (const key of loaded) {
+    if (!key.includes('?') && modulePathKey(key) === target) return true
+  }
+  return false
+}
+
+/** One spelling of a path for comparison: forward slashes, and case-folded
+ * on Windows, where `Auth.ts` and `auth.ts` are one file. */
+function modulePathKey(path: string): string {
+  const slashed = path.replaceAll('\\', '/')
+  return process.platform === 'win32' ? slashed.toLowerCase() : slashed
+}
+
 async function processFileEvent(
   filePath: string,
   server: any,
@@ -584,6 +622,12 @@ async function processFileEvent(
         await Bun.file(filePath).exists(),
       )
     ) {
+      serveLog.BACKEND_CHANGE({ file: filePath })
+      return process.exit(42)
+    }
+
+    // A module the server holds a plain copy of: see `isLoadedModule`.
+    if (isLoadedModule(filePath)) {
       serveLog.BACKEND_CHANGE({ file: filePath })
       return process.exit(42)
     }

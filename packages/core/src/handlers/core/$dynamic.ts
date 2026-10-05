@@ -35,9 +35,10 @@ const dynamicCaches = new Map<any, HandlerCache<RegExp, Route.Info>>()
  * a bare `PROD` gate flipped mid-suite and broke the reload tests in files
  * loaded after it, while passing in isolation.
  *
- * Only the route module itself is busted: components it imports (a shared
- * `Layout.tsx`, helpers) stay in Bun's registry until a restart. Documented in
- * `docs/getting-started/first-app.md`.
+ * Only the route module itself is busted: components and helpers it imports
+ * (a shared `Layout.tsx`) stay in Bun's registry, and the dev watcher restarts
+ * the worker when one of them changes (`isLoadedModule` in
+ * compiler/dev-service.ts).
  *
  * One implementation on purpose. `ApiHandler` and `TSXHandler`/`TSXErrorHandler`
  * both need it, and they carried a byte-identical copy each (including this
