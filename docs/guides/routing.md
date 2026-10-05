@@ -363,17 +363,24 @@ Two layers cache route resolution:
 - **`HandlerMap.routeCache`** (`$registry.ts`), a process-wide LRU mapping
   `(registry, hostname, path)` to the handler that won last time.
 
-`HandlerMap.routeCache` is **not** cleared by `initRoutes()`: it is never
-cleared anywhere. On a cache hit, `resolve()` calls only the cached handler's
-`canHandle` and returns it if still true, skipping every higher-priority handler
+On a cache hit, `resolve()` calls only the cached handler's `canHandle` and
+returns it if still true, skipping every higher-priority handler
 (`$registry.ts`). See [Middleware](middleware.md#the-route-cache-does-not-skip-middleware)
 for the consequence, which is the sharpest edge in the framework.
 
-In development, edits to `server.config.ts` or anything under the api directory
-restart the dev worker outright (`compiler/dev-service.ts`), which is what
-makes the problem invisible while you are working on those files. `.tsx` edits
-no longer restart the process: they clear the per-handler caches only, and
-`HandlerMap.routeCache` survives them.
+`HandlerMap.routeCache` is cleared in development only: the dev watcher clears
+it, with the per-handler caches, whenever a `.vue`, `.html`, `.ts`, `.tsx`,
+`.js` or `.jsx` file changes (`cache/index.ts`). Production never clears it,
+and a production server is not expected to gain pages while it runs.
+
+That clear is what serves a page created while the dev server runs. The
+fallback `StaticHandler` says yes to every path, so a path that answered 404
+before its page existed would keep answering 404 after the page was written,
+and a new file that outranks the cached winner would never be asked: an
+`about.vue` written beside an `about.html` (Vue's priority is above HTML's)
+would leave `/about` serving the HTML. Edits to `server.config.ts` or anything
+under the api directory go further and restart the dev worker
+(`compiler/dev-service.ts`).
 
 ## Reserved paths
 

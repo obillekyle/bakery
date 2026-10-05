@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { initRoutes } from '../../cache'
 import { Handler } from './$base'
 import { HandlerMap } from './$registry'
 
@@ -216,5 +217,32 @@ describe('HandlerMap route cache', () => {
 
     expect(await map.resolve('/secret', asUser('alice'))).toBe(PageHandler)
     expect(probes).toBe(1)
+  })
+
+  test('a winner that still says yes keeps its path until the dev route reset', async () => {
+    // StaticHandler, at priority 0, says yes to every path. A hit re-asks only
+    // the cached handler, so a page created after its path 404'd stayed
+    // unserved: the dev watcher clearing this cache is what serves it.
+    let pageExists = false
+    class Page extends Handler {
+      static override canHandle() {
+        return pageExists
+      }
+    }
+    class Fallback extends Handler {
+      static override canHandle() {
+        return true
+      }
+    }
+    const map = new HandlerMap()
+    map.set(Page, 60)
+    map.set(Fallback, 0)
+
+    expect(await map.resolve('/login')).toBe(Fallback)
+    pageExists = true
+    expect(await map.resolve('/login')).toBe(Fallback)
+
+    initRoutes()
+    expect(await map.resolve('/login')).toBe(Page)
   })
 })
