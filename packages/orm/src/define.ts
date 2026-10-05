@@ -1,3 +1,4 @@
+import type { InsertRecord } from './array-value'
 import type {
   ExtractOptionals,
   ExtractTableTypes,
@@ -368,13 +369,7 @@ export type RowOf<T extends TableRef> = ExtractTableTypes<
  *     export type NewUser = InsertOf<typeof users>
  *     //     ^ { name: string; id?: number; createdAt?: number }
  */
-export type InsertOf<T extends TableRef> = Omit<
+export type InsertOf<T extends TableRef> = InsertRecord<
   RowOf<T>,
   ExtractOptionals<{ t: T['__columns'] }, 't'> & keyof RowOf<T>
-> &
-  Partial<
-    Pick<
-      RowOf<T>,
-      ExtractOptionals<{ t: T['__columns'] }, 't'> & keyof RowOf<T>
-    >
-  >
+>

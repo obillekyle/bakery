@@ -1,6 +1,7 @@
 import { Try } from '@bakery-framework/core/utils'
 import { throws } from '@bakery-framework/core/utils/common'
 import { DEFAULT_MAX_QUERY_PARAMS, type SQLAdapter } from '../adapters'
+import type { InsertRecord } from '../array-value'
 import { getActiveDb, txStorage } from '../connection'
 import type {
   AppViews,
@@ -52,10 +53,7 @@ export namespace Mutation {
   }
 
   export type InsertSchema<T extends Tables> = T extends keyof DBSchema
-    ? Prettify<
-        Omit<DBSchema[T], ValidOptionals<T>> &
-          Partial<Pick<DBSchema[T], ValidOptionals<T>>>
-      >
+    ? Prettify<InsertRecord<DBSchema[T], ValidOptionals<T>>>
     : MapOf<unknown>
 
   export type UpdateSchema<T extends Tables> = Partial<InsertSchema<T>>

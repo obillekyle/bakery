@@ -21,6 +21,12 @@ export type {
  * module that can open a database connection.
  */
 export { getQueryObserver, setQueryObserver } from './adapters/observe'
+/**
+ * The row type of a `Field.Array` column, exported because row types name it:
+ * a plain array to read, `DB.array()` to write. `Field.Sql<PgArray<string>>`
+ * declares an array the same way for a SQL type `Field.Array` does not spell.
+ */
+export type { PgArray } from './array-value'
 export type {
   InferOptionals,
   InferSchema,

@@ -136,6 +136,7 @@ export namespace DB {
     | schemaColumnRef<C>
     | QBRaw
     | QBObject
+    | ArrayValue
     | string
     | number
     | boolean

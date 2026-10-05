@@ -21,6 +21,50 @@ export function isArrayValue(value: unknown): value is ArrayValue {
   return value instanceof ArrayValue
 }
 
+declare const PG_ARRAY: unique symbol
+
+/**
+ * The row type of a `Field.Array` column: an array, marked as a Postgres
+ * array so the write types can tell it from an array of another kind (a
+ * `jsonb` column typed `number[]`, which takes a plain array as JSON).
+ *
+ * The mark exists only in the types, and it is optional, so a plain array is
+ * a `PgArray` as it is: a read, a row built by hand and a test's
+ * `toEqual(['a'])` type as they would against `T[]`. A required mark broke
+ * all three. `Writable` reads the mark by its key rather than by
+ * assignability, since every plain array is assignable to an optional mark.
+ */
+export type PgArray<T> = T[] & { readonly [PG_ARRAY]?: T }
+
+/**
+ * What a write to a column of row type `V` accepts. A Postgres array column
+ * takes `DB.array()` of its elements and nothing else, since Bun cannot bind
+ * a plain array to one (see `ArrayValue`). Every other column takes its row
+ * type, `any` included: an unregistered schema stays permissive.
+ */
+export type Writable<V> = 0 extends 1 & V
+  ? V
+  : V extends readonly (infer E)[]
+    ? typeof PG_ARRAY extends keyof V
+      ? ArrayValue<E>
+      : V
+    : V
+
+/** A row's columns as a write accepts them. */
+export type WritableRow<R> = { [K in keyof R]: Writable<R[K]> }
+
+/**
+ * What an `INSERT` accepts for a row of type `Row`: its columns as a write
+ * takes them, the `Optional` ones optional. The one definition behind both
+ * `Mutation.InsertSchema` (a schema registered by declaration merging) and
+ * `InsertOf` (a `table()` value), so the two cannot disagree.
+ */
+export type InsertRecord<Row, Optional extends keyof Row> = Omit<
+  WritableRow<Row>,
+  Optional
+> &
+  Partial<Pick<WritableRow<Row>, Optional>>
+
 /**
  * The text of a Postgres array literal for `values`: `{"a","b c",NULL}`.
  *

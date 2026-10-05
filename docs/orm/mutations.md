@@ -87,6 +87,28 @@ so `DB.array()` sends the array literal Postgres casts from text, every element
 quoted and escaped. A plain array still goes to a `json` or `jsonb` column as
 JSON. MySQL and SQLite have no array type and refuse `DB.array()` by name.
 
+The types hold the same line. A [`Field.Array`](schema.md#columns) column's
+row type is `PgArray<T>`, which reads as a plain `T[]`, and an insert or an
+update there takes `DB.array()` of the element type and refuses a plain array:
+
+```ts
+import DB, { Field, type InsertOf, table } from '@bakery-framework/orm'
+
+const roles = table('roles', {
+  id: Field.Primary(),
+  name: Field.String(),
+  floorIds: Field.Array('integer'),
+})
+
+const registrar: InsertOf<typeof roles> = {
+  name: 'registrar',
+  floorIds: DB.array([1, 2]),
+}
+
+// @ts-expect-error: a plain array cannot be bound to a Postgres array
+const refused: InsertOf<typeof roles> = { name: 'clerk', floorIds: [1, 2] }
+```
+
 Reading one back gives a plain array: Bun returns an `integer[]` as an
 `Int32Array` once a query has a bound parameter, and the adapter turns it into
 an ordinary one. Two limits are the driver's and cannot be worked around from

@@ -156,11 +156,13 @@ A few carry a constraint worth knowing:
   strings and `timestamptz` as a `Date`. Classic sync refuses a schema that uses
   it, since it cannot create a type it does not know. See
   [Migrations](migrations.md#what-dbsync-checks).
-- **`Field.Array('text')`** is `Field.Sql<string[]>('text[]')` with the element
-  type worked out: `integer` and the floats read as numbers, `bigint` and
-  `numeric` as strings (which is what Bun returns), `timestamptz` as a `Date`.
-  `uuid` is not offered, since Bun returns a `uuid[]` as its raw `{…}` string.
-  Values go in through [`DB.array()`](mutations.md#arrays).
+- **`Field.Array('text')`** is `Field.Sql<PgArray<string>>('text[]')` with the
+  element type worked out: `integer` and the floats read as numbers, `bigint`
+  and `numeric` as strings (which is what Bun returns), `timestamptz` as a
+  `Date`. `uuid` is not offered, since Bun returns a `uuid[]` as its raw `{…}`
+  string. `PgArray<string>` reads as a `string[]`; it marks the column so the
+  write types take [`DB.array()`](mutations.md#arrays) there and refuse a plain
+  array, which Bun cannot bind.
 
 A column is optional on insert when it is nullable, has a default, or
 auto-increments. That is what `InferOptionals` computes, and it is why

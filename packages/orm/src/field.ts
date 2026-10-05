@@ -1,4 +1,5 @@
 import { throws } from '@bakery-framework/core/utils/common'
+import type { PgArray } from './array-value'
 import type { DataTypes, TableDef } from './schema-util'
 import type * as SyncTypes from './sync/types'
 
@@ -382,15 +383,17 @@ export const Field = {
     if (options.nullable) def.nullable = true
     return def
   }) as {
-    <E extends ArrayElement>(element: E): TableDef<ElementOf<E>[], false, false>
+    <E extends ArrayElement>(
+      element: E,
+    ): TableDef<PgArray<ElementOf<E>>, false, false>
     <E extends ArrayElement>(
       element: E,
       options: { optional: true },
-    ): TableDef<ElementOf<E>[], false, true>
+    ): TableDef<PgArray<ElementOf<E>>, false, true>
     <E extends ArrayElement>(
       element: E,
       options: { nullable: true; optional?: true },
-    ): TableDef<ElementOf<E>[] | null, true, true>
+    ): TableDef<PgArray<ElementOf<E>> | null, true, true>
   },
 
   /** True/false: `BOOLEAN` on Postgres, `TINYINT(1)` on MySQL. */
