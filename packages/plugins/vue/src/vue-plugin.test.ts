@@ -1,8 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { LRUCache } from '@bakery-framework/core/cache/lru'
 import { Bakery } from '@bakery-framework/core/core/bakery'
-import { initConfig } from '@bakery-framework/core/core/config'
+import {
+  __resetTestConfig,
+  __setTestConfig,
+  initConfig,
+} from '@bakery-framework/core/core/config'
 import { fs, toHash } from '@bakery-framework/core/utils'
+import { clearHeadBodyCache } from '@bakery-framework/core/utils/http'
 import {
   resolveActionTarget,
   validateActionRequest,
@@ -1054,6 +1059,50 @@ export const note = 'x'
     )
 
     expect(json.note).toBe(tricky)
+  })
+})
+
+describe('The page shell', () => {
+  test('a page has one viewport meta, the host head one when it declares it', async () => {
+    const { file, id } = await writeFixture(
+      'test-viewport.vue',
+      '<template><div>x</div></template>\n',
+    )
+    const parsed = await VueHandler.parseVueFile(
+      id,
+      file,
+      'test-viewport.vue',
+      file.lastModified,
+    )
+    const page = async () => {
+      const res = await VueHandler.handleHtml(
+        id,
+        {},
+        '/test-viewport',
+        {},
+        parsed,
+      )
+      const html = await (res as Response).text()
+      return html.match(/<meta[^>]*name="viewport"[^>]*>/g)
+    }
+
+    // Without one a phone lays the page out 980 px wide.
+    expect(await page()).toEqual([
+      '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    ])
+
+    // The host's head lands ahead of the shell's tags, and the later of two
+    // viewport metas wins, so the shell's has to go rather than follow it.
+    const own =
+      '<meta name="viewport" content="width=device-width, viewport-fit=cover">'
+    __setTestConfig({ head: own })
+    clearHeadBodyCache()
+    try {
+      expect(await page()).toEqual([own])
+    } finally {
+      __resetTestConfig()
+      clearHeadBodyCache()
+    }
   })
 })
 

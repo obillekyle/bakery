@@ -96,6 +96,12 @@ three more ways, distinguished by query string:
 A request is treated as a script request when `__vue_script` is present, or the
 `Accept` header names `text/javascript`, or `Sec-Fetch-Dest` is `script`.
 
+The shell's head holds `<meta charset="UTF-8">`, `<meta name="viewport"
+content="width=device-width, initial-scale=1">` and a `<title>`. A
+[`head`](../configuration/server-config.md#head-and-body) that declares its own
+viewport replaces the shell's: `head` lands ahead of the shell's tags, and of
+two viewport tags the browser honors the later one.
+
 The plugin's `onCompile` hook rewrites every `.vue` import in every compiled
 `.ts`/`.js`/`.vue` file to append `?__vue_script=module`, which is what makes
 `import Child from './Child.vue'` work in the browser

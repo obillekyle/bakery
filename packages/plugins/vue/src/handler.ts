@@ -32,7 +32,7 @@ import {
   parseVue,
   vueBuildVariant,
 } from './compile'
-import { VUE_HTML_SHELL } from './shell'
+import { declaresViewport, VIEWPORT_META, VUE_HTML_SHELL } from './shell'
 import type { ParsedCacheEntry, VueMeta } from './types'
 import {
   cacheDir,
@@ -708,6 +708,12 @@ export class VueHandler extends DynamicHandler {
       '/*__SERVER_VARIABLES__*/',
       () => serverDecl + moduleDecl + routeDecl,
     )
+
+    // An app's own viewport, through `head`, would lose to the shell's: see
+    // `declaresViewport`.
+    if (declaresViewport(Bakery.config.head)) {
+      hydrated = hydrated.replace(VIEWPORT_META, '')
+    }
 
     // Static markup, injected verbatim. See parseSkeleton for why it is
     // never rendered. mount() replaces the container children, so it
