@@ -202,6 +202,11 @@ const nav = defineLayout()
 // nav.segments: Ref<string[]>, [] on the bare directory under [...slug!]
 const section = computed(() => nav.segments.value[0] ?? 'home')
 
+// nav.search: Ref<string>, the query as location.search has it ('' or '?…')
+const standing = computed(() =>
+  new URLSearchParams(nav.search.value).get('standing'),
+)
+
 nav.on((next, prev, cause) => {
   // 'click' | 'navigate' | 'history'. Return false to cancel: clicks and
   // navigate() only; back/forward has already moved and is observe-only.
@@ -214,8 +219,9 @@ components the segments mean. Clicks on same-origin links **under the base**
 become a `pushState` and a reactive update: no reload, component state
 survives. A link's query string and hash stay in the URL and out of the
 segments: `/campus/ma/students?standing=pending` is the segments `ma`,
-`students`. A link that changes only the hash is left to the browser's own
-scroll. Links that leave the base navigate normally, and back/forward
+`students` with `nav.search` holding `?standing=pending`, and a link that
+changes only the query (`?standing=active`) updates `nav.search` alone. A
+link that changes only the hash is left to the browser's own scroll. Links that leave the base navigate normally, and back/forward
 entries that leave it trigger a real load, because pretending otherwise would
 render a lie.
 

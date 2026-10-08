@@ -45,6 +45,12 @@ type StampedRoute = {
 export type LayoutNavigation = {
   /** Path segments under the base: `[]` on the bare directory. */
   readonly segments: Ref<string[]>
+  /**
+   * The query string, as `location.search` spells it: `''`, or `?` and the
+   * pairs. Updated with every navigation, a query-only one included, which
+   * changes no segment.
+   */
+  readonly search: Ref<string>
   /** The URL prefix this page owns. */
   readonly base: string
   /** Navigate within the subtree; segments or a path, `/`-prefixed or not. */
@@ -87,6 +93,15 @@ export function segmentsUnder(base: string, path: string): string[] {
   return rest.split('/').filter(Boolean)
 }
 
+/** The query of `path`, `''` when it has none, as `location.search` has it. */
+function searchOf(path: string): string {
+  const hash = path.indexOf('#')
+  const head = hash < 0 ? path : path.slice(0, hash)
+  const query = head.indexOf('?')
+  // A bare `?` is no query: `location.search` reads `''` for it.
+  return query < 0 || query === head.length - 1 ? '' : head.slice(query)
+}
+
 function pathFor(base: string, to: string | string[]): string {
   if (Array.isArray(to)) {
     const joined = to.filter(Boolean).join('/')
@@ -122,11 +137,11 @@ export function defineLayout(): LayoutNavigation {
     return next.length > 0 && claimed.has(next[0])
   }
 
-  const initial =
-    typeof location !== 'undefined'
-      ? segmentsUnder(base, location.pathname)
-      : []
-  const segments = ref<string[]>(initial)
+  const here = typeof location !== 'undefined'
+  const segments = ref<string[]>(
+    here ? segmentsUnder(base, location.pathname) : [],
+  )
+  const search = ref(here ? location.search : '')
 
   function fire(next: string[], cause: Parameters<LayoutListener>[2]): boolean {
     const prev = segments.value
@@ -157,6 +172,7 @@ export function defineLayout(): LayoutNavigation {
     // has to land on the same view.
     if (typeof history !== 'undefined') history.pushState(null, '', path)
     segments.value = next
+    search.value = searchOf(path)
   }
 
   if (typeof document !== 'undefined') {
@@ -206,11 +222,13 @@ export function defineLayout(): LayoutNavigation {
       }
       fire(next, 'history') // observable, not cancellable. See `on`
       segments.value = next
+      search.value = location.search
     })
   }
 
   return {
     segments,
+    search,
     base,
     navigate: to => go(to, 'navigate'),
     on(listener) {

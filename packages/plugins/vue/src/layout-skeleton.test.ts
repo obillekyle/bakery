@@ -370,7 +370,7 @@ describe('defineLayout and the query string', () => {
     expect(isUnderBase('/campus', '/campusx?a=1')).toBe(false)
   })
 
-  test('navigate() keeps the query out of the segments', () => {
+  test('navigate() keeps the query out of the segments and in search', () => {
     ;(globalThis as any).__vue_route = {
       catchAll: true,
       base: '/campus',
@@ -380,10 +380,14 @@ describe('defineLayout and the query string', () => {
       const layout = defineLayout()
       layout.navigate('/campus/ma/students?standing=pending')
       expect(layout.segments.value).toEqual(['ma', 'students'])
+      expect(layout.search.value).toBe('?standing=pending')
 
       layout.navigate('/campus?x=1#top')
       expect(layout.segments.value).toEqual([])
+      expect(layout.search.value).toBe('?x=1')
 
+      layout.navigate(['ma'])
+      expect(layout.search.value).toBe('')
     } finally {
       ;(globalThis as any).__vue_route = undefined
     }
@@ -394,7 +398,7 @@ describe('defineLayout and the query string', () => {
    * touch: `location`, `history`, and the two listeners. A real browser runs
    * the same code in the rig (see the commit that added this).
    */
-  test('a clicked link with a query soft-navigates and keeps it in the URL', () => {
+  test('a clicked link with a query soft-navigates and keeps it', () => {
     const g = globalThis as any
     let current = new URL('http://app.test/campus/ma')
     const pushed: string[] = []
@@ -455,9 +459,11 @@ describe('defineLayout and the query string', () => {
 
       expect(click('/campus/ma/students?standing=pending')).toBe(true)
       expect(layout.segments.value).toEqual(['ma', 'students'])
+      expect(layout.search.value).toBe('?standing=pending')
 
-      // A query-only change: same segments, a history entry.
+      // A query-only change: same segments, a new search, a history entry.
       expect(click('?standing=active')).toBe(true)
+      expect(layout.search.value).toBe('?standing=active')
       expect(pushed).toEqual([
         '/campus/ma/students?standing=pending',
         '/campus/ma/students?standing=active',
@@ -470,6 +476,7 @@ describe('defineLayout and the query string', () => {
       current = new URL('http://app.test/campus/ma/students?standing=pending')
       on.popstate!()
       expect(layout.segments.value).toEqual(['ma', 'students'])
+      expect(layout.search.value).toBe('?standing=pending')
       expect(pushed).not.toContain('reload')
     } finally {
       for (const name of ['location', 'history', 'document', 'window']) {
