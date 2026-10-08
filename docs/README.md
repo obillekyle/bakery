@@ -179,10 +179,10 @@ next middleware runs. A **throw** is a 500 and stops the request: deliberately,
 because middleware is where auth checks live, and treating a crashed check as "no
 opinion" would let the request through.
 
-> The envelope reaches the client verbatim. A plain `Response` with a 4xx/5xx
-> status keeps its status but has its **body replaced** by the error page, since
-> anything at or above 400 is routed through the error pipeline.
-> [Middleware](guides/middleware.md) has the details.
+> The envelope reaches the client verbatim, and so does a 4xx/5xx `Response`
+> whose body is typed as a document (an HTML page, JSON). One with a plain-text
+> or empty body keeps its status but has its **body replaced** by the error
+> page. [Middleware](guides/middleware.md) has the details.
 
 ## Error handling
 

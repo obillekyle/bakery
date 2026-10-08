@@ -6,6 +6,7 @@ import {
   initConfig,
 } from '@bakery-framework/core/core/config'
 import { Handler } from '@bakery-framework/core/handlers'
+import { response } from '@bakery-framework/core/utils/http'
 import {
   answeredAsAsset,
   bucketKey,
@@ -70,6 +71,33 @@ describe('isErrorResult', () => {
     expect(isErrorResult(new Response('', { status: 503, headers: {} }))).toBe(
       true,
     )
+  })
+
+  test("an app's own error document is sent as written", () => {
+    // Through 2.2.2 each of these was replaced by the error page, which keeps
+    // only the status: an onRequest's own 404 page, an API route's JSON error
+    // (its message came back as "404"), an uploaded site's 404.html.
+    const page = new Response('<h1>Nothing is published here</h1>', {
+      status: 404,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    })
+    expect(isErrorResult(page)).toBe(false)
+    expect(isErrorResult(Response.json({ error: 'x' }, { status: 422 }))).toBe(
+      false,
+    )
+    const file = new Blob(['<p>404</p>'], { type: 'text/html' })
+    expect(isErrorResult(new Response(file, { status: 404 }))).toBe(false)
+  })
+
+  test('an error with no body or a plain-text one is still dressed', () => {
+    // What the framework itself answers with, and what a handler returns when
+    // it wants the app's error page rather than a page of its own.
+    expect(isErrorResult(response.error('Not Found'))).toBe(true)
+    expect(isErrorResult(new Response('Not Found', { status: 404 }))).toBe(true)
+    expect(isErrorResult(new Response(null, { status: 403 }))).toBe(true)
+    // A body nothing types: nothing says it is a document.
+    const stream = new ReadableStream({ start: c => c.close() })
+    expect(isErrorResult(new Response(stream, { status: 500 }))).toBe(true)
   })
 
   test('non-objects are not errors and do not throw', () => {

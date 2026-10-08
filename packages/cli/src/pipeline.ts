@@ -35,10 +35,38 @@ export type RateLimitConfig = Exclude<ProcessedAppConfig['rateLimit'], false>
  * 400 is included: `>= 400`, not `> 400`. A handler returning a bare
  * `new Response(…, {status: 404})` must still reach `TSXErrorHandler` and get
  * the app's error page rather than an empty body.
+ *
+ * A Response whose body the app wrote as a document is not an error to dress,
+ * whatever its status: `hasOwnDocument`. The registry keeps only the status
+ * of what it replaces, so through 2.2.2 an `onRequest` answering with its own
+ * 404 page came back as the app's `error-404.html` (or Bakery's own page),
+ * and an API route's `Response.json({ error }, { status: 404 })` as an
+ * envelope whose message read `404`.
  */
 export function isErrorResult(res: unknown): boolean {
-  if (res instanceof Response) return res.status >= 400
+  if (res instanceof Response) return res.status >= 400 && !hasOwnDocument(res)
   return is.object(res) && 'errorCode' in res
+}
+
+/**
+ * Whether an error Response carries a document of its own: a body typed as
+ * anything but plain text (an HTML page, a JSON document, an uploaded site's
+ * `404.html`).
+ *
+ * What asks to be dressed is untyped or plain text: `response.error()`, a
+ * null body, and a string body such as the router's own
+ * `new Response('Not Found', { status: 404 })`, which Bun leaves untyped until
+ * it is sent. Those still get the app's error page, or the JSON envelope under
+ * `/api`.
+ *
+ * The header alone, never `res.body`: on Bun 1.4.2 reading the body of a Blob
+ * or file Response first makes its `content-type` read `null`, so
+ * `new Response(Bun.file('404.html'), { status: 404 })` would be judged
+ * untyped and dressed.
+ */
+export function hasOwnDocument(res: Response): boolean {
+  const type = res.headers.get('content-type')
+  return Boolean(type) && !/^text\/plain\b/i.test(type!)
 }
 
 /**

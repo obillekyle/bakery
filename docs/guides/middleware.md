@@ -92,17 +92,24 @@ carried on, and the protected page was served with a `200`. On a path with no
 route it surfaced instead as a puzzling `404`: the framework's own error page,
 with the `401` and the message gone. Pinned by `$middleware.test.ts`.
 
-### A `Response` with a 4xx/5xx status gets the error page
+### A plain-text or empty 4xx/5xx `Response` gets the error page
 
-Worth knowing before you debug it. Any `Response` with `status >= 400` (from
-middleware or anywhere else) is routed through `handleRequestError`
-(`packages/cli/src/worker.ts`), which **keeps the status and replaces the
-body** with the app's error page, or the framework's built-in one:
+Worth knowing before you debug it. A `Response` with `status >= 400` (from
+middleware or anywhere else) whose body is plain text, untyped or absent is
+routed through `handleRequestError` (`packages/cli/src/worker.ts`), which
+**keeps the status and replaces the body** with the app's error page, or the
+framework's built-in one:
 
 ```
 new Response('Unauthorized', { status: 401 })
   →  401, but the body is the Bakery 401 error page, not "Unauthorized"
 ```
+
+A body typed as a document of its own is sent as written, status and all: an
+HTML page (`response.html(page, 404)`, a `Bun.file('404.html')`), JSON
+(`Response.json({ error }, { status: 422 })`), or any other type but
+`text/plain` (`hasOwnDocument` in `packages/cli/src/pipeline.ts`). Through
+2.2.2 those were replaced too, keeping only the status.
 
 A `response.json.*` envelope does not go through that path (`handleRequestError`
 keys on `errorCode`, which an envelope does not carry), so it reaches the client

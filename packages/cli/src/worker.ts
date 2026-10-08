@@ -305,6 +305,11 @@ try {
               Bakery.sharedPool.incrementCounter(COUNTER_SLOTS.TOTAL_ERRORS, 1)
               return await handleRequestError(path, req, res)
             }
+            // The app's own error page (see `hasOwnDocument`): sent as written,
+            // and still an error answer for the counter.
+            if (res instanceof Response && res.status >= 400) {
+              Bakery.sharedPool.incrementCounter(COUNTER_SLOTS.TOTAL_ERRORS, 1)
+            }
             return res
           },
 
