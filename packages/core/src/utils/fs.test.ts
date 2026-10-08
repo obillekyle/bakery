@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { type HostContext, hostStore } from '../core/context'
 import { Try } from './common'
@@ -457,21 +457,86 @@ describe('fs.getOrCreateCachedFile', () => {
     expect(compiles).toBe(1)
 
     // ...and a newer source still rebuilds, so the guard did not swallow the
-    // mtime check it wraps.
-    await fs.getOrCreateCachedFile(
-      dir,
-      'sequential.js',
-      Date.now() + 60_000,
-      () => {
-        compiles++
-        return 'second'
-      },
-    )
+    // version check it wraps.
+    const newer = Date.now() + 60_000
+    await fs.getOrCreateCachedFile(dir, 'sequential.js', newer, () => {
+      compiles++
+      return 'second'
+    })
 
     expect(compiles).toBe(2)
-    expect(await Bun.file(fs.resolve(dir, 'sequential.js')).text()).toBe(
-      'second',
-    )
+    expect(
+      await Bun.file(fs.resolve(dir, `sequential@${newer}.js`)).text(),
+    ).toBe('second')
+  })
+
+  test('an edit that lands during a build is served its own build', async () => {
+    // The race behind an SFC served with its new template and its old styles:
+    // a build reads the source, the source is edited, the build writes. The
+    // request for the edit used to join that build, and every request after
+    // it was served it too, since its file was written after the edit.
+    let release!: () => void
+    const held = new Promise<void>(resolve => (release = resolve))
+    const slow = fs.getOrCreateCachedFile(dir, 'edited.js', 1000, async () => {
+      await held
+      return 'before the edit'
+    })
+
+    const during = fs.getOrCreateCachedFile(dir, 'edited.js', 2000, () => {
+      return 'after the edit'
+    })
+    release()
+    const [first, second] = await Promise.all([slow, during])
+
+    const text = async (file: Bun.BunFile | null) =>
+      new TextDecoder().decode(
+        Bun.zstdDecompressSync(await file!.arrayBuffer()),
+      )
+    expect(await text(first)).toBe('before the edit')
+    expect(await text(second)).toBe('after the edit')
+
+    let compiles = 0
+    const after = await fs.getOrCreateCachedFile(dir, 'edited.js', 2000, () => {
+      compiles++
+      return 'rebuilt'
+    })
+    expect(await text(after)).toBe('after the edit')
+    expect(compiles).toBe(0)
+  })
+
+  test('a newer build sweeps the older ones and spares a newer one', async () => {
+    const names = () =>
+      readdirSync(dir)
+        .filter(name => name.startsWith('swept@'))
+        .sort()
+    const settle = () => Bun.sleep(50)
+
+    // Sweeps wait ten seconds in a server; at once here.
+    fs.__setSweepDelay(0)
+    try {
+      await fs.getOrCreateCachedFile(dir, 'swept.js', 1000, () => 'one')
+      await fs.getOrCreateCachedFile(dir, 'swept.js', 3000, () => 'three')
+      await settle()
+      expect(names()).toEqual([
+        'swept@3000.js',
+        'swept@3000.js.gz',
+        'swept@3000.js.zst',
+      ])
+
+      // A build that finishes late, for an older source, leaves the newer be.
+      await fs.getOrCreateCachedFile(dir, 'swept.js', 2000, () => 'two')
+      await settle()
+      expect(names()).toEqual([
+        'swept@2000.js',
+        'swept@2000.js.gz',
+        'swept@2000.js.zst',
+        'swept@3000.js',
+        'swept@3000.js.gz',
+        'swept@3000.js.zst',
+      ])
+    } finally {
+      fs.__setSweepDelay(10_000)
+    }
   })
 
   test('a failed build is retried rather than remembered', async () => {

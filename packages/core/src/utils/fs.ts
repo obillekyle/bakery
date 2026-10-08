@@ -3,7 +3,11 @@ import {
   existsSync as nodeExistsSync,
   statSync as nodeStatSync,
 } from 'node:fs'
-import { mkdir as fsMkdir, rm as fsRm } from 'node:fs/promises'
+import {
+  mkdir as fsMkdir,
+  readdir as fsReaddir,
+  rm as fsRm,
+} from 'node:fs/promises'
 import {
   dirname as nodeDirname,
   relative as nodeRelative,
@@ -288,9 +292,11 @@ export namespace FileSystem {
    * one question about one file cost two stats and an allocation.
    *
    * It shows up wherever a caller asks both questions, which is the common
-   * shape - `validCache` below, `nm.ts`'s `exists(nmFile) ? nmFile.lastModified`,
-   * and both mtime comparisons in `image.ts`. Measured on this machine, four
-   * interleaved rounds against a CPU-bound control flat at 27-31 ms:
+   * shape - `nm.ts`'s `exists(nmFile) ? nmFile.lastModified`, both mtime
+   * comparisons in `image.ts`, and the cache check `validCache` was before
+   * the source's version went into the cache file's name (see
+   * `versionedName`). Measured on this machine, four interleaved rounds
+   * against a CPU-bound control flat at 27-31 ms:
    *
    *     validCache, file present    33.0 us -> 17.3 us    1.9x
    *     validCache, file absent     34.9 us -> 17.4 us    2.0x
@@ -563,19 +569,106 @@ export namespace FileSystem {
   }
 
   /**
-   * Two reads of one `BunFile`, which is one stat: `exists` no longer
-   * re-wraps the instance, so the second read comes off the cached stat.
+   * The name a build of `cacheName` from a source of `sourceMtime` is kept
+   * under: the mtime goes into the name ahead of the extension, which still
+   * decides the MIME type and the compression (`abc.js` built from a source of
+   * 1791456519209 is `abc@1791456519209.js`). With no mtime to check, the
+   * plain name.
+   *
+   * So a cached file answers for one version of its source, and existence is
+   * the whole test. The test before compared the source's mtime with the
+   * cache file's mtime, which is its *write* time: a build that read the
+   * source, then saw it edited before it wrote, left a file newer than the
+   * edit, which then counted as current for it and served the previous
+   * version until the next edit. Measured with a build held open across an
+   * edit: the request for the edit and every request after it got the build
+   * of the source before it. That is how an SFC in a dev server kept its old
+   * styles beside a new template and script after three quick edits.
    */
-  function validCache(file: Bun.BunFile, sourceMtime: number | null): boolean {
-    return exists(file) && (!sourceMtime || sourceMtime <= file.lastModified)
+  function versionedName(cacheName: string, sourceMtime: number | null): string {
+    if (!sourceMtime) return cacheName
+    const ext = parse(cacheName).ext
+    return `${cacheName.slice(0, cacheName.length - ext.length)}@${sourceMtime}${ext}`
+  }
+
+  /**
+   * Delete the builds of `cacheName` from sources older than `sourceMtime`, raw
+   * and compressed, once a newer one is written: every edit would otherwise
+   * leave its predecessor's three files behind for as long as the cache lives.
+   *
+   * Older only, so a build that finishes late never deletes a newer one beside
+   * it. Best effort, and off the request's path: a file another request is
+   * still sending cannot be deleted on Windows, and the next build's sweep
+   * finds it again. Listing the directory is the cost, 1.5 ms for 3000 entries
+   * on this machine, paid once per build.
+   */
+  async function dropOlderBuilds(
+    cacheDir: string,
+    cacheName: string,
+    sourceMtime: number,
+  ): Promise<void> {
+    const ext = parse(cacheName).ext
+    const stem = cacheName.slice(0, cacheName.length - ext.length)
+    const [, names] = await Try.catch(() => fsReaddir(cacheDir))
+    if (!names) return
+
+    const prefix = `${stem}@`
+    for (const name of names) {
+      if (!name.startsWith(prefix)) continue
+      const rest = name.slice(prefix.length)
+      const version = rest.match(/^(\d+)/)?.[1]
+      if (!version || Number(version) >= sourceMtime) continue
+      // The rest of the name after the version must be this entry's own
+      // extension, compressed or not: `abc@1.root.js` is another entry.
+      const suffix = rest.slice(version.length)
+      if (!buildSuffixes(ext).includes(suffix)) continue
+      // Not awaited one by one, and a failure is only a file left for the
+      // next sweep: see above.
+      void fsRm(resolve(cacheDir, name), { force: true }).catch(() => undefined)
+    }
+  }
+
+  /** `.js`, `.js.zst`, `.js.gz`: the names one build writes, for `ext`. */
+  function buildSuffixes(ext: string): string[] {
+    return [ext, ...COMPRESSION_MAP.map(c => `${ext}${c.ext}`)]
+  }
+
+  /**
+   * How long a superseded build is kept before its sweep. A build of an
+   * older source can finish after a newer one has written, and its caller
+   * opens the file it was handed a moment later: a sweep run straight away
+   * deleted it first, and that request answered ENOENT (2 runs in 8 of the
+   * test that holds a build open across an edit). Ten seconds is far longer
+   * than a request takes to open its file.
+   */
+  let sweepDelayMs = 10_000
+
+  /** Test seam: how long a sweep waits. See `sweepDelayMs`. */
+  export function __setSweepDelay(ms: number): void {
+    sweepDelayMs = ms
+  }
+
+  /** Sweep the versions before `sourceMtime` once the delay has passed. */
+  function scheduleSweep(
+    cacheDir: string,
+    cacheName: string,
+    sourceMtime: number,
+  ): void {
+    const timer = setTimeout(
+      () => void dropOlderBuilds(cacheDir, cacheName, sourceMtime),
+      sweepDelayMs,
+    )
+    // A pending sweep is housekeeping: it must not hold a process open.
+    timer.unref?.()
   }
 
   type FileContent = string | Uint8Array<ArrayBuffer> | ArrayBuffer
 
   /**
-   * Builds currently running, keyed on the resolved raw path.
+   * Builds currently running, keyed on the resolved raw path, which names the
+   * source's version (`versionedName`).
    *
-   * `validCache` is a pure filesystem test with no record of work in progress,
+   * The cache test is a pure filesystem test with no record of work in progress,
    * so N concurrent first-hits on a cold cache each saw "not cached", each ran
    * `compiler()`, and each wrote the same three paths. Measured: 8 concurrent
    * callers produced 8 compiler invocations. Every `.ts`/`.tsx`/`.vue` asset
@@ -589,12 +682,12 @@ export namespace FileSystem {
    * bounded by construction (convention 6): an entry exists only while its own
    * build is running, never past it.
    *
-   * The key is the path alone, not the path plus `sourceMtime`. A caller that
-   * joins mid-build can therefore receive a build started for a marginally
-   * older mtime: a window only as wide as one compile, which the next request
-   * re-validates and rebuilds. Including the mtime would close that window by
-   * letting two builds of the same file race each other onto the same three
-   * output paths, which is the worse trade.
+   * The key carries the version because the path does. A caller for a newer
+   * source used to join a build of an older one, and this note said the next
+   * request would re-validate and rebuild: it did not, since that build's file
+   * was written after the edit and so counted as current (`versionedName`).
+   * Builds of two versions write two sets of paths now, so they never race
+   * onto the same three.
    */
   const inFlightBuilds = new Map<string, Promise<Bun.BunFile | null>>()
 
@@ -605,7 +698,7 @@ export namespace FileSystem {
     compiler: () => MixedPromise<FileContent | null>,
     compress = true,
   ): Promise<Bun.BunFile | null> {
-    const rawPath = resolve(cacheDir, cacheName)
+    const rawPath = resolve(cacheDir, versionedName(cacheName, sourceMtime))
 
     const pending = inFlightBuilds.get(rawPath)
     if (pending) return pending
@@ -637,11 +730,17 @@ export namespace FileSystem {
     const compressible = compress && isCompressible(ext)
 
     const rawFile = Bun.file(rawPath)
+    // Once written, superseded versions go, after a delay: see
+    // `dropOlderBuilds` and `sweepDelayMs`.
+    const built = <T>(file: T): T => {
+      if (sourceMtime) scheduleSweep(cacheDir, cacheName, sourceMtime)
+      return file
+    }
 
     if (compressible) {
       for (const { ext: compExt } of COMPRESSION_MAP) {
         const compFile = Bun.file(`${rawPath}${compExt}`)
-        if (validCache(compFile, sourceMtime)) return compFile
+        if (exists(compFile)) return compFile
       }
 
       const content = await compiler()
@@ -670,19 +769,19 @@ export namespace FileSystem {
         }),
       ])
 
-      return Bun.file(rawPath + COMPRESSION_MAP[0].ext)
+      return built(Bun.file(rawPath + COMPRESSION_MAP[0].ext))
     }
 
     // The mirror of the compressed branch's check above. Without it a
     // non-compressible entry (a .woff2 from the gstatic proxy, say) was
     // rebuilt (for fonts, re-fetched upstream) on every single request.
-    if (validCache(rawFile, sourceMtime)) return rawFile
+    if (exists(rawFile)) return rawFile
 
     const content = await compiler()
     if (content == null) return null
     await mkdir(cacheDir)
     await rawFile.write(content)
-    return rawFile
+    return built(rawFile)
   }
 
   /**
