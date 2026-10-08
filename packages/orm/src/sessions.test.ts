@@ -353,10 +353,12 @@ function contract(dialect: string, skip: boolean, open: () => Promise<Opened>) {
         await initConfig()
         __setTestConfig({ sessions: { store, account: 'accountId' } })
         try {
-          const request = async (id?: string) => {
+          // `cookie` is the `sId=…` pair the login's response set: the id
+          // and its signature, which is what a browser sends back.
+          const request = async (cookie?: string) => {
             const req = new Request(
               'http://localhost/',
-              id ? { headers: { cookie: `sId=${id}` } } : undefined,
+              cookie ? { headers: { cookie } } : undefined,
             )
             const loading = Session.attach(req)
             if (loading) await alive(loading)
@@ -365,12 +367,13 @@ function contract(dialect: string, skip: boolean, open: () => Promise<Opened>) {
 
           const login = await request()
           login.session.regenerate().set('accountId', 7, true)
-          expect(await alive(Session.commit(login))).toContain('sId=')
-          const id = login.session.id
+          const issued = await alive(Session.commit(login))
+          expect(issued).toContain(`sId=${login.session.id}.`)
+          const cookie = issued.split(';')[0]
 
-          expect((await request(id)).session.get('accountId')).toBe(7)
+          expect((await request(cookie)).session.get('accountId')).toBe(7)
           expect(await alive(Session.endForAccount(7))).toBe(1)
-          expect((await request(id)).session.get('accountId')).toBeUndefined()
+          expect((await request(cookie)).session.get('accountId')).toBeUndefined()
         } finally {
           __resetTestConfig()
         }

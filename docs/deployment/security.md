@@ -77,6 +77,11 @@ and `curl`/server-to-server callers send neither.
 `sId=…; Path=/; HttpOnly; SameSite=Lax; Max-Age=…; Secure`
 (`packages/core/src/session.ts`).
 
+The value is the session id and an HMAC of it (`session-signing.ts`), so a
+made-up id is refused before any store is asked. The key is
+`sessions.secret`, or one made once and kept in `bakery/session.key`; keep
+that file as private as the database beside it.
+
 `Secure` is set over https, or with `trustProxy` and
 `x-forwarded-proto: https`, or **whenever the process is in production**, so a
 TLS terminator that forgets the header cannot downgrade the cookie. You do not

@@ -3,6 +3,7 @@ import { Bakery, hostKey } from './core/bakery'
 import { peekConfig, resolveHostname } from './core/config'
 import { hostStore } from './core/context'
 import { errorMsg, serveLog } from './logger/serve-log'
+import { signSessionId, verifiedSessionId } from './session-signing'
 import type { MapOf } from './types'
 import { deferredValue, hasDeferredValue } from './utils'
 import { DEFAULT_SESSION_PERSIST, DEFAULT_SESSION_TTL } from './utils/constants'
@@ -175,6 +176,13 @@ export interface SessionOptions {
    * `Session.endForAccount` can end every session of one account.
    */
   account?: string
+  /**
+   * Signs the session cookie, so a made-up id is refused before any store is
+   * asked (`session-signing.ts`). Omitted, a key is made once and kept in
+   * `bakery/session.key`. Servers that share one store need the same secret.
+   * Changing it ends every session: their cookies no longer verify.
+   */
+  secret?: string
 }
 
 /**
@@ -359,7 +367,8 @@ export class Session<
       req.url?.startsWith('https:') || forwardedHttps || import.meta.env.PROD,
     )
     const secureFlag = isHttps ? '; Secure' : ''
-    return `sId=${session.id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secureFlag}`
+    const value = signSessionId(session.id, sessionOptions()?.secret)
+    return `sId=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secureFlag}`
   }
 
   public static delete(reqOrId: string | Request): boolean {
@@ -413,7 +422,10 @@ export class Session<
 
     if (!request.headers.has('cookie')) return ''
     const cookieHeader = request.headers.get('cookie') || ''
-    return cookieHeader.match(/(?:^|;\s*)sId=([^;]+)/)?.[1] || ''
+    const value = cookieHeader.match(/(?:^|;\s*)sId=([^;]+)/)?.[1]
+    // Signed: an id whose MAC does not match names no session, so neither
+    // store is asked about it. See `session-signing.ts`.
+    return value ? verifiedSessionId(value, sessionOptions()?.secret) : ''
   }
 
   public static from<T extends MapOf<any> = MapOf<any>>(

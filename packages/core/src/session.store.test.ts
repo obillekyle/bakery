@@ -16,6 +16,7 @@ import {
   type SessionStore,
   type StoredSession,
 } from './session'
+import { signSessionId } from './session-signing'
 import { DEFAULT_SESSION_PERSIST, DEFAULT_SESSION_TTL } from './utils/constants'
 
 /**
@@ -127,7 +128,7 @@ function useStore(account: string | null = 'accountId'): MapStore {
 async function request(id?: string): Promise<Request> {
   const req = new Request(
     'http://localhost/',
-    id ? { headers: { cookie: `sId=${id}` } } : undefined,
+    id ? { headers: { cookie: `sId=${signSessionId(id)}` } } : undefined,
   )
   const loading = Session.attach(req)
   if (loading) await loading
@@ -157,6 +158,34 @@ describe('a configured session store', () => {
     })
     expect(Session.attach(req)).toBeUndefined()
     expect(store.calls).toEqual([])
+  })
+
+  test('a made-up id costs no lookup, however well-formed', async () => {
+    // Through 2.2.2 each of these was a lookup by primary key, made before the
+    // rate limiter could refuse anything: a flood of them queued on the pool.
+    useStore()
+    const id = await signIn(7)
+    store.calls = []
+    const signed = signSessionId(id)
+    const mac = signed.slice(signed.lastIndexOf('.') + 1)
+    const forged = [
+      id, // unsigned, as every cookie was before signing
+      `${id}.${'A'.repeat(mac.length)}`, // a guessed MAC
+      `${'B'.repeat(id.length)}.${mac}`, // another id under this one's MAC
+      `${id}.${mac.slice(1)}`, // a MAC cut short
+    ]
+    for (const value of forged) {
+      const req = new Request('http://localhost/', {
+        headers: { cookie: `sId=${value}` },
+      })
+      expect(Session.attach(req)).toBeUndefined()
+      expect(req.session.get('accountId')).toBeUndefined()
+    }
+    expect(store.calls).toEqual([])
+
+    // The genuine cookie still costs exactly the one lookup.
+    expect((await request(id)).session.get('accountId')).toBe(7)
+    expect(store.calls).toEqual(['load'])
   })
 
   test('a session written by one request is the next request’s, read synchronously', async () => {
@@ -435,7 +464,7 @@ describe('ending sessions in the built-in store', () => {
 
     expect(await Session.endForAccount(41)).toBe(1)
     const after = new Request('http://localhost/', {
-      headers: { cookie: `sId=${id}` },
+      headers: { cookie: `sId=${signSessionId(id)}` },
     })
     Session.attach(after)
     expect(after.session.get('accountId')).toBeUndefined()
@@ -450,7 +479,7 @@ describe('ending sessions in the built-in store', () => {
     const id = login.session.id
 
     const inFlight = new Request('http://localhost/', {
-      headers: { cookie: `sId=${id}` },
+      headers: { cookie: `sId=${signSessionId(id)}` },
     })
     Session.attach(inFlight)
     expect(inFlight.session.get('accountId')).toBe(42)

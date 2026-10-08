@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { Bakery, hostStore } from './core/bakery'
 import { __resetTestConfig, __setTestConfig, initConfig } from './core/config'
 import { __resetTestClock, __setTestClock, Session } from './session'
+import { signSessionId } from './session-signing'
 import { deferredValue } from './utils/common'
 
 describe('Session', () => {
@@ -170,7 +171,7 @@ describe('sessions are scoped to the host that issued them', () => {
     )
 
     const req = new Request('http://b.com/', {
-      headers: { cookie: `sId=${id}` },
+      headers: { cookie: `sId=${signSessionId(id)}` },
     })
     const seen = onHost('b.com', () => Session.from(req))
     expect(seen.id).not.toBe(id)
@@ -178,7 +179,7 @@ describe('sessions are scoped to the host that issued them', () => {
 
     // …and the real owner is untouched.
     const own = new Request('http://a.com/', {
-      headers: { cookie: `sId=${id}` },
+      headers: { cookie: `sId=${signSessionId(id)}` },
     })
     expect(onHost('a.com', () => Session.from(own)).get('token')).toBe(
       'a-secret',
@@ -268,7 +269,7 @@ describe('Session.regenerate', () => {
     // The attacker fixes the id, then the victim logs in on it.
     const planted = 'attacker-chosen-id'
     const victim = new Request('http://localhost/', {
-      headers: { cookie: `sId=${planted}` },
+      headers: { cookie: `sId=${signSessionId(planted)}` },
     })
     Session.create({ id: planted, persistKeys: [], data: {} })
 
@@ -279,7 +280,7 @@ describe('Session.regenerate', () => {
 
     // The attacker still holds `planted`; it now names nothing.
     const attacker = new Request('http://localhost/', {
-      headers: { cookie: `sId=${planted}` },
+      headers: { cookie: `sId=${signSessionId(planted)}` },
     })
     expect(Session.from(attacker).get('userId')).toBeUndefined()
   })
@@ -321,7 +322,7 @@ describe('Session.destroy', () => {
   function makeReq(id?: string): Request {
     const req = new Request(
       'http://localhost/',
-      id ? { headers: { cookie: `sId=${id}` } } : undefined,
+      id ? { headers: { cookie: `sId=${signSessionId(id)}` } } : undefined,
     )
     deferredValue(req, 'session', Session.from)
     return req

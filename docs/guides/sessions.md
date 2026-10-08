@@ -22,7 +22,9 @@ nothing.
 
 On first read (`packages/core/src/session.ts`):
 
-1. The `sId` cookie is parsed out of the `Cookie` header.
+1. The `sId` cookie is parsed out of the `Cookie` header and its signature
+   checked. A cookie whose signature does not match names no session, and no
+   store is asked about it (see [The cookie](#the-cookie)).
 2. If it names a live, unexpired session, that one is returned and marked
    accessed, which slides expiry without counting as a write.
 3. Otherwise a new empty `Session` is created.
@@ -51,10 +53,19 @@ keeps it (`router.ts`).
 ## The cookie
 
 ```
-sId=<id>; Path=/; HttpOnly; SameSite=Lax; Max-Age=<seconds>; Secure
+sId=<id>.<mac>; Path=/; HttpOnly; SameSite=Lax; Max-Age=<seconds>; Secure
 ```
 
 Built at `packages/core/src/session.ts`.
+
+- **Signed.** `<mac>` is an HMAC-SHA256 of the id, 128 bits of it, keyed by
+  `sessions.secret` when it is set and otherwise by a key made once and kept
+  in `bakery/session.key` (`session-signing.ts`). A cookie whose MAC does not
+  match names no session and costs no lookup: refusing one takes about 3.6 µs,
+  where the database store's lookup takes 0.37 ms (below). Servers that share
+  one store need the same `sessions.secret`, and changing the secret ends
+  every session, since no cookie verifies any more. The stored id has no MAC
+  in it, so no store row changes.
 
 - **`HttpOnly`** always. Script cannot read the session id.
 - **`SameSite=Lax`** always. This stops a cross-site `fetch` or form POST from
@@ -410,9 +421,11 @@ moves, since no worker keeps a copy of the session that could be stale.
 
 ### What it costs
 
-A request carrying a session cookie waits for one lookup by primary key before
-anything else runs, which is what lets the rate limiter's `keyBy` and every
-handler read `req.session` without awaiting it. Measured against Postgres 16
+A request carrying a session cookie that verifies waits for one lookup by
+primary key before anything else runs, which is what lets the rate limiter's
+`keyBy` and every handler read `req.session` without awaiting it. One that
+does not verify costs no lookup, so a flood of made-up ids from one address
+never reaches the database before the limiter refuses it. Measured against Postgres 16
 on loopback through the store itself, two adjacent runs with 2,000 sessions in
 the table: 0.37 ms a lookup, against 0.28 to 0.30 ms for `SELECT 1` on the
 same connection, so about 0.08 ms beyond the round trip. A renewal, an

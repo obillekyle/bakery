@@ -7,6 +7,7 @@ import {
   newSessionId,
   Session,
 } from './session'
+import { signSessionId } from './session-signing'
 import { deferredValue } from './utils/common'
 import { DEFAULT_SESSION_TTL } from './utils/constants'
 
@@ -33,7 +34,7 @@ describe('session accessed/modified split', () => {
   function makeReq(sessionId?: string): Request {
     const req = new Request(
       'http://localhost/',
-      sessionId ? { headers: { cookie: `sId=${sessionId}` } } : undefined,
+      sessionId ? { headers: { cookie: `sId=${signSessionId(sessionId)}` } } : undefined,
     )
     deferredValue(req, 'session', Session.from)
     return req
