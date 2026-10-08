@@ -63,15 +63,27 @@ export type LayoutListener = (
   cause: 'click' | 'navigate' | 'history',
 ) => boolean | undefined | void
 
+/**
+ * `path` without its query and hash: the part a route is matched on. A link
+ * to `/campus/ma/students?standing=pending` used to keep its query in the
+ * last segment and render a page named `students?standing=pending`.
+ */
+function pathOnly(path: string): string {
+  const cut = path.search(/[?#]/)
+  return cut < 0 ? path : path.slice(0, cut)
+}
+
 /** Is `path` the base itself or inside it? Prefix-safe: `/admin` ≠ `/admini`. */
 export function isUnderBase(base: string, path: string): boolean {
-  if (base === '') return path.startsWith('/')
-  return path === base || path.startsWith(`${base}/`)
+  const pathname = pathOnly(path)
+  if (base === '') return pathname.startsWith('/')
+  return pathname === base || pathname.startsWith(`${base}/`)
 }
 
 /** The segments of `path` below `base`: `[]` for the base itself. */
 export function segmentsUnder(base: string, path: string): string[] {
-  const rest = base === '' ? path : path.slice(base.length)
+  const pathname = pathOnly(path)
+  const rest = base === '' ? pathname : pathname.slice(base.length)
   return rest.split('/').filter(Boolean)
 }
 
@@ -141,6 +153,8 @@ export function defineLayout(): LayoutNavigation {
       return
     }
     if (!fire(next, cause)) return
+    // The whole path goes into history, query and hash included: a reload
+    // has to land on the same view.
     if (typeof history !== 'undefined') history.pushState(null, '', path)
     segments.value = next
   }
@@ -167,12 +181,14 @@ export function defineLayout(): LayoutNavigation {
         url.pathname === location.pathname &&
         url.search === location.search
       ) {
+        // Only the hash differs: the browser's own same-document scroll.
+        if (url.hash && url.hash !== location.hash) return
         event.preventDefault()
         return
       }
 
       event.preventDefault()
-      go(url.pathname + url.search, 'click')
+      go(url.pathname + url.search + url.hash, 'click')
     })
 
     window.addEventListener('popstate', () => {

@@ -212,7 +212,10 @@ nav.on((next, prev, cause) => {
 The page becomes its subtree's layout: it renders whichever of its own
 components the segments mean. Clicks on same-origin links **under the base**
 become a `pushState` and a reactive update: no reload, component state
-survives. Links that leave the base navigate normally, and back/forward
+survives. A link's query string and hash stay in the URL and out of the
+segments: `/campus/ma/students?standing=pending` is the segments `ma`,
+`students`. A link that changes only the hash is left to the browser's own
+scroll. Links that leave the base navigate normally, and back/forward
 entries that leave it trigger a real load, because pretending otherwise would
 render a lie.
 

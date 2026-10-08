@@ -354,6 +354,133 @@ describe('navigate() path forms', () => {
 })
 
 /**
+ * A query string is not a path segment. In 2.2.2 a link to
+ * `/campus/ma/students?standing=pending` rendered a page named
+ * `students?standing=pending`: the click handler passed the path and the
+ * query to `go()`, and `segmentsUnder` split the lot on `/`.
+ */
+describe('defineLayout and the query string', () => {
+  test('segments and the base check read the path alone', () => {
+    const url = '/campus/ma/students?standing=pending#roster'
+    expect(segmentsUnder('/campus', url)).toEqual(['ma', 'students'])
+    expect(segmentsUnder('', '/a?b=/c')).toEqual(['a'])
+    // The bare directory with a query is still the subtree, not a way out.
+    expect(isUnderBase('/campus', '/campus?standing=pending')).toBe(true)
+    expect(isUnderBase('/campus', '/campus#top')).toBe(true)
+    expect(isUnderBase('/campus', '/campusx?a=1')).toBe(false)
+  })
+
+  test('navigate() keeps the query out of the segments', () => {
+    ;(globalThis as any).__vue_route = {
+      catchAll: true,
+      base: '/campus',
+      param: 'slug',
+    }
+    try {
+      const layout = defineLayout()
+      layout.navigate('/campus/ma/students?standing=pending')
+      expect(layout.segments.value).toEqual(['ma', 'students'])
+
+      layout.navigate('/campus?x=1#top')
+      expect(layout.segments.value).toEqual([])
+
+    } finally {
+      ;(globalThis as any).__vue_route = undefined
+    }
+  })
+
+  /**
+   * The click and back/forward paths, against the least of a browser they
+   * touch: `location`, `history`, and the two listeners. A real browser runs
+   * the same code in the rig (see the commit that added this).
+   */
+  test('a clicked link with a query soft-navigates and keeps it in the URL', () => {
+    const g = globalThis as any
+    let current = new URL('http://app.test/campus/ma')
+    const pushed: string[] = []
+    const on: Record<string, (event?: any) => void> = {}
+    g.location = {
+      get href() {
+        return current.href
+      },
+      set href(to: string) {
+        pushed.push(`load ${to}`)
+      },
+      get origin() {
+        return current.origin
+      },
+      get pathname() {
+        return current.pathname
+      },
+      get search() {
+        return current.search
+      },
+      get hash() {
+        return current.hash
+      },
+      reload: () => pushed.push('reload'),
+    }
+    g.history = {
+      pushState(_state: unknown, _title: string, path: string) {
+        current = new URL(path, current)
+        pushed.push(path)
+      },
+    }
+    g.document = {
+      addEventListener: (type: string, fn: () => void) => (on[type] = fn),
+    }
+    g.window = {
+      addEventListener: (type: string, fn: () => void) => (on[type] = fn),
+    }
+    g.__vue_route = { catchAll: true, base: '/campus', param: 'slug' }
+
+    const click = (href: string) => {
+      let prevented = false
+      const anchor = {
+        getAttribute: (name: string) => (name === 'href' ? href : null),
+        hasAttribute: () => false,
+      }
+      on.click!({
+        defaultPrevented: false,
+        button: 0,
+        target: { closest: () => anchor },
+        preventDefault: () => (prevented = true),
+      })
+      return prevented
+    }
+
+    try {
+      const layout = defineLayout()
+      expect(layout.segments.value).toEqual(['ma'])
+
+      expect(click('/campus/ma/students?standing=pending')).toBe(true)
+      expect(layout.segments.value).toEqual(['ma', 'students'])
+
+      // A query-only change: same segments, a history entry.
+      expect(click('?standing=active')).toBe(true)
+      expect(pushed).toEqual([
+        '/campus/ma/students?standing=pending',
+        '/campus/ma/students?standing=active',
+      ])
+
+      // Only the hash differs: left to the browser's own scroll.
+      expect(click('/campus/ma/students?standing=active#roster')).toBe(false)
+
+      // Back: the browser has already moved the entry, the view follows.
+      current = new URL('http://app.test/campus/ma/students?standing=pending')
+      on.popstate!()
+      expect(layout.segments.value).toEqual(['ma', 'students'])
+      expect(pushed).not.toContain('reload')
+    } finally {
+      for (const name of ['location', 'history', 'document', 'window']) {
+        delete g[name]
+      }
+      g.__vue_route = undefined
+    }
+  })
+})
+
+/**
  * The maintainer's counterexample: a catch-all with a more specific sibling.
  *
  *   admin/[...slug].vue
