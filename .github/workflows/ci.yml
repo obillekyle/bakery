@@ -51,10 +51,14 @@ jobs:
       - name: Test
         run: bun run test
 
-      # Nine projects, and the baseline is zero. Not "zero new", zero. tsc
-      # exits non-zero on any error, so this needs no threshold logic.
+      # Twelve projects (scripts/typecheck.ts has the list), and the baseline
+      # is zero. Not "zero new", zero: both checkers exit non-zero on any
+      # error, so this needs no threshold logic. `bun check` where Bun has it,
+      # `tsc` on 1.4.0, which has not: the two reported the same errors on
+      # planted errors in five projects, and running both keeps that true
+      # rather than assumed.
       - name: Typecheck
-        run: bun run typecheck
+        run: bun run typecheck ${{ matrix.bun == '1.4.0' && '--tsc' || '' }}
 
   adapters:
     name: live adapter round-trips

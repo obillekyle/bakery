@@ -299,7 +299,10 @@ cp packages/orm/templates/schema.example.ts apps/example/schema.ts
 The root scripts are thin wrappers that `cd` into `apps/example` first: `bun run
 dev`, `bun run serve`, `bun run db:sync`. `bun run test` and `bun run typecheck`
 are the two gates, and the baseline for both is zero: no failures, no type
-errors across all ten projects. Set `MYSQL_TEST_URL` and `PGSQL_TEST_URL` to
+errors across all twelve projects (`scripts/typecheck.ts` lists them, and
+`bun run typecheck core orm` checks two). The typecheck runs `bun check`,
+which Bun has from 1.4.3; on an older Bun, `bun run typecheck --tsc` runs
+`tsc` over the same projects. Set `MYSQL_TEST_URL` and `PGSQL_TEST_URL` to
 exercise the live-server tests, which skip without them.
 
 ## Next
