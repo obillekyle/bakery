@@ -2,7 +2,19 @@ import { Case } from '@bakery-framework/core/utils'
 import { throws } from '@bakery-framework/core/utils/common'
 import { getActiveDb, txStorage } from '../connection'
 import type { AppDBSchema as DBSchema } from '../schema-registry'
-import { ColumnRef as schemaColumnRef, OperatorRef as schemaOperatorRef, SQLFunctionRef as schemaSQLFunctionRef, SQL_FUNCTIONS, WindowRef as schemaWindowRef, col as schemaCol, evalOperands, isSafeIdentifier, nullComparison, qId, qRaw } from '../schema-util'
+import {
+  ColumnRef as schemaColumnRef,
+  OperatorRef as schemaOperatorRef,
+  SQLFunctionRef as schemaSQLFunctionRef,
+  SQL_FUNCTIONS,
+  WindowRef as schemaWindowRef,
+  col as schemaCol,
+  evalOperands,
+  isSafeIdentifier,
+  nullComparison,
+  qId,
+  qRaw,
+} from '../schema-util'
 import { Mutation } from './mutation'
 import { ArrayValue } from '../array-value'
 
@@ -128,7 +140,9 @@ export namespace DB {
    * so every call site got this answer anyway: it only misled the reader.
    */
   export type AllTableColumns = {
-    [T in keyof DBSchema]: `${T & string}.${Extract<keyof DBSchema[T] & string, string>}`
+    [
+      T in keyof DBSchema
+    ]: `${T & string}.${Extract<keyof DBSchema[T] & string, string>}`
   }[keyof DBSchema]
 
   export type WhereValue<C extends string> =
@@ -143,10 +157,7 @@ export namespace DB {
     | null
 
   export type WhereColumn<S extends TableSchemas, J extends string> =
-    | ColumnString<S, J>
-    | SQLFunctionRef<ColumnString<S, J>>
-    | QBRaw
-    | QBObject
+    ColumnString<S, J> | SQLFunctionRef<ColumnString<S, J>> | QBRaw | QBObject
 
   export type ResolveColumnString<
     S,
@@ -610,8 +621,11 @@ export namespace DB {
     C extends `${infer Table}.${infer _Col}` ? Table : C
 
   // Stage Interfaces for Method Ordering
-  export interface IQBTable<S extends TableSchemas, J extends string, P = any>
-    extends QBObject<P> {
+  export interface IQBTable<
+    S extends TableSchemas,
+    J extends string,
+    P = any,
+  > extends QBObject<P> {
     join<R extends AllTableColumns, A extends string | undefined = undefined>(
       leftCol: ColumnString<S, J>,
       rightCol: R,
@@ -690,7 +704,9 @@ export namespace DB {
     select<
       C extends SelectColumns<S, J>,
       P2 extends TakeSelectValues<S, C> = TakeSelectValues<S, C>,
-    >(columns: C): IQBSelect<S, J, P2>
+    >(
+      columns: C,
+    ): IQBSelect<S, J, P2>
     selectAll<A extends Extract<J, string>>(
       alias?: A,
     ): IQBSelect<
@@ -721,8 +737,11 @@ export namespace DB {
     ): IQBLimit<S, J, P>
   }
 
-  export interface IQBWhere<S extends TableSchemas, J extends string, P = any>
-    extends QBObject<P> {
+  export interface IQBWhere<
+    S extends TableSchemas,
+    J extends string,
+    P = any,
+  > extends QBObject<P> {
     and(
       column: WhereColumn<S, J>,
       valueOrRef?: WhereValue<ColumnString<S, J>>,
@@ -736,7 +755,9 @@ export namespace DB {
     select<
       C extends SelectColumns<S, J>,
       P2 extends TakeSelectValues<S, C> = TakeSelectValues<S, C>,
-    >(columns: C): IQBSelect<S, J, P2>
+    >(
+      columns: C,
+    ): IQBSelect<S, J, P2>
     selectAll<A extends Extract<J, string>>(
       alias?: A,
     ): IQBSelect<
@@ -761,12 +782,17 @@ export namespace DB {
     ): IQBLimit<S, J, P>
   }
 
-  export interface IQBGroupBy<S extends TableSchemas, J extends string, P = any>
-    extends QBObject<P> {
+  export interface IQBGroupBy<
+    S extends TableSchemas,
+    J extends string,
+    P = any,
+  > extends QBObject<P> {
     select<
       C extends SelectColumns<S, J>,
       P2 extends TakeSelectValues<S, C> = TakeSelectValues<S, C>,
-    >(columns: C): IQBSelect<S, J, P2>
+    >(
+      columns: C,
+    ): IQBSelect<S, J, P2>
     selectAll<A extends Extract<J, string>>(
       alias?: A,
     ): IQBSelect<
@@ -789,8 +815,11 @@ export namespace DB {
     distinct(): this
   }
 
-  export interface IQBHaving<S extends TableSchemas, J extends string, P = any>
-    extends QBObject<P> {
+  export interface IQBHaving<
+    S extends TableSchemas,
+    J extends string,
+    P = any,
+  > extends QBObject<P> {
     andHaving(
       column: WhereColumn<S, J>,
       valueOrRef?: WhereValue<ColumnString<S, J>>,
@@ -816,8 +845,11 @@ export namespace DB {
     ): IQBLimit<S, J, P>
   }
 
-  export interface IQBSelect<S extends TableSchemas, J extends string, P = any>
-    extends QBObject<P> {
+  export interface IQBSelect<
+    S extends TableSchemas,
+    J extends string,
+    P = any,
+  > extends QBObject<P> {
     /**
      * Grouping after selecting, which always worked at runtime (clauses are
      * assembled at `parse()`, so call order is irrelevant), and was simply
@@ -829,7 +861,9 @@ export namespace DB {
     select<
       C extends SelectColumns<S, J>,
       P2 extends TakeSelectValues<S, C> = TakeSelectValues<S, C>,
-    >(columns: C): IQBSelect<S, J, P & P2>
+    >(
+      columns: C,
+    ): IQBSelect<S, J, P & P2>
     selectAll<A extends Extract<J, string>>(
       alias?: A,
     ): IQBSelect<
@@ -877,8 +911,11 @@ export namespace DB {
     ): IQBLimit<S, J, P>
   }
 
-  export interface IQBOrderBy<S extends TableSchemas, J extends string, P = any>
-    extends QBObject<P> {
+  export interface IQBOrderBy<
+    S extends TableSchemas,
+    J extends string,
+    P = any,
+  > extends QBObject<P> {
     orderBy(
       colStr: keyof P | ColumnString<S, J>,
       direction?: 'ASC' | 'DESC',
@@ -896,8 +933,11 @@ export namespace DB {
     ): IQBLimit<S, J, P>
   }
 
-  export interface IQBLimit<S extends TableSchemas, J extends string, P = any>
-    extends QBObject<P> {
+  export interface IQBLimit<
+    S extends TableSchemas,
+    J extends string,
+    P = any,
+  > extends QBObject<P> {
     /** `SELECT DISTINCT`. See the runtime method for the semantics. */
     distinct(): this
     limit(count: number, offset?: number): IQBLimit<S, J, P>
@@ -1120,10 +1160,10 @@ export namespace DB {
   }
 
   export class QB<
-      S extends TableSchemas = DBSchema,
-      J extends string = never,
-      P = any,
-    >
+    S extends TableSchemas = DBSchema,
+    J extends string = never,
+    P = any,
+  >
     extends QBObject<P>
     implements
       IQBTable<S, J, P>,

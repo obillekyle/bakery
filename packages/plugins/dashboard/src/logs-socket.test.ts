@@ -40,14 +40,26 @@ afterAll(() => {
 
 describe('the console log socket', () => {
   test('claims its own path and nothing else', async () => {
-    expect(await DashboardLogsHandler.canHandle('/_dashboard/logs', req('/_dashboard/logs'))).toBe(true)
+    expect(
+      await DashboardLogsHandler.canHandle(
+        '/_dashboard/logs',
+        req('/_dashboard/logs'),
+      ),
+    ).toBe(true)
 
     // Not the live-reload socket, which stays the watcher's.
-    expect(await DashboardLogsHandler.canHandle('/_livereload', req('/_livereload'))).toBe(false)
-    // Not the console page, which is a fetch route at priority 120.
-    expect(await DashboardLogsHandler.canHandle('/_dashboard', req('/_dashboard'))).toBe(false)
     expect(
-      await DashboardLogsHandler.canHandle('/_dashboard/logs/extra', req('/_dashboard/logs/extra')),
+      await DashboardLogsHandler.canHandle('/_livereload', req('/_livereload')),
+    ).toBe(false)
+    // Not the console page, which is a fetch route at priority 120.
+    expect(
+      await DashboardLogsHandler.canHandle('/_dashboard', req('/_dashboard')),
+    ).toBe(false)
+    expect(
+      await DashboardLogsHandler.canHandle(
+        '/_dashboard/logs/extra',
+        req('/_dashboard/logs/extra'),
+      ),
     ).toBe(false)
   })
 
@@ -59,7 +71,12 @@ describe('the console log socket', () => {
     setAnalyticsAuthorize(undefined)
     setAnalyticsCredential(undefined)
 
-    expect(await DashboardLogsHandler.canHandle('/_dashboard/logs', req('/_dashboard/logs'))).toBe(false)
+    expect(
+      await DashboardLogsHandler.canHandle(
+        '/_dashboard/logs',
+        req('/_dashboard/logs'),
+      ),
+    ).toBe(false)
   })
 
   test('the analytics credential admits it, the same as the console', async () => {

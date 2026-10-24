@@ -652,14 +652,20 @@ const RX_RELATIVE_SPECIFIER =
  * Brackets are percent-encoded: a requested name is read as a glob, where a
  * bare `[id]` is a character class and never matches the file of that name.
  */
-export function absolutizeRelativeImports(code: string, routePath: string): string {
+export function absolutizeRelativeImports(
+  code: string,
+  routePath: string,
+): string {
   const base = `http://bakery.invalid${routePath.replace(/\\/g, '/')}`
-  return code.replace(RX_RELATIVE_SPECIFIER, (match, lead: string, quote: string, spec: string) => {
-    const url = Try.return(() => new URL(spec, base), null)
-    if (!url) return match
-    const path = url.pathname.replaceAll('[', '%5B').replaceAll(']', '%5D')
-    return `${lead}${quote}${path}${url.search}${url.hash}${quote}`
-  })
+  return code.replace(
+    RX_RELATIVE_SPECIFIER,
+    (match, lead: string, quote: string, spec: string) => {
+      const url = Try.return(() => new URL(spec, base), null)
+      if (!url) return match
+      const path = url.pathname.replaceAll('[', '%5B').replaceAll(']', '%5D')
+      return `${lead}${quote}${path}${url.search}${url.hash}${quote}`
+    },
+  )
 }
 
 export function rewriteVueImports(code: string): string {

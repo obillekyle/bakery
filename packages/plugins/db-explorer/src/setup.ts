@@ -6,7 +6,12 @@ import type { PluginRouteTable } from '@bakery-framework/core/plugins'
 import { routeTable } from '@bakery-framework/core/plugins'
 import { fs } from '@bakery-framework/core/utils'
 import { response } from '@bakery-framework/core/utils/http'
-import { accessStore, assertValidUsers, resolveAccess, type AccessConfig } from './access'
+import {
+  accessStore,
+  assertValidUsers,
+  resolveAccess,
+  type AccessConfig,
+} from './access'
 import { handleGraph, handleLookup } from './endpoints/graph'
 import { handleImport } from './endpoints/import'
 import { handleSchema, handleTableData } from './endpoints/read'

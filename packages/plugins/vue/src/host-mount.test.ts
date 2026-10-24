@@ -51,8 +51,7 @@ const FILES: Record<string, string> = {
   'kit/[...slug!].vue': KIT_PAGE,
   'kit/useDemo.ts': "export const demo = 'from the kit'\n",
   'index.vue': '<template><h1>root home</h1></template>\n',
-  'ui/Button.vue':
-    '<template><button class="ui">ok</button></template>\n',
+  'ui/Button.vue': '<template><button class="ui">ok</button></template>\n',
 }
 
 const registries: { fetch: HandlerMap; error: HandlerMap<any> } =
@@ -91,18 +90,29 @@ const NAVIGATE = {
   'sec-fetch-dest': 'document',
   accept: 'text/html,application/xhtml+xml,*/*;q=0.8',
 }
-const SCRIPT = { 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'script', accept: '*/*' }
-const STYLE = { 'sec-fetch-mode': 'no-cors', 'sec-fetch-dest': 'style', accept: 'text/css,*/*;q=0.1' }
+const SCRIPT = {
+  'sec-fetch-mode': 'cors',
+  'sec-fetch-dest': 'script',
+  accept: '*/*',
+}
+const STYLE = {
+  'sec-fetch-mode': 'no-cors',
+  'sec-fetch-dest': 'style',
+  accept: 'text/css,*/*;q=0.1',
+}
 
 /**
  * A request the way `cli/src/worker.ts` serves one: in its host's config,
  * routed, then shaped.
  */
 const get = (host: string, path: string, headers: Record<string, string>) =>
-  hostStore.run({ config: resolveHostConfig(host), hostname: host }, async () => {
-    const req = new Request(`http://${host}${path}`, { headers })
-    return (await processResponse(await handleRequest(req), req)) as Response
-  })
+  hostStore.run(
+    { config: resolveHostConfig(host), hostname: host },
+    async () => {
+      const req = new Request(`http://${host}${path}`, { headers })
+      return (await processResponse(await handleRequest(req), req)) as Response
+    },
+  )
 
 /** The `defineLayout()` stamp a page carries. */
 function stampedRoute(html: string): { base: string; catchAll: boolean } {
@@ -129,7 +139,9 @@ describe('a catch-all page on a host that serves its directory at the root', () 
   })
 
   test('links its stylesheet and root script by the URL the app knows it by', async () => {
-    const html = await (await get('kit.localhost', '/data-table', NAVIGATE)).text()
+    const html = await (
+      await get('kit.localhost', '/data-table', NAVIGATE)
+    ).text()
     expect(html).toContain('src="/kit/data-table?__vue_script=root"')
     expect(html).toContain('href="/kit/data-table?__vue_css=true"')
   })
@@ -144,7 +156,11 @@ describe('a catch-all page on a host that serves its directory at the root', () 
     expect(script.headers.get('content-type')).toContain('javascript')
     expect(await script.text()).toContain('kit docs ')
 
-    const css = await get('kit.localhost', '/kit/data-table?__vue_css=true', STYLE)
+    const css = await get(
+      'kit.localhost',
+      '/kit/data-table?__vue_css=true',
+      STYLE,
+    )
     expect(css.status).toBe(200)
     expect(await css.text()).toContain('.kit')
   })

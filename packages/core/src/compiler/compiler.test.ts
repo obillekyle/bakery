@@ -204,7 +204,9 @@ describe('bundleModule repairs a sideEffects tree-shake', () => {
     // produced for the fixture above: an export list with nothing behind it.
     expect(isEmptyExportList('export {\n  shippingTotal\n};\n')).toBe(true)
     expect(
-      isEmptyExportList('var shippingTotal = 42;\nexport {\n  shippingTotal\n};\n'),
+      isEmptyExportList(
+        'var shippingTotal = 42;\nexport {\n  shippingTotal\n};\n',
+      ),
     ).toBe(false)
   })
 

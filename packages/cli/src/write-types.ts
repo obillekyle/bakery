@@ -28,9 +28,8 @@ import { errorMsg, serveLog } from '@bakery-framework/core/logger'
 export async function writeTypes(): Promise<number> {
   try {
     const { initConfig } = await import('@bakery-framework/core/core/config')
-    const { syncTSConfigPaths, syncTSConfigProjects } = await import(
-      '@bakery-framework/core/compiler/tsconfig-sync'
-    )
+    const { syncTSConfigPaths, syncTSConfigProjects } =
+      await import('@bakery-framework/core/compiler/tsconfig-sync')
 
     await initConfig()
     await syncTSConfigPaths()

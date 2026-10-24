@@ -12,7 +12,8 @@ export function renderSessionsPanel() {
           <button
             type="button"
             class="btn btn-secondary"
-            onclick="loadSessions()">
+            onclick="loadSessions()"
+          >
             <span>Refresh Sessions</span>
           </button>
         </div>
@@ -28,7 +29,8 @@ export function renderSessionsPanel() {
           <select
             id="session-sort-by"
             class="filter-select"
-            onchange="loadSessions()">
+            onchange="loadSessions()"
+          >
             <option value="accessed">Last Accessed</option>
             <option value="id">Session ID</option>
             <option value="keys">Persisted Keys</option>
@@ -36,14 +38,16 @@ export function renderSessionsPanel() {
           <select
             id="session-sort-order"
             class="filter-select"
-            onchange="loadSessions()">
+            onchange="loadSessions()"
+          >
             <option value="DESC">Newest First</option>
             <option value="ASC">Oldest First</option>
           </select>
           <select
             id="session-page-size"
             class="filter-select"
-            onchange="changeSessionPageSize()">
+            onchange="changeSessionPageSize()"
+          >
             <option value="10">10 rows</option>
             <option value="25" selected>
               25 rows
@@ -60,7 +64,8 @@ export function renderSessionsPanel() {
               type="button"
               id="session-page-prev"
               class="btn btn-secondary"
-              onclick="prevSessionPage()">
+              onclick="prevSessionPage()"
+            >
               <span>Prev</span>
             </button>
             <span id="session-page-info">Page 1 of 1</span>
@@ -68,7 +73,8 @@ export function renderSessionsPanel() {
               type="button"
               id="session-page-next"
               class="btn btn-secondary"
-              onclick="nextSessionPage()">
+              onclick="nextSessionPage()"
+            >
               <span>Next</span>
             </button>
           </div>

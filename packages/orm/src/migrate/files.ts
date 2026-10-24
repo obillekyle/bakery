@@ -33,8 +33,7 @@ const MIGRATION_NAME = /^(\d+)_[A-Za-z0-9._-]+\.sql$/
 const NO_TRANSACTION = /^--\s*bakery:\s*no-transaction\s*$/i
 
 export type ReadResult =
-  | { ok: true; files: MigrationFile[] }
-  | { ok: false; problems: string[] }
+  { ok: true; files: MigrationFile[] } | { ok: false; problems: string[] }
 
 /**
  * Every migration in `dir`, in the order they run.

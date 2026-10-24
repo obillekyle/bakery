@@ -179,8 +179,13 @@ describe('isNull() and isNotNull() in every where builder', () => {
 
   test('select, update and delete emit the operator once, binding nothing', () => {
     const select = DB.table('parcels').where('weight', DB.isNull()).parse()
-    const update = DB.Update.table('parcels').set({ courier: 'x' }).where('weight', DB.isNotNull()).parse()
-    const remove = DB.Delete.from('parcels').where('weight', DB.isNull()).parse()
+    const update = DB.Update.table('parcels')
+      .set({ courier: 'x' })
+      .where('weight', DB.isNotNull())
+      .parse()
+    const remove = DB.Delete.from('parcels')
+      .where('weight', DB.isNull())
+      .parse()
 
     expect(whereOf(select.sql)).toBe(' WHERE "weight" IS NULL')
     expect(whereOf(update.sql)).toBe(' WHERE "weight" IS NOT NULL')
@@ -199,9 +204,14 @@ describe('isNull() and isNotNull() in every where builder', () => {
   })
 
   test('the statements run', async () => {
-    const res = await DB.Update.table('parcels').set({ courier: 'weighed' }).where('weight', DB.isNotNull()).run()
+    const res = await DB.Update.table('parcels')
+      .set({ courier: 'weighed' })
+      .where('weight', DB.isNotNull())
+      .run()
     expect((res as any).changes).toBe(1)
-    const gone = await DB.Delete.from('parcels').where('weight', DB.isNull()).run()
+    const gone = await DB.Delete.from('parcels')
+      .where('weight', DB.isNull())
+      .run()
     expect((gone as any).changes).toBe(1)
   })
 })

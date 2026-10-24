@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  assembleComponent,
-  compileTemplateBlock,
-  parseVue,
-} from './compile'
+import { assembleComponent, compileTemplateBlock, parseVue } from './compile'
 
 /**
  * The compiled render function must not carry an `export` into the assembled

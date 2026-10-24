@@ -378,8 +378,7 @@ export function hasOldWrappers(constraints: SyncTypes.DBConstraints) {
     // `undefined`, which is what this check wants, so the narrowing is
     // deliberate rather than a lie, and the emitted code is unchanged.
     const cols = Object.values(tObj) as (
-      | SyncTypes.ColumnConstraint
-      | undefined
+      SyncTypes.ColumnConstraint | undefined
     )[]
     return cols.some(c => c?._oldColumn || c?._transform)
   })

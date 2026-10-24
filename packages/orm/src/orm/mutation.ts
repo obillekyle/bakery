@@ -63,9 +63,8 @@ export namespace Mutation {
     : string
 
   export type QualifiedColumnTarget<T extends Tables> = T extends keyof DBSchema
-    ?
-        | `${Extract<T, string>}.${Extract<keyof DBSchema[T], string>}`
-        | ColumnTarget<T>
+    ? | `${Extract<T, string>}.${Extract<keyof DBSchema[T], string>}`
+      | ColumnTarget<T>
     : string
 
   /**

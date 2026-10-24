@@ -181,7 +181,9 @@ export function describeIdentity(table: TableIntrospection): Identity {
       })),
     }))
     .filter(
-      (index): index is { name: string; cols: { camel: string; raw: string }[] } =>
+      (
+        index,
+      ): index is { name: string; cols: { camel: string; raw: string }[] } =>
         index.cols.length > 0 &&
         index.cols.every(
           col =>
@@ -305,7 +307,8 @@ export function metaOf(
     // A column genuinely declared `DEFAULT NULL` reads as having none here. It
     // loses nothing: such a column is nullable, and `nullable` is the next term
     // in that same expression.
-    hasDefault: constraint?.default !== null && constraint?.default !== undefined,
+    hasDefault:
+      constraint?.default !== null && constraint?.default !== undefined,
     primary: constraint?.primary ?? schemaColumn.pk,
     autoIncrement: constraint?.autoIncrement,
   }

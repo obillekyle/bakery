@@ -61,9 +61,13 @@ describe('which entry a hostname gets', () => {
   })
 
   test('one label in front of a domain is that label', () => {
-    expect(resolved('admin.bpc.edu.ph')).toBe('admin | admin.bpc.edu.ph | admin')
+    expect(resolved('admin.bpc.edu.ph')).toBe(
+      'admin | admin.bpc.edu.ph | admin',
+    )
     expect(resolved('kit.localhost')).toBe('kit | kit.localhost | kit')
-    expect(resolved('ADMIN.Bpc.Edu.Ph')).toBe('admin | admin.bpc.edu.ph | admin')
+    expect(resolved('ADMIN.Bpc.Edu.Ph')).toBe(
+      'admin | admin.bpc.edu.ph | admin',
+    )
   })
 
   test("anything else in front of a domain is '*', one tenant per domain", () => {
@@ -73,7 +77,7 @@ describe('which entry a hostname gets', () => {
     expect(resolved('ma.localhost')).toBe('* | *.localhost | any')
   })
 
-  test("a bare label names one subdomain, not its children", () => {
+  test('a bare label names one subdomain, not its children', () => {
     expect(resolved('admin.x.bpc.edu.ph')).toBe('* | *.bpc.edu.ph | any')
   })
 
@@ -87,7 +91,12 @@ describe('which entry a hostname gets', () => {
   })
 
   test('a hostname under no domain, or an IP address, gets the base config', () => {
-    for (const hostname of ['example.org', 'kit.example.org', '127.0.0.1', '[']) {
+    for (const hostname of [
+      'example.org',
+      'kit.example.org',
+      '127.0.0.1',
+      '[',
+    ]) {
       expect(resolved(hostname)).toBe('- | - | -')
       expect(resolveHostConfig(hostname)).not.toBe(resolveHostConfig(hostname))
     }
@@ -99,7 +108,7 @@ describe('which entry a hostname gets', () => {
     expect(resolveHostConfig('bpc.edu.ph').mount).toBeUndefined()
   })
 
-  test("made-up subdomains share one cached config instead of growing the cache", () => {
+  test('made-up subdomains share one cached config instead of growing the cache', () => {
     const first = resolveHostConfig('s0.bpc.edu.ph')
     for (let i = 1; i < 100; i++) {
       expect(resolveHostConfig(`s${i}.bpc.edu.ph`)).toBe(first)
@@ -135,8 +144,11 @@ describe('domains', () => {
     expect(resolved('kit.a.test')).toBe('- | - | -')
   })
 
-  test("an answer that is no domain matches nothing, and localhost still counts", async () => {
-    await configure({ domains: () => ['not a domain', '10.0.0.1', ''], hosts: HOSTS })
+  test('an answer that is no domain matches nothing, and localhost still counts', async () => {
+    await configure({
+      domains: () => ['not a domain', '10.0.0.1', ''],
+      hosts: HOSTS,
+    })
     expect(resolved('kit.localhost')).toBe('kit | kit.localhost | kit')
     expect(resolved('kit.not a domain')).toBe('- | - | -')
   })
@@ -208,8 +220,9 @@ describe('per-host import maps', () => {
     const mapOn = (hostname: string) =>
       hostStore.run({ hostname, config: getConfig() }, () => {
         const tag = DOMTools.importMap()
-        return JSON.parse(tag.slice(tag.indexOf('>') + 1, tag.lastIndexOf('</script>')))
-          .imports as Record<string, string>
+        return JSON.parse(
+          tag.slice(tag.indexOf('>') + 1, tag.lastIndexOf('</script>')),
+        ).imports as Record<string, string>
       })
 
     expect(mapOn('ma.bpc.edu.ph').site).toBe('/site/entry.js')

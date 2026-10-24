@@ -50,8 +50,7 @@ declare global {
    * string) is ignored and the next middleware runs. See `$middleware.ts`.
    */
   type MiddlewareResponse =
-    | Response
-    | import('./utils/common/json').JsonResponseData
+    Response | import('./utils/common/json').JsonResponseData
 
   type HostEntry = {
     root?: string

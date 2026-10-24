@@ -288,7 +288,10 @@ describe('a schema that cannot be imported says why', () => {
   const BROKEN = `${FIXTURES}/broken`
 
   test('the warning names the entry and carries the import error', async () => {
-    await Bun.write(`${BROKEN}/orm/index.ts`, "throw new Error('tables.ts has a typo')\n")
+    await Bun.write(
+      `${BROKEN}/orm/index.ts`,
+      "throw new Error('tables.ts has a typo')\n",
+    )
     const said: string[] = []
     setLogCallback(entry => void said.push(entry.msg))
     try {

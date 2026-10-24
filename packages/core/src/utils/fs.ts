@@ -585,7 +585,10 @@ export namespace FileSystem {
    * of the source before it. That is how an SFC in a dev server kept its old
    * styles beside a new template and script after three quick edits.
    */
-  function versionedName(cacheName: string, sourceMtime: number | null): string {
+  function versionedName(
+    cacheName: string,
+    sourceMtime: number | null,
+  ): string {
     if (!sourceMtime) return cacheName
     const ext = parse(cacheName).ext
     return `${cacheName.slice(0, cacheName.length - ext.length)}@${sourceMtime}${ext}`

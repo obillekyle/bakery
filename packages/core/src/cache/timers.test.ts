@@ -25,7 +25,10 @@ import { fs } from '../utils'
 describe('importing core does not pin the event loop', () => {
   const entries = [
     ['the session module', './session'],
-    ['the compiler, which builds the string cache at module scope', './compiler/compiler'],
+    [
+      'the compiler, which builds the string cache at module scope',
+      './compiler/compiler',
+    ],
     ['the root barrel', './core/index'],
   ] as const
 
@@ -38,7 +41,10 @@ describe('importing core does not pin the event loop', () => {
       await Bun.write(probe, `import '${specifier}'\n`)
 
       try {
-        const child = Bun.spawn(['bun', probe], { stdout: 'ignore', stderr: 'ignore' })
+        const child = Bun.spawn(['bun', probe], {
+          stdout: 'ignore',
+          stderr: 'ignore',
+        })
 
         // Generous: a cold import of the barrel is ~100 ms on this machine, and
         // the failure mode is an infinite hang rather than a slow exit, so the

@@ -22,14 +22,22 @@ import {
  * one. `buildRecords` is pure, so two runs agree on every value.
  */
 const COLUMNS: SchemaColumn[] = [
-  { name: 'id', kind: 'number', nullable: false, hasDefault: true } as SchemaColumn,
+  {
+    name: 'id',
+    kind: 'number',
+    nullable: false,
+    hasDefault: true,
+  } as SchemaColumn,
   { name: 'courier', kind: 'string', nullable: false } as SchemaColumn,
   { name: 'note', kind: 'string', nullable: true } as SchemaColumn,
 ]
 
-const CSV = ['id,courier,note', '1,dhl,first', '2,ups,second', '3,dhl,third'].join(
-  '\n',
-)
+const CSV = [
+  'id,courier,note',
+  '1,dhl,first',
+  '2,ups,second',
+  '3,dhl,third',
+].join('\n')
 
 let model: ImportModel
 

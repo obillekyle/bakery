@@ -276,7 +276,9 @@ describe('chainConfig', () => {
  */
 describe('claimsAppFiles', () => {
   test('an own include claims, an empty one does not', () => {
-    expect(claimsAppFiles({ include: ['src/**/*.ts'] }, CORE_SERVER_BASE)).toBe(true)
+    expect(claimsAppFiles({ include: ['src/**/*.ts'] }, CORE_SERVER_BASE)).toBe(
+      true,
+    )
     expect(claimsAppFiles({ include: [] }, CORE_SERVER_BASE)).toBe(false)
   })
 
@@ -287,7 +289,9 @@ describe('claimsAppFiles', () => {
   })
 
   test("inheriting core's ambients claims nothing, which is ecr's root", () => {
-    expect(claimsAppFiles({ extends: 'x', compilerOptions: {} }, CORE_SERVER_BASE)).toBe(false)
+    expect(
+      claimsAppFiles({ extends: 'x', compilerOptions: {} }, CORE_SERVER_BASE),
+    ).toBe(false)
   })
 
   test("neither set anywhere is TypeScript's default: every file", () => {
@@ -299,11 +303,15 @@ describe('claimsAppFiles', () => {
     // The root's `include` replaces the base's, even when empty.
     expect(claimsAppFiles({ include: [] }, { include: ['src/**'] })).toBe(false)
     // The root's `files` replaces the base's.
-    expect(claimsAppFiles({ files: ['./a.d.ts'] }, { files: ['./src/x.ts'] })).toBe(false)
+    expect(
+      claimsAppFiles({ files: ['./a.d.ts'] }, { files: ['./src/x.ts'] }),
+    ).toBe(false)
     // A key the root does not set comes from the base.
     expect(claimsAppFiles({}, { include: ['src/**'] })).toBe(true)
     // Which means setting `files` does not stop the base's `include` applying.
-    expect(claimsAppFiles({ files: ['./a.d.ts'] }, { include: ['src/**'] })).toBe(true)
+    expect(
+      claimsAppFiles({ files: ['./a.d.ts'] }, { include: ['src/**'] }),
+    ).toBe(true)
   })
 })
 
@@ -314,11 +322,15 @@ describe('claimsAppFiles', () => {
  */
 describe('insertChainReference', () => {
   const cases: Record<string, string> = {
-    'a plain object': '{\n  "extends": "x",\n  "compilerOptions": { "jsx": "react" }\n}\n',
-    'a trailing comma': '{\n  "extends": "x",\n  "compilerOptions": { "jsx": "react" },\n}\n',
+    'a plain object':
+      '{\n  "extends": "x",\n  "compilerOptions": { "jsx": "react" }\n}\n',
+    'a trailing comma':
+      '{\n  "extends": "x",\n  "compilerOptions": { "jsx": "react" },\n}\n',
     'a comment after the last member': '{\n  "extends": "x" // mine\n}\n',
-    'a comment holding a brace': '{\n  // a } in a comment\n  "extends": "x"\n}\n',
-    'a string holding a brace': '{\n  "$comment": "a } in a string",\n  "extends": "x"\n}\n',
+    'a comment holding a brace':
+      '{\n  // a } in a comment\n  "extends": "x"\n}\n',
+    'a string holding a brace':
+      '{\n  "$comment": "a } in a string",\n  "extends": "x"\n}\n',
     'an empty object': '{}\n',
     'CRLF line endings': '{\r\n  "extends": "x"\r\n}\r\n',
   }
@@ -358,10 +370,14 @@ describe('insertChainReference', () => {
  * ever added, and a root that claims files is left alone.
  */
 describe('wireRoot', () => {
-  const RUNTIME = '"compilerOptions": { "jsx": "react", "jsxFactory": "createElement" }'
+  const RUNTIME =
+    '"compilerOptions": { "jsx": "react", "jsxFactory": "createElement" }'
 
   test('a root claiming nothing gets the chain reference, and nothing else', () => {
-    const plan = wireRoot(`{\n  "extends": "x",\n  ${RUNTIME}\n}\n`, CORE_SERVER_BASE)
+    const plan = wireRoot(
+      `{\n  "extends": "x",\n  ${RUNTIME}\n}\n`,
+      CORE_SERVER_BASE,
+    )
     expect(plan.wired).toBe(true)
     const root = parseJSONC(plan.text as string)
     expect(root.references).toEqual([{ path: './tsconfig.bakery.json' }])
@@ -372,7 +388,12 @@ describe('wireRoot', () => {
   test('a root that already has it is not rewritten', () => {
     const text = `{\n  "extends": "x",\n  "references": [{ "path": "./tsconfig.bakery.json" }]\n}\n`
     const plan = wireRoot(text, CORE_SERVER_BASE)
-    expect(plan).toEqual({ text: null, stripped: false, wired: false, claims: false })
+    expect(plan).toEqual({
+      text: null,
+      stripped: false,
+      wired: false,
+      claims: false,
+    })
     expect(referencesChain(parseJSONC(text))).toBe(true)
   })
 

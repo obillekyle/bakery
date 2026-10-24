@@ -34,7 +34,9 @@ async function seeded(rows: number): Promise<SQLiteAdapter> {
   await db.query('CREATE TABLE t (id INTEGER PRIMARY KEY, tag TEXT)').run()
   await db.transaction(async () => {
     for (let i = 1; i <= rows; i++) {
-      await db.query('INSERT INTO t (id, tag) VALUES (?, ?)').run(i, i % 2 ? 'a' : 'b')
+      await db
+        .query('INSERT INTO t (id, tag) VALUES (?, ?)')
+        .run(i, i % 2 ? 'a' : 'b')
     }
   })
   return db
@@ -55,7 +57,11 @@ describe('getData honors a caller-supplied total', () => {
     // Deliberately not 30: if the adapter counted, this would come back as 30
     // and the assertion would fail. Asserting the wrong number is the only way
     // to prove the right query was skipped.
-    const page = await db.getData('t', { page: 2, pageSize: 10, knownTotal: 999 })
+    const page = await db.getData('t', {
+      page: 2,
+      pageSize: 10,
+      knownTotal: 999,
+    })
     expect(page.totalRows).toBe(999)
     expect(page.totalPages).toBe(100)
     // The rows themselves are unaffected, which is the whole safety argument.

@@ -134,9 +134,8 @@ if (!stored) {
 export function applyJournalMode(db: Database, file: string): string {
   const asked = Try.return(
     () =>
-      db
-        .query<{ journal_mode: string }, []>('PRAGMA journal_mode = WAL;')
-        .get()?.journal_mode ?? '',
+      db.query<{ journal_mode: string }, []>('PRAGMA journal_mode = WAL;').get()
+        ?.journal_mode ?? '',
     (error: Error) => `threw: ${error.message}`,
   )
   if (asked.toLowerCase() === 'wal') return 'wal'

@@ -8,11 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import {
-  __wipeCacheDir,
-  type CacheMarker,
-  isCacheStale,
-} from './cache-version'
+import { __wipeCacheDir, type CacheMarker, isCacheStale } from './cache-version'
 import { getAppVersion, getFrameworkVersion } from './context'
 
 /**

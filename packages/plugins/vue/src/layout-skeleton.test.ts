@@ -587,7 +587,10 @@ describe('the stamp names routes, not the directory', () => {
     await write('depot/script.ts', 'export default {}')
     await write('depot/index.tsx', 'export default () => null')
     await write('depot/[note].txt', 'a dynamic-shaped name, not a route')
-    await write('depot/assets/logo.svg', '<svg xmlns="http://www.w3.org/2000/svg" />')
+    await write(
+      'depot/assets/logo.svg',
+      '<svg xmlns="http://www.w3.org/2000/svg" />',
+    )
     await write('depot/parts/deep/panel.vue', PAGE)
   })
 

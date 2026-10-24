@@ -142,8 +142,7 @@ export function html<P = {}>(render: RenderFn<P>) {
     const prefix =
       startsAt < 0 ? '' : rawDom.slice(startsAt, startsAt + 9).toLowerCase()
 
-    if (prefix.startsWith('<html'))
-      return `<!DOCTYPE html>\n${rawDom}`
+    if (prefix.startsWith('<html')) return `<!DOCTYPE html>\n${rawDom}`
     if (prefix.startsWith('<!doctype')) return rawDom
 
     let title = 'Document'

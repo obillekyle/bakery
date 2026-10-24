@@ -31,11 +31,17 @@ document.getElementById('gh-link').href = REPO
 /* ------------------------------------------------------------------ markdown
    Small on purpose. It covers what these docs actually use (headings, fenced
    code, tables, nested lists, blockquotes, inline spans), and nothing else. */
-const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const esc = s =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 /** GitHub's heading-slug rules, so an existing `#anchor` link still lands. */
-const slug = s => s.toLowerCase().replace(/`/g, '').replace(/[^\w\s-]/g, '')
-  .trim().replace(/\s+/g, '-')
+const slug = s =>
+  s
+    .toLowerCase()
+    .replace(/`/g, '')
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
 
 /**
  * A version as an anchor: `0.1.0-beta.2` becomes `0-1-0-beta-2`.
@@ -64,7 +70,9 @@ const versionSlug = v => slug(String(v).replace(/\./g, '-'))
  */
 function headingId(lvl, text, scope, seen) {
   const base = scope
-    ? (lvl <= 2 ? scope : `${scope}-${slug(text)}`)
+    ? lvl <= 2
+      ? scope
+      : `${scope}-${slug(text)}`
     : slug(text)
 
   const n = seen.get(base) || 0
@@ -72,7 +80,8 @@ function headingId(lvl, text, scope, seen) {
   return n ? `${base}-${n}` : base
 }
 
-const KEYWORDS = /\b(import|export|from|default|const|let|var|function|return|await|async|if|else|for|while|of|in|new|class|extends|implements|interface|type|enum|as|typeof|keyof|declare|module|namespace|public|private|readonly|static|try|catch|finally|throw|switch|case|break|continue|satisfies|true|false|null|undefined|void|never|any|string|number|boolean|this|super|yield|delete)\b/
+const KEYWORDS =
+  /\b(import|export|from|default|const|let|var|function|return|await|async|if|else|for|while|of|in|new|class|extends|implements|interface|type|enum|as|typeof|keyof|declare|module|namespace|public|private|readonly|static|try|catch|finally|throw|switch|case|break|continue|satisfies|true|false|null|undefined|void|never|any|string|number|boolean|this|super|yield|delete)\b/
 
 /** Token-level highlighting: each piece is escaped as it is emitted, so no
     span markup can ever be produced from the source text itself. */
@@ -83,7 +92,9 @@ function highlight(code, lang) {
   const pattern = shell
     ? /(#[^\n]*)|('[^']*'|"[^"]*")|(\b(?:bun|bunx|npm|npx|git|cd|export|curl|sudo|docker|ls|rm|mkdir)\b)/g
     : /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|('[^'\n]*'|"[^"\n]*"|`[^`]*`)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_$][\w$]*)/g
-  let out = '', last = 0, m
+  let out = '',
+    last = 0,
+    m
   while ((m = pattern.exec(code))) {
     out += esc(code.slice(last, m.index))
     const [txt] = m
@@ -92,7 +103,8 @@ function highlight(code, lang) {
     else if (shell) out += `<span class="tok-k">${esc(txt)}</span>`
     else if (m[3]) out += `<span class="tok-n">${esc(txt)}</span>`
     else if (KEYWORDS.test(txt)) out += `<span class="tok-k">${esc(txt)}</span>`
-    else if (code[m.index + txt.length] === '(') out += `<span class="tok-f">${esc(txt)}</span>`
+    else if (code[m.index + txt.length] === '(')
+      out += `<span class="tok-f">${esc(txt)}</span>`
     else out += esc(txt)
     last = m.index + txt.length
   }
@@ -105,15 +117,25 @@ function inline(s, page) {
   const codes = []
   s = s.replace(/`([^`]+)`/g, (_, c) => `@@CODE${codes.push(c) - 1}@@`)
   s = esc(s)
-  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, (_, alt, src) => `<img src="${src}" alt="${alt}" style="max-width:100%">`)
-  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, href) => `<a href="${resolveHref(href.trim(), page)}"${/^https?:/.test(href) ? ' target="_blank" rel="noopener"' : ''}>${text}</a>`)
+  s = s.replace(
+    /!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g,
+    (_, alt, src) => `<img src="${src}" alt="${alt}" style="max-width:100%">`,
+  )
+  s = s.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    (_, text, href) =>
+      `<a href="${resolveHref(href.trim(), page)}"${/^https?:/.test(href) ? ' target="_blank" rel="noopener"' : ''}>${text}</a>`,
+  )
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
   s = s.replace(/(^|[\s(])_([^_]+)_(?=[\s.,)]|$)/g, '$1<em>$2</em>')
   s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
   // `[0-9]` rather than `\d`: this file is written by tooling more than once,
   // and a lone backslash in a regex literal is exactly the thing that gets
   // eaten in transit. It already was, turning this into a match for "d+".
-  return s.replace(/@@CODE([0-9]+)@@/g, (_, i) => `<code>${esc(codes[i])}</code>`)
+  return s.replace(
+    /@@CODE([0-9]+)@@/g,
+    (_, i) => `<code>${esc(codes[i])}</code>`,
+  )
 }
 
 /**
@@ -135,20 +157,23 @@ function resolveHref(href, page) {
   let escaped = false
   for (const part of parts) {
     if (part === '.' || part === '') continue
-    if (part === '..') { if (!stack.length) escaped = true; else stack.pop() }
-    else stack.push(part)
+    if (part === '..') {
+      if (!stack.length) escaped = true
+      else stack.pop()
+    } else stack.push(part)
   }
   const joined = stack.join('/')
   if (escaped || !/\.md$/i.test(path)) return `${REPO}/blob/main/${joined}`
   return routeHref(joined.replace(/\.md$/i, ''), hash)
 }
 
-  // The markdown renderer: one branch per block construct. Splitting it by
-  // construct spreads the line-lookahead state the parser depends on.
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: markdown block parser
+// The markdown renderer: one branch per block construct. Splitting it by
+// construct spreads the line-lookahead state the parser depends on.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: markdown block parser
 function render(src, page, scope) {
   const lines = src.replace(/\r\n/g, '\n').split('\n')
-  let html = '', i = 0
+  let html = '',
+    i = 0
   const toc = []
   // Per document, which for the changelog means per release: ids are unique
   // within one call, and across calls the scope keeps them apart.
@@ -163,10 +188,12 @@ function render(src, page, scope) {
       const lang = fence[1] || ''
       const buf = []
       i++
-      while (i < lines.length && !/^```\s*$/.test(lines[i])) buf.push(lines[i++])
+      while (i < lines.length && !/^```\s*$/.test(lines[i]))
+        buf.push(lines[i++])
       i++
       const raw = buf.join('\n')
-      html += `<div class="code-wrap"><span class="code-lang">${esc(lang || 'text')}</span>` +
+      html +=
+        `<div class="code-wrap"><span class="code-lang">${esc(lang || 'text')}</span>` +
         `<button class="copy-btn" type="button">Copy</button>` +
         `<pre><code>${highlight(raw, lang)}</code></pre></div>`
       continue
@@ -175,25 +202,39 @@ function render(src, page, scope) {
     // heading
     const h = /^(#{1,6})\s+(.*)$/.exec(line)
     if (h) {
-      const lvl = h[1].length, text = h[2].trim()
+      const lvl = h[1].length,
+        text = h[2].trim()
       const id = headingId(lvl, text, scope, seen)
-      if (lvl === 2 || lvl === 3) toc.push({ lvl, text: text.replace(/`/g, ''), id })
-      const anchor = lvl > 1 ? `<a class="anchor" href="${routeHref(page, id)}">#</a>` : ''
+      if (lvl === 2 || lvl === 3)
+        toc.push({ lvl, text: text.replace(/`/g, ''), id })
+      const anchor =
+        lvl > 1 ? `<a class="anchor" href="${routeHref(page, id)}">#</a>` : ''
       html += `<h${lvl} id="${id}">${inline(text, page)}${anchor}</h${lvl}>`
       i++
       continue
     }
 
-    if (/^\s*(---|\*\*\*|___)\s*$/.test(line)) { html += '<hr>'; i++; continue }
+    if (/^\s*(---|\*\*\*|___)\s*$/.test(line)) {
+      html += '<hr>'
+      i++
+      continue
+    }
 
     // table
     if (/^\s*\|/.test(line) && /^\s*\|?[\s:|-]+\|/.test(lines[i + 1] || '')) {
-      const cells = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim())
+      const cells = r =>
+        r
+          .trim()
+          .replace(/^\||\|$/g, '')
+          .split('|')
+          .map(c => c.trim())
       const head = cells(line)
       i += 2
       let body = ''
       while (i < lines.length && /^\s*\|/.test(lines[i])) {
-        body += `<tr>${cells(lines[i++]).map(c => `<td>${inline(c, page)}</td>`).join('')}</tr>`
+        body += `<tr>${cells(lines[i++])
+          .map(c => `<td>${inline(c, page)}</td>`)
+          .join('')}</tr>`
       }
       html += `<table><thead><tr>${head.map(c => `<th>${inline(c, page)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`
       continue
@@ -202,7 +243,8 @@ function render(src, page, scope) {
     // blockquote
     if (/^>\s?/.test(line)) {
       const buf = []
-      while (i < lines.length && /^>\s?/.test(lines[i])) buf.push(lines[i++].replace(/^>\s?/, ''))
+      while (i < lines.length && /^>\s?/.test(lines[i]))
+        buf.push(lines[i++].replace(/^>\s?/, ''))
       html += `<blockquote>${render(buf.join('\n'), page).html}</blockquote>`
       continue
     }
@@ -213,12 +255,25 @@ function render(src, page, scope) {
       while (i < lines.length) {
         const m = /^(\s*)([-*+]|\d+\.)\s+(.*)$/.exec(lines[i])
         if (m) {
-          items.push({ indent: m[1].length, ordered: /\d/.test(m[2]), text: m[3], cont: [] })
+          items.push({
+            indent: m[1].length,
+            ordered: /\d/.test(m[2]),
+            text: m[3],
+            cont: [],
+          })
           i++
-        } else if (items.length && lines[i].trim() && !/^\s*(#{1,6}|>|```)/.test(lines[i])) {
-          items[items.length - 1].cont.push(lines[i].trim())   // lazy continuation
+        } else if (
+          items.length &&
+          lines[i].trim() &&
+          !/^\s*(#{1,6}|>|```)/.test(lines[i])
+        ) {
+          items[items.length - 1].cont.push(lines[i].trim()) // lazy continuation
           i++
-        } else if (items.length && !lines[i].trim() && /^\s*([-*+]|\d+\.)\s+/.test(lines[i + 1] || '')) {
+        } else if (
+          items.length &&
+          !lines[i].trim() &&
+          /^\s*([-*+]|\d+\.)\s+/.test(lines[i + 1] || '')
+        ) {
           i++
         } else break
       }
@@ -226,13 +281,20 @@ function render(src, page, scope) {
       continue
     }
 
-    if (!line.trim()) { i++; continue }
+    if (!line.trim()) {
+      i++
+      continue
+    }
 
     // paragraph
     const buf = []
-    while (i < lines.length && lines[i].trim() &&
+    while (
+      i < lines.length &&
+      lines[i].trim() &&
       !/^(\s*([-*+]|\d+\.)\s+|>|#{1,6}\s|```|\s*\|)/.test(lines[i]) &&
-      !/^\s*(---|\*\*\*|___)\s*$/.test(lines[i])) buf.push(lines[i++])
+      !/^\s*(---|\*\*\*|___)\s*$/.test(lines[i])
+    )
+      buf.push(lines[i++])
     html += `<p>${inline(buf.join('\n'), page)}</p>`
   }
   return { html, toc }
@@ -379,7 +441,9 @@ async function loadNav() {
 
   if (ref) {
     try {
-      const res = await fetch(`${RAW}/${encodeURIComponent(refFor(ref))}/docs/pages.json`)
+      const res = await fetch(
+        `${RAW}/${encodeURIComponent(refFor(ref))}/docs/pages.json`,
+      )
       if (res.ok) return await res.json()
     } catch {
       // Fall through to this shell's copy.
@@ -522,7 +586,13 @@ async function changelogMarkdown() {
   // schedule that has nothing to do with when the content changes.
   try {
     const hit = JSON.parse(localStorage.getItem(CHANGELOG_KEY) || 'null')
-    if (hit && hit.v === newest && hit.f === CHANGELOG_FORMAT && hit.md && newest) {
+    if (
+      hit &&
+      hit.v === newest &&
+      hit.f === CHANGELOG_FORMAT &&
+      hit.md &&
+      newest
+    ) {
       return hit.md
     }
   } catch {
@@ -540,7 +610,10 @@ async function changelogMarkdown() {
         // invalidate against, and a cache that never expires is worse than none.
         if (newest) {
           try {
-            localStorage.setItem(CHANGELOG_KEY, JSON.stringify({ v: newest, f: CHANGELOG_FORMAT, md }))
+            localStorage.setItem(
+              CHANGELOG_KEY,
+              JSON.stringify({ v: newest, f: CHANGELOG_FORMAT, md }),
+            )
           } catch {
             // Storage full or disabled. The page works; the next visit refetches.
           }
@@ -716,7 +789,9 @@ function startChangelogFeed(content, entries, page, anchor) {
   // A margin, so the next batch is built before its space is reached rather
   // than after: the reader should never arrive at a gap.
   observer = new IntersectionObserver(
-    hits => { if (hits.some(h => h.isIntersecting)) fill() },
+    hits => {
+      if (hits.some(h => h.isIntersecting)) fill()
+    },
     { rootMargin: `${REACH}px 0px` },
   )
   observer.observe(sentinel)
@@ -907,9 +982,15 @@ function setPageMeta(title) {
     const el = document.head.querySelector(selector)
     if (el) el.setAttribute(attribute, value)
     else if (value) {
-      const made = document.createElement(selector.startsWith('link') ? 'link' : 'meta')
+      const made = document.createElement(
+        selector.startsWith('link') ? 'link' : 'meta',
+      )
       if (selector.startsWith('link')) made.rel = 'canonical'
-      else made.setAttribute('property', selector.replace(/^meta\[property="|"\]$/g, ''))
+      else
+        made.setAttribute(
+          'property',
+          selector.replace(/^meta\[property="|"\]$/g, ''),
+        )
       made.setAttribute(attribute, value)
       document.head.appendChild(made)
     }
@@ -956,7 +1037,11 @@ async function route() {
   // below, and its contents come from the split rather than from the DOM.
   const { html, toc: headings } = render(isLog ? split.head : src, page)
   let toc = isLog
-    ? split.entries.map(e => ({ lvl: 2, text: e.version, id: versionSlug(e.version) }))
+    ? split.entries.map(e => ({
+        lvl: 2,
+        text: e.version,
+        id: versionSlug(e.version),
+      }))
     : headings
   // Said on every page, not once on entry. Someone arriving from a search
   // result lands mid-site, and a banner they never saw is a banner that did not
@@ -987,10 +1072,15 @@ async function route() {
   // on-page contents
   const aside = document.getElementById('aside')
 
-  aside.innerHTML = toc.length > 2
-    ? `<div class="aside-title">On this page</div>${toc.map(t =>
-        `<a href="${routeHref(page, t.id)}" class="${t.lvl === 3 ? 'lvl3' : ''}" data-id="${t.id}">${esc(t.text)}</a>`).join('')}`
-    : ''
+  aside.innerHTML =
+    toc.length > 2
+      ? `<div class="aside-title">On this page</div>${toc
+          .map(
+            t =>
+              `<a href="${routeHref(page, t.id)}" class="${t.lvl === 3 ? 'lvl3' : ''}" data-id="${t.id}">${esc(t.text)}</a>`,
+          )
+          .join('')}`
+      : ''
 
   // sidebar active state
   document.querySelectorAll('.sb-link').forEach(a => {
@@ -1002,10 +1092,12 @@ async function route() {
   const prev = idx > 0 ? FLAT[idx - 1] : null
   const next = idx >= 0 && idx < FLAT.length - 1 ? FLAT[idx + 1] : null
   document.getElementById('pager').innerHTML =
-    (prev || next ? `<div class="pager">
+    (prev || next
+      ? `<div class="pager">
       ${prev ? `<a href="${routeHref(prev[0])}"><span class="p-dir">Previous</span>${prev[1]}</a>` : '<span style="flex:1"></span>'}
       ${next ? `<a class="next" href="${routeHref(next[0])}"><span class="p-dir">Next</span>${next[1]}</a>` : '<span style="flex:1"></span>'}
-    </div>` : '') +
+    </div>`
+      : '') +
     // The changelog has no source file to open: it is the releases, compiled
     // here. Offering to edit `docs/CHANGELOG.md` would send a reader who wanted
     // to fix a typo to GitHub's create-a-file screen for a path the site does
@@ -1018,7 +1110,9 @@ async function route() {
 
   if (anchor) {
     // The element exists only after the innerHTML above, so this cannot move up.
-    requestAnimationFrame(() => document.getElementById(anchor)?.scrollIntoView())
+    requestAnimationFrame(() =>
+      document.getElementById(anchor)?.scrollIntoView(),
+    )
   } else {
     scrollTo(0, 0)
   }
@@ -1089,16 +1183,24 @@ function keepVisible(link) {
   const margin = 8
 
   if (a.top < top + margin) panel.scrollTop -= top + margin - a.top
-  else if (a.bottom > p.bottom - margin) panel.scrollTop += a.bottom - (p.bottom - margin)
+  else if (a.bottom > p.bottom - margin)
+    panel.scrollTop += a.bottom - (p.bottom - margin)
 }
 
 /* --------------------------------------------------------------------- boot */
 function renderSidebar() {
-  document.getElementById('sidebar').innerHTML = NAV.map(group =>
-    `<div class="sb-group"><div class="sb-title">${esc(group.title)}</div>` +
-    group.items.map(([p, label]) =>
-      `<a class="sb-link" data-page="${esc(p)}" href="${esc(routeHref(p))}">${esc(label)}</a>`).join('') +
-    '</div>').join('') +
+  document.getElementById('sidebar').innerHTML =
+    NAV.map(
+      group =>
+        `<div class="sb-group"><div class="sb-title">${esc(group.title)}</div>` +
+        group.items
+          .map(
+            ([p, label]) =>
+              `<a class="sb-link" data-page="${esc(p)}" href="${esc(routeHref(p))}">${esc(label)}</a>`,
+          )
+          .join('') +
+        '</div>',
+    ).join('') +
     '<div class="sb-group">' +
     `<a class="sb-link" data-page="CHANGELOG" href="${routeHref('CHANGELOG')}">Changelog</a>` +
     '</div>'
@@ -1114,8 +1216,10 @@ document.getElementById('theme-btn').onclick = () => {
   root.dataset.theme = next
   localStorage.setItem('bakery-theme', next)
 }
-document.getElementById('menu-btn').onclick = () => document.body.classList.toggle('menu-open')
-document.getElementById('scrim').onclick = () => document.body.classList.remove('menu-open')
+document.getElementById('menu-btn').onclick = () =>
+  document.body.classList.toggle('menu-open')
+document.getElementById('scrim').onclick = () =>
+  document.body.classList.remove('menu-open')
 
 /**
  * Collapsed search, for the narrow layout where the field does not fit.
@@ -1150,9 +1254,13 @@ searchClose.onclick = closeSearch
 document.addEventListener('click', e => {
   const btn = e.target.closest('.copy-btn')
   if (!btn) return
-  navigator.clipboard.writeText(btn.parentElement.querySelector('code').innerText)
+  navigator.clipboard.writeText(
+    btn.parentElement.querySelector('code').innerText,
+  )
   btn.textContent = 'Copied'
-  setTimeout(() => { btn.textContent = 'Copy' }, 1400)
+  setTimeout(() => {
+    btn.textContent = 'Copy'
+  }, 1400)
 })
 
 /* search: the index is built on first use, not on load, so the page paints
@@ -1182,64 +1290,100 @@ function plain(line) {
 async function buildIndex() {
   if (index) return index
   index = []
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: search index build, one branch per field weight
-  await Promise.all(FLAT.map(async ([page, label]) => {
-    let src
-    try { src = await load(page) } catch { return }
-    let section = label, body = [], inFence = false
-    for (const line of src.split('\n')) {
-      // Track the fence rather than skipping only the ``` line itself. The old
-      // test let every line *inside* a code block into the index, so a snippet
-      // could be a fragment of someone's example mid-identifier.
-      if (/^```/.test(line)) { inFence = !inFence; continue }
-      if (inFence) continue
-      const h = /^(#{1,4})\s+(.*)$/.exec(line)
-      if (h) {
-        if (body.length) index.push({ page, label, section, id: slug(section), text: body.join(' ') })
-        section = h[2].replace(/`/g, '').trim()
-        body = []
-      } else if (line.trim()) {
-        const text = plain(line)
-        if (text) body.push(text)
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: search index build, one branch per field weight
+  await Promise.all(
+    FLAT.map(async ([page, label]) => {
+      let src
+      try {
+        src = await load(page)
+      } catch {
+        return
       }
-    }
-    if (body.length) index.push({ page, label, section, id: slug(section), text: body.join(' ') })
-  }))
+      let section = label,
+        body = [],
+        inFence = false
+      for (const line of src.split('\n')) {
+        // Track the fence rather than skipping only the ``` line itself. The old
+        // test let every line *inside* a code block into the index, so a snippet
+        // could be a fragment of someone's example mid-identifier.
+        if (/^```/.test(line)) {
+          inFence = !inFence
+          continue
+        }
+        if (inFence) continue
+        const h = /^(#{1,4})\s+(.*)$/.exec(line)
+        if (h) {
+          if (body.length)
+            index.push({
+              page,
+              label,
+              section,
+              id: slug(section),
+              text: body.join(' '),
+            })
+          section = h[2].replace(/`/g, '').trim()
+          body = []
+        } else if (line.trim()) {
+          const text = plain(line)
+          if (text) body.push(text)
+        }
+      }
+      if (body.length)
+        index.push({
+          page,
+          label,
+          section,
+          id: slug(section),
+          text: body.join(' '),
+        })
+    }),
+  )
   return index
 }
 
 let selected = -1
 async function search() {
   const q = box.value.trim().toLowerCase()
-  if (q.length < 2) { results.classList.remove('open'); return }
+  if (q.length < 2) {
+    results.classList.remove('open')
+    return
+  }
   const idx = await buildIndex()
   const terms = q.split(/\s+/)
-  const hits = idx.map(e => {
-    const hay = `${e.section} ${e.text}`.toLowerCase()
-    if (!terms.every(t => hay.includes(t))) return null
-    let score = 0
-    for (const t of terms) {
-      if (e.section.toLowerCase().includes(t)) score += 12
-      if (e.label.toLowerCase().includes(t)) score += 6
-      score += Math.min(4, (hay.split(t).length - 1))
-    }
-    return { e, score }
-  }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 12)
+  const hits = idx
+    .map(e => {
+      const hay = `${e.section} ${e.text}`.toLowerCase()
+      if (!terms.every(t => hay.includes(t))) return null
+      let score = 0
+      for (const t of terms) {
+        if (e.section.toLowerCase().includes(t)) score += 12
+        if (e.label.toLowerCase().includes(t)) score += 6
+        score += Math.min(4, hay.split(t).length - 1)
+      }
+      return { e, score }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 12)
 
   selected = -1
   results.innerHTML = hits.length
-    ? hits.map(({ e }) => {
-        // Window around the first hit, then advance to a word boundary:
-        // slicing at a fixed offset otherwise opens the snippet mid-word
-        // ("ation-supplied authorization predicate"), which reads as corruption.
-        const pos = e.text.toLowerCase().indexOf(terms[0])
-        const from = pos >= 0 ? Math.max(0, pos - 40) : 0
-        let snip = e.text.slice(from, from + 130)
-        if (from > 0) snip = `…${snip.slice(snip.indexOf(' ') + 1)}`
-        return `<a href="${routeHref(e.page, e.id)}"><span class="r-crumb">${esc(e.label)}</span>` +
-          `<span class="r-title">${esc(e.section)}</span>` +
-          `<span class="r-snip">${esc(snip)}…</span></a>`
-      }).join('')
+    ? hits
+        .map(({ e }) => {
+          // Window around the first hit, then advance to a word boundary:
+          // slicing at a fixed offset otherwise opens the snippet mid-word
+          // ("ation-supplied authorization predicate"), which reads as corruption.
+          const pos = e.text.toLowerCase().indexOf(terms[0])
+          const from = pos >= 0 ? Math.max(0, pos - 40) : 0
+          let snip = e.text.slice(from, from + 130)
+          if (from > 0) snip = `…${snip.slice(snip.indexOf(' ') + 1)}`
+          return (
+            `<a href="${routeHref(e.page, e.id)}"><span class="r-crumb">${esc(e.label)}</span>` +
+            `<span class="r-title">${esc(e.section)}</span>` +
+            `<span class="r-snip">${esc(snip)}…</span></a>`
+          )
+        })
+        .join('')
     : '<div class="empty">No matches</div>'
   results.classList.add('open')
 }
@@ -1247,18 +1391,25 @@ async function search() {
 box.addEventListener('input', search)
 box.addEventListener('keydown', e => {
   const links = [...results.querySelectorAll('a')]
-  if (e.key === 'Escape') { box.blur(); closeSearch(); return }
+  if (e.key === 'Escape') {
+    box.blur()
+    closeSearch()
+    return
+  }
   if (!links.length) return
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault()
-    selected = (selected + (e.key === 'ArrowDown' ? 1 : -1) + links.length) % links.length
+    selected =
+      (selected + (e.key === 'ArrowDown' ? 1 : -1) + links.length) %
+      links.length
     links.forEach((l, i) => {
       l.classList.toggle('sel', i === selected)
     })
     links[selected].scrollIntoView({ block: 'nearest' })
   } else if (e.key === 'Enter' && selected >= 0) {
     links[selected].click()
-    box.blur(); closeSearch()
+    box.blur()
+    closeSearch()
   }
 })
 document.addEventListener('click', e => {
@@ -1268,7 +1419,10 @@ results.addEventListener('click', closeSearch)
 addEventListener('keydown', e => {
   // `/` has to open the collapsed field too, or the shortcut focuses an input
   // that is display:none and silently does nothing.
-  if (e.key === '/' && document.activeElement !== box) { e.preventDefault(); openSearch() }
+  if (e.key === '/' && document.activeElement !== box) {
+    e.preventDefault()
+    openSearch()
+  }
 })
 
 /* ------------------------------------------------------------- version badge
@@ -1315,7 +1469,11 @@ function fillPicker(latest, versions = []) {
   // to react to), which collapsed the badge to a 24px stub showing only its
   // arrow. This control re-renders on load and navigates on change, so it never
   // needs to mirror anything live; the label is just set.
-  const label = current ? (versions.includes(current) ? `v${current}` : current) : `v${latest}`
+  const label = current
+    ? versions.includes(current)
+      ? `v${current}`
+      : current
+    : `v${latest}`
 
   // The empty value is the live docs, labeled with the version they are:
   // "latest" as a word tells a reader nothing they can check, and this control
@@ -1330,14 +1488,21 @@ function fillPicker(latest, versions = []) {
     // flipping it again put v2.2.0 at the top with every beta climbing under it.
     ...versions
       .filter(v => v !== latest)
-      .map(v => `<option value="${esc(v)}"${v === current ? ' selected' : ''}>v${esc(v)}</option>`),
+      .map(
+        v =>
+          `<option value="${esc(v)}"${v === current ? ' selected' : ''}>v${esc(v)}</option>`,
+      ),
   ]
 
   // A ref typed by hand (a branch, or a tag with no published package) keeps
   // its own entry rather than silently resetting the control to the latest
   // version, which would tell the reader they are somewhere they are not.
   if (current && !versions.includes(current)) {
-    options.splice(2, 0, `<option value="${esc(current)}" selected>${esc(current)}</option>`)
+    options.splice(
+      2,
+      0,
+      `<option value="${esc(current)}" selected>${esc(current)}</option>`,
+    )
   }
 
   sel.innerHTML = options.join('')
@@ -1348,7 +1513,8 @@ function fillPicker(latest, versions = []) {
   // back, the control claimed 1.1.1 while the page showed the latest docs. The
   // query string is the only thing that decides what is being read; the control
   // is told, not asked.
-  sel.value = current && [...sel.options].some(o => o.value === current) ? current : ''
+  sel.value =
+    current && [...sel.options].some(o => o.value === current) ? current : ''
   sel.hidden = false
 
   sel.onchange = () => {
@@ -1436,11 +1602,11 @@ addEventListener('hashchange', goToAnchor)
 addEventListener('scroll', syncAside, { passive: true })
 // The panel scrolls on its own as well as being scrolled by the reader, so the
 // fade tracks its own scrollbar rather than only the page.
-document.getElementById('aside')?.addEventListener(
-  'scroll',
-  e => markPanelFade(e.currentTarget),
-  { passive: true },
-)
+document
+  .getElementById('aside')
+  ?.addEventListener('scroll', e => markPanelFade(e.currentTarget), {
+    passive: true,
+  })
 
 // **Awaited before the first route, not raced with it.** `route()` sets the
 // sidebar's active link and builds prev/next from `FLAT`; running it against an

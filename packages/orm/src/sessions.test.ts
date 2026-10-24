@@ -373,7 +373,9 @@ function contract(dialect: string, skip: boolean, open: () => Promise<Opened>) {
 
           expect((await request(cookie)).session.get('accountId')).toBe(7)
           expect(await alive(Session.endForAccount(7))).toBe(1)
-          expect((await request(cookie)).session.get('accountId')).toBeUndefined()
+          expect(
+            (await request(cookie)).session.get('accountId'),
+          ).toBeUndefined()
         } finally {
           __resetTestConfig()
         }

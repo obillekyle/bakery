@@ -705,9 +705,7 @@ describe('graph and lookup', () => {
  */
 describe('the write keys, enumerated', () => {
   test('there are exactly five, and these are they', async () => {
-    const source = await Bun.file(
-      `${import.meta.dir}/setup.ts`,
-    ).text()
+    const source = await Bun.file(`${import.meta.dir}/setup.ts`).text()
 
     const keys = [...source.matchAll(/'([A-Z]+ \/api\/_db\/[^']*)':/g)]
       .map(match => match[1])
@@ -723,9 +721,7 @@ describe('the write keys, enumerated', () => {
   })
 
   test('the header comment counts them correctly', async () => {
-    const source = await Bun.file(
-      `${import.meta.dir}/setup.ts`,
-    ).text()
+    const source = await Bun.file(`${import.meta.dir}/setup.ts`).text()
     // The literal that was wrong. Spelled out rather than derived, so the test
     // fails when the prose and the table disagree, which is the only failure
     // mode a comment has.

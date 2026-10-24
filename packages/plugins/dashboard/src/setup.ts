@@ -337,9 +337,7 @@ const dispatchDashboardRoute = routeTable(dashboardRoutes)
  * a `JsonResponseData` is stamped with the elapsed time and JSON-encoded.
  */
 export type DashboardResponse =
-  | Response
-  | Bun.BunFile
-  | JsonResponseData<unknown>
+  Response | Bun.BunFile | JsonResponseData<unknown>
 
 export async function handleDashboardRequest(
   req: Request,

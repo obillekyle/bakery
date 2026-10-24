@@ -120,13 +120,21 @@ async function follow(page: string) {
     const url = new URL(spec, `http://localhost${root}`)
     const target = url.pathname + url.search
     const res = await get(target, true)
-    imports.push({ url: target, status: res.status, whose: whose(await res.text()) })
+    imports.push({
+      url: target,
+      status: res.status,
+      whose: whose(await res.text()),
+    })
   }
   return { root, imports }
 }
 
 describe('a catch-all page at any depth', () => {
-  for (const page of ['/admin/faculty', '/admin/faculty/add', '/admin/campus/3/faculty']) {
+  for (const page of [
+    '/admin/faculty',
+    '/admin/faculty/add',
+    '/admin/campus/3/faculty',
+  ]) {
     test(`${page}: every import reaches the file it names`, async () => {
       const { imports } = await follow(page)
       expect(imports.map(i => i.whose)).toEqual([['USEPATH'], ['DASHBOARD']])
@@ -136,7 +144,9 @@ describe('a catch-all page at any depth', () => {
 
   test('the import URLs are the same from every depth: one URL per file', async () => {
     const shallow = (await follow('/admin/faculty')).imports.map(i => i.url)
-    const deep = (await follow('/admin/campus/3/faculty')).imports.map(i => i.url)
+    const deep = (await follow('/admin/campus/3/faculty')).imports.map(
+      i => i.url,
+    )
     expect(deep).toEqual(shallow)
     // Paths only: whether `?__vue_script=module` rides along depends on
     // whether the compiled code was minified, which this does not test.
@@ -162,7 +172,7 @@ describe('a script request a dynamic page only matched through its parameter', (
     })
   }
 
-  test("the page itself and its own root script still answer at the page URL", async () => {
+  test('the page itself and its own root script still answer at the page URL', async () => {
     const page = await get('/admin/faculty/add')
     expect(page.status).toBe(200)
     const root = await get('/admin/faculty/add?__vue_script=root', true)

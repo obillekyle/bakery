@@ -819,7 +819,9 @@ describe('MySQL introspection queries', () => {
         return [{ name: 'app_users' }]
       if (sql.includes('COUNT(*)')) return [{ count: 3 }]
       if (sql.includes('information_schema.columns'))
-        return [{ name: 'id', type: 'int', is_nullable: 'NO', column_key: 'PRI' }]
+        return [
+          { name: 'id', type: 'int', is_nullable: 'NO', column_key: 'PRI' },
+        ]
       return []
     })
 
@@ -1294,7 +1296,9 @@ describe('SQLite: DDL round-trips through introspection', () => {
   })
 
   test('getSchema reports counts, nullability, pk and uniqueness', async () => {
-    const users = (await db.getSchema({ rowCounts: true })).find(t => t.name === 'app_users')
+    const users = (await db.getSchema({ rowCounts: true })).find(
+      t => t.name === 'app_users',
+    )
     expect(users?.rowCount).toBe(2)
     expect(users?.columns).toEqual([
       { name: 'id', type: 'INTEGER', notnull: false, pk: true },
@@ -1320,9 +1324,9 @@ describe('SQLite: DDL round-trips through introspection', () => {
       .query("SELECT name FROM sqlite_master WHERE name = 'sqlite_sequence'")
       .all()) as Array<{ name: string }>
     expect(master.length).toBe(1)
-    expect((await db.getSchema({ rowCounts: true })).map(t => t.name)).not.toContain(
-      'sqlite_sequence',
-    )
+    expect(
+      (await db.getSchema({ rowCounts: true })).map(t => t.name),
+    ).not.toContain('sqlite_sequence')
     expect(Object.keys(await db.getConstraints())).not.toContain(
       'sqliteSequence',
     )
@@ -1349,7 +1353,9 @@ describe('SQLite: DDL round-trips through introspection', () => {
     // schema closed the literal and took the rest of the statement with it.
     const [rec, calls] = sqliteRecorder(sql => {
       if (sql.includes('sqlite_master') && sql.includes("type='index'"))
-        return [{ name: "idx_o'brien", tbl_name: 'app_users', sql: 'CREATE INDEX x' }]
+        return [
+          { name: "idx_o'brien", tbl_name: 'app_users', sql: 'CREATE INDEX x' },
+        ]
       if (sql.includes('sqlite_master'))
         return [{ name: "o'brien", type: 'table', sql: 'CREATE TABLE x' }]
       return []
@@ -1410,7 +1416,9 @@ describe('SQLite: DDL round-trips through introspection', () => {
     })
     expect(injected.totalRows).toBe(2)
     // The table is still there, which is the point.
-    expect((await db.getSchema({ rowCounts: true })).map(t => t.name)).toContain('app_users')
+    expect(
+      (await db.getSchema({ rowCounts: true })).map(t => t.name),
+    ).toContain('app_users')
   })
 })
 
@@ -1444,7 +1452,9 @@ describe('SQLite: mutating DDL applied and read back', () => {
       nullable: true,
       default: 'none',
     })
-    const users = (await db.getSchema({ rowCounts: true })).find(t => t.name === 'app_users')
+    const users = (await db.getSchema({ rowCounts: true })).find(
+      t => t.name === 'app_users',
+    )
     expect(users?.columns.map(c => c.name)).toContain('tag_line')
   })
 
@@ -1460,7 +1470,9 @@ describe('SQLite: mutating DDL applied and read back', () => {
     const db = await fresh()
     await db.createIndex('idx_nick', 'app_users', ['nick_name'])
     await db.rename('TABLE', 'app_users', 'people')
-    expect((await db.getSchema({ rowCounts: true })).map(t => t.name)).toEqual(['people'])
+    expect((await db.getSchema({ rowCounts: true })).map(t => t.name)).toEqual([
+      'people',
+    ])
     // SQLite rewrites the index's tbl_name for us; introspection must follow.
     expect((await db.getIndexes()).idxNick.table).toBe('people')
   })
@@ -1479,7 +1491,9 @@ describe('SQLite: mutating DDL applied and read back', () => {
     const db = await fresh()
     await db.insert('app_users', [{ nickName: 'ann' }, { nickName: 'bob' }])
     await db.truncate('app_users')
-    const users = (await db.getSchema({ rowCounts: true })).find(t => t.name === 'app_users')
+    const users = (await db.getSchema({ rowCounts: true })).find(
+      t => t.name === 'app_users',
+    )
     expect(users?.rowCount).toBe(0)
     expect(users).toBeDefined()
   })
@@ -1498,7 +1512,9 @@ describe('SQLite: mutating DDL applied and read back', () => {
       `${db.quote('nick_name')} ${db.colDef({ type: 'string' })}`,
     ])
     await db.copyTableData('app_users', 'app_users_new', ['nick_name'])
-    const copied = (await db.getSchema({ rowCounts: true })).find(t => t.name === 'app_users_new')
+    const copied = (await db.getSchema({ rowCounts: true })).find(
+      t => t.name === 'app_users_new',
+    )
     expect(copied?.rowCount).toBe(2)
   })
 

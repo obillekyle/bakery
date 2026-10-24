@@ -246,9 +246,7 @@ describe('dashboard CSRF and method qualification', () => {
 
   test('a same-origin GET still reaches a read endpoint', async () => {
     const res = await handleDashboardRequest(
-      new Request(
-        'http://localhost/api/_dashboard/sessions',
-      ),
+      new Request('http://localhost/api/_dashboard/sessions'),
     )
 
     // getData is absent from the stub, so this fails inside the endpoint: the

@@ -85,7 +85,9 @@ describe('a hostname with its own root, and one with a mount', () => {
   }
 
   test("a hosts entry's root is that host's whole site", async () => {
-    expect(await ask('example.localhost', '/')).toContain('<h1>Hello World</h1>')
+    expect(await ask('example.localhost', '/')).toContain(
+      '<h1>Hello World</h1>',
+    )
     expect(await ask('localhost', '/')).toContain('gradient-text">Bakery</h1>')
     expect(await ask('example.localhost', '/jsx')).toStartWith('404 ')
   }, 30_000)
@@ -96,8 +98,10 @@ describe('a hostname with its own root, and one with a mount', () => {
     expect(page).toContain('<code>a/b/c</code>')
   }, 30_000)
 
-  test("and what a page loads comes from the app root, the API included", async () => {
-    expect(await ask('wiki.localhost', '/styles/global.css')).toStartWith('200 ')
+  test('and what a page loads comes from the app root, the API included', async () => {
+    expect(await ask('wiki.localhost', '/styles/global.css')).toStartWith(
+      '200 ',
+    )
     expect(await ask('wiki.localhost', '/api/hello')).toContain('Hello, World!')
   }, 30_000)
 })

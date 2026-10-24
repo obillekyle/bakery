@@ -243,7 +243,9 @@ export class SQLiteAdapter extends SQLAdapter {
 
     const fell = await this.sql.unsafe('PRAGMA journal_mode = DELETE;')
     const mode = Array.isArray(fell)
-      ? String((fell[0] as { journal_mode?: unknown })?.journal_mode ?? 'unknown')
+      ? String(
+          (fell[0] as { journal_mode?: unknown })?.journal_mode ?? 'unknown',
+        )
       : 'unknown'
     MESSAGES.JOURNAL_WAL_REFUSED({
       file: filename,
@@ -268,9 +270,7 @@ export class SQLiteAdapter extends SQLAdapter {
    */
   override async schemaFingerprint(): Promise<string | null> {
     const row = (await this.query('PRAGMA schema_version').get()) as
-      | { schema_version?: number }
-      | null
-      | undefined
+      { schema_version?: number } | null | undefined
     const version = row?.schema_version
     if (typeof version !== 'number') return null
     return `sqlite:${this.filename ?? ''}:${version}`

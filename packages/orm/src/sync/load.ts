@@ -156,7 +156,8 @@ async function readSchema(
   const [error, module] = await importFresh(entry)
   // Still read as no schema, which `loadSchema` relies on for a broken folder
   // entry, but no longer in silence: this is the only place the cause exists.
-  if (error) MESSAGES.SCHEMA_IMPORT_FAILED({ file: entry, error: error.message })
+  if (error)
+    MESSAGES.SCHEMA_IMPORT_FAILED({ file: entry, error: error.message })
   if (error || !module) return emptyAt(targetPath)
 
   if (layout === 'folder') {

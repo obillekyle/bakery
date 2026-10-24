@@ -61,35 +61,40 @@ export function renderStatsPanel() {
             type="button"
             class="timescale-btn active"
             id="timescale-1m"
-            onclick="changeTimescale('1m')">
+            onclick="changeTimescale('1m')"
+          >
             1m
           </button>
           <button
             type="button"
             class="timescale-btn"
             id="timescale-1h"
-            onclick="changeTimescale('1h')">
+            onclick="changeTimescale('1h')"
+          >
             1h
           </button>
           <button
             type="button"
             class="timescale-btn"
             id="timescale-1d"
-            onclick="changeTimescale('1d')">
+            onclick="changeTimescale('1d')"
+          >
             1d
           </button>
           <button
             type="button"
             class="timescale-btn"
             id="timescale-7d"
-            onclick="changeTimescale('7d')">
+            onclick="changeTimescale('7d')"
+          >
             7d
           </button>
           <button
             type="button"
             class="timescale-btn"
             id="timescale-30d"
-            onclick="changeTimescale('30d')">
+            onclick="changeTimescale('30d')"
+          >
             30d
           </button>
         </div>

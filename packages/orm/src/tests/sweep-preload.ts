@@ -66,7 +66,9 @@ for (const { url, driver } of TARGETS) {
     // between leaves one behind, and nothing else would ever notice.
     const databases =
       driver === 'pgsql'
-        ? ((await db`SELECT datname AS name FROM pg_database`) as { name: string }[])
+        ? ((await db`SELECT datname AS name FROM pg_database`) as {
+            name: string
+          }[])
         : ((await db`SELECT schema_name AS name FROM information_schema.schemata`) as {
             name: string
           }[])

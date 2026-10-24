@@ -126,7 +126,6 @@ function renderKVRows(
     empty.innerText = 'No data stored in this session.'
     kvSection.appendChild(empty)
   }
-
 }
 
 function renderSessionCard(s: any): HTMLElement {

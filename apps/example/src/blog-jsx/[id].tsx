@@ -40,7 +40,8 @@ export default HTMLBody<{ id: string }>((req, body) => {
 
             <ul
               class="feature-list"
-              style="list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 1rem;">
+              style="list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 1rem;"
+            >
               <li style="background: rgba(255, 255, 255, 0.02); padding: 1rem; border-radius: 0.5rem; border: 1px solid rgba(255, 255, 255, 0.05);">
                 <strong>Resolved ID:</strong> <code>{body.id}</code>
               </li>

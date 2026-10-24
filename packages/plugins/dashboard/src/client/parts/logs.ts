@@ -123,9 +123,7 @@ export function toggleLogsPlay() {
   logsPaused = !logsPaused
   const btn = document.getElementById('btn-logs-play')
   if (btn) {
-    btn.innerHTML = logsPaused
-      ? '<span>Resume</span>'
-      : '<span>Pause</span>'
+    btn.innerHTML = logsPaused ? '<span>Resume</span>' : '<span>Pause</span>'
     btn.classList.toggle('btn-success', logsPaused)
   }
 }

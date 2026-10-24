@@ -22,7 +22,12 @@ import {
 const AS_SHIPPED = {
   '1m': { windowMs: 60_000, points: 60, bucketMs: 1_000, samples: 1 },
   '1h': { windowMs: 3_600_000, points: 60, bucketMs: 60_000, samples: 60 },
-  '1d': { windowMs: 86_400_000, points: 48, bucketMs: 1_800_000, samples: 1800 },
+  '1d': {
+    windowMs: 86_400_000,
+    points: 48,
+    bucketMs: 1_800_000,
+    samples: 1800,
+  },
   '7d': {
     windowMs: 604_800_000,
     points: 28,

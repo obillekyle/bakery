@@ -285,9 +285,9 @@ describe('metaOf: hasDefault', () => {
   })
 
   test('a real default is', () => {
-    expect(metaOf({ type: 'integer', default: 0 }, schemaColumn).hasDefault).toBe(
-      true,
-    )
+    expect(
+      metaOf({ type: 'integer', default: 0 }, schemaColumn).hasDefault,
+    ).toBe(true)
     expect(
       metaOf({ type: 'string', default: '' }, { ...schemaColumn, type: 'TEXT' })
         .hasDefault,

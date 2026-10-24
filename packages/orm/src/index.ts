@@ -61,9 +61,5 @@ export type {
   ExtractViews,
   TableDef,
 } from './schema-util'
-export {
-  col,
-  dateNow,
-  old,
-} from './schema-util'
+export { col, dateNow, old } from './schema-util'
 export { DB, Mutation }

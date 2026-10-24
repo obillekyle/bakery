@@ -210,20 +210,20 @@ export class SyncEngine {
     // lands in `tablesToDrop`, which is still dangerous.
     const isDangerous = Boolean(
       plan.tablesToDrop.length ||
-        plan.tablesToRename.length ||
-        plan.columnsToDrop.length ||
-        plan.columnsToRename.length ||
-        plan.tablesToRebuild.size ||
-        indexesToDrop.size,
+      plan.tablesToRename.length ||
+      plan.columnsToDrop.length ||
+      plan.columnsToRename.length ||
+      plan.tablesToRebuild.size ||
+      indexesToDrop.size,
     )
 
     const hasChanges = Boolean(
       isDangerous ||
-        plan.unmappedTsTables.size ||
-        plan.columnsToAdd.length ||
-        plan.viewsToUpdate.length ||
-        indexesToDrop.size ||
-        indexesToAdd.size,
+      plan.unmappedTsTables.size ||
+      plan.columnsToAdd.length ||
+      plan.viewsToUpdate.length ||
+      indexesToDrop.size ||
+      indexesToAdd.size,
     )
 
     return { isDangerous, hasChanges }

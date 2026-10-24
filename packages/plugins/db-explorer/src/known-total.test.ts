@@ -8,11 +8,7 @@ import {
 } from 'bun:test'
 import { initConfig } from '@bakery-framework/core/core/config'
 import { __resetTestDb, __setTestDb } from '@bakery-framework/orm/connection'
-import {
-  __resetTestAccess,
-  __setTestAccess,
-  DbExplorerHandler,
-} from './setup'
+import { __resetTestAccess, __setTestAccess, DbExplorerHandler } from './setup'
 
 /**
  * Reading a page ran a `COUNT(*)` every time, including page 2 and beyond.
@@ -67,7 +63,11 @@ function createStub() {
       all: async () => [],
       get: async () => null,
     }),
-    execute: { run: async () => ({ changes: 0 }), all: async () => [], get: async () => null },
+    execute: {
+      run: async () => ({ changes: 0 }),
+      all: async () => [],
+      get: async () => null,
+    },
   }
   return { db, seen }
 }

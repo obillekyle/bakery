@@ -88,17 +88,32 @@ describe('compileHostMounts', () => {
   // Each refusal names the entry and the field, the way a bad rate limit
   // does, because the message is all a failed boot has to say.
   const refused: [unknown, string][] = [
-    [[{ host: 'kit.*', path: 'kit' }], "hostMounts[0].path must be a path starting with '/'"],
+    [
+      [{ host: 'kit.*', path: 'kit' }],
+      "hostMounts[0].path must be a path starting with '/'",
+    ],
     [[{ host: 'kit.*', path: '/' }], "hostMounts[0].path '/' is the whole app"],
     [[{ host: 'kit.*', path: '/kit//x' }], "has an empty, '.' or '..' segment"],
-    [[{ host: 'kit.*', path: '/kit/../admin' }], "has an empty, '.' or '..' segment"],
+    [
+      [{ host: 'kit.*', path: '/kit/../admin' }],
+      "has an empty, '.' or '..' segment",
+    ],
     [[{ host: 'kit.*', path: '/k?t' }], "holds no '?', '#', '*' or '\\'"],
-    [[{ host: 'kit.*', path: '/_kit' }], "is under /_, which every host serves as it is"],
+    [
+      [{ host: 'kit.*', path: '/_kit' }],
+      'is under /_, which every host serves as it is',
+    ],
     [[{ host: 'kit.*', path: '/api' }], 'is under /api/'],
     [[{ host: 'kit.*', path: '/api/docs' }], 'is under /api/'],
     [[{ host: 'kit.*', path: '/.well-known' }], 'is under /.well-known/'],
     [[{ host: 42, path: '/kit' }], 'hostMounts[0].host must be a hostname'],
-    [[{ host: 'kit.*', path: '/kit' }, { host: 'k*t', path: '/kit' }], 'hostMounts[1].host'],
+    [
+      [
+        { host: 'kit.*', path: '/kit' },
+        { host: 'k*t', path: '/kit' },
+      ],
+      'hostMounts[1].host',
+    ],
     [[null], 'hostMounts[0] must be { host, path }'],
     [{ host: 'kit.*', path: '/kit' }, 'hostMounts must be an array'],
   ]

@@ -11,7 +11,12 @@ import { __resetIntrospectCache, introspect } from './identity'
  * schema round trips* is observable. A timing assertion would be flaky and
  * would not actually say whether the walk happened.
  */
-type Calls = { schema: number; constraints: number; indexes: number; fingerprint: number }
+type Calls = {
+  schema: number
+  constraints: number
+  indexes: number
+  fingerprint: number
+}
 
 function stubAdapter(opts: { fingerprint?: () => string | null } = {}) {
   const calls: Calls = { schema: 0, constraints: 0, indexes: 0, fingerprint: 0 }
@@ -139,7 +144,9 @@ describe('introspection is cached against the schema fingerprint', () => {
     // reason: a fresh database starts near zero, so a small integer is a value
     // many of them hold at once.
     let file = '/one.db'
-    const { adapter, calls } = stubAdapter({ fingerprint: () => `sqlite:${file}:3` })
+    const { adapter, calls } = stubAdapter({
+      fingerprint: () => `sqlite:${file}:3`,
+    })
     __setTestDb(adapter)
 
     await introspect()

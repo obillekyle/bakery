@@ -1,9 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import {
-  __resetTestConfig,
-  __setTestConfig,
-  initConfig,
-} from '../core/config'
+import { __resetTestConfig, __setTestConfig, initConfig } from '../core/config'
 import { StaticHandler } from '../handlers/assets/static'
 import { processResponse } from '../router'
 import { fs } from '../utils/fs'
@@ -96,9 +92,7 @@ describe('static files over the wire, range advertisement', () => {
       headers: { Range: 'bytes=100-199' },
     })
     expect(res.status).toBe(206)
-    expect(res.headers.get('content-range')).toBe(
-      `bytes 100-199/${MEDIA_SIZE}`,
-    )
+    expect(res.headers.get('content-range')).toBe(`bytes 100-199/${MEDIA_SIZE}`)
     expect((await res.arrayBuffer()).byteLength).toBe(100)
     // `get` joins duplicates with ", ". The double-advertisement regression
     // would read `bytes, bytes` here.

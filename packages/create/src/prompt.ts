@@ -86,9 +86,7 @@ export function applyConfirmKey(
   key: string,
   fallback: boolean,
 ):
-  | { kind: 'answer'; value: boolean }
-  | { kind: 'cancel' }
-  | { kind: 'ignore' } {
+  { kind: 'answer'; value: boolean } | { kind: 'cancel' } | { kind: 'ignore' } {
   if (key === KEY.ctrlC || key === KEY.ctrlD) return { kind: 'cancel' }
   if (key === 'y' || key === 'Y') return { kind: 'answer', value: true }
   if (key === 'n' || key === 'N') return { kind: 'answer', value: false }

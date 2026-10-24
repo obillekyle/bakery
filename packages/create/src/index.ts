@@ -326,7 +326,11 @@ export async function resolveChoices(
         { id: 'vue', label: 'vue', hint: 'single-file components' },
         { id: 'analytics', label: 'analytics', hint: 'request metrics' },
         { id: 'dashboard', label: 'dashboard', hint: 'admin console' },
-        { id: 'db-explorer', label: 'db-explorer', hint: 'browse and edit rows' },
+        {
+          id: 'db-explorer',
+          label: 'db-explorer',
+          hint: 'browse and edit rows',
+        },
       ])
       if (chosen === null) return null
       plugins = PLUGIN_IDS.filter(id => chosen.includes(id))

@@ -73,7 +73,9 @@ describe('core/init mode flags', () => {
     // init" (`undefined`) and fails closed on the latter, so a flag that is
     // absent rather than empty opens a door.
     for (const flag of FLAGS) {
-      expect(`${flag} in env`).toBe(`${flag} ${flag in process.env ? 'in' : 'MISSING FROM'} env`)
+      expect(`${flag} in env`).toBe(
+        `${flag} ${flag in process.env ? 'in' : 'MISSING FROM'} env`,
+      )
       expect(typeof env[flag]).toBe('string')
     }
   })

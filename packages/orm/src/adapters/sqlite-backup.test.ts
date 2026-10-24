@@ -21,16 +21,22 @@ test('a backup taken in WAL mode holds every committed row', async () => {
   const db = new SQLiteAdapter(join(dir, 'app.db').replace(/\\/g, '/'))
   await db.query('CREATE TABLE t (v INTEGER)').run()
   for (let i = 0; i < 50; i++) await db.query('INSERT INTO t VALUES (?)').run(i)
-  const mode = (await db.query('PRAGMA journal_mode').get()) as { journal_mode: string }
+  const mode = (await db.query('PRAGMA journal_mode').get()) as {
+    journal_mode: string
+  }
   expect(mode.journal_mode).toBe('wal')
 
   const result = await db.backup(5)
   await db.close()
   expect(result).not.toBeNull()
 
-  const copy = new SQLiteAdapter(join(dir, 'backups', result!.file).replace(/\\/g, '/'))
+  const copy = new SQLiteAdapter(
+    join(dir, 'backups', result!.file).replace(/\\/g, '/'),
+  )
   try {
-    const row = await copy.query('SELECT count(*) AS n, sum(v) AS total FROM t').get()
+    const row = await copy
+      .query('SELECT count(*) AS n, sum(v) AS total FROM t')
+      .get()
     expect(row).toEqual({ n: 50, total: 1225 })
   } finally {
     await copy.close()

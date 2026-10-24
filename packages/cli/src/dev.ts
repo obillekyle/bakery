@@ -12,13 +12,11 @@ let config: unknown
 
 try {
   const { initConfig } = await import('@bakery-framework/core/core/config')
-  const { initImportMap, initHostImportMaps } = await import(
-    '@bakery-framework/core/utils/http'
-  )
+  const { initImportMap, initHostImportMaps } =
+    await import('@bakery-framework/core/utils/http')
   const { setupPlugins } = await import('@bakery-framework/core/startup')
-  const { syncTSConfigPaths, syncTSConfigProjects } = await import(
-    '@bakery-framework/core/compiler/tsconfig-sync'
-  )
+  const { syncTSConfigPaths, syncTSConfigProjects } =
+    await import('@bakery-framework/core/compiler/tsconfig-sync')
 
   config = await initConfig()
   // Still before initImportMap(): a plugin's setup() may contribute entries.
@@ -43,9 +41,8 @@ try {
 if (hasORM()) {
   try {
     const { Bakery } = await import('@bakery-framework/core')
-    const { classifySchemaSync } = await import(
-      '@bakery-framework/core/compiler'
-    )
+    const { classifySchemaSync } =
+      await import('@bakery-framework/core/compiler')
     const { schemaFromConfig } = await import('@bakery-framework/orm/sync/load')
     const { Try } = await import('@bakery-framework/core/utils')
     // Dynamic, like every other import in this block: `schema-hash.ts` is only
@@ -88,9 +85,8 @@ if (hasORM()) {
       // 2.7ms median against apps/example (4 tables): it is one introspection
       // pass, so it grows with table count, which is why it is not on the path
       // that is about to introspect anyway.
-      const { initDB, connection } = await import(
-        '@bakery-framework/orm/connection'
-      )
+      const { initDB, connection } =
+        await import('@bakery-framework/orm/connection')
       const { detectDrift } = await import('@bakery-framework/orm/sync/ledger')
       await initDB()
       const drift = await detectDrift(connection)

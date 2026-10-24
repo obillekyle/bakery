@@ -239,7 +239,6 @@ function updateTopPagesList(topPages: any[]) {
 
   html += '</div>'
   topPagesListContainer.innerHTML = html
-
 }
 
 export function processStatsData(s: any, excludeHistory: boolean) {

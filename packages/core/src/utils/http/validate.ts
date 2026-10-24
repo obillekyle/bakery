@@ -28,8 +28,7 @@ export interface StandardSchemaLike<T> {
 }
 
 type StandardResult<T> =
-  | { value: T; issues?: undefined }
-  | { issues: readonly StandardIssue[] }
+  { value: T; issues?: undefined } | { issues: readonly StandardIssue[] }
 
 interface StandardIssue {
   message: string
@@ -48,8 +47,7 @@ export interface ValidationIssue {
 }
 
 export type ValidationResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; issues: ValidationIssue[] }
+  { ok: true; value: T } | { ok: false; issues: ValidationIssue[] }
 
 function isStandardSchema<T>(v: Validator<T>): v is StandardSchemaLike<T> {
   return typeof v === 'object' && v !== null && '~standard' in v

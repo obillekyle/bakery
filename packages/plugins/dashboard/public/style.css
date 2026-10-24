@@ -43,7 +43,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-:root {
+  :root {
     --bg: #0f1115;
     --surface: #171a1f;
     --surface-alt: #1c2027;
@@ -86,7 +86,7 @@ a:hover {
   display: grid;
   grid-template-columns: var(--rail-w) 1fr;
   grid-template-rows: var(--bar-h) 1fr;
-  grid-template-areas: "rail bar" "rail main";
+  grid-template-areas: 'rail bar' 'rail main';
   min-height: 100vh;
 }
 .rail {
@@ -180,7 +180,7 @@ a.tab-btn {
   opacity: 0.55;
 }
 .tab-btn.active::before {
-  content: "";
+  content: '';
   position: absolute;
   left: -10px;
   top: 6px;
@@ -281,11 +281,11 @@ main {
 }
 
 @keyframes rise {
-from {
+  from {
     opacity: 0;
     transform: translateY(3px);
   }
-to {
+  to {
     opacity: 1;
     transform: none;
   }
@@ -540,9 +540,9 @@ to {
 .search-input,
 .session-search-input,
 select,
-input[type="text"],
-input[type="password"],
-input[type="number"],
+input[type='text'],
+input[type='password'],
+input[type='number'],
 textarea {
   width: 100%;
   padding: 6px 10px;
@@ -735,11 +735,11 @@ tbody tr:last-child td {
 }
 
 @media (max-width: 900px) {
-.console {
+  .console {
     grid-template-columns: 1fr;
-    grid-template-areas: "bar" "main";
+    grid-template-areas: 'bar' 'main';
   }
-.rail {
+  .rail {
     position: fixed;
     inset: 0 auto 0 0;
     width: var(--rail-w);
@@ -747,14 +747,14 @@ tbody tr:last-child td {
     transition: transform 0.18s ease;
     z-index: 90;
   }
-.rail.open {
+  .rail.open {
     transform: none;
     box-shadow: var(--shadow-pop);
   }
-.rail-toggle {
+  .rail-toggle {
     display: inline-flex;
   }
-main {
+  main {
     padding: 16px 14px 32px;
   }
 }

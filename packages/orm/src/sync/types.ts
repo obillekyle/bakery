@@ -89,11 +89,7 @@ export interface IndexConstraint {
  * against `c` and drop-and-recreate the key on every sync.
  */
 export type ForeignKeyAction =
-  | 'NO ACTION'
-  | 'RESTRICT'
-  | 'CASCADE'
-  | 'SET NULL'
-  | 'SET DEFAULT'
+  'NO ACTION' | 'RESTRICT' | 'CASCADE' | 'SET NULL' | 'SET DEFAULT'
 
 /**
  * A foreign key as the database reports it.

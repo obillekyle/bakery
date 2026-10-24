@@ -32,13 +32,7 @@ import {
   validateKey,
   validatePartial,
 } from '../validate'
-import {
-  beginWrite,
-  byName,
-  type Envelope,
-  invalid,
-  refuse,
-} from './common'
+import { beginWrite, byName, type Envelope, invalid, refuse } from './common'
 
 /**
  * A conflict, as the caller sees it: which edit, which row, and what the row
@@ -410,7 +404,8 @@ async function applyCollapsedGroup(
       continue
     }
 
-    let statement = byName.update(table.name)
+    let statement = byName
+      .update(table.name)
       .set(group.set)
       .where(group.column, DB.inList(chunk.map(m => m.value)))
     for (const [column, value] of Object.entries(group.expect)) {

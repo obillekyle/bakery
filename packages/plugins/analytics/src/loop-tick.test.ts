@@ -73,7 +73,9 @@ describe('the in-progress aggregation survives a restart', () => {
     // Serialized, because a JSON column in the `core` row is what holds it.
     const roundTripped = JSON.parse(JSON.stringify(saved))
 
-    core.loadTemps({ temp1h: { ...roundTripped.temp1h, count: 7, routeHits: 9 } })
+    core.loadTemps({
+      temp1h: { ...roundTripped.temp1h, count: 7, routeHits: 9 },
+    })
     expect(core.snapshotTemps().temp1h.count).toBe(7)
     expect(core.snapshotTemps().temp1h.routeHits).toBe(9)
 

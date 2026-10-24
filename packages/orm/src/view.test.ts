@@ -304,9 +304,8 @@ describe('a schema with a view settles', () => {
 
     // `executeSyncPlan` rather than `syncSchema`: the plan is the unit under
     // test, and the full path additionally wants a backup, which wants config.
-    const { collectForeignKeys, executeSyncPlan } = await import(
-      './sync/execute'
-    )
+    const { collectForeignKeys, executeSyncPlan } =
+      await import('./sync/execute')
     const msgs: any = new Proxy({}, { get: () => () => {} })
     const plan: any = {
       tablesToDrop: [],

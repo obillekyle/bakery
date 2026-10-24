@@ -9,13 +9,15 @@ export function renderLogsPanel() {
               type="button"
               class="btn btn-secondary"
               onclick="toggleLogsPlay()"
-              id="btn-logs-play">
+              id="btn-logs-play"
+            >
               <span>Pause</span>
             </button>
             <button
               type="button"
               class="btn btn-secondary btn-danger"
-              onclick="clearLogs()">
+              onclick="clearLogs()"
+            >
               <span>Clear Logs</span>
             </button>
             <label>

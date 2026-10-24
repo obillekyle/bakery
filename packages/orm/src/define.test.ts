@@ -103,7 +103,9 @@ describe('autocomplete sources survive derivation', () => {
   test('qualified column strings can still be built', () => {
     // The shape ColumnString<S, J> relies on.
     type Qualified = {
-      [T in keyof Derived]: `${T & string}.${Extract<keyof Derived[T] & string, string>}`
+      [
+        T in keyof Derived
+      ]: `${T & string}.${Extract<keyof Derived[T] & string, string>}`
     }[keyof Derived]
 
     const sample: Qualified = 'users.username'

@@ -40,9 +40,7 @@ describe('runStartupBanner, the framework version', () => {
     // Read from core's own manifest here rather than through the helper the
     // banner uses, so a helper that read the app's package.json instead (the
     // mistake `getAppVersion` was renamed to stop) would fail this.
-    const manifest = await Bun.file(
-      `${import.meta.dir}/../package.json`,
-    ).json()
+    const manifest = await Bun.file(`${import.meta.dir}/../package.json`).json()
 
     await runStartupBanner()
 

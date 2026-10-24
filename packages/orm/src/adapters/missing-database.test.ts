@@ -40,8 +40,12 @@ describe('recognizing a missing database', () => {
 })
 
 describe('what the error says, and where creation would run', () => {
-  const pg = new PGAdapter('postgres://app:s3cret@db.internal:5432/silid?sslmode=require')
-  const my = new MySQLAdapter('mysql://root:s3cret@127.0.0.1:3306/silid?sslmode=require')
+  const pg = new PGAdapter(
+    'postgres://app:s3cret@db.internal:5432/silid?sslmode=require',
+  )
+  const my = new MySQLAdapter(
+    'mysql://root:s3cret@127.0.0.1:3306/silid?sslmode=require',
+  )
   afterAll(async () => {
     await pg.close()
     await my.close()
@@ -64,7 +68,9 @@ describe('what the error says, and where creation would run', () => {
 
   test('a percent-encoded name is named as the server knows it', () => {
     const spaced = new PGAdapter('postgres://app:pw@db.internal:5432/my%20db')
-    expect((spaced as any).explainError({ errno: '3D000' }).database).toBe('my db')
+    expect((spaced as any).explainError({ errno: '3D000' }).database).toBe(
+      'my db',
+    )
     void spaced.close()
   })
 
@@ -121,41 +127,56 @@ for (const { label, url, open, maintenance } of LIVE) {
       }
     }, LIVE_TIMEOUT)
 
-    test.skipIf(skip)('a query names it, instead of the driver error', async () => {
-      const error = await connect()
-        .query('SELECT 1')
-        .get()
-        .catch((e: unknown) => e)
-      expect(error).toBeInstanceOf(DatabaseMissingError)
-      expect((error as DatabaseMissingError).database).toBe(name)
-    }, LIVE_TIMEOUT)
+    test.skipIf(skip)(
+      'a query names it, instead of the driver error',
+      async () => {
+        const error = await connect()
+          .query('SELECT 1')
+          .get()
+          .catch((e: unknown) => e)
+        expect(error).toBeInstanceOf(DatabaseMissingError)
+        expect((error as DatabaseMissingError).database).toBe(name)
+      },
+      LIVE_TIMEOUT,
+    )
 
-    test.skipIf(skip)('without the flag and without a terminal, sync refuses and says how', async () => {
-      const said: string[] = []
-      setLogCallback(entry => void said.push(entry.msg))
-      try {
-        const outcome = await SyncService.ensureDatabase(connect(), {
-          argv: [],
+    test.skipIf(skip)(
+      'without the flag and without a terminal, sync refuses and says how',
+      async () => {
+        const said: string[] = []
+        setLogCallback(entry => void said.push(entry.msg))
+        try {
+          const outcome = await SyncService.ensureDatabase(connect(), {
+            argv: [],
+            interactive: false,
+          })
+          expect(outcome).toBe('missing')
+        } finally {
+          setLogCallback(() => {})
+        }
+        expect(said.join('\n')).toContain('--create-database')
+      },
+      LIVE_TIMEOUT,
+    )
+
+    test.skipIf(skip)(
+      '--create-database creates it, and the same connection then works',
+      async () => {
+        const db = connect()
+        const created = await SyncService.ensureDatabase(db, {
+          argv: ['--create-database'],
           interactive: false,
         })
-        expect(outcome).toBe('missing')
-      } finally {
-        setLogCallback(() => {})
-      }
-      expect(said.join('\n')).toContain('--create-database')
-    }, LIVE_TIMEOUT)
-
-    test.skipIf(skip)('--create-database creates it, and the same connection then works', async () => {
-      const db = connect()
-      const created = await SyncService.ensureDatabase(db, {
-        argv: ['--create-database'],
-        interactive: false,
-      })
-      expect(created).toBe('created')
-      expect(await db.query('SELECT 1 AS one').get()).toEqual({ one: 1 })
-      expect(await SyncService.ensureDatabase(db, { argv: [], interactive: false })).toBe(
-        'present',
-      )
-    }, LIVE_TIMEOUT)
+        expect(created).toBe('created')
+        expect(await db.query('SELECT 1 AS one').get()).toEqual({ one: 1 })
+        expect(
+          await SyncService.ensureDatabase(db, {
+            argv: [],
+            interactive: false,
+          }),
+        ).toBe('present')
+      },
+      LIVE_TIMEOUT,
+    )
   })
 }

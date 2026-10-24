@@ -293,7 +293,12 @@ describe('no raw SQL and no DDL: structurally, not by configuration', () => {
     // a Postgres parse error would have quoted the statement. A caller holding
     // only `read` is not owed the query text, and it tells a client nothing it
     // can act on. The message goes to the server log instead.
-    const stub = { ...stubDb, getData: async () => { throw new Error('SQLITE_MISMATCH: datatype mismatch') } }
+    const stub = {
+      ...stubDb,
+      getData: async () => {
+        throw new Error('SQLITE_MISMATCH: datatype mismatch')
+      },
+    }
     __setTestDb(stub as any)
 
     const res = (await handleTableData(

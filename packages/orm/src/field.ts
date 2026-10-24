@@ -52,10 +52,7 @@ type ArrayElement =
 
 /** What Bun returns for one element of an array of `E`. */
 type ElementOf<E extends ArrayElement> = E extends
-  | 'integer'
-  | 'smallint'
-  | 'real'
-  | 'double precision'
+  'integer' | 'smallint' | 'real' | 'double precision'
   ? number
   : E extends 'boolean'
     ? boolean
@@ -379,7 +376,10 @@ export const Field = {
     element: E,
     options: { nullable?: true; optional?: true } = {},
   ) => {
-    const def: Record<string, unknown> = { type: 'sql', sqlType: `${element}[]` }
+    const def: Record<string, unknown> = {
+      type: 'sql',
+      sqlType: `${element}[]`,
+    }
     if (options.nullable) def.nullable = true
     return def
   }) as {
@@ -492,8 +492,7 @@ export const Field = {
             // The options object, when present, is the only non-column argument.
             const actions =
               (args.find(a => a && !isColumnValue(a)) as
-                | ForeignKeyActions
-                | undefined) ?? {}
+                ForeignKeyActions | undefined) ?? {}
 
             if (!targets.length)
               throws(

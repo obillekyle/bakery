@@ -1,13 +1,16 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from 'bun:test'
 import { initConfig } from '@bakery-framework/core/core/config'
 import { __resetTestDb, __setTestDb } from '@bakery-framework/orm/connection'
 import { __resetIntrospectCache } from './identity'
 import { groupBulkEdits } from './endpoints/rows'
-import {
-  __resetTestAccess,
-  __setTestAccess,
-  DbExplorerHandler,
-} from './setup'
+import { __resetTestAccess, __setTestAccess, DbExplorerHandler } from './setup'
 
 /**
  * A bulk edit issued one `UPDATE` per row: 1,000 edits were 1,000 statements
@@ -42,7 +45,12 @@ const SCHEMA = [
 
 const CONSTRAINTS: any = {
   parcels: {
-    id: { type: 'integer', primary: true, nullable: false, autoIncrement: true },
+    id: {
+      type: 'integer',
+      primary: true,
+      nullable: false,
+      autoIncrement: true,
+    },
     courier: { type: 'string', nullable: false },
     status: { type: 'string', nullable: true },
   },
@@ -255,7 +263,10 @@ describe('a bulk edit collapses into one statement per group', () => {
 })
 
 describe('what disqualifies a member from a group', () => {
-  const edit = (key: Record<string, unknown>, set: Record<string, unknown>) => ({
+  const edit = (
+    key: Record<string, unknown>,
+    set: Record<string, unknown>,
+  ) => ({
     key,
     set,
     expect: {},

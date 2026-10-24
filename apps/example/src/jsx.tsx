@@ -44,7 +44,8 @@ export default HTMLBody(() => {
 
             <ul
               class="feature-list"
-              style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; list-style: none; padding-left: 0;">
+              style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; list-style: none; padding-left: 0;"
+            >
               {features.map(f => (
                 <li style="background: rgba(255, 255, 255, 0.02); padding: 1.25rem; border-radius: 0.75rem; border: 1px solid rgba(255, 255, 255, 0.05);">
                   <strong style="display: block; font-size: 1.1rem; margin-bottom: 0.5rem; color: #ffffff;">

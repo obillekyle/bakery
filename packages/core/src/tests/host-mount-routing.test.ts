@@ -108,7 +108,11 @@ const KINDS = {
   },
   /** A browser with no Fetch Metadata loading a page. */
   html: { accept: 'text/html,application/xhtml+xml,*/*;q=0.8' },
-  module: { 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'script', accept: '*/*' },
+  module: {
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-dest': 'script',
+    accept: '*/*',
+  },
   plain: { accept: '*/*' },
 } satisfies Record<string, Record<string, string>>
 
@@ -190,7 +194,9 @@ describe('on a mounted host, what pages load comes from the root', () => {
     expect(own.status).toBe(200)
     expect(await own.text()).toContain('kit module')
 
-    const shared = await serve(request('kit.localhost', '/ui/useThing', 'module'))
+    const shared = await serve(
+      request('kit.localhost', '/ui/useThing', 'module'),
+    )
     expect(shared.status).toBe(200)
     expect(await shared.text()).toContain('ui module')
   })
@@ -299,12 +305,13 @@ describe('routeOf', () => {
       headers: { upgrade: 'websocket', 'sec-fetch-mode': 'websocket' },
     })
     expect(route(upgrade).path).toBe('/live')
-    expect(route(request('kit.localhost', '/_dashboard', 'navigate')).path).toBe(
-      '/_dashboard',
-    )
     expect(
-      route(request('kit.localhost', '/.well-known/acme-challenge/t', 'navigate'))
-        .path,
+      route(request('kit.localhost', '/_dashboard', 'navigate')).path,
+    ).toBe('/_dashboard')
+    expect(
+      route(
+        request('kit.localhost', '/.well-known/acme-challenge/t', 'navigate'),
+      ).path,
     ).toBe('/.well-known/acme-challenge/t')
   })
 

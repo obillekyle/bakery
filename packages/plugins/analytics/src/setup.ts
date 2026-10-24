@@ -175,8 +175,7 @@ const analyticsRoutes = routeTable({
  * compile error rather than a silent widening.
  */
 export type AnalyticsResponse =
-  | Response
-  | JsonResponseData<AnalyticsStats | undefined>
+  Response | JsonResponseData<AnalyticsStats | undefined>
 
 export function handleAnalyticsRequest(
   req: Request,

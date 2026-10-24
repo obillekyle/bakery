@@ -11,9 +11,8 @@ serveLog.STARTING({ mode: 'production' })
 try {
   const { initConfig } = await import('@bakery-framework/core/core/config')
   const { setupPlugins } = await import('@bakery-framework/core/startup')
-  const { initImportMap, initHostImportMaps } = await import(
-    '@bakery-framework/core/utils/http'
-  )
+  const { initImportMap, initHostImportMaps } =
+    await import('@bakery-framework/core/utils/http')
 
   await initConfig()
   // Before initImportMap() so plugin-contributed entries land in it; memoized,

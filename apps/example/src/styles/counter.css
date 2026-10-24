@@ -38,7 +38,7 @@ body {
 
 body::before,
 body::after {
-  content: "";
+  content: '';
   position: fixed;
   width: 600px;
   height: 600px;
@@ -172,7 +172,7 @@ body::after {
 
 @media (hover: hover) and (pointer: fine) {
   .glass-effect::before {
-    content: "";
+    content: '';
     position: absolute;
     inset: -1px;
     border-radius: calc(1.5rem + 1px);

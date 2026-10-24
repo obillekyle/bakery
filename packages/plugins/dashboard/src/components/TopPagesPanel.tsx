@@ -10,35 +10,40 @@ export function renderTopPagesPanel() {
             type="button"
             class="pages-filter-btn"
             id="pages-filter-1m"
-            onclick="changePagesFilter('1m')">
+            onclick="changePagesFilter('1m')"
+          >
             1m
           </button>
           <button
             type="button"
             class="pages-filter-btn"
             id="pages-filter-1h"
-            onclick="changePagesFilter('1h')">
+            onclick="changePagesFilter('1h')"
+          >
             1h
           </button>
           <button
             type="button"
             class="pages-filter-btn active"
             id="pages-filter-1d"
-            onclick="changePagesFilter('1d')">
+            onclick="changePagesFilter('1d')"
+          >
             1d
           </button>
           <button
             type="button"
             class="pages-filter-btn"
             id="pages-filter-7d"
-            onclick="changePagesFilter('7d')">
+            onclick="changePagesFilter('7d')"
+          >
             7d
           </button>
           <button
             type="button"
             class="pages-filter-btn"
             id="pages-filter-30d"
-            onclick="changePagesFilter('30d')">
+            onclick="changePagesFilter('30d')"
+          >
             30d
           </button>
         </div>

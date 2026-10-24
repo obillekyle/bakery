@@ -34,7 +34,9 @@ describe('session accessed/modified split', () => {
   function makeReq(sessionId?: string): Request {
     const req = new Request(
       'http://localhost/',
-      sessionId ? { headers: { cookie: `sId=${signSessionId(sessionId)}` } } : undefined,
+      sessionId
+        ? { headers: { cookie: `sId=${signSessionId(sessionId)}` } }
+        : undefined,
     )
     deferredValue(req, 'session', Session.from)
     return req

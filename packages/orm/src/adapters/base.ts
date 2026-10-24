@@ -360,7 +360,9 @@ export function createExecutor(
   } = {},
 ): SQLAdapter.Executor {
   const bind = options.bind ?? refuseArrays(driver)
-  const bound = <F extends SQLAdapter.Executor['all'] | SQLAdapter.Executor['run']>(
+  const bound = <
+    F extends SQLAdapter.Executor['all'] | SQLAdapter.Executor['run'],
+  >(
     fn: F,
   ): F =>
     (async (sqlText: string, params: unknown[] = []) =>

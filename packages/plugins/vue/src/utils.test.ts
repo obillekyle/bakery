@@ -387,7 +387,8 @@ describe('absolutizeRelativeImports', () => {
   })
 
   test('bare, absolute and URL specifiers are left alone', () => {
-    const code = 'import{ref}from"vue";import a from"/abs/a";import b from"https://cdn.example/b.js"'
+    const code =
+      'import{ref}from"vue";import a from"/abs/a";import b from"https://cdn.example/b.js"'
     expect(absolutizeRelativeImports(code, page)).toBe(code)
   })
 

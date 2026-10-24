@@ -88,7 +88,8 @@ function NavItem({ id, label, href }: NavEntry) {
     <button
       type="button"
       class={id === 'stats' ? 'tab-btn active' : 'tab-btn'}
-      onclick={`switchTab('${id}')`}>
+      onclick={`switchTab('${id}')`}
+    >
       <span class="nav-dot"></span>
       <span>{label}</span>
     </button>
@@ -169,7 +170,8 @@ export default function Dashboard() {
                 type="button"
                 class="btn rail-toggle"
                 onclick="document.getElementById('rail').classList.toggle('open')"
-                aria-label="Toggle navigation">
+                aria-label="Toggle navigation"
+              >
                 ☰
               </button>
               <span>Console</span>
@@ -185,12 +187,14 @@ export default function Dashboard() {
 
               <div
                 class="profile-dropdown-wrapper"
-                id="profile-dropdown-wrapper">
+                id="profile-dropdown-wrapper"
+              >
                 <button
                   type="button"
                   class="profile-trigger-btn"
                   onclick="toggleProfileDropdown(event)"
-                  aria-label="Account menu">
+                  aria-label="Account menu"
+                >
                   <span class="profile-avatar">A</span>
                   <span aria-hidden="true">▾</span>
                 </button>
@@ -203,7 +207,8 @@ export default function Dashboard() {
                       application authenticates, via the authorize predicate. */}
                   <button
                     type="button"
-                    onclick="resetAnalytics(); toggleProfileDropdown(event);">
+                    onclick="resetAnalytics(); toggleProfileDropdown(event);"
+                  >
                     <span>Reset analytics</span>
                   </button>
                 </div>

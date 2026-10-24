@@ -108,13 +108,13 @@ describe('card labels are block-level in their own right', () => {
     return close === -1 ? '' : withoutComments.slice(open + 1, close)
   }
 
-  test.each([
-    '.card-title',
-    '.card-sub',
-  ])('%s does not rely on its parent being a flex column', selector => {
-    expect(rule(selector).trim()).not.toBe('')
-    expect(rule(selector)).toMatch(/display\s*:\s*block/)
-  })
+  test.each(['.card-title', '.card-sub'])(
+    '%s does not rely on its parent being a flex column',
+    selector => {
+      expect(rule(selector).trim()).not.toBe('')
+      expect(rule(selector)).toMatch(/display\s*:\s*block/)
+    },
+  )
 })
 
 /**
@@ -157,19 +157,19 @@ describe('the chart tooltip has the rules its JS assumes', () => {
     expect(css).toMatch(/\n\.chart-tooltip \{[^}]*pointer-events:\s*none/)
   })
 
-  test.each([
-    'above',
-    'below',
-  ])('placement %s has an offset transform', placement => {
-    // String search, not a constructed `RegExp`: for the second time in this
-    // file. A selector full of `.`, `[` and `'` needs escaping, and getting
-    // that wrong matches nothing, which is indistinguishable from the rule
-    // being missing: the test passes its own bug off as the bug it hunts.
-    const selector = `.chart-tooltip[data-placement='${placement}'] {`
-    const at = css.indexOf(selector)
-    expect(at).toBeGreaterThan(-1)
+  test.each(['above', 'below'])(
+    'placement %s has an offset transform',
+    placement => {
+      // String search, not a constructed `RegExp`: for the second time in this
+      // file. A selector full of `.`, `[` and `'` needs escaping, and getting
+      // that wrong matches nothing, which is indistinguishable from the rule
+      // being missing: the test passes its own bug off as the bug it hunts.
+      const selector = `.chart-tooltip[data-placement='${placement}'] {`
+      const at = css.indexOf(selector)
+      expect(at).toBeGreaterThan(-1)
 
-    const block = css.slice(at, css.indexOf('}', at))
-    expect(block).toContain('transform:')
-  })
+      const block = css.slice(at, css.indexOf('}', at))
+      expect(block).toContain('transform:')
+    },
+  )
 })

@@ -74,10 +74,7 @@ describe('a bundle that cannot execute is refused, not served', () => {
     const dir = mkdtempSync(`${tmpdir()}/dashjs-`)
     dirs.push(dir)
     const file = `${dir}/_dashboard.js`
-    writeFileSync(
-      file,
-      'import { x } from "@some/package";\nwindow.y = x;\n',
-    )
+    writeFileSync(file, 'import { x } from "@some/package";\nwindow.y = x;\n')
     __setCachedDashboardJs(file)
 
     // The cached path serves the file as-is; the guard sits on the build path,
@@ -99,18 +96,24 @@ describe('a bundle that cannot execute is refused, not served', () => {
 
     // A side-effect import has no `from` clause at all, which a `from`-shaped
     // pattern also missed.
-    expect(whyUnrunnable('var a=1;import"./styles.css";var b=2;')).not.toBeNull()
+    expect(
+      whyUnrunnable('var a=1;import"./styles.css";var b=2;'),
+    ).not.toBeNull()
 
     // And a top-level await is equally unrunnable in a classic script, which
     // no import-shaped check would ever have looked for.
-    expect(whyUnrunnable('const x = await fetch("/a");window.x=x;')).not.toBeNull()
+    expect(
+      whyUnrunnable('const x = await fetch("/a");window.x=x;'),
+    ).not.toBeNull()
   })
 
   test('what a bundle legitimately contains is not flagged', async () => {
     // `import(...)` is how a bundle lazily loads, and a string that reads like
     // an import is data. Flagging either would refuse every bundle with one.
     const { whyUnrunnable } = await import('./setup')
-    expect(whyUnrunnable('async function f() { await import("./x") }')).toBeNull()
+    expect(
+      whyUnrunnable('async function f() { await import("./x") }'),
+    ).toBeNull()
     expect(whyUnrunnable('const s = "import x from y"')).toBeNull()
     expect(whyUnrunnable('const t = `import {a} from "b"`')).toBeNull()
     expect(whyUnrunnable('function g(){}\nwindow.g = g\n')).toBeNull()

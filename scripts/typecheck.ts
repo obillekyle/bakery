@@ -39,7 +39,13 @@ const PROJECTS: Project[] = [
     name: 'starter',
     config: 'apps/starter/tsconfig.json',
     build: true,
-    before: ['bun', '--cwd', 'apps/starter', '../../packages/cli/src/index.ts', '--types'],
+    before: [
+      'bun',
+      '--cwd',
+      'apps/starter',
+      '../../packages/cli/src/index.ts',
+      '--types',
+    ],
   },
   { name: 'tests', config: 'tests/tsconfig.json' },
   { name: 'scripts', config: 'scripts/tsconfig.json' },
@@ -51,7 +57,9 @@ const names = args.filter(arg => !arg.startsWith('--'))
 
 const unknown = names.filter(name => !PROJECTS.some(p => p.name === name))
 if (unknown.length) {
-  console.error(`No project named ${unknown.join(', ')}. Projects: ${PROJECTS.map(p => p.name).join(', ')}.`)
+  console.error(
+    `No project named ${unknown.join(', ')}. Projects: ${PROJECTS.map(p => p.name).join(', ')}.`,
+  )
   process.exit(2)
 }
 
@@ -77,21 +85,33 @@ for (const project of PROJECTS) {
   const started = performance.now()
 
   if (project.before) {
-    const prep = Bun.spawnSync(project.before, { cwd: root, stdout: 'pipe', stderr: 'pipe' })
+    const prep = Bun.spawnSync(project.before, {
+      cwd: root,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
     if (prep.exitCode !== 0) {
       failed++
-      console.log(`${project.name}: ${project.before.join(' ')} failed\n${prep.stdout}${prep.stderr}`)
+      console.log(
+        `${project.name}: ${project.before.join(' ')} failed\n${prep.stdout}${prep.stderr}`,
+      )
       continue
     }
   }
 
-  const run = Bun.spawnSync(command(project), { cwd: root, stdout: 'pipe', stderr: 'pipe' })
+  const run = Bun.spawnSync(command(project), {
+    cwd: root,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
   const seconds = ((performance.now() - started) / 1000).toFixed(1)
   if (run.exitCode === 0) {
     console.log(`${project.name}: ${tool}, no errors (${seconds} s)`)
   } else {
     failed++
-    console.log(`${project.name}: ${tool} failed (${seconds} s)\n${run.stdout}${run.stderr}`)
+    console.log(
+      `${project.name}: ${tool} failed (${seconds} s)\n${run.stdout}${run.stderr}`,
+    )
   }
 }
 
