@@ -300,6 +300,11 @@ which Bun has from 1.4.3; on an older Bun, `bun run typecheck --tsc` runs
 `tsc` over the same projects. Set `MYSQL_TEST_URL` and `PGSQL_TEST_URL` to
 exercise the live-server tests, which skip without them.
 
+Formatting is `bun fmt` (Bun 1.4.4 and later), configured by `.prettierrc`,
+which Prettier itself reads as well. `.prettierignore` leaves out the
+Markdown and the files other tools write: `package.json`, the tsconfigs and
+the generated `assets/`.
+
 ## Next
 
 - [Your first app](first-app.md): build one, file by file.
