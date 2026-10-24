@@ -35,8 +35,8 @@ afterAll(() => {
  * mutation signatures is a public-surface change belonging to the tracked "ORM
  * fluent-API typing gap", so the form is cast at the call site here:
  * deliberately, rather than `@ts-nocheck`-ing the file, which would also stop
- * checking the assertions that matter (`orm.test.ts` carried one until 2.4.2,
- * and it hid one error).
+ * checking the assertions that matter (`orm.test.ts` carried one until
+ * 2.5.0-alpha.0, and it hid one error).
  */
 const clause = (builder: unknown): any => builder
 
