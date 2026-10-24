@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { SQLiteAdapter } from '../adapters/sqlite'
 import { __resetTestDb, __setTestDb } from '../connection'
-import { Mutation } from './mutation'
-import { DB } from './query'
+// Through the barrel, which loads `./query` before `./mutation`. Naming
+// `./mutation` first is the cycle `index.ts` describes, and this file died on
+// it at load whenever it ran on its own.
+import { DB, Mutation } from './index'
 
 // A real in-memory SQLite adapter rather than a `quoteChar` stub: `parse()`
 // only needs the quote character, but the execution block below needs a
