@@ -1,4 +1,5 @@
 import { compileText } from '@bakery-framework/core/compiler'
+import { Try } from '@bakery-framework/core/utils'
 import type { SFCStyleCompileResults } from '@vue/compiler-sfc'
 
 import type {
@@ -63,6 +64,33 @@ let vuePluginOptions: VuePluginOptions = {}
 
 export function setVuePluginOptions(opts?: VuePluginOptions) {
   if (opts) vuePluginOptions = opts
+}
+
+/**
+ * A test of whether an event attribute's value is one JavaScript expression,
+ * asked the way Vue's template compiler asks it: Babel over the value in
+ * parentheses, with the app's `expressionPlugins` and the `typescript` plugin
+ * Vue always adds.
+ *
+ * Vue compiles such a value as written. A function or a member path becomes
+ * the handler itself, and any other expression is wrapped as
+ * `$event => (value)`. `parseVueFile` asks before it appends a `;` to a
+ * multi-line attribute, because the `;` makes Vue compile the value as
+ * statements instead.
+ */
+export async function loadExpressionCheck(): Promise<
+  (value: string) => boolean
+> {
+  const { babelParse } = await loadCompiler()
+  const plugins = [
+    ...(vuePluginOptions.compilerOptions?.expressionPlugins ?? []),
+    'typescript',
+  ]
+  return value =>
+    Try.return(() => {
+      const { body } = babelParse(`(${value})`, { plugins }).program
+      return body.length === 1 && body[0].type === 'ExpressionStatement'
+    }, false)
 }
 
 /**
