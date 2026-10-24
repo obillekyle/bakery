@@ -12,9 +12,10 @@
  * when it actually dropped something, because that is a fact about a previous
  * run that somebody should see rather than a status line nobody reads.
  *
- * Never fails the suite. A server that is down is the ordinary state here ( * they are portable binaries that nothing starts at boot), and the live tests
- * already report as skipped in that case. Turning "Postgres is not running"
- * into a suite error would be a worse trade than leaving a sweep undone.
+ * Never fails the suite. A server that is down is an ordinary state, and the
+ * live tests already report as skipped in that case. Turning "Postgres is not
+ * running" into a suite error would be a worse trade than leaving a sweep
+ * undone.
  */
 import { SQL } from 'bun'
 
