@@ -26,6 +26,7 @@
     "items": [
       ["configuration/server-config", "server.config.ts"],
       ["configuration/multi-host", "Multi-host"],
+      ["configuration/host-mounts", "Host mounts"],
       ["configuration/environment", "Environment"]
     ]
   },

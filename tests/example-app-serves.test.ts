@@ -63,6 +63,45 @@ describe('the example app serves what it ships', () => {
 })
 
 /**
+ * The two ways `server.config.ts` gives a hostname something of its own,
+ * asked for by `Host`, the way a browser at that name would.
+ *
+ * Neither had a served test. `hosts['example.localhost'].root` was covered by
+ * tests that read `Bakery.serveRoot` and the merged config, and never asked
+ * the server for a page; `hostMounts` arrived with this.
+ */
+describe('a hostname with its own root, and one with a mount', () => {
+  const NAVIGATE = {
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-dest': 'document',
+    accept: 'text/html,application/xhtml+xml,*/*;q=0.8',
+  }
+  const ask = async (host: string, path: string, headers = NAVIGATE) => {
+    const res = await fetch(server!.base + path, {
+      headers: { ...headers, host },
+    })
+    return `${res.status} ${await res.text()}`
+  }
+
+  test("a hosts entry's root is that host's whole site", async () => {
+    expect(await ask('example.localhost', '/')).toContain('<h1>Hello World</h1>')
+    expect(await ask('localhost', '/')).toContain('gradient-text">Bakery</h1>')
+    expect(await ask('example.localhost', '/jsx')).toStartWith('404 ')
+  }, 30_000)
+
+  test('a mounted host serves the subtree at its root', async () => {
+    const page = await ask('wiki.localhost', '/a/b/c')
+    expect(page).toStartWith('200 ')
+    expect(page).toContain('<code>a/b/c</code>')
+  }, 30_000)
+
+  test("and what a page loads comes from the app root, the API included", async () => {
+    expect(await ask('wiki.localhost', '/styles/global.css')).toStartWith('200 ')
+    expect(await ask('wiki.localhost', '/api/hello')).toContain('Hello, World!')
+  }, 30_000)
+})
+
+/**
  * The console, requested rather than assumed, in **production**.
  *
  * This server boots without `--dev`, which is the whole point. Three separate

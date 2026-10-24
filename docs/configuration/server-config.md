@@ -73,6 +73,7 @@ the default from `packages/core/src/core/config.ts`.
 | `onError` | `(error) => any` | logs a warning |
 | `onShutdown` | `() => void` | no-op |
 | `hosts` | `Record<string, HostEntry>` | `{}` |
+| `hostMounts` | `{ host, path }[]` | `[]` |
 
 `maxCacheSize` used to be listed here. It was declared, defaulted to 500, and
 read by nothing: the route LRUs size themselves and the tiered cache takes its
@@ -466,3 +467,10 @@ export default defineConfig({
 `hosts` maps a hostname to a `HostEntry` that overrides a subset of the options
 above for requests arriving on that name. It has its own page:
 [Multi-host](multi-host.md).
+
+## Host mounts
+
+`hostMounts` serves one subtree of the app at the root of the hostnames that
+match it: `{ host: 'kit.*', path: '/kit' }` makes `kit.example.com/forms` the
+page `/kit/forms`, while the files and API that page loads still come from the
+app's root. It has its own page: [Host mounts](host-mounts.md).

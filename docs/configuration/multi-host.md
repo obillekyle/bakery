@@ -20,6 +20,11 @@ export default defineConfig({
 Requests whose hostname is `example.localhost` are served from `src/example`.
 Everything else keeps `src`. No second process, no second port.
 
+A host given its own `root` gets everything from that directory, its scripts,
+stylesheets and API included. To give a hostname one subtree of the same app
+instead, with the rest of the app still loading from the root, see
+[Host mounts](host-mounts.md).
+
 ## How the hostname is decided
 
 `getHostname()` runs once per request, before any handler

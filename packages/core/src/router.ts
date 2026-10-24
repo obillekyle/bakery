@@ -1,9 +1,16 @@
-import { Bakery, hostStore } from './core/bakery'
+import { Bakery, getHostname, hostStore } from './core/bakery'
 import { matchBlockedCached } from './core/context'
+import {
+  compileHostMounts,
+  findHostMount,
+  mountedPath,
+  ROOT_ONLY,
+} from './core/host-mounts'
 import { PluginHooks } from './core/plugins'
 import { DefaultErrorHandler } from './handlers/assets/static'
 import type { Handler } from './handlers/core/$base'
 import { ErrorHandler } from './handlers/core/$error'
+import { resolveMount } from './handlers/core/$mounts'
 import { WebSocketHandler } from './handlers/core/$websocket'
 import { errorMsg, getElapsed, log, serveLog } from './logger'
 import { Session } from './session'
@@ -82,14 +89,104 @@ function servesFiles(handler: any): boolean {
   return handler?.servesFiles !== false
 }
 
+/**
+ * How routing reads one request: the path it resolves, the host mount it
+ * moved into, and whether this URL's answer depends on the kind of request,
+ * which is what `processResponse` sends a `Vary` for.
+ */
+type Routing = { path: string; mount: string | null; varies: boolean }
+
+export type RequestRoute = Readonly<Pick<Routing, 'path' | 'mount'>>
+
+/** Weak, as `parsedUrl`'s memo is: an entry lives as long as its request. */
+const routings = new WeakMap<Request, Routing>()
+
+/**
+ * Whether `path` could be a page of a mounted subtree: nothing in `ROOT_ONLY`,
+ * no file named, and no plugin's route mount or proxy entry claiming it.
+ *
+ * "No file named" is a last segment with no extension. A page links its
+ * stylesheets, images and downloads by their root paths, and a navigation to
+ * one of them (a PDF opened in a tab) has to reach the file.
+ */
+function pagePathOnMount(
+  path: string,
+  config: Readonly<ProcessedAppConfig>,
+): boolean {
+  if (ROOT_ONLY.some(prefix => path.startsWith(prefix))) return false
+  if (path.slice(path.lastIndexOf('/') + 1).includes('.')) return false
+  if (resolveMount(path)) return false
+  for (const prefix in config.proxy) {
+    if (path.startsWith(prefix)) return false
+  }
+  return true
+}
+
+/**
+ * Whether `req` asks for a page rather than for something a page loads.
+ *
+ * A navigation (a tab or a frame loading the URL) is one, and so is any
+ * method but GET and HEAD: a form post, or a server action, which a Vue page
+ * posts to its own URL. A module import, a stylesheet, an image and a `fetch`
+ * are not, and that is the line that has to hold: an import of a TypeScript
+ * module is written `/kit/useDemo`, with no extension to tell it from a page,
+ * and moved into the subtree it would reach a catch-all page instead.
+ *
+ * A browser says which it is in `Sec-Fetch-Mode`. A client that sends no
+ * Fetch Metadata is navigating when it asks for HTML.
+ */
+function isPageRequest(req: Request): boolean {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return true
+  if (req.headers.has('upgrade')) return false
+  const mode = req.headers.get('sec-fetch-mode')
+  if (mode) return mode === 'navigate'
+  return (req.headers.get('accept') ?? '').includes('text/html')
+}
+
+function routing(req: Request): Routing {
+  const cached = routings.get(req)
+  if (cached) return cached
+
+  // Shared with worker.ts, which has already asked for the same parse; a
+  // direct caller (test, embedder) gets it parsed here instead.
+  const path = parsedUrl(req).pathname
+  let result: Routing = { path, mount: null, varies: false }
+
+  // A partial config (a test's, an embedder's) may carry no `hostMounts`.
+  const config = Bakery.config
+  const mounts = config.hostMounts?.length
+    ? compileHostMounts(config.hostMounts)
+    : null
+  const mount = mounts && findHostMount(mounts, getHostname(req, config))
+  if (mount && pagePathOnMount(path, config)) {
+    result = isPageRequest(req)
+      ? { path: mountedPath(path, mount.path), mount: mount.path, varies: true }
+      : { path, mount: null, varies: true }
+  }
+
+  routings.set(req, result)
+  return result
+}
+
+/**
+ * The path routing resolves for `req`, and the host mount it moved into.
+ *
+ * On a host that no entry of `hostMounts` serves, that is the request's own
+ * path and no mount. On a mounted host, a page request (`isPageRequest`) for
+ * a path that can be a page (`pagePathOnMount`) resolves under the mount:
+ * `/forms` is `/kit/forms`, and `/` is `/kit`. Every other request keeps its
+ * path, so the modules, stylesheets and API a subtree's pages load still come
+ * from the app's root. Memoized per request.
+ */
+export function routeOf(req: Request): RequestRoute {
+  return routing(req)
+}
+
 export function handleRequest(
   req: Request,
 ): Handler.Response | MixedPromise<symbol>
 export async function handleRequest(req: Request) {
-  // Shared with worker.ts, which has already asked for the same parse; a
-  // direct caller (test, embedder) gets it parsed here instead.
-  const url = parsedUrl(req)
-  const path = url.pathname
+  const path = routing(req).path
 
   // One read of the config getter, not three: `Bakery.serveRoot` walks
   // `hostStore.getStore()?.config ?? getConfig()` on every access, and the
@@ -312,6 +409,21 @@ export async function handleRequestError(
   return DefaultErrorHandler.handle(path, req, error)
 }
 
+/** Add `tokens` to `res`'s `Vary`, keeping what it names and naming each once. */
+function addVary(res: Response, tokens: readonly string[]): void {
+  const existing = res.headers.get('Vary')
+  const named = new Set(
+    (existing ?? '')
+      .split(',')
+      .map(token => token.trim().toLowerCase())
+      .filter(Boolean),
+  )
+  if (named.has('*')) return
+  const missing = tokens.filter(token => !named.has(token.toLowerCase()))
+  if (!missing.length) return
+  res.headers.set('Vary', [existing, ...missing].filter(Boolean).join(', '))
+}
+
 export async function processResponse(
   data: Handler.Response | MixedPromise<symbol>,
   req: Request,
@@ -372,6 +484,11 @@ export async function processResponse(
   // than either overwriting the other.
   const cors = Bakery.config.cors
   if (cors) applyCors(cors, req, resp)
+
+  // On a mounted host one URL can answer a navigation from the subtree and a
+  // module import from the root (see `routeOf`), so a cache keyed on the URL
+  // alone could hand either one to the other.
+  if (routing(req).varies) addVary(resp, ['Sec-Fetch-Mode', 'Accept'])
 
   const final = ETag.sendResponse(req, resp)
   if (!(final instanceof Response)) {

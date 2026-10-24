@@ -4,6 +4,7 @@ import {
   hostStore,
 } from '@bakery-framework/core/core/bakery'
 import {
+  checkHostMounts,
   initConfig,
   resolveHostConfig,
 } from '@bakery-framework/core/core/config'
@@ -15,6 +16,7 @@ import {
   handleRequest,
   handleRequestError,
   processResponse,
+  routeOf,
   serveWebSocket,
 } from '@bakery-framework/core/router'
 import { Session } from '@bakery-framework/core/session'
@@ -247,8 +249,10 @@ function settleRequest(
 try {
   // Before anything binds: a rate limit that cannot mean anything (a refill
   // of 0, a prefix without its slash) stops the boot here, naming the field,
-  // in the catch below.
+  // in the catch below. So does a host mount (a path without its slash, a
+  // pattern with '*' inside a label).
   checkRateLimits(Bakery.config)
+  checkHostMounts(Bakery.config)
 
   Bakery.server = Bun.serve({
     port: PORT,
@@ -266,6 +270,9 @@ try {
       const hostConfig = resolveHostConfig(hostname)
 
       return hostStore.run({ config: hostConfig, hostname, req }, async () => {
+        // The limiter keys on the path as sent. An error page is looked up
+        // from `routeOf(req).path` instead, the path routing resolved, so a
+        // page request on a mounted host finds the subtree's error page.
         const path = url.pathname
         req.startNs = Bun.nanoseconds()
         req.__hostname = hostname
@@ -281,7 +288,7 @@ try {
             Bakery.sharedPool.incrementCounter(COUNTER_SLOTS.TOTAL_ERRORS, 1)
             serveLog.SESSION_LOAD_ERR({ error: errorMsg(loadError) })
             return await processResponse(
-              await handleRequestError(path, req, loadError),
+              await handleRequestError(routeOf(req).path, req, loadError),
               req,
             )
           }
@@ -303,7 +310,7 @@ try {
 
             if (isErrorResult(res)) {
               Bakery.sharedPool.incrementCounter(COUNTER_SLOTS.TOTAL_ERRORS, 1)
-              return await handleRequestError(path, req, res)
+              return await handleRequestError(routeOf(req).path, req, res)
             }
             // The app's own error page (see `hasOwnDocument`): sent as written,
             // and still an error answer for the counter.
@@ -316,7 +323,7 @@ try {
           async function errorHandler(error) {
             Bakery.sharedPool.incrementCounter(COUNTER_SLOTS.TOTAL_ERRORS, 1)
             serveLog.UNHANDLED_ERR({ error: errorMsg(error) })
-            return await handleRequestError(path, req, error)
+            return await handleRequestError(routeOf(req).path, req, error)
           },
         )
 

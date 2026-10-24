@@ -247,6 +247,23 @@ real-file rule above. Give a link to one. Say `/wiki/files/spec.pdf`: a
 `download` or `target` attribute; the click interceptor always leaves those
 alone.
 
+### On a host mount
+
+On a host that serves the page's directory at its root
+([Host mounts](../configuration/host-mounts.md)), the stamped base leaves the
+mount out: `''` for `src/kit/[...slug!].vue` on `kit.example.com`, `/forms`
+for `src/kit/forms/[...slug].vue`. The segments come from the bare path, a
+click on `/forms` stays a soft navigation, and back and forward work as they do
+on the app's own host. Links built from `nav.base`, and `nav.navigate()`, are
+right on both kinds of host.
+
+The page links its stylesheet and root script by the URL the app knows it by,
+`/kit/forms?__vue_script=root` for a page at `kit.example.com/forms`. Those
+requests are not navigations, so the router serves them from the app's root,
+where only the app's spelling of the URL reaches the page. A server action
+posts to the address the browser shows, which moves into the subtree like any
+other page request.
+
 ## Skeletons
 
 A second template block marked `skeleton` shows inside `#app` before the

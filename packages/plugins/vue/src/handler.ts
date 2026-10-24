@@ -2,6 +2,7 @@ import { readdirSync } from 'node:fs'
 import { LRUCache } from '@bakery-framework/core/cache/lru'
 import { Bakery, hostKey } from '@bakery-framework/core/core/bakery'
 import type { Handler } from '@bakery-framework/core/handlers'
+import { routeOf } from '@bakery-framework/core/router'
 import {
   beginPageRoute,
   DynamicErrorHandler,
@@ -991,8 +992,11 @@ async function sharedHandler(
 
   // `base` is the URL prefix the page owns: the file's directory. For
   // `wiki/[...page!].vue` that is `/wiki`; for a root-level catch-all it is
-  // the empty string, which `defineLayout` treats as "everything".
+  // the empty string, which `defineLayout` treats as "everything". On a host
+  // that serves `/wiki` at its root, it is spelled the way that host's URLs
+  // are: see `baseOnHost`.
   const catchAll = Boolean(info.catchAll)
+  const routed = routeOf(req)
   return VueHandler.handleHtml(
     id,
     finalParams,
@@ -1001,7 +1005,10 @@ async function sharedHandler(
     parsed,
     {
       catchAll,
-      base: routePath.slice(0, routePath.lastIndexOf('/')),
+      base: baseOnHost(
+        routePath.slice(0, routePath.lastIndexOf('/')),
+        routed.mount,
+      ),
       param: info.params.length ? info.params[info.params.length - 1] : null,
       // Catch-all pages only: `defineLayout()` refuses every other page, so
       // on those the claims would be sibling names published in the HTML with
@@ -1011,9 +1018,27 @@ async function sharedHandler(
     // The page's own URL routes back to this component; see `assetPath`. An
     // error render is the exception: its URL is the one that failed, and it
     // would route to the error, not to the error page's component.
-    errorData ? routePath : url.pathname,
+    //
+    // The URL as the app names it, which on a mounted host is not the one in
+    // the address bar: `/kit/forms` for a page at `/forms`. The stylesheet and
+    // root script requests are not page requests, so the router serves them
+    // from the app's root, where only the app's spelling reaches the page.
+    errorData ? routePath : routed.path,
     built,
   )
+}
+
+/**
+ * `base` as a host serving `mount` at its root spells it: `/kit/forms` is
+ * `/forms` there, and `/kit` itself is `''`, which `defineLayout()` reads as
+ * the whole host. A base outside the mount (a catch-all above it, answering a
+ * path the subtree has no page for) has no spelling without the prefix, and
+ * is left as it is.
+ */
+function baseOnHost(base: string, mount: string | null): string {
+  if (!mount) return base
+  if (base === mount) return ''
+  return base.startsWith(`${mount}/`) ? base.slice(mount.length) : base
 }
 
 /**

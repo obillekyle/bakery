@@ -37,5 +37,9 @@ export default defineConfig({
       root: 'src/example',
     },
   },
+  // wiki.localhost serves /wiki at its root: wiki.localhost:3000/guides/routing
+  // is the page /wiki/guides/routing. Only pages move; the stylesheets, scripts
+  // and /api a page loads come from the app root on that host too.
+  hostMounts: [{ host: 'wiki.*', path: '/wiki' }],
   body: '',
 })

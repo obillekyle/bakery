@@ -168,6 +168,17 @@ declare global {
     sessions?: import('./session').SessionOptions
 
     hosts?: Record<string, HostEntry>
+
+    /**
+     * Hosts that serve one path subtree of the app at their root:
+     * `{ host: 'kit.*', path: '/kit' }` makes `kit.example.com/forms` the
+     * page `/kit/forms`. Only page requests move into the subtree (a
+     * navigation, or a method other than GET and HEAD); the modules,
+     * stylesheets, files and API those pages load come from the app's root,
+     * as on any host. The first entry whose `host` matches wins. See
+     * `core/host-mounts.ts` and `routeOf` in `router.ts`.
+     */
+    hostMounts?: import('./core/host-mounts').HostMount[]
   }
 
   type ServerPlugin = _plugins.ServerPlugin

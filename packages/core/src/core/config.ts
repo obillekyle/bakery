@@ -12,6 +12,10 @@ import { fs } from '../utils/fs'
 import { checkCacheVersion } from './cache-version'
 import { hostStore } from './context'
 
+// Re-exported for the CLI's boot checks, which reach config through this
+// subpath; the module itself imports nothing, so it can sit under the router.
+export { checkHostMounts } from './host-mounts'
+
 export const NOOP = () => {}
 
 const defaultConfig: Required<AppConfig> = {
@@ -63,6 +67,7 @@ const defaultConfig: Required<AppConfig> = {
   sessions: {},
   root: 'src',
   hosts: {},
+  hostMounts: [],
   websocket: {
     message: NOOP,
     open: NOOP,
