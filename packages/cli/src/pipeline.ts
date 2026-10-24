@@ -64,7 +64,7 @@ export function isErrorResult(res: unknown): boolean {
  * `new Response(Bun.file('404.html'), { status: 404 })` would be judged
  * untyped and dressed.
  */
-export function hasOwnDocument(res: Response): boolean {
+function hasOwnDocument(res: Response): boolean {
   const type = res.headers.get('content-type')
   return Boolean(type) && !/^text\/plain\b/i.test(type!)
 }

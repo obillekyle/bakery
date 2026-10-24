@@ -96,7 +96,7 @@ function prunePageHitsLog(now: number) {
 }
 
 let _pageHitsLogPruneTimer: ReturnType<typeof setInterval> | null = null
-export function ensurePageHitsLogPruner() {
+function ensurePageHitsLogPruner() {
   if (_pageHitsLogPruneTimer !== null) return
   _pageHitsLogPruneTimer = setInterval(() => {
     try {

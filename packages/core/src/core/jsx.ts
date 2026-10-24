@@ -33,7 +33,7 @@ export const Fragment = ({ children }: { children?: any }) =>
  * like a string everywhere (`.trim()`, concatenation, `String()`), so callers
  * are unaffected.
  */
-export class SafeHtml extends String {}
+class SafeHtml extends String {}
 
 /** Mark a string as trusted HTML, exempting it from escaping. */
 export function raw(value: unknown): string {
