@@ -1,0 +1,6 @@
+# Commits git blame skips: whole-tree formatting, which changed every
+# line's layout and none of its meaning. GitHub reads this file on its
+# own; locally, git config blame.ignoreRevsFile .git-blame-ignore-revs.
+
+# style: format the tree with bun fmt
+b45b5bbaf5612b0bbb7e933a58841faec89fbd98
