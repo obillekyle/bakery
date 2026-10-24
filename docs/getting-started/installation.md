@@ -7,10 +7,10 @@ adapter: `Bun.serve` is the server, `Bun.SQL` is the database driver,
 `Bun.Glob` is the router's file matcher and `Bun.build` is the compiler. There
 is no Node fallback for any of them.
 
-- **Bun 1.3.14 or newer.** Every package declares `"bun": ">=1.3.14"`, and that
-  floor is not a guess, it names the lowest Bun the suite has actually run
-  against. Raising it is a major release, because an install that previously
-  resolved would stop.
+- **Bun 1.4.0 or newer.** Every package declares `"bun": ">=1.4.0"`, and that
+  floor is not a guess: CI runs the suite on Bun 1.4.0 beside the latest one.
+  Raising it is a major release, because an install that previously resolved
+  would stop.
 - **Nothing else.** `@bakery-framework/core` has **no runtime dependencies**;
   `@bakery-framework/orm` and `@bakery-framework/cli` depend only on core.
 
@@ -288,13 +288,8 @@ git clone https://github.com/obillekyle/bakery bakery
 cd bakery && bun install
 ```
 
-The example app's schema is gitignored: `.gitignore` ignores `schema.ts` at any
-depth, deliberately, because `db:sync --choose=db` rewrites it, so a fresh clone
-needs one created from the template before anything will boot or typecheck:
-
-```bash
-cp packages/orm/templates/schema.example.ts apps/example/schema.ts
-```
+The example app's schema is tracked, under `apps/example/orm/`, so a fresh
+clone boots and typechecks with nothing more to create.
 
 The root scripts are thin wrappers that `cd` into `apps/example` first: `bun run
 dev`, `bun run serve`, `bun run db:sync`. `bun run test` and `bun run typecheck`

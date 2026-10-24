@@ -27,7 +27,7 @@ import { dirname, join, resolve } from 'node:path'
  */
 const REPO = resolve(import.meta.dir, '../..').replaceAll('\\', '/')
 
-export const VUE_APP_PAGES = 12
+const VUE_APP_PAGES = 12
 /** Of the page components, the ones with a server block: the first seven. */
 export const VUE_APP_SERVER_PAGES = 7
 /** The page component whose middleware answers 401 to `x-test-role: guest`. */

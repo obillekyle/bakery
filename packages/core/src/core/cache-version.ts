@@ -64,11 +64,6 @@ export function isCacheStale(
   )
 }
 
-/** Test seam: forget that the check ran, so a fixture can exercise it again. */
-export function __resetCacheVersionCheck(): void {
-  done = null
-}
-
 async function run(): Promise<void> {
   // Workers inherit a directory the master already validated. Re-running here
   // would race the master's own wipe.

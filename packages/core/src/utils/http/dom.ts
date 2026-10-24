@@ -4,7 +4,7 @@ import { Bakery, hostStore } from '../../core/bakery'
 import { hostEntryKey } from '../../core/config'
 import type { MapOf } from '../../types'
 import { is } from '../common/misc'
-import { Try } from '../common/try'
+import { Try } from '../isomorphic/try'
 import { fs } from '../fs'
 import { escapeScriptJson } from '../isomorphic/escape'
 

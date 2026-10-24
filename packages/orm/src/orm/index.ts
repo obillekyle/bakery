@@ -11,11 +11,11 @@
  * initializing, and the whole ORM dies with
  * `TypeError: undefined is not an object (evaluating 'Mutation.Insert')`.
  *
- * Biome's `organizeImports` sorts these alphabetically and puts `./mutation`
- * first. The compiler cannot see the breakage, because the types are fine
- * either way. Hence the suppression.
+ * Sorting these imports alphabetically, as Biome's `organizeImports` did while
+ * the repo ran Biome, puts `./mutation` first. The compiler cannot see the
+ * breakage, because the types are fine either way, so no import sorter may
+ * run on this file.
  */
-// biome-ignore-all assist/source/organizeImports: cycle. See above
 import { DB } from './query'
 import { Mutation } from './mutation'
 

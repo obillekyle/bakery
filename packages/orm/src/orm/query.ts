@@ -1504,7 +1504,6 @@ export namespace DB {
     // The numbered sections below are the statement grammar. Parameter push order
     // is load-bearing (Postgres renumbers `?` to `$n` left to right), so the
     // sequence is the correctness condition, not incidental.
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SQL assembler, one section per clause, in emission order
     parse(): { sql: string; params: any[] } {
       const params: any[] = []
 

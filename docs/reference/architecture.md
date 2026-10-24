@@ -274,8 +274,8 @@ packages/core/src/
   utils/
     isomorphic/  pure, no Bun.*, no node builtins, no DOM; compiled into the
                  browser bundle as-is
-    common/      re-export shims over isomorphic/ + server-only helpers
-    http/        response, html, dom, etag, csrf, escape, body, ip
+    common/      server-only helpers, beside the isomorphic/ ones they extend
+    http/        response, html, dom, etag, csrf, body, ip
   client/        browser runtime
   cache/         lru, tiered, string, shared-db
   logger/        logger + declared message tables + client registry

@@ -35,8 +35,6 @@ import { DashboardLogsHandler } from './endpoints/logs-socket'
 import { pluginPath } from './paths'
 import renderDashboardShell from './shell'
 
-export { connectedLoggers }
-
 let cachedDashboardJsPath: string | null = null
 
 /**

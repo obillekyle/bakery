@@ -41,11 +41,10 @@ import type { MapOf } from '@bakery-framework/core/types'
 // app's `declare module '@bakery-framework/orm/schema-registry'` into
 // `TS2300: Duplicate identifier` and the whole schema registry stops working.
 //
-// Biome's `noBannedTypes` proposes exactly that rewrite and calls it a safe
-// fix. That rule is off repo-wide now, but `noEmptyInterface` reaches the same
-// construct and offers the same fix, so the suppression stays. The compiler is
-// the real guard: change this line and `apps/starter` fails to typecheck.
-// biome-ignore lint/suspicious/noEmptyInterface: must stay mergeable, above
+// Linters propose exactly that rewrite and call it a safe fix: Biome's
+// `noBannedTypes` and `noEmptyInterface` both did while the repo ran Biome.
+// The compiler is the real guard: change this line and `apps/starter` fails
+// to typecheck.
 export interface SchemaRegistry {}
 
 type Registered = SchemaRegistry extends { schema: infer S } ? S : never

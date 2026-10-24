@@ -29,7 +29,7 @@ export function notifySockets(server: any, filename: string) {
  * `{type: 'error', title, body}`. client/livereload.ts renders it as an
  * overlay and removes it on the next successful reload frame.
  *
- * Legacy reload frames stay plain filename strings: the client distinguishes
+ * Reload frames are plain filename strings: the client distinguishes
  * the two by a leading `{`, so this must always be JSON and filenames must
  * never be. Paths that cannot reach a live socket at all (worker dead, boot
  * failure before `Bun.serve`) are covered client-side by the disconnect

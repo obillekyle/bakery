@@ -135,7 +135,6 @@ export namespace ETag {
     negotiationMemo.clear()
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: content negotiation, one branch per encoding outcome
   function negotiateFile(file: Bun.BunFile, req?: Request) {
     const fileName = file.name || 'file'
 

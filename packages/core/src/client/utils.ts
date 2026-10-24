@@ -1,5 +1,3 @@
-/** biome-ignore-all lint/complexity/noExcessiveCognitiveComplexity: '*/
-
 /**
  * Browser runtime: binds the shared utilities onto `globalThis` and adds the
  * DOM-dependent pieces ($fmt, speculation rules, live navigation) on top.

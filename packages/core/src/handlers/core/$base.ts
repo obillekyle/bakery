@@ -115,7 +115,6 @@ export namespace Route {
 // namespace for its nested classes; `const RouteData = { Info: class {} }`
 // provides only the value, and every one of those type references stops
 // resolving.
-// biome-ignore lint/complexity/noStaticOnlyClass: also a type namespace. See above
 export class RouteData {
   static Info = class Info {
     readonly params: string[]

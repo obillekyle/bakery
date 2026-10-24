@@ -3,7 +3,7 @@ import type { AnalyticsSnapshot } from './types'
 
 export const RETENTION_MS = 30 * 24 * 3600 * 1000
 export const BOOT_MAX_ITEMS = 5000
-export const HARD_CAP = 50_000
+const HARD_CAP = 50_000
 
 export const history1m: AnalyticsSnapshot[] = []
 export const history1h: AnalyticsSnapshot[] = []

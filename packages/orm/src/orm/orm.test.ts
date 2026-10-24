@@ -1,8 +1,12 @@
-// @ts-nocheck
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { __resetTestDb, __setTestDb } from '../connection'
 
-const mockDb = {
+const mockDb: {
+  quoteChar: string
+  transaction: (cb: any) => Promise<any>
+  /** Set by the tests that read rows. */
+  query?: () => unknown
+} = {
   quoteChar: '"',
   transaction: async (cb: any) => cb({ execute: async () => [] }),
 }

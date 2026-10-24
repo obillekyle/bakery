@@ -362,7 +362,7 @@ function connect() {
   ws.onmessage = e => {
     const data = typeof e.data === 'string' ? e.data : String(e.data)
 
-    // The server sends two frame shapes: legacy plain strings (a
+    // The server sends two frame shapes: plain strings (a
     // watcher-relative filename, or the literal 'force_reload') and JSON
     // objects, currently `{type: 'error', title, body}` from
     // compiler/dev-service.ts's notifyError. A relative path can never begin
@@ -374,7 +374,7 @@ function connect() {
         frame = JSON.parse(data)
       } catch {
         // A '{'-prefixed frame that is not JSON is not a filename either;
-        // frame stays null and the string falls through as a legacy frame.
+        // frame stays null and the string falls through as a plain frame.
       }
       if (frame) {
         if (frame.type === 'error') {

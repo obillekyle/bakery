@@ -423,7 +423,6 @@ export class VueHandler extends DynamicHandler {
     return servedAsAsset.has(req)
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SFC parser
   static async parseVueFile(
     id: string,
     diskFile: Bun.BunFile,
@@ -809,7 +808,6 @@ async function serveIfDirect(value: any, req: Request) {
   return (await ETag.sendFile(direct, req)) || new Response(direct as any)
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: request handler, one branch per SFC render path
 /**
  * Requests `sharedHandler` answered with an asset, for `VueHandler.isAsset`.
  * Weak, so an entry lives exactly as long as its request. Recorded by the

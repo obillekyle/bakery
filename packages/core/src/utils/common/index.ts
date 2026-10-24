@@ -1,5 +1,5 @@
 export * from './case'
 export * from './json'
-export * from './match'
+export * from '../isomorphic/match'
 export * from './misc'
-export * from './try'
+export * from '../isomorphic/try'

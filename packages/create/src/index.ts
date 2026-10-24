@@ -121,7 +121,6 @@ function parsePlugins(
  * user typed, and answering it with a stack trace teaches nothing. Throwing is
  * reserved for a failure of the scaffolding itself.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: argv dispatcher, one branch per flag
 export function parseArgs(
   argv: string[],
 ): { ok: true; options: Options } | { ok: false; message: string } {

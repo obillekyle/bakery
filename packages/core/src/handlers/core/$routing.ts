@@ -174,7 +174,6 @@ async function getCatchAllRoute(
   return info
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: request-to-route dispatcher
 export async function getRoute(
   pathOrArr: string | string[],
   exts: string[] = [],

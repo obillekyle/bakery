@@ -59,7 +59,7 @@ function initDbInstance() {
   return db
 }
 
-export function initSqliteStorage() {
+function initSqliteStorage() {
   try {
     return Promise.resolve(initDbInstance())
   } catch (e) {
@@ -68,7 +68,7 @@ export function initSqliteStorage() {
   }
 }
 
-export function getDb(): Database | null {
+function getDb(): Database | null {
   return db || null
 }
 
@@ -100,11 +100,6 @@ export function __setTestDb(instance: Database | null) {
 export function __resetTestDb() {
   db = null
   resetStatements()
-}
-
-export default {
-  initSqliteStorage,
-  getDb,
 }
 
 /**

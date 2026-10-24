@@ -184,11 +184,6 @@ function listingSignature(
   return JSON.stringify([view.table, view.sortBy ?? '', view.sortOrder, wire])
 }
 
-/** Test seam (convention 9): page 2 of one test must not see page 1 of another. */
-export function __resetPageCount(): void {
-  lastCounted = null
-}
-
 export async function fetchPage(view: ViewState): Promise<Timed<TablePage>> {
   const params: Record<string, string> = {
     tableName: view.table,

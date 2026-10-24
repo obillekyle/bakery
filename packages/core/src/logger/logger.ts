@@ -1,8 +1,8 @@
 import { PromptTracker } from '../compiler/prompt-tracker'
 import type { MapOf } from '../types'
 import { Case } from '../utils/common/case'
-import { match } from '../utils/common/match'
-import { Try } from '../utils/common/try'
+import { match } from '../utils/isomorphic/match'
+import { Try } from '../utils/isomorphic/try'
 
 const logLevels = ['info', 'warn', 'error', 'fatal', 'debug', 'trace'] as const
 const byLength = 15

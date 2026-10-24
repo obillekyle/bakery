@@ -126,7 +126,7 @@ export async function parseVue(
   }
 }
 
-export async function compileScriptBlock(
+async function compileScriptBlock(
   options: CompileScriptOptions,
 ): Promise<CompileScriptResult> {
   const { descriptor, id } = options

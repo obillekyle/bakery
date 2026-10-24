@@ -130,7 +130,6 @@ export class DynamicHandler extends Handler {
   // Segment matching with catch-all and specificity precedence. The branches
   // are the precedence rules; splitting them hides the ordering that is the
   // whole point.
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: route-precedence dispatcher
   static findDynamicRoute(path: string): Route.Info | null {
     const root = Bakery.serveRoot
     let deferred: Route.Info[] | null = null

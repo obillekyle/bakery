@@ -24,7 +24,7 @@
  *
  * `status` because two different outcomes need the same mechanism: a dry run
  * answers 200 with what *would* have happened, and a bulk edit that hit an
- * optimiztic-concurrency conflict answers 409 with what did, and both have to
+ * optimistic-concurrency conflict answers 409 with what did, and both have to
  * leave the database untouched, so both have to leave through a throw.
  */
 export class RollbackSignal<T = unknown> extends Error {

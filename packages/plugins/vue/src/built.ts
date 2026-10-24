@@ -205,8 +205,3 @@ export async function builtPage(
   const build = await loadBuild()
   return build?.manifest.roots[fs.resolve(root)]?.[fs.resolve(file)] ?? null
 }
-
-/** Test seam (convention 9): forget the memoized build. */
-export function __resetBuild(): void {
-  loaded = null
-}

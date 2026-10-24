@@ -1,7 +1,7 @@
 /**
  * The editable grid: which node holds which value, and where focus is.
  *
- * Two rules keep this file's functions under biome's complexity ceiling, and
+ * Two rules keep this file's functions under a cognitive complexity of 25, and
  * they are worth stating because the old `renderTable` broke both and scored
  * 34 with a fraction of the behavior:
  *

@@ -7,7 +7,7 @@ import { fs } from '@bakery-framework/core/utils'
  * became its own package every asset lookup pointed into core and 404'd. Each
  * package that ships files needs its own anchor, derived from its own location.
  */
-export const pluginRoot: string = fs.resolve(import.meta.dir)
+const pluginRoot: string = fs.resolve(import.meta.dir)
 
 export function pluginPath(...segments: string[]): string {
   return fs.resolve(pluginRoot, ...segments)

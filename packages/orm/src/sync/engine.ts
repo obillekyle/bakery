@@ -14,7 +14,7 @@ import { buildSyncPlan, calculateIndexDiff, logPlannedChanges } from './plan'
 import type * as SyncTypes from './types'
 
 // prettier-ignore
-export const syncMsgs = {
+const syncMsgs = {
   GEN_TYPES: 'I Generating types...',
   // Counted rather than silently dropped: a composite key is not a property of
   // one column, so the generator cannot spell it, but a reader who is not told

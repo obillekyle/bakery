@@ -1527,7 +1527,6 @@ function parseCSVValue(val: any, type?: string): any {
   return parseCSVValueFallback(trimmed)
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: csv
 function parseCSVRows(csv: string): string[][] {
   const result: string[][] = []
   let row: string[] = []

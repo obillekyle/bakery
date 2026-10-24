@@ -4,7 +4,7 @@ import { Bakery } from '../core/bakery'
 import { checkCacheVersion } from '../core/cache-version'
 import { serveLog } from '../logger/serve-log'
 import { fs } from '../utils'
-import { Try } from '../utils/common/try'
+import { Try } from '../utils/isomorphic/try'
 
 /**
  * The tiered cache's spill-to-disk store: sessions and LRU overflow.

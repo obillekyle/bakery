@@ -1,6 +1,6 @@
 import { Bakery, hostStore } from '../../core/bakery'
 import type { MapOf } from '../../types'
-import { Try } from '../common/try'
+import { Try } from '../isomorphic/try'
 import { DOMTools, headBodyCache } from './dom'
 import { ETag } from './etag'
 

@@ -125,7 +125,6 @@ export class HandlerMap<T extends typeof Handler = typeof Handler> extends Map<
    */
   // The `probed` bookkeeping exists because middleware has side effects and
   // must not run twice. That constraint is what the branching encodes.
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: cache-path + side-effect-sensitive probe loop
   async resolve(path: string, req?: Request, ...rest: any[]) {
     // The **resolved** host, not the header. `__hostname` is whatever arrived
     // in `Host`, and `routeCache` is one bounded LRU shared by every tenant, so

@@ -11,7 +11,7 @@ import { flushPageHits, saveAnalyticsData } from './storage-sqlite'
 const SAVE_THROTTLE_MS = 60000
 
 /** One sample per second is what every `history1m` window assumes. */
-export const ANALYTICS_TICK_MS = 1000
+const ANALYTICS_TICK_MS = 1000
 
 let lastSaveTime = 0
 
@@ -129,7 +129,7 @@ export function broadcastStats(compute = computeStats) {
   }
 }
 
-export let analyticsLoopTimer: ReturnType<typeof setTimeout> | null = null
+let analyticsLoopTimer: ReturnType<typeof setTimeout> | null = null
 
 /** False between `stopAnalyticsLoop()` and the next start; gates the re-arm. */
 let loopRunning = false

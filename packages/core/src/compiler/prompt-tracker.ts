@@ -1,6 +1,6 @@
 import { unlinkSync } from 'node:fs'
 import { cacheDir } from '../core/context'
-import { Try } from '../utils/common/try'
+import { Try } from '../utils/isomorphic/try'
 
 /**
  * **`cacheDir` comes from `core/context`, not from `Bakery`. Do not change it

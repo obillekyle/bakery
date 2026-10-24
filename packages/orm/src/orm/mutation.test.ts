@@ -34,9 +34,9 @@ afterAll(() => {
  * column string. Runtime accepts all three on all of them. Widening six
  * mutation signatures is a public-surface change belonging to the tracked "ORM
  * fluent-API typing gap", so the form is cast at the call site here:
- * deliberately, rather than `@ts-nocheck`-ing the file, which is what
- * `orm.test.ts` does and which would also stop checking the assertions that
- * matter.
+ * deliberately, rather than `@ts-nocheck`-ing the file, which would also stop
+ * checking the assertions that matter (`orm.test.ts` carried one until 2.4.2,
+ * and it hid one error).
  */
 const clause = (builder: unknown): any => builder
 

@@ -3,7 +3,7 @@
  *
  * This file used to be the whole client: 197 lines, one `renderTable` that
  * fetched, built a header, built a body and built a pager, and scored **34**
- * against biome's ceiling of 25. Growing that into a data editor would have
+ * against Biome's old ceiling of 25. Growing that into a data editor would have
  * meant growing that one function, so the shape changed first. The pieces live
  * under `client/`, each obeying two mechanical rules (**no function both
  * fetches and renders**, and **every loop body is a named function**), and what

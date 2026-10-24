@@ -29,15 +29,15 @@ export function initVueVersion() {
   return VUE_VERSION
 }
 
-export const RX_IMPORT_VUE_FILE =
+const RX_IMPORT_VUE_FILE =
   /(?:from\s+|import\s+|import\()(['"][^'"]*\.vue['"])/g
 export const RX_EXPORT_BRACE = /\bexport\s*\{([\s\S]*?)\}/g
 export const RX_EXPORT_HANGING = /\bexport\s+(const|let|var)\s+(\w+)\s*=\s*/g
-export const RX_EXPORT_FUNCTION = /\bexport\s+(?:async\s+)?function\s+(\w+)/g
+const RX_EXPORT_FUNCTION = /\bexport\s+(?:async\s+)?function\s+(\w+)/g
 /** `export const fn = async (a) => {}` / `= function () {}`: callable, not data. */
-export const RX_EXPORT_CALLABLE_CONST =
+const RX_EXPORT_CALLABLE_CONST =
   /\bexport\s+(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:function\b|(?:\([^)]*\)|\w+)\s*=>)/g
-export const RX_TOP_LEVEL_IMPORT =
+const RX_TOP_LEVEL_IMPORT =
   /^\s*import\s*(?:(?:[\w_$*{},\s\n]+from\s*)?['"`][^'"`\n]+['"`]|['"`][^'"`\n]+['"`]);?/
 
 export const cacheDir = fs.resolve(Bakery.cacheDir, 'vue')
@@ -66,7 +66,6 @@ const CLOSING_TAG = '</script'
  * non-greedy regex stops at the first match, so server code containing
  * `"</script>"` would be cut short and its remainder left in the client bundle.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character scanner, locates a block end past nested quotes
 function findServerScriptEnd(raw: string, start: number): number {
   let index = start
 
@@ -195,7 +194,6 @@ export function rewriteRelativeImports(
  * skips strings/comments, so a multi-line object, function, or arrow body
  * survives intact: stopping at the first newline breaks all three.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character scanner, brace and quote state machine
 function findExpressionEnd(code: string, start: number): number {
   let depth = 0
   let index = start
@@ -676,7 +674,7 @@ export function rewriteVueImports(code: string): string {
  * A leading `<meta … />` directive. Quoted attribute values may contain `>`,
  * so plain `[^>]` would truncate the tag. Anchored: only the prologue counts.
  */
-export const RX_VUE_META = /^<meta(?![\w-])((?:"[^"]*"|'[^']*'|[^>])*?)\/>/i
+const RX_VUE_META = /^<meta(?![\w-])((?:"[^"]*"|'[^']*'|[^>])*?)\/>/i
 const RX_META_SKIPPABLE = /^\s+|^<!--[\s\S]*?-->/
 
 /**

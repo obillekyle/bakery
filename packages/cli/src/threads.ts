@@ -49,9 +49,6 @@ export function requestWorkerFlush(
         Try(() => target.removeEventListener('message', listener))
       }
       listeners.clear()
-      // `resolve` is the enclosing Promise executor's, not a call that returns
-      // one; the rule cannot tell the two apart.
-      // biome-ignore lint/nursery/noFloatingPromises: executor resolve, not a promise
       resolve(flushed)
     }
 
@@ -80,7 +77,7 @@ export function requestWorkerFlush(
 export const RESPAWN_BASE_DELAY_MS = 100
 export const RESPAWN_MAX_DELAY_MS = 30_000
 /** A worker that survives this long is healthy; its failure streak resets. */
-export const RESPAWN_RESET_AFTER_MS = 60_000
+const RESPAWN_RESET_AFTER_MS = 60_000
 
 /**
  * How long the master waits before respawning a crashed worker: exponential
