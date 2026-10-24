@@ -4,8 +4,9 @@ import { Bakery, hostStore } from '../core/bakery'
 import {
   __resetTestConfig,
   __setTestConfig,
-  getConfig,
+  clearHostConfigCache,
   initConfig,
+  resolveHostConfig,
 } from '../core/config'
 import { StaticHandler } from '../handlers/assets/static'
 import { TSHandler } from '../handlers/assets/ts'
@@ -60,13 +61,20 @@ const registries: { fetch: HandlerMap; error: HandlerMap<any> } =
 const original = { fetch: registries.fetch, error: registries.error }
 
 beforeAll(async () => {
+  clearHostConfigCache()
   await initConfig()
   for (const [file, text] of Object.entries(FILES)) {
     await Bun.write(`${ROOT}/${file}`, text)
   }
   __setTestConfig({
     root: ROOT,
-    hostMounts: [{ host: 'kit.*', path: '/kit' }],
+    // `docs` is a hosts entry with a mount, under localhost, which always
+    // counts as a domain; its `hostMounts` pattern says otherwise and loses.
+    hosts: { docs: { mount: '/kit' } },
+    hostMounts: [
+      { host: 'kit.*', path: '/kit' },
+      { host: 'docs.*', path: '/elsewhere' },
+    ],
     proxy: { '/legacy': 'http://127.0.0.1:9' },
   } as any)
   mountRoutes('/plugin-assets', `${ROOT}/plugin`)
@@ -87,6 +95,7 @@ afterAll(async () => {
   registries.error = original.error
   clearMounts()
   __resetTestConfig()
+  clearHostConfigCache()
   await rm(ROOT, { recursive: true, force: true })
 })
 
@@ -115,10 +124,11 @@ function request(
   })
 }
 
-/** A request the way `cli/src/worker.ts` serves one. */
+/** A request the way `cli/src/worker.ts` serves one, in its host's config. */
 function serve(req: Request): Promise<Response> {
   const hostname = new URL(req.url).hostname
-  return hostStore.run({ config: getConfig(), hostname, req }, async () => {
+  const config = resolveHostConfig(hostname)
+  return hostStore.run({ config, hostname, req }, async () => {
     let res: any = await handleRequest(req)
     if (res instanceof Response && res.status === 404) {
       res = await handleRequestError(routeOf(req).path, req, res)
@@ -240,12 +250,34 @@ describe('Vary', () => {
   })
 })
 
+describe("a hosts entry's mount", () => {
+  test('moves page requests the same way, and wins over a hostMounts pattern', async () => {
+    expect(await text('docs.localhost', '/', 'navigate')).toContain(
+      '<p>kit home</p>',
+    )
+    expect(await text('docs.localhost', '/guide', 'navigate')).toContain(
+      '<p>kit guide</p>',
+    )
+  })
+
+  test('and leaves what pages load at the root', async () => {
+    const own = await serve(request('docs.localhost', '/kit/useDemo', 'module'))
+    expect(own.status).toBe(200)
+    expect(await own.text()).toContain('kit module')
+    expect(await text('docs.localhost', '/guide', 'plain')).toContain(
+      '<p>root guide</p>',
+    )
+  })
+})
+
 describe('routeOf', () => {
-  const route = (req: Request) =>
-    hostStore.run(
-      { config: getConfig(), hostname: new URL(req.url).hostname, req },
+  const route = (req: Request) => {
+    const hostname = new URL(req.url).hostname
+    return hostStore.run(
+      { config: resolveHostConfig(hostname), hostname, req },
       () => routeOf(req),
     )
+  }
 
   test('a navigation moves into the mount, which is reported', () => {
     expect(route(request('kit.localhost', '/forms', 'navigate'))).toEqual({

@@ -213,6 +213,10 @@ Session cache keys are namespaced by the current host through `hostKey()`
 `a.com` does not resolve on `b.com`, and `Session.list()` (the dashboard's
 session table) only shows the host it was asked on. A hostname with no `hosts`
 entry, and every request in a single-host app, shares the default namespace.
+Every subdomain a `'*'` key matches shares one namespace per domain
+(`*.example.com`), so an id issued on `ma.example.com` resolves on
+`sti.example.com` but not on `admin.example.com` when `admin` has an entry of
+its own.
 
 Upgrading an app that already has `hosts` configured invalidates the sessions
 stored under the old flat keys: everyone signs in once more, and the orphaned

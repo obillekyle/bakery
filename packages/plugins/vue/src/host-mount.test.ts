@@ -4,8 +4,9 @@ import { Bakery, hostStore } from '@bakery-framework/core/core/bakery'
 import {
   __resetTestConfig,
   __setTestConfig,
-  getConfig,
+  clearHostConfigCache,
   initConfig,
+  resolveHostConfig,
 } from '@bakery-framework/core/core/config'
 import {
   HandlerMap,
@@ -80,6 +81,8 @@ afterAll(async () => {
   registries.fetch = original.fetch
   registries.error = original.error
   __resetTestConfig()
+  clearHostConfigCache()
+  await initConfig()
   await rm(ROOT, { recursive: true, force: true })
 })
 
@@ -91,9 +94,12 @@ const NAVIGATE = {
 const SCRIPT = { 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'script', accept: '*/*' }
 const STYLE = { 'sec-fetch-mode': 'no-cors', 'sec-fetch-dest': 'style', accept: 'text/css,*/*;q=0.1' }
 
-/** A request the way `cli/src/worker.ts` serves one: route it, then shape it. */
+/**
+ * A request the way `cli/src/worker.ts` serves one: in its host's config,
+ * routed, then shaped.
+ */
 const get = (host: string, path: string, headers: Record<string, string>) =>
-  hostStore.run({ config: getConfig(), hostname: host }, async () => {
+  hostStore.run({ config: resolveHostConfig(host), hostname: host }, async () => {
     const req = new Request(`http://${host}${path}`, { headers })
     return (await processResponse(await handleRequest(req), req)) as Response
   })
@@ -173,5 +179,34 @@ describe('the same page on a host no mount serves', () => {
     const html = await res.text()
     expect(html).toContain('src="/?__vue_script=root"')
     expect(stampedRoute(html).catchAll).toBe(false)
+  })
+})
+
+describe("the same page under a hosts entry's mount", () => {
+  beforeAll(async () => {
+    clearHostConfigCache()
+    await initConfig()
+    __setTestConfig({
+      root: ROOT,
+      domains: 'bpc.edu.ph',
+      hosts: { kit: { mount: '/kit' } },
+    } as any)
+  })
+
+  test('is stamped and linked the way the hostMounts form does it', async () => {
+    for (const host of ['kit.bpc.edu.ph', 'kit.localhost']) {
+      const res = await get(host, '/data-table', NAVIGATE)
+      expect(res.status).toBe(200)
+      const html = await res.text()
+      expect(`${host}: ${stampedRoute(html).base}`).toBe(`${host}: `)
+      expect(html).toContain('src="/kit/data-table?__vue_script=root"')
+    }
+    const script = await get(
+      'kit.bpc.edu.ph',
+      '/kit/data-table?__vue_script=root',
+      SCRIPT,
+    )
+    expect(script.status).toBe(200)
+    expect(await script.text()).toContain('kit docs ')
   })
 })

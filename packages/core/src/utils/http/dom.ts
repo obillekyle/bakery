@@ -1,6 +1,7 @@
 import { readdir } from 'node:fs/promises'
 import { LRUCache } from '../../cache/lru'
 import { Bakery, hostStore } from '../../core/bakery'
+import { hostEntryKey } from '../../core/config'
 import type { MapOf } from '../../types'
 import { is } from '../common/misc'
 import { Try } from '../common/try'
@@ -64,7 +65,10 @@ export function initHostImportMaps() {
       imports[key] = value
     }
 
-    hostDepMaps.set(hostname, JSON.stringify({ imports }))
+    // By the key as matching folds it, and read back through `hostEntryKey`:
+    // a request's hostname is not the key under `'@'`, `'*'` or a bare
+    // label, and was not even for a name, whose case went unfolded.
+    hostDepMaps.set(hostname.toLowerCase(), JSON.stringify({ imports }))
   }
 }
 
@@ -154,7 +158,8 @@ export async function initImportMap() {
 export namespace DOMTools {
   export function importMap() {
     const hostname = hostStore.getStore()?.hostname
-    const map = (hostname && hostDepMaps.get(hostname)) || depMap
+    const key = hostname && hostDepMaps.size ? hostEntryKey(hostname) : ''
+    const map = (key && hostDepMaps.get(key)) || depMap
     return `<script type="importmap">${map}</script>`
   }
 

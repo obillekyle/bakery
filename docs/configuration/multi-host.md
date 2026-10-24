@@ -22,8 +22,8 @@ Everything else keeps `src`. No second process, no second port.
 
 A host given its own `root` gets everything from that directory, its scripts,
 stylesheets and API included. To give a hostname one subtree of the same app
-instead, with the rest of the app still loading from the root, see
-[Host mounts](host-mounts.md).
+instead, with the rest of the app still loading from the root, give its entry
+a `mount` ([Host mounts](host-mounts.md)).
 
 ## How the hostname is decided
 
@@ -45,11 +45,60 @@ routing, never as authorization.
 
 ## Matching
 
-Lookup is an exact match against the keys of `hosts`, case-insensitively: both
-the incoming hostname and your keys are folded to lower case, so `EXAMPLE.com`
-finds an `example.com` entry. There are no wildcards and no suffix matching.
-Write keys in lowercase anyway: it is the form browsers send, and if two keys
-differ only in case the first declared wins.
+A key matches in one of four ways, tried in this order:
+
+| Key | Matches |
+| --- | --- |
+| `'app.example.com'` | That hostname, exactly |
+| `'admin'`, a bare label | That subdomain of each domain: `admin.example.com`, `admin.localhost` |
+| `'@'` | Each domain itself: `example.com`, `localhost` |
+| `'*'` | Any other subdomain of a domain, at any depth: `ma.example.com`, `a.b.example.com` |
+
+The domains are `localhost`, which always counts, and whatever `domains`
+names:
+
+```ts
+import { defineConfig } from '@bakery-framework/core'
+
+export default defineConfig({
+  domains: 'example.com',
+  hosts: {
+    '@': { root: 'src/site' },
+    admin: { rateLimit: { max: 30, refill: 3 } },
+    kit: { mount: '/kit' },
+    '*': { mount: '/sites' },
+  },
+})
+```
+
+An exact key is tried first, so a name listed in full wins over every other
+form, and every key written before the other forms existed matches as it did.
+A bare label names one subdomain, not its children: `admin.x.example.com` is
+`'*'`'s. With nested domains (`example.com` and `shop.example.com`), a
+hostname is read against the longest one it sits in. A hostname under none of
+the domains, an IP address included, matches only an exact key.
+
+`domains` takes a string, an array, or a function. A function is asked on
+each request, for an app whose domain is a setting that can change while it
+runs; it has to answer without awaiting, and an answer that is not a domain
+matches nothing. A static value that is not a domain stops the boot:
+
+```ts
+import { defineConfig } from '@bakery-framework/core'
+
+/** Updated wherever the app's domain setting changes. */
+const site = { domain: 'example.com' }
+
+export default defineConfig({
+  domains: () => site.domain,
+  hosts: { kit: { mount: '/kit' } },
+})
+```
+
+Lookup is case-insensitive: both the incoming hostname and the keys are folded
+to lower case, so `EXAMPLE.com` finds an `example.com` entry. Write keys in
+lowercase anyway: it is the form browsers send, and if two keys differ only in
+case the first declared wins.
 
 A hostname with no entry gets the base config unchanged. The lookup goes through
 a `Map` built from `Object.entries`, so it sees own enumerable keys only: a
@@ -57,9 +106,10 @@ request with `Host: constructor` cannot reach a prototype member and have it
 merged as if it were a host entry.
 
 Resolved host configs are cached, but **only for hostnames that matched**
-(`config.ts`). Unknown hostnames are recomputed every time rather than
-cached, because the value comes from a request header and caching misses would
-let any client grow that map until the process ran out of memory.
+(`config.ts`), and every subdomain `'*'` matches shares one entry per domain.
+Unknown hostnames are recomputed every time rather than cached, because the
+value comes from a request header and caching misses would let any client grow
+that map until the process ran out of memory.
 
 ## What a host entry may override
 
@@ -69,6 +119,7 @@ let any client grow that map until the process ran out of memory.
 | Field | Merge behavior (`config.ts`) |
 | --- | --- |
 | `root` | Replaces, resolved against cwd |
+| `mount` | A subtree of the app served at this host's root: see [Host mounts](host-mounts.md) |
 | `importMap` | **Merged** over the base import map |
 | `middleware` | Replaces the whole array |
 | `onRequest` | Replaces |
@@ -81,7 +132,7 @@ let any client grow that map until the process ran out of memory.
 
 Anything not in that table is process-wide and cannot vary by host: `port`,
 `host`, `plugins`, `websocket`, `maxBodySize`, `backups`, `schema`,
-`trustProxy`, `onStart`, `onShutdown`.
+`trustProxy`, `domains`, `hostMounts`, `onStart`, `onShutdown`.
 
 The `blocked` row is the one that surprises people. A host entry's `blocked` is
 concatenated with the framework defaults only: your top-level `blocked` list is
@@ -117,12 +168,16 @@ import { hostKey } from '@bakery-framework/core'
 const key = hostKey('/styles/app.css')
 ```
 
-Only a hostname that appears in `hosts` gets its own prefix; anything else (and every request in an app with no `hosts` at all) returns the path unchanged.
+Only a hostname that matches an entry gets a prefix of its own: the hostname
+for an exact key, a bare label or `'@'`, and `*.example.com` for every
+subdomain `'*'` matches. Anything else (and every request in an app with no
+`hosts` at all) returns the path unchanged.
 That is deliberate and it matters, because these keys become **filenames**: an
 unconfigured host is served the base config, so it shares the base config's
 cache entries rather than minting a new set. Without the allow-list, a client
-sending 25 invented `Host` headers writes 25 new cache entries. Matching is
-case-insensitive, so `EXAMPLE.com` and `example.com` are one key.
+sending 25 invented `Host` headers writes 25 new cache entries, and `'*'`
+shares one prefix per domain for the same reason. Matching is case-insensitive,
+so `EXAMPLE.com` and `example.com` are one key.
 
 The static file cache already does this (`handlers/assets/static.ts`), as do
 sessions (`session.ts`). If you write a per-request cache of your own, key it

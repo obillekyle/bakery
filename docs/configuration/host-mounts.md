@@ -1,27 +1,40 @@
 # Host mounts
 
-A host mount gives a hostname one subtree of the app as its whole site:
+A mount gives a hostname one subtree of the app as its whole site. It is a
+`hosts` entry's `mount`:
 
 ```ts
 import { defineConfig } from '@bakery-framework/core'
 
 export default defineConfig({
   root: 'src',
-  hostMounts: [{ host: 'kit.*', path: '/kit' }],
+  domains: 'example.com',
+  hosts: {
+    kit: { mount: '/kit' },
+  },
 })
 ```
 
 `kit.example.com/forms` is now the page `/kit/forms`, and `kit.example.com/`
-is `/kit`. Every other host serves the app as before, `/kit/forms` included.
+is `/kit`. `kit.localhost` gets the same, since `localhost` always counts as a
+domain. Every other host serves the app as before, `/kit/forms` included.
 
-It is not a `hosts` entry with a `root`. That gives a hostname a directory of
-its own as the serve root: its own pages, and also its own stylesheets,
-scripts and API, all read from that directory ([Multi-host](multi-host.md)).
-A host mount keeps one app. The subtree's pages load `/ui/Button.vue`,
-`/style.css` and `/api/...` from the app's root, as they do on any host, and
-only the pages move.
+A `mount` is not a `root`. A root gives a hostname a directory of its own as
+the serve root: its own pages, and also its own stylesheets, scripts and API,
+all read from that directory. A mount keeps one app. The subtree's pages load
+`/ui/Button.vue`, `/style.css` and `/api/...` from the app's root, as they do
+on any host, and only the pages move.
 
 ## Which hostnames
+
+A mount sits on a `hosts` entry, so its hostnames are the entry's: a name in
+full, a bare label like `kit` under each of the app's `domains`, `'@'` for a
+domain itself, or `'*'` for any other subdomain
+([Multi-host](multi-host.md#matching)). The entry's other fields apply on the
+mounted host as on any other: `head`, `middleware`, `rateLimit` and the rest.
+
+`hostMounts` sets a mount by pattern instead of by key, for a label under any
+domain at all, named or not:
 
 | `host` | Matches |
 | --- | --- |
@@ -29,17 +42,6 @@ only the pages move.
 | `'kit.*'` | The first label `kit` under any domain: `kit.localhost`, `kit.example.com`, `kit.bpc.edu.ph` |
 | `'*.docs.example.com'` | Any subdomain of `docs.example.com`, at any depth |
 | `hostname => boolean` | Whatever the function returns, asked per request with the hostname lowercased and without its port |
-
-A `*` stands for one or more whole labels, so `kit.*` matches neither
-`kits.example.com` nor `a.kit.example.com`, and a `*` inside a label (`k*t`)
-is refused. Matching ignores case and the port. The hostname is the one
-`hosts` matches on: the `Host` header, or with `trustProxy` the first
-`X-Forwarded-Host` ([how the hostname is decided](multi-host.md#how-the-hostname-is-decided)).
-The first entry whose `host` matches serves the request.
-
-Patterns are for an app whose domain is not known at boot. A domain read from
-a database setting cannot be written as `kit.<domain>`, and `kit.*` names the
-`kit` label of whatever the domain turns out to be:
 
 ```ts
 import { defineConfig } from '@bakery-framework/core'
@@ -53,10 +55,18 @@ export default defineConfig({
 })
 ```
 
-A pattern is routing, not authorization: `kit.*` also matches
-`kit.someone-else.example` pointed at the server. `onRequest` still runs
-first on a mounted host and sees the request as it was sent, so an app
-refuses there whatever names it does not serve.
+In a pattern, `*` stands for one or more whole labels, so `kit.*` matches
+neither `kits.example.com` nor `a.kit.example.com`, and a `*` inside a label
+(`k*t`) is refused. The first pattern that matches serves the request, and a
+host whose `hosts` entry has a `mount` takes that one before any pattern.
+Matching ignores case and the port, and reads the hostname `hosts` does: the
+`Host` header, or with `trustProxy` the first `X-Forwarded-Host`
+([how the hostname is decided](multi-host.md#how-the-hostname-is-decided)).
+
+A key or a pattern is routing, not authorization: `'*'` and `kit.*` match any
+name pointed at the server under them. `onRequest` still runs first on a
+mounted host and sees the request as it was sent, so an app refuses there
+whatever names it does not serve.
 
 ## Which requests move
 
@@ -119,14 +129,27 @@ A `defineLayout()` page gets this for free. Its `nav.base` is `''` on the
 mounted host and `/kit` on any other, so links built from `nav.base`, and
 `nav.navigate()`, are right on both ([Vue plugin](../plugins/vue.md#on-a-host-mount)).
 
+## Keeping the subtree to its host
+
+The subtree still answers at its own path on every other host:
+`admin.example.com/kit/forms` is the forms page there too. An app that wants
+it on the mounted host alone refuses the prefix in `onRequest` on the other
+hosts, as long as no page outside the subtree imports from it, and runs the
+subtree's tests on the mounted name. On a development machine that name can
+be `kit.localhost` ([testing it locally](multi-host.md#testing-it-locally)).
+
+An app with a one-host mode, every area served on `localhost` for its tests,
+makes the same choice there: the prefix either answers at its own path on
+that host, or is refused and its tests run on `kit.localhost`.
+
 ## Limits
 
-- `hostMounts` is process-wide. It cannot be set inside a `hosts` entry. A
-  hostname can have both, and then its `hosts` entry decides the config, the
-  root the mount's path is read under included.
+- A `mount` belongs to one entry, while `domains` and `hostMounts` are
+  process-wide. An entry can have both a `root` and a `mount`, and the mount's
+  path is then read under that root.
 - A mount's path cannot be `/` or sit under `/_`, `/api/` or `/.well-known/`.
-  An entry that cannot mean anything stops the boot and names itself:
-  `hostMounts[0].path must be a path starting with '/': got "kit"`.
+  One that cannot mean anything stops the boot and names itself:
+  `hosts['kit'].mount must be a path starting with '/': got "kit"`.
 - A catch-all above the mount (`src/[...slug].vue`) still answers a path the
   subtree has no page for, and on the mounted host its `defineLayout()` base
   has no spelling without the mount. A subtree served this way wants a

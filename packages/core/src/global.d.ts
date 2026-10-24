@@ -55,6 +55,13 @@ declare global {
 
   type HostEntry = {
     root?: string
+    /**
+     * A subtree of the app this host serves at its root: with
+     * `mount: '/kit'`, `/forms` on this host is the page `/kit/forms`. Only
+     * page requests move into it; what those pages load comes from the
+     * app's root. See `routeOf` in `router.ts`.
+     */
+    mount?: string
     importMap?: Record<string, string>
     middleware?: ((
       req: Request,
@@ -166,6 +173,16 @@ declare global {
      * `Session.endForAccount()` find every session of one account.
      */
     sessions?: import('./session').SessionOptions
+
+    /**
+     * The app's domains, which three kinds of `hosts` key are read against:
+     * `'@'` is a domain itself, a bare label such as `'admin'` is
+     * `admin.<domain>`, and `'*'` is any other subdomain. `localhost` always
+     * counts, so the same keys work on `admin.localhost`. A function is asked
+     * on each request, for an app whose domain is a setting that can change
+     * while it runs, and has to answer without awaiting.
+     */
+    domains?: string | string[] | (() => string | string[])
 
     hosts?: Record<string, HostEntry>
 
@@ -422,7 +439,13 @@ declare global {
     {
       blocked: Bun.Glob
     }
-  >
+  > & {
+    /**
+     * The subtree this host serves at its root, from its `hosts` entry's
+     * `mount`, normalized. Absent on the base config and on a host without one.
+     */
+    mount?: string
+  }
 
   type ServerWebSocket<T = MapOf<any>> = Override<
     Bun.ServerWebSocket,

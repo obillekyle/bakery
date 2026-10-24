@@ -72,7 +72,12 @@ export function hostPattern(host: string, where = 'host'): RegExp {
  */
 export const ROOT_ONLY = ['/_', '/api/', '/.well-known/'] as const
 
-function mountPath(value: unknown, where: string): string {
+/**
+ * A mount's path checked and normalized: a leading slash, no trailing one.
+ * Throws naming `where` for a path that cannot mean anything. Shared by
+ * `hostMounts` and a `hosts` entry's `mount`.
+ */
+export function normalizeMountPath(value: unknown, where: string): string {
   if (typeof value !== 'string' || !value.startsWith('/')) {
     throw new Error(
       `${where} must be a path starting with '/': got ${JSON.stringify(value)}`,
@@ -108,7 +113,7 @@ function compile(mount: HostMount, where: string): CompiledHostMount {
   if (!mount || typeof mount !== 'object') {
     throw new Error(`${where} must be { host, path }`)
   }
-  const path = mountPath(mount.path, `${where}.path`)
+  const path = normalizeMountPath(mount.path, `${where}.path`)
   const { host } = mount
   if (typeof host === 'function') return { path, matches: host }
   if (typeof host !== 'string') {

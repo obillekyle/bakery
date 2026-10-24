@@ -152,15 +152,18 @@ function routing(req: Request): Routing {
   const path = parsedUrl(req).pathname
   let result: Routing = { path, mount: null, varies: false }
 
-  // A partial config (a test's, an embedder's) may carry no `hostMounts`.
+  // The host's `hosts` entry decides first (its `mount`, already resolved into
+  // the ambient config), then the first `hostMounts` pattern that matches. A
+  // partial config (a test's, an embedder's) may carry neither.
   const config = Bakery.config
-  const mounts = config.hostMounts?.length
-    ? compileHostMounts(config.hostMounts)
-    : null
-  const mount = mounts && findHostMount(mounts, getHostname(req, config))
+  let mount = config.mount ?? null
+  if (!mount && config.hostMounts?.length) {
+    const patterns = compileHostMounts(config.hostMounts)
+    mount = findHostMount(patterns, getHostname(req, config))?.path ?? null
+  }
   if (mount && pagePathOnMount(path, config)) {
     result = isPageRequest(req)
-      ? { path: mountedPath(path, mount.path), mount: mount.path, varies: true }
+      ? { path: mountedPath(path, mount), mount, varies: true }
       : { path, mount: null, varies: true }
   }
 
@@ -171,8 +174,9 @@ function routing(req: Request): Routing {
 /**
  * The path routing resolves for `req`, and the host mount it moved into.
  *
- * On a host that no entry of `hostMounts` serves, that is the request's own
- * path and no mount. On a mounted host, a page request (`isPageRequest`) for
+ * On a host with no `mount` (from its `hosts` entry, or a `hostMounts`
+ * pattern), that is the request's own path and no mount. On a mounted host, a
+ * page request (`isPageRequest`) for
  * a path that can be a page (`pagePathOnMount`) resolves under the mount:
  * `/forms` is `/kit/forms`, and `/` is `/kit`. Every other request keeps its
  * path, so the modules, stylesheets and API a subtree's pages load still come

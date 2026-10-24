@@ -63,12 +63,13 @@ describe('the example app serves what it ships', () => {
 })
 
 /**
- * The two ways `server.config.ts` gives a hostname something of its own,
- * asked for by `Host`, the way a browser at that name would.
+ * The two things a `hosts` entry can give a hostname of its own, asked for by
+ * `Host`, the way a browser at that name would: a root (`example.localhost`)
+ * and a mount (`wiki`, a bare label, read against localhost).
  *
  * Neither had a served test. `hosts['example.localhost'].root` was covered by
  * tests that read `Bakery.serveRoot` and the merged config, and never asked
- * the server for a page; `hostMounts` arrived with this.
+ * the server for a page; mounts arrived with this.
  */
 describe('a hostname with its own root, and one with a mount', () => {
   const NAVIGATE = {

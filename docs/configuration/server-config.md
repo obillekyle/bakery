@@ -72,6 +72,7 @@ the default from `packages/core/src/core/config.ts`.
 | `onRequest` | `(req) => any` | no-op |
 | `onError` | `(error) => any` | logs a warning |
 | `onShutdown` | `() => void` | no-op |
+| `domains` | `string \| string[] \| () => string \| string[]` | `[]` (`localhost` always counts) |
 | `hosts` | `Record<string, HostEntry>` | `{}` |
 | `hostMounts` | `{ host, path }[]` | `[]` |
 
@@ -465,12 +466,16 @@ export default defineConfig({
 ## Per-host overrides
 
 `hosts` maps a hostname to a `HostEntry` that overrides a subset of the options
-above for requests arriving on that name. It has its own page:
+above for requests arriving on that name. A key is a name in full, or read
+against `domains`: `'@'` for a domain itself, a bare label such as `'admin'`
+for that subdomain, `'*'` for any other. It has its own page:
 [Multi-host](multi-host.md).
 
 ## Host mounts
 
-`hostMounts` serves one subtree of the app at the root of the hostnames that
-match it: `{ host: 'kit.*', path: '/kit' }` makes `kit.example.com/forms` the
-page `/kit/forms`, while the files and API that page loads still come from the
-app's root. It has its own page: [Host mounts](host-mounts.md).
+A `hosts` entry's `mount` serves one subtree of the app at the root of the
+hostnames the entry matches: with `domains: 'example.com'`,
+`hosts: { kit: { mount: '/kit' } }` makes `kit.example.com/forms` the page
+`/kit/forms`, while the files and API that page loads still come from the
+app's root. `hostMounts` sets one by pattern instead (`kit.*`). Both are on
+their own page: [Host mounts](host-mounts.md).

@@ -5,6 +5,7 @@ import {
 } from '@bakery-framework/core/core/bakery'
 import {
   checkHostMounts,
+  checkHosts,
   initConfig,
   resolveHostConfig,
 } from '@bakery-framework/core/core/config'
@@ -250,8 +251,9 @@ try {
   // Before anything binds: a rate limit that cannot mean anything (a refill
   // of 0, a prefix without its slash) stops the boot here, naming the field,
   // in the catch below. So does a host mount (a path without its slash, a
-  // pattern with '*' inside a label).
+  // pattern with '*' inside a label) and a `domains` entry that is no domain.
   checkRateLimits(Bakery.config)
+  checkHosts(Bakery.config)
   checkHostMounts(Bakery.config)
 
   Bakery.server = Bun.serve({
