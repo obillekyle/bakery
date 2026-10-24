@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { rm } from 'node:fs/promises'
 import { initConfig } from '../core/config'
+import { setLogCallback } from '../logger/logger'
 import { fs } from '../utils/fs'
 import {
   bundleModule,
@@ -74,6 +75,53 @@ describe('compileText: a failure with a path in hand', () => {
     } finally {
       await rm(BROKEN_ROOT, { recursive: true, force: true })
     }
+  })
+})
+
+/**
+ * What a failed compile logs. `transform()` rejects with an `AggregateError`
+ * whose own message is "Transform failed" and whose diagnostics sit in
+ * `errors`, so both branches logged that phrase and nothing else: no line,
+ * and on the pathless branch no file either. The source here is the shape a
+ * Vue handler with a stray `;` compiled to, inside a render function's props.
+ */
+describe('compileText: what a failure logs', () => {
+  const broken = 'const props = { onPick: (d) => { close() }; }'
+
+  async function logged(run: () => Promise<unknown>): Promise<string[]> {
+    const lines: string[] = []
+    setLogCallback(entry => lines.push(entry.msg))
+    try {
+      await run()
+    } finally {
+      setLogCallback(() => {})
+    }
+    return lines
+  }
+
+  test('a pathless failure names the file its caller passes, with the line', async () => {
+    let result: string | undefined
+    const lines = await logged(async () => {
+      result = await compileText(broken, { file: 'ui/Calendar.vue' })
+    })
+
+    expect(result).toBe(broken)
+    const line = lines.find(l => l.includes('ui/Calendar.vue')) ?? ''
+    expect(line).toContain('Expected "}" but found ";"')
+    expect(line).toContain('(line 1, column 43)')
+  })
+
+  test('a pathless failure with no file says so, with the line', async () => {
+    const lines = await logged(() => compileText(broken))
+    const line = lines.find(l => l.includes('inline source')) ?? ''
+    expect(line).toContain('(line 1, column 43)')
+  })
+
+  test('a failure with a path logs the line of the first diagnostic', async () => {
+    const path = fs.resolve(BROKEN_ROOT, 'props.ts') as fs.AbsolutePath
+    const lines = await logged(() => compileText(broken, path))
+    const line = lines.find(l => l.includes('props.ts')) ?? ''
+    expect(line).toContain('(line 1, column 43)')
   })
 })
 

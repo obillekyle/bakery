@@ -181,7 +181,7 @@ export async function compileScriptBlock(
     hoistStatic: true,
   })
   return {
-    code: await compileText(result.content),
+    code: await compileText(result.content, { file: descriptor.filename }),
     bindings: result.bindings || {},
   }
 }
@@ -266,7 +266,7 @@ export async function compileTemplateBlock(
   // guarantee, so it is the one written down.
   let code = result.code
   code = code.replace(/^export\s+/m, '')
-  code = await compileText(code)
+  code = await compileText(code, { file: filename })
   return { code, errors }
 }
 
