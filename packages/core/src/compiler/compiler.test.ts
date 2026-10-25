@@ -170,11 +170,12 @@ describe('bundleModule repairs a sideEffects tree-shake', () => {
     // it: "an entry that only re-exports emitted `export { a }` with no
     // declaration".
     //
-    // So the premise is a *branch* now rather than an assertion. It is not
-    // simply deleted, because `engines.bun` is `>=1.4.0` and CI pins a 1.4.0
-    // job: the husk still appears there, and `bundleReExportShim` is still the
-    // only thing that makes those installs work. The repair becomes deletable
-    // when that floor moves above 1.4.0, not before.
+    // So the premise is a *branch* now rather than an assertion. It was not
+    // simply deleted while `engines.bun` was `>=1.4.0` and CI pinned a 1.4.0
+    // job: the husk still appeared there, and `bundleReExportShim` was the
+    // only thing that made those installs work. The floor is 1.4.4 now, so the
+    // repair can go; `isEmptyExportList` is exported from the public
+    // `compiler` subpath, so it waits for a major release.
     //
     // What is asserted in both regimes is the thing that actually matters:
     // `bundleModule` hands back the code either way.

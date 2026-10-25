@@ -50,7 +50,7 @@ That scaffolds an app, creates its SQLite database and serves it on port 3000.
 The scaffolder asks what to include (the ORM, and any of the three plugins), and every answer is also a flag (`--no-orm`, `--plugins vue,dashboard`, `--yes`),
 so it drives from a Dockerfile as well as from a terminal.
 
-Requires Bun 1.4.0 or newer, which every package declares as its floor.
+Requires Bun 1.4.4 or newer, which every package declares as its floor.
 TypeScript is only needed for typechecking (Bun transpiles everything at
 runtime), and a generated app installs it for you.
 

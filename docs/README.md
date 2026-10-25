@@ -9,7 +9,7 @@ route manifest to register, and no bundler config to maintain.
 
 | | |
 | --- | --- |
-| **Runtime** | Bun **1.4.0 or newer**. Not optional: `Bun.serve` is the server, `Bun.SQL` the database driver, `Bun.build` the compiler. There is no Node fallback. |
+| **Runtime** | Bun **1.4.4 or newer**. Not optional: `Bun.serve` is the server, `Bun.SQL` the database driver, `Bun.build` the compiler. There is no Node fallback. |
 | **Package manager** | Bun. `npm install` resolves the packages but cannot run them. |
 | **TypeScript** | Only for typechecking and editor support. Bun transpiles at runtime; a generated app installs `typescript` and `bun-types` for you. |
 

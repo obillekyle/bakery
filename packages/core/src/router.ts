@@ -289,7 +289,8 @@ export const serveWebSocket: Bun.WebSocketHandler<any> = {
       try {
         const h = prepareWSData(ws)
         if (h) return await h.handler.message(ws, message, h.data)
-        config.websocket.message(ws, message)
+        // Optional since bun-types 1.4.4, like the other three below.
+        await config.websocket.message?.(ws, message)
       } catch (err: any) {
         serveLog.UNHANDLED_ERR({
           error: `WebSocket message error: ${errorMsg(err)}`,

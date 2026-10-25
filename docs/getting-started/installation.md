@@ -7,10 +7,12 @@ adapter: `Bun.serve` is the server, `Bun.SQL` is the database driver,
 `Bun.Glob` is the router's file matcher and `Bun.build` is the compiler. There
 is no Node fallback for any of them.
 
-- **Bun 1.4.0 or newer.** Every package declares `"bun": ">=1.4.0"`, and that
-  floor is not a guess: CI runs the suite on Bun 1.4.0 beside the latest one.
-  Raising it is a major release, because an install that previously resolved
-  would stop.
+- **Bun 1.4.4 or newer.** Every package declares `"bun": ">=1.4.4"`, and that
+  floor is not a guess: CI runs the suite on Bun 1.4.4 beside the latest one.
+  `bun install` does not refuse a package whose floor is above the running
+  Bun (measured on 1.4.4: a dependency declaring `>=9.0.0` installed with no
+  warning), so the floor says what the code may use rather than gating the
+  install. It was 1.4.0 through 2.4.
 - **Nothing else.** `@bakery-framework/core` has **no runtime dependencies**;
   `@bakery-framework/orm` and `@bakery-framework/cli` depend only on core.
 
@@ -295,12 +297,12 @@ The root scripts are thin wrappers that `cd` into `apps/example` first: `bun run
 dev`, `bun run serve`, `bun run db:sync`. `bun run test` and `bun run typecheck`
 are the two gates, and the baseline for both is zero: no failures, no type
 errors across all twelve projects (`scripts/typecheck.ts` lists them, and
-`bun run typecheck core orm` checks two). The typecheck runs `bun check`,
-which Bun has from 1.4.3; on an older Bun, `bun run typecheck --tsc` runs
-`tsc` over the same projects. Set `MYSQL_TEST_URL` and `PGSQL_TEST_URL` to
-exercise the live-server tests, which skip without them.
+`bun run typecheck core orm` checks two). The typecheck runs `bun check`, and
+`bun run typecheck --tsc` runs `tsc` over the same projects, which is what
+CI's floor job does. Set `MYSQL_TEST_URL` and `PGSQL_TEST_URL` to exercise
+the live-server tests, which skip without them.
 
-Formatting is `bun fmt` (Bun 1.4.4 and later), configured by `.prettierrc`,
+Formatting is `bun fmt`, configured by `.prettierrc`,
 which Prettier itself reads as well. `.prettierignore` leaves out the
 Markdown and the files other tools write: `package.json`, the tsconfigs and
 the generated `assets/`.

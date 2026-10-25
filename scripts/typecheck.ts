@@ -3,10 +3,9 @@
  * `tsc` under `--tsc`. Names narrow it: `bun run typecheck core orm`.
  *
  * One list for both checkers, so a project cannot be checked by one and
- * missed by the other. CI runs `tsc` where `bun check` does not exist yet
- * (the Bun 1.4.0 job, which keeps `engines` honest) and `bun check`
- * everywhere else, so the two are compared on every push rather than
- * assumed to agree.
+ * missed by the other. CI runs `tsc` on the Bun 1.4.4 job, which keeps
+ * `engines` honest, and `bun check` everywhere else, so the two are compared
+ * on every push rather than assumed to agree.
  *
  * Measured on this machine under Bun 1.4.3, two adjacent runs each with a
  * CPU control flat at 45 to 55 ms: `tsc` took 2.2 to 7.8 s a project, 66 s
