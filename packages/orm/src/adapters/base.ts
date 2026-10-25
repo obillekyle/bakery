@@ -1150,7 +1150,8 @@ export abstract class SQLAdapter {
   /**
    * A `CHECK (col IN (…))` clause restricting a column to a set of values.
    *
-   * Takes the column name because a CHECK has to name it. Values bind nowhere (   * this is DDL), so they are quoted the same way `formatDefault` quotes a
+   * Takes the column name because a CHECK has to name it. Values bind nowhere
+   * (this is DDL), so they are quoted the same way `formatDefault` quotes a
    * string default, by doubling the single quote.
    */
   protected enumClause(column: string, values: string[]): string {

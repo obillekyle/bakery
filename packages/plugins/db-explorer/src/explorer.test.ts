@@ -402,7 +402,8 @@ describe('table-data filters', () => {
 })
 
 /**
- * Which door admits, and what a level means once inside. The doors themselves ( * constant-time comparison, the three credential spellings, `true` being a
+ * Which door admits, and what a level means once inside. The doors themselves
+ * (constant-time comparison, the three credential spellings, `true` being a
  * denial, higher-wins) are `access.test.ts`'s subject and are not repeated
  * here; copying a shared guard's assertions into every consumer is how the
  * three plugin copies drifted in the first place.

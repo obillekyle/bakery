@@ -102,7 +102,8 @@ export namespace ETag {
   /**
    * One stat, and the values are kept rather than discarded: a `BunFile`
    * caches its stat on first property access (~66us fresh, ~40ns after), so
-   * routing the probe through `fs.exists` (which stats a throwaway instance)    * made every served variant pay a second, identical stat in `fromFile`.
+   * routing the probe through `fs.exists` (which stats a throwaway instance)
+   * made every served variant pay a second, identical stat in `fromFile`.
    * Same existence predicate as `fs.exists`; note a missing file reports
    * size 0 and a far-future sentinel `lastModified`, never 0.
    */

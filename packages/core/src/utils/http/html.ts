@@ -5,7 +5,9 @@ import { DOMTools, headBodyCache } from './dom'
 import { ETag } from './etag'
 
 /**
- * Mark `res` as already carrying the head/body injects, so `injectIfHtml` ( * and therefore `processResponse`, which every response funnels through)  * hands it back untouched.
+ * Mark `res` as already carrying the head/body injects, so `injectIfHtml`
+ * (and therefore `processResponse`, which every response funnels through)
+ * hands it back untouched.
  *
  * Exported for the one caller that means "never", not "already":
  * `DefaultErrorHandler` brands its production error page so the import map is

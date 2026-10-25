@@ -297,7 +297,8 @@ function notEmpty(dir: string): string {
  * Fill in whatever the flags left unspecified.
  *
  * Asks only when there is a terminal on both ends and `--yes` was not passed.
- * A pipe, a CI runner or a `--yes` takes the defaults (ORM in, no plugins),  * which is what `bun create bakery my-app` has always produced, so adding the
+ * A pipe, a CI runner or a `--yes` takes the defaults (ORM in, no plugins),
+ * which is what `bun create bakery my-app` has always produced, so adding the
  * prompts changed no existing invocation.
  *
  * Returns `null` when the user cancels, which is a distinct outcome from

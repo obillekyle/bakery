@@ -23,7 +23,8 @@ import { fs } from '../utils/fs'
  *   before, so players that probe HEAD for it before attempting seeks never
  *   sent a range at all.
  * - A ranged GET still gets its 206 with exact bytes, and carries the header
- *   **once**. Bun appends its own copy when it slices, so the naive fix ( *   advertise unconditionally) emitted `bytes, bytes` on every 206.
+ *   **once**. Bun appends its own copy when it slices, so the naive fix
+ *   (advertise unconditionally) emitted `bytes, bytes` on every 206.
  * - `Content-Disposition` on file responses is Bun's, not the framework's:
  *   the runtime attaches `filename="…"` to any BunFile body whose type
  *   resolves to `application/octet-stream`, on 200 and 206 alike: measured

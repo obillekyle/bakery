@@ -88,7 +88,8 @@ const routeGlobs = (
  * The catch-all fallback for one directory level: `dir/[...name].ext`,
  * containment-checked like every other candidate. Skipped for `staticOnly`
  * (the caller wants a literal file), and it *yields to any real file*: when
- * the request's remaining segments name an existing file under `dir` ( * whatever its extension) the catch-all declines, so a lower-priority
+ * the request's remaining segments name an existing file under `dir`
+ * (whatever its extension) the catch-all declines, so a lower-priority
  * handler (TSHandler, StaticHandler) can serve the file itself. A directory
  * is not a file and does not trigger the yield. `findDynamicRoute` applies
  * the same rule on the cached path; the two must agree.

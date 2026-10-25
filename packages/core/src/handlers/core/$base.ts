@@ -253,7 +253,8 @@ export class Handler {
   static servesFiles = true
 
   /**
-   * The URL prefix this handler owns as a complete user-facing surface (   * `'/_dashboard'`, `'/_db'`), or `null` for the ordinary case of a handler
+   * The URL prefix this handler owns as a complete user-facing surface
+   * (`'/_dashboard'`, `'/_db'`), or `null` for the ordinary case of a handler
    * that answers by extension or content rather than by prefix.
    *
    * This exists so one surface can ask whether another is mounted without

@@ -11,7 +11,8 @@ import {
  * what keeps the two honest.
  *
  * The duplication is deliberate. `analytics/src/timescale.ts` is the one
- * source for the server, and importing it from the browser client *compiles* ( * tsconfig paths resolve it), but does not run: the client is bundled and
+ * source for the server, and importing it from the browser client *compiles*
+ * (tsconfig paths resolve it), but does not run: the client is bundled and
  * served as a classic `<script>`, so a cross-package specifier survives as a
  * bare `import` the page cannot execute, and the whole console silently does
  * nothing.

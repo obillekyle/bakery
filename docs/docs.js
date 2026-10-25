@@ -871,7 +871,8 @@ function currentRoute() {
  * A link to a page on this site, carrying the pinned version through.
  *
  * Every internal link is built here. Threading `?v=` by hand at each site is
- * what the old form got for free (changing a fragment cannot touch the query),  * and losing it silently drops the reader back onto the current release
+ * what the old form got for free (changing a fragment cannot touch the query),
+ * and losing it silently drops the reader back onto the current release
  * mid-navigation, which is the one bug this scheme could plausibly introduce.
  */
 function routeHref(page, anchor) {
@@ -1139,7 +1140,8 @@ function syncAside() {
 /**
  * Scroll the contents panel so the entry it just highlighted is in it.
  *
- * The panel is its own scroll box (`overflow-y: auto` under a `max-height`),  * so on a long page the highlight moves out of view and the reader is left
+ * The panel is its own scroll box (`overflow-y: auto` under a `max-height`),
+ * so on a long page the highlight moves out of view and the reader is left
  * looking at a list of headings with no indication of where they are. Short
  * pages never showed it: the list fits, nothing scrolls, and the bug does not
  * exist. The changelog, at one entry per release, does not fit.

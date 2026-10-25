@@ -111,7 +111,8 @@ describe('the production guard reads NODE_ENV, and only NODE_ENV', () => {
   })
 
   test('neither signal present is not production', () => {
-    // A process that never imported core/init.ts (a bare unit test, say)     // must not be treated as a deployment.
+    // A process that never imported core/init.ts (a bare unit test, say)
+    // must not be treated as a deployment.
     delete (process.env as Record<string, unknown>).PROD
     process.env.NODE_ENV = 'development'
     expect(isProductionSync()).toBe(false)

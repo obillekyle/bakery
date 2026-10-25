@@ -15,7 +15,8 @@ const shape = (d: unknown) => ({ ...(d as Record<string, unknown>) })
  * The exact objects each builder emits.
  *
  * These used to be written as "`Field` is `value()` with names", comparing each
- * builder against the primitive it wrapped. `Field` now *is* the primitive ( * `value`/`primary`/`index`/`unique`/`foreign` are gone), so there is nothing
+ * builder against the primitive it wrapped. `Field` now *is* the primitive
+ * (`value`/`primary`/`index`/`unique`/`foreign` are gone), so there is nothing
  * left to compare against and the assertions are the literal shapes instead.
  * That is the stronger form anyway: the sync engine and the type inference
  * consume these objects directly, so their exact keys are the contract.

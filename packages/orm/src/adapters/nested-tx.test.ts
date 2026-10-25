@@ -45,7 +45,8 @@ interface Dialect {
  * something kills it. A single unrelated `setTimeout` is enough to unwedge it.
  *
  * Two things established before this went in. It is **not** caused by
- * savepoints (the minimal reproduction is a plain non-nested transaction),  * and it is **not** caused by the change this file tests: the same reproduction
+ * savepoints (the minimal reproduction is a plain non-nested transaction),
+ * and it is **not** caused by the change this file tests: the same reproduction
  * hangs identically against the adapters at HEAD.
  *
  * It has never been seen outside a test because a server always has pending

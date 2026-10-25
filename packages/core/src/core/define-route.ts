@@ -5,7 +5,8 @@ import { type Validator, validate } from '../utils/http/validate'
 /**
  * `defineRoute`, in its own module rather than in `core/index.ts`.
  *
- * `core/index.ts` is a barrel (it pulls in the logger, plugins, jsx and utils),  * so anything importing it from *inside* core closes a cycle and dies with
+ * `core/index.ts` is a barrel (it pulls in the logger, plugins, jsx and utils),
+ * so anything importing it from *inside* core closes a cycle and dies with
  * `ReferenceError: Cannot access 'Logger' before initialization`. That is
  * recorded in CLAUDE.md as costing 67 tests once; it cost this file's own tests
  * a second time, which is what moved it here. Consumers still reach it through

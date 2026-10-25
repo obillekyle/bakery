@@ -10,7 +10,8 @@ import { resolveMount } from './$mounts'
  * dynamic `[id]` segments and glob scanning. This answers the simpler question
  * "which file is at this path, and am I allowed to serve it".
  *
- * It exists because four handlers were each spelling that out themselves ( * StaticHandler, PublicHandler, ImageHandler and NMHandler) in four slightly
+ * It exists because four handlers were each spelling that out themselves
+ * (StaticHandler, PublicHandler, ImageHandler and NMHandler) in four slightly
  * different ways, and only some of them checked everything. Once route mounts
  * arrived the drift got worse: a mount-aware StaticHandler sitting next to a
  * mount-blind PublicHandler is the kind of inconsistency that turns into a bug

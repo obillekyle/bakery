@@ -32,7 +32,8 @@ async function buildDefines(): Promise<MapOf<string>> {
     const file = await Bun.file(`${process.cwd()}/package.json`).json()
     if (file?.version) bakeryVersion = file.version
   } catch {
-    // No package.json in cwd, or it is unreadable. The version is cosmetic (    // it lands in a banner and a build define), so the default above stands.
+    // No package.json in cwd, or it is unreadable. The version is cosmetic
+    // (it lands in a banner and a build define), so the default above stands.
   }
 
   return {

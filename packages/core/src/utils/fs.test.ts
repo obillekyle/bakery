@@ -113,7 +113,8 @@ describe('fs.isForbidden', () => {
     // containment at all (`constants.ts` defers to it by name).
     //
     // The walk is bounded by `startsWith(root)`, so before the clause existed
-    // an out-of-root path skipped the loop entirely and returned `false` (    // "not forbidden"), which is a guard failing open on the one input it most
+    // an out-of-root path skipped the loop entirely and returned `false`
+    // ("not forbidden"), which is a guard failing open on the one input it most
     // needs to refuse. A Windows glob-escape in `$routing.ts` reached exactly
     // this: a resolved file at `C:\` was asked about against a serve root six
     // levels down and was told it was allowed.

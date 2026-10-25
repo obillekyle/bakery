@@ -189,7 +189,8 @@ export class PGAdapter extends SQLAdapter {
     // default containing an apostrophe silently lost the rest of its value, and
     // the same applied to a backslash escape. Values bind as parameters, so
     // this
-    // only ever reached literals the framework itself emits (DDL defaults),     // which is why it survived: `ddl.test.ts` asserts the SQL *before*
+    // only ever reached literals the framework itself emits (DDL defaults),
+    // which is why it survived: `ddl.test.ts` asserts the SQL *before*
     // normalization, and no live server ran until now.
     for (let i = 0; i < sql.length; i++) {
       const char = sql[i]

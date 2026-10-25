@@ -62,7 +62,8 @@ export const dateNow = '%dateNow%'
  * The row type of a column descriptor.
  *
  * Two forms reach here. A `Field.*` builder returns `TableDef<T, …>`, whose
- * `type` **is** the row type, so this is a lookup. A hand-written literal ( * `{ type: 'integer', default: 0, nullable: true }`, the one shape `Field`
+ * `type` **is** the row type, so this is a lookup. A hand-written literal
+ * (`{ type: 'integer', default: 0, nullable: true }`, the one shape `Field`
  * does not spell) carries a dialect name there instead, which still goes
  * through `TypeMap`.
  *

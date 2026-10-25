@@ -349,7 +349,8 @@ export class SQLiteAdapter extends SQLAdapter {
         bigint: 'BIGINT',
         json: 'JSON',
       }[d.type as string] || 'TEXT'
-    // SQLite has no VARCHAR of its own (every text column is TEXT affinity),     // but it stores the *declared* type verbatim and hands it back through
+    // SQLite has no VARCHAR of its own (every text column is TEXT affinity),
+    // but it stores the *declared* type verbatim and hands it back through
     // `pragma table_info`. Emitting the width is therefore free here and is
     // what lets one schema round-trip on all three dialects.
     let out =

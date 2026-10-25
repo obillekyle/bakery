@@ -1,9 +1,10 @@
 /**
  * Request-body validation for route modules.
  *
- * `defineRoute<{ title: string }>` declares a body shape and enforces nothing ( * the scaffolder's own template says so twice: *"declares the contract) it
- * does not validate it. The body is still client input."* Every route was left
- * to hand-check or not, and most did not.
+ * `defineRoute<{ title: string }>` declares a body shape and enforces nothing,
+ * as the scaffolder's own template puts it: *"It states the contract; it does
+ * not enforce it."* Every route was left to hand-check or not, and most did
+ * not.
  *
  * **No schema library is bundled, and none is depended on.** `@bakery-framework/
  * core` has zero runtime dependencies and that is worth keeping, so validation

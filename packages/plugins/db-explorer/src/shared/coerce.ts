@@ -102,7 +102,8 @@ const ok = (value: unknown): CoerceResult => ({ ok: true, value })
  * `json` and `buffer` cannot, portably: MySQL compares JSON structurally,
  * Postgres refuses `=` on `json` outright (only `jsonb` has it), and a blob
  * comparison depends on how the driver bound the parameter. An optimiztic
- * `expect` on one of these would be a predicate that silently never matched ( * every edit a 409), so it is refused instead.
+ * `expect` on one of these would be a predicate that silently never matched
+ * (every edit a 409), so it is refused instead.
  */
 export function comparableKind(kind: ColumnKind): boolean {
   return kind !== 'json' && kind !== 'buffer'

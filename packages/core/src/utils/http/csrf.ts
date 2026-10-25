@@ -63,7 +63,8 @@ function safeEcho(value: string): string {
  *
  * WebSockets are exempt from the same-origin policy. Any page the developer
  * visits can open `ws://localhost:3000/_livereload`, and until this existed
- * one `{"type":"subscribe_logger"}` bought a live feed of the server log ( * failing SQL, table and column names, absolute source paths) plus the
+ * one `{"type":"subscribe_logger"}` bought a live feed of the server log
+ * (failing SQL, table and column names, absolute source paths) plus the
  * ability to reload every open browser. The only thing that separates the
  * app's own page from an attacker's is `Origin`, which the browser sets on
  * every handshake and page script cannot override.

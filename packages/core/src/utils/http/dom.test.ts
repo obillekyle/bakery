@@ -232,7 +232,8 @@ describe('clearHeadBodyCache', () => {
 /**
  * The import map covers what is *installed*, not what is declared.
  *
- * A package can be installed and imported without appearing in `dependencies` ( * a transitive one, or a dependency someone forgot to add), and reading
+ * A package can be installed and imported without appearing in `dependencies`
+ * (a transitive one, or a dependency someone forgot to add), and reading
  * `node_modules` is what lets the browser resolve those.
  */
 describe('initImportMap covers installed packages', () => {

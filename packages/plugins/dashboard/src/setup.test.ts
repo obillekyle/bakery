@@ -360,7 +360,8 @@ describe('dashboard authorization wiring', () => {
  * analytics' credential, and nothing else, admits a *dashboard* request.
  *
  * Verified by planting the pre-delegation guard back (a module-local
- * predicate defaulting to `defaultAuthorize`, checked with `isAuthorized`),  * and re-running: the three *admission* cases fail against it, because a
+ * predicate defaulting to `defaultAuthorize`, checked with `isAuthorized`),
+ * and re-running: the three *admission* cases fail against it, because a
  * console with its own door never looks at analytics' credential or
  * predicate and refuses all three.
  *

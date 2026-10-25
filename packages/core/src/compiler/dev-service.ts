@@ -542,7 +542,8 @@ const MODULE_ROUTE_EXT = /\.(tsx|jsx)$/
  * change and restarts already.
  *
  * `rename` is the creation signal. Measured on Windows: an in-place write
- * (`Bun.write`, `fs.writeFile`) emits only `change` and keeps the fast path ( * 14-15ms edit-to-served), while creating a file emits `rename` then
+ * (`Bun.write`, `fs.writeFile`) emits only `change` and keeps the fast path
+ * (14-15ms edit-to-served), while creating a file emits `rename` then
  * `change`. Writers that replace rather than overwrite report `rename` for an
  * *edit* too and pay one restart (~440ms): shell redirection (`> file`) does
  * this, and an editor that saves atomically will as well. That is the safe

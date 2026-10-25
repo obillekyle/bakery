@@ -10,7 +10,8 @@ import { fs } from '../utils'
 import { asDev, asProd } from './fixtures'
 
 /**
- * `ErrorHandler.publicBody` redacts `errorBody` (the thrown error's stack)  * outside DEV, and `DefaultErrorHandler`/`ApiErrorHandler` both render through
+ * `ErrorHandler.publicBody` redacts `errorBody` (the thrown error's stack)
+ * outside DEV, and `DefaultErrorHandler`/`ApiErrorHandler` both render through
  * it. The HTML and TSX error pages did not: they merged the raw error data
  * into the page params, which reach the document twice, through `{{...}}`
  * substitution and through the `window.__PAGE_PARAMS__` script that

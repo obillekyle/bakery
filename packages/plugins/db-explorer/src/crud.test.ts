@@ -74,7 +74,8 @@ const CONSTRAINTS: any = {
  * The stub's method list *is* the contract, and it now enumerates a **bounded
  * write surface** rather than none.
  *
- * Four introspection reads, `getData`, and two ways to run a statement ( * `query()` for the builder and `execute` for a batched insert) inside a
+ * Four introspection reads, `getData`, and two ways to run a statement
+ * (`query()` for the builder and `execute` for a batched insert) inside a
  * `transaction` that records whether it committed or rolled back. Nothing here
  * can create, drop or alter a table, and nothing takes SQL from a request. An
  * endpoint that reached for `drop`, `truncate`, `syncSchema`, `remove` or the

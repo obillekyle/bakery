@@ -293,7 +293,8 @@ export class Grid {
     // write, and a multi-column edit must stay one statement.
     //
     // `relatedTarget` is checked because `focusout` also fires for movement
-    // *inside* the editor (tabbing from the input to the null toggle is one),     // and committing there would close the editor the user is still in.
+    // *inside* the editor (tabbing from the input to the null toggle is one),
+    // and committing there would close the editor the user is still in.
     handle.node.addEventListener('focusout', event => {
       const next = (event as FocusEvent).relatedTarget
       if (next instanceof Node && handle.node.contains(next)) return

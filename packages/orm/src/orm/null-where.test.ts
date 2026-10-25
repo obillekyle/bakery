@@ -142,7 +142,8 @@ describe('null in a mutation where clause', () => {
       .where('courier', null)
       .parse()
 
-    // Scoped to the WHERE. The SET clause binds `courier = ?` legitimately (    // that is the value being written), so asserting over the whole statement
+    // Scoped to the WHERE. The SET clause binds `courier = ?` legitimately
+    // (that is the value being written), so asserting over the whole statement
     // tests the wrong half.
     const where = sql.slice(sql.indexOf(' WHERE '))
     expect(where).toContain('IS NULL')

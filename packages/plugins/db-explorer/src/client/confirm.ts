@@ -93,7 +93,8 @@ export async function confirmChoice(request: DangerRequest): Promise<boolean> {
  *
  * The native element rather than a hand-rolled overlay: it traps focus, closes
  * on Escape, and is inert to the page behind it without a single line of
- * script. Resolved through a `close` listener so a dismissal by any route ( * Escape, the backdrop, the button) lands in one place.
+ * script. Resolved through a `close` listener so a dismissal by any route
+ * (Escape, the backdrop, the button) lands in one place.
  */
 function openDialog(request: DangerRequest, typed: boolean): Promise<boolean> {
   const dialog = el('dialog', { class: 'danger' })
