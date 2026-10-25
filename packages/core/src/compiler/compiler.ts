@@ -1,12 +1,7 @@
 import { Strings } from '../cache/string'
 import { Bakery } from '../core/bakery'
 import { PluginHooks } from '../core/plugins'
-import {
-  compLog,
-  errorMsg,
-  errorWithPosition,
-  handlerLog,
-} from '../logger/serve-log'
+import { compLog, errorWithPosition, handlerLog } from '../logger/serve-log'
 import type { MapOf } from '../types'
 import { is, Try, toHash } from '../utils/common'
 import { FileSystem as fs } from '../utils/fs'
@@ -128,10 +123,14 @@ function preprocessImports(source: string, filePath: fs.AbsolutePath): string {
  * Compile `source`, naming `path` so a failure can say where it happened.
  *
  * The two branches are not symmetric on purpose. Without a path there is no
- * file to name and no caller that can render a 500 (the Vue plugin compiles
- * fragments of an SFC it has already parsed), so a failure logs and hands the
- * source back. With a path the failure is a served request, and the answer is
- * `null`: `TSHandler` turns that into the 500 it has always had a branch for.
+ * file to resolve imports against and no caller that can render a 500 (the
+ * Vue plugin compiles fragments of an SFC it has already parsed), so a failure
+ * logs and hands the source back. `origin.file` names the file such a
+ * fragment came from, for that log line only: without it the line read
+ * "Failed to compile inline source: Transform failed", and a component that
+ * would not parse in the browser had to be found by hand. With a path the
+ * failure is a served request, and the answer is `null`: `TSHandler` turns
+ * that into the 500 it has always had a branch for.
  *
  * It used to be neither. The transpiler was wrapped only on the pathless
  * branch, so a syntax error in a `.ts` asset threw straight past `compile()`,
@@ -140,22 +139,31 @@ function preprocessImports(source: string, filePath: fs.AbsolutePath): string {
  * `Unhandled Server Error: <message>` with no file and no line while the client
  * got `An unexpected error occurred.` A total blackout for a one-character typo.
  */
-export function compileText(source: string): Promise<string>
+export function compileText(
+  source: string,
+  origin?: { file: string },
+): Promise<string>
 export function compileText(
   source: string,
   path: fs.AbsolutePath,
 ): Promise<string | null>
-export async function compileText(source: string, path?: fs.AbsolutePath) {
-  if (!path) {
-    try {
-      const content = await (await getTranspiler()).transform(source)
-      return content
-    } catch (err) {
-      compLog.COMPILE_SOURCE_FAIL({ error: errorMsg(err) })
-      return source
-    }
+export async function compileText(
+  source: string,
+  where?: fs.AbsolutePath | { file: string },
+) {
+  if (typeof where !== 'string') {
+    const [failed, content] = await Try.catch(
+      (await getTranspiler()).transform(source),
+    )
+    if (!failed) return content!
+
+    const error = errorWithPosition(failed)
+    if (where) compLog.COMPILE_FAIL({ file: where.file, error })
+    else compLog.COMPILE_SOURCE_FAIL({ error })
+    return source
   }
 
+  const path = where
   source = preprocessImports(source, path)
 
   const [failed, transformed] = await Try.catch(
@@ -163,8 +171,9 @@ export async function compileText(source: string, path?: fs.AbsolutePath) {
   )
 
   if (failed) {
-    // `errorWithPosition`, not `errorMsg`: the thrown `BuildMessage` has no
-    // stack, so `errorMsg` degrades to the bare message and the line number (    // the only thing that makes this actionable) is dropped. The file comes
+    // `errorWithPosition`, not `errorMsg`: what `transform()` rejects with
+    // has no stack, so `errorMsg` degrades to a bare message and drops the
+    // line number, the only thing that makes this actionable. The file comes
     // from `{file}`; the diagnostic's own `position.file` is `input.ts`,
     // because `transform()` was handed a string.
     compLog.COMPILE_FAIL({ file: path, error: errorWithPosition(failed) })

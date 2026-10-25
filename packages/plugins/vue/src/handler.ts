@@ -30,6 +30,7 @@ import { serveVueChunk, VUE_CHUNK_PREFIX } from './chunks'
 import {
   compileStyleBlock,
   compileVueFile,
+  loadExpressionCheck,
   parseVue,
   vueBuildVariant,
 } from './compile'
@@ -495,6 +496,19 @@ export class VueHandler extends DynamicHandler {
       }
     }
 
+    // A multi-line event attribute with no `;` gets one. Vue reads a value
+    // with no `;` as one expression, so two statements on two lines (as a
+    // formatter with `semi: false` writes them) came out wrapped in
+    // parentheses and failed to compile; with the `;`, Vue compiles the value
+    // as statements.
+    //
+    // Only when the value is not already one expression, which Vue compiles
+    // as written. With a `;` appended, an arrow handler broken across lines
+    // was emitted as `(d) => {…};` inside the render function's props and
+    // the module did not parse, a `function (e) {…}` failed Vue's own
+    // compile, and a member path (`saveDraft`) compiled to a statement that
+    // reads the function and never calls it.
+    const isExpression = await loadExpressionCheck()
     const rxEventAttr =
       /(@[\w.-]+|v-on:[\w.-]+)=("([^"\n]*\n[^"]*)"|'([^'\n]*\n[^']*)')/g
     cleanContent = cleanContent.replace(
@@ -502,7 +516,7 @@ export class VueHandler extends DynamicHandler {
       (match, attr, doubleMatch, innerDouble, innerSingle) => {
         const quote = doubleMatch.startsWith('"') ? '"' : "'"
         const val = innerDouble !== undefined ? innerDouble : innerSingle
-        if (!val.includes(';')) {
+        if (!val.includes(';') && !isExpression(val)) {
           return `${attr}=${quote}${val};${quote}`
         }
         return match

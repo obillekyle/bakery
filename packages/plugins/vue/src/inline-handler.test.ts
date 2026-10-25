@@ -212,6 +212,49 @@ describe('the multi-line handler preprocessor', () => {
     const res = parses(code)
     expect(res.error ?? '').toBe('')
     expect(res.ok).toBe(true)
+    // Compiled as two statements in a block, which is what the `;` is for.
+    expect(code).toMatch(
+      /\$event\)?\s*=>\s*\{\s*\$setup\.saveDraft\(\);?\s*\$setup\.closePanel\(\)\s*\}/,
+    )
+  })
+
+  // The shapes a formatter breaks across lines that are already one
+  // expression. Each used to get a `;` appended: the arrows compiled to
+  // `(d) => {…};` inside the render function's props and the module did not
+  // parse, the `function` failed Vue's own compile, and the member path
+  // compiled to `$event => { $setup.saveDraft }`, which never calls it.
+  test('an arrow handler broken across lines is the handler itself', async () => {
+    const code = await throughParse(
+      '\n    (d) => {\n      saveDraft()\n      closePanel()\n    }\n  ',
+    )
+    expect(parses(code).error ?? '').toBe('')
+    expect(code).toMatch(
+      /\(d\)\s*=>\s*\{\s*\$setup\.saveDraft\(\);?\s*\$setup\.closePanel\(\)/,
+    )
+  })
+
+  test('an arrow handler with a TypeScript cast, broken across lines', async () => {
+    const code = await throughParse(
+      "\n    (e) => (e as Event).type === 'click' && saveDraft()\n  ",
+    )
+    expect(parses(code).error ?? '').toBe('')
+    expect(code).toMatch(
+      /\(e\)\s*=>\s*e\.type\s*===\s*"click"\s*&&\s*\$setup\.saveDraft\(\)/,
+    )
+  })
+
+  test('a function expression broken across lines', async () => {
+    const code = await throughParse(
+      '\n    function (e) {\n      saveDraft()\n    }\n  ',
+    )
+    expect(parses(code).error ?? '').toBe('')
+    expect(code).toMatch(/function\s*\(e\)\s*\{\s*\$setup\.saveDraft\(\)/)
+  })
+
+  test('a member path on lines of its own still calls the function', async () => {
+    const code = await throughParse('\n    saveDraft\n  ')
+    expect(parses(code).error ?? '').toBe('')
+    expect(code).toMatch(/\$setup\.saveDraft\(\.\.\.args\)/)
   })
 
   test('multi-line ending in a trailing newline', async () => {

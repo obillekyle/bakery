@@ -257,12 +257,20 @@ export function errorDetail(err: any): string {
  * `position.file` is `input.ts` whenever `transform()` was handed a source
  * string rather than a path (which is every compile this codebase does), so
  * printing it beside the real path would contradict it.
+ *
+ * `transform()` rejects with an `AggregateError` whose own message is only
+ * "Transform failed", with no position, and whose `errors` are the
+ * diagnostics, so the first of those is the one read. The rest usually follow
+ * from it: a `;` inside an object literal is reported as `Expected "}" but
+ * found ";"`, then as `Unexpected }` at the brace after it.
  */
 export function errorWithPosition(err: any): string {
-  const position = (err as Diagnostic)?.position
+  const first: Diagnostic =
+    Array.isArray(err?.errors) && err.errors.length ? err.errors[0] : err
+  const position = first?.position
   if (!position || position.line == null) return errorMsg(err)
 
-  const message = (err as Diagnostic).message || errorMsg(err)
+  const message = first.message || errorMsg(first)
   return `${message} (line ${position.line}, column ${position.column ?? 0})`
 }
 
