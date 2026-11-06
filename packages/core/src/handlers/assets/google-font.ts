@@ -123,6 +123,39 @@ function canonicalQuery(search: string): string | null {
   return `?${pairs.sort().join('&')}`
 }
 
+/**
+ * A `&text=` subset's address, as the CSS endpoint writes it:
+ * `l/font?kit=neILzCirqoswsqX9_oC0MuFXPPo&skey=7ed805a363b4659c&v=v32`.
+ *
+ * It has no extension and names its font in the query alone, so it cannot pass
+ * `GF_GSTATIC_PATH`, and every such request answered 404. The three parameters
+ * are the only ones allowed through, in a canonical order, and a kit is free
+ * text in the way a family name is: `GF_MAX_ENTRIES` is what bounds them.
+ */
+const GF_SUBSET_PATH = 'l/font'
+const GF_SUBSET_PARAMS = new Set(['kit', 'skey', 'v'])
+const GF_SUBSET_VALUE = /^[a-zA-Z0-9_-]+$/
+
+/** The subset's query in canonical order, or `null` if it is not one. */
+function subsetQuery(search: string): string | null {
+  const raw = search.startsWith('?') ? search.slice(1) : search
+  if (!raw || raw.length > GF_MAX_GSTATIC_PATH) return null
+
+  const pairs = raw.split('&')
+  const names = new Set<string>()
+  for (const pair of pairs) {
+    const [name, value, extra] = pair.split('=')
+    if (!GF_SUBSET_PARAMS.has(name) || names.has(name)) return null
+    if (extra !== undefined || !value || !GF_SUBSET_VALUE.test(value)) {
+      return null
+    }
+    names.add(name)
+  }
+  if (!names.has('kit')) return null
+
+  return `?${pairs.sort().join('&')}`
+}
+
 export class GoogleFontHandler extends Handler {
   static get cacheDir() {
     return fs.resolve(Bakery.cacheDir, 'gf_cache')
@@ -134,7 +167,7 @@ export class GoogleFontHandler extends Handler {
 
   static async handle(path: string, req: Request) {
     if (path.startsWith('/_gf/gstatic/')) {
-      return this.handleGstatic(path)
+      return this.handleGstatic(path, new URL(req.url).search)
     }
 
     const rawPath = path.slice('/_gf'.length)
@@ -185,28 +218,35 @@ export class GoogleFontHandler extends Handler {
     return cached
   }
 
-  private static async handleGstatic(path: string) {
+  private static async handleGstatic(path: string, search: string) {
     const gstaticPath = path.slice('/_gf/gstatic/'.length)
+    const isSubset = gstaticPath === GF_SUBSET_PATH
+    const query = isSubset ? subsetQuery(search) : ''
 
     // Refused before `this.cacheDir` is read, so a rejection costs neither a
     // config lookup nor a path resolution.
     if (
+      query === null ||
       gstaticPath.length > GF_MAX_GSTATIC_PATH ||
-      !GF_GSTATIC_PATH.test(gstaticPath)
+      (!isSubset && !GF_GSTATIC_PATH.test(gstaticPath))
     ) {
       return response.error('Unknown Google Fonts asset', 404)
     }
 
     const cacheDir = fs.resolve(this.cacheDir, 'gstatic')
-    const cacheExt = `${fs.parse(gstaticPath).ext || '.bin'}`
-    const cacheName = `${toHash(gstaticPath)}${cacheExt}`
+    // The CSS endpoint asks as Chrome, so a subset is always a woff2. It has no
+    // extension of its own to read that from.
+    const cacheExt = isSubset
+      ? '.woff2'
+      : `${fs.parse(gstaticPath).ext || '.bin'}`
+    const cacheName = `${toHash(`${gstaticPath}${query}`)}${cacheExt}`
 
     const cached = await fs.getOrCreateCachedFile(
       cacheDir,
       cacheName,
       null,
       async () => {
-        const gfUrl = `https://fonts.gstatic.com/${gstaticPath}`
+        const gfUrl = `https://fonts.gstatic.com/${gstaticPath}${query}`
         const res = await fetch(gfUrl)
 
         if (!res.ok) return null

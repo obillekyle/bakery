@@ -1,5 +1,10 @@
 import { Bakery, hostKey } from '@bakery-framework/core/core/bakery'
-import { fs, response, toHash } from '@bakery-framework/core/utils'
+import {
+  fs,
+  requestOrigin,
+  response,
+  toHash,
+} from '@bakery-framework/core/utils'
 import type { VueMeta } from './types'
 import { collectExportedFunctionNames } from './utils'
 
@@ -33,14 +38,17 @@ export function validateActionRequest(req: Request, url: URL): Response | null {
     return response.error('Server actions require a JSON body', 415)
   }
 
-  const origin = req.headers.get('origin')
-  if (origin && origin !== url.origin) {
-    return response.error('Cross-origin server action rejected', 403)
-  }
-
   const fetchSite = req.headers.get('sec-fetch-site')
   if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') {
     return response.error('Cross-site server action rejected', 403)
+  }
+  // Settled, as in `checkSameOrigin`: behind a proxy that ends TLS, `Origin`
+  // names a scheme this server never saw.
+  if (fetchSite) return null
+
+  const origin = req.headers.get('origin')
+  if (origin && origin !== requestOrigin(req, url)) {
+    return response.error('Cross-origin server action rejected', 403)
   }
 
   return null

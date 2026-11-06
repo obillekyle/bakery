@@ -1,5 +1,50 @@
 import { describe, expect, test } from 'bun:test'
+import { rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { assembleComponent, compileTemplateBlock, parseVue } from './compile'
+
+/** The assembled module, run the way a browser would import it. */
+async function runAssembled(scriptCode: string, renderCode: string) {
+  const out = assembleComponent({ scriptCode, renderCode, isRoot: false })
+  const file = join(tmpdir(), `bakery-sfc-${Bun.randomUUIDv7()}.mjs`)
+  await Bun.write(file, out)
+  try {
+    return (await import(file)).default
+  } finally {
+    await rm(file, { force: true })
+  }
+}
+
+describe('assembleComponent - the component variable', () => {
+  test('a script with no default export still runs', async () => {
+    // Measured before the fix: `ReferenceError: __sfc__ is not defined`, on a
+    // page that answered 200 and rendered blank.
+    const component = await runAssembled(
+      `const note = 'plain'`,
+      'function render() { return note }',
+    )
+    expect(component.render()).toBe('plain')
+  })
+
+  test('a default export is still the component', async () => {
+    const component = await runAssembled(
+      `export default { name: 'kept' }`,
+      'function render() { return null }',
+    )
+    expect(component.name).toBe('kept')
+  })
+})
+
+describe('compileTemplateBlock - built-in elements', () => {
+  test('selectedcontent is an element, not a component to resolve', async () => {
+    const code = await renderCodeFor(
+      '<template><selectedcontent></selectedcontent></template>',
+    )
+    expect(code).toContain('"selectedcontent"')
+    expect(code).not.toContain('resolveComponent')
+  })
+})
 
 /**
  * The compiled render function must not carry an `export` into the assembled

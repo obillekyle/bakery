@@ -193,7 +193,7 @@ Bakery does not do these. If you need them, they are yours to add.
 
 ## `trustProxy` is a security decision
 
-Off by default. Turning it on makes three separate pieces of code believe
+Off by default. Turning it on makes four separate pieces of code believe
 client-supplied headers:
 
 | With `trustProxy: true` | Source | Consequence if forged |
@@ -201,10 +201,11 @@ client-supplied headers:
 | Client IP | `cf-connecting-ip`, `x-forwarded-for`, and seven others (`packages/core/src/utils/http/ip.ts`) | Rate limit evaded; logs poisoned |
 | Hostname | `x-forwarded-host` (`packages/core/src/core/bakery.ts`) | A different host's config is applied |
 | Scheme | `x-forwarded-proto` (`packages/core/src/session.ts`) | Only affects the `Secure` flag, which production sets anyway |
+| Origin | `x-forwarded-proto`, `x-forwarded-host` (`packages/core/src/utils/http/csrf.ts`) | None from a browser, since page script cannot set them; a client that can could already send no `Origin` |
 
 Turn it on only when a proxy you control is the *sole* path to the process, and
 bind `host: '127.0.0.1'` so that is actually true. With the port also reachable
-directly, any client can forge all three.
+directly, any client can forge all four.
 
 Note the first column is not a single header: the IP is taken from whichever of
 nine headers appears first in that fixed order. A proxy that forwards a client's

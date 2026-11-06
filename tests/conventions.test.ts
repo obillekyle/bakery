@@ -395,6 +395,17 @@ describe('conventions (CLAUDE.md)', () => {
     ])
   })
 
+  test('the one Bun.serve sets its idle timeout', async () => {
+    // Read from the source because a real check waits out the timer, 12 s or
+    // more on every run. Without it Bun closes a handler past about 10 s with
+    // no answer at all, as measured before this was set.
+    const worker = await Bun.file(`${ROOT}/packages/cli/src/worker.ts`).text()
+    const seconds = worker.match(/const IDLE_TIMEOUT_SECONDS = (\d+)/)?.[1]
+
+    expect(worker).toMatch(/\bidleTimeout: IDLE_TIMEOUT_SECONDS,/)
+    expect(Number(seconds)).toBeGreaterThanOrEqual(60)
+  })
+
   test('SQL identifiers have exactly one writer', () => {
     // Everything that interpolates a table/column name goes through qId/qRef/
     // qRaw, so the quote-stripping inside quoteIdentifier can never be skipped.

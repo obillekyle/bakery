@@ -414,6 +414,20 @@ describe('fs.getOrCreateCachedFile', () => {
     })
   })
 
+  test('a file that skips compression is whole on its first request', async () => {
+    // `.woff2` and `.png` take the branch with no compressed copy, which used to
+    // return the handle whose size was read before the file existed: a cold font
+    // answered 200 with `content-length: 0`.
+    const bytes = new Uint8Array(1000).fill(7)
+
+    for (const name of ['first.woff2', 'first.png']) {
+      const file = await fs.getOrCreateCachedFile(dir, name, null, () => bytes)
+
+      expect(file!.size).toBe(bytes.length)
+      expect(new Uint8Array(await file!.arrayBuffer())).toEqual(bytes)
+    }
+  })
+
   test('N concurrent first-hits compile once, not N times', async () => {
     // The cache-validity check is a filesystem test, so without a record of
     // work in progress every caller in a burst sees "not cached" and compiles.

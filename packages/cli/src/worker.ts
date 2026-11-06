@@ -137,6 +137,13 @@ if (import.meta.env.THREAD_WORKER) {
   }
 }
 
+// How long a connection may stay quiet before `Bun.serve` closes it. Bun's
+// default is 10 s, and its timer closes the connection with no answer, not even
+// a 5xx: a 20 s handler was reset at 11,979 ms on a new connection and 23,973 ms
+// on a reused one, and the client saw only ECONNRESET. 60 s is nginx's default
+// `proxy_read_timeout`, past which a proxied client gets a 504 anyway.
+const IDLE_TIMEOUT_SECONDS = 60
+
 // Same resolver `startup.ts`'s banner and the dev master's URL use, so what we
 // bind and what they advertise cannot disagree. It throws on a malformed
 // `PORT` rather than handing `Bun.serve` a `NaN` it silently turns into a
@@ -262,6 +269,7 @@ try {
     reusePort:
       process.platform !== 'win32' && Boolean(import.meta.env.THREAD_WORKER),
     maxRequestBodySize: Bakery.config.maxBodySize,
+    idleTimeout: IDLE_TIMEOUT_SECONDS,
 
     async fetch(req) {
       // Memoized for the lifetime of the request: the router, body parser and

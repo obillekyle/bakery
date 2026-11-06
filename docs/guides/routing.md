@@ -382,6 +382,17 @@ would leave `/about` serving the HTML. Edits to `server.config.ts` or anything
 under the api directory go further and restart the dev worker
 (`compiler/dev-service.ts`).
 
+## Links prefetch on intent
+
+The browser runtime writes a speculation rule for a page's same-origin links
+(`packages/core/src/client/utils.ts`). A link is fetched once the pointer rests
+on it, so a page of links costs nothing until someone reaches for one. Browsers
+without speculation rules ignore it.
+
+`prefetch="false"` on a link leaves it out. So does an address holding `logout`,
+`utm_` or `fbclid`, or ending `.pdf` or `.zip`. A prefetch arrives with
+`Sec-Purpose: prefetch`, so a server can tell it from a navigation.
+
 ## Reserved paths
 
 `/_*` and `/api/_*` belong to the framework and its plugins, and `__bakery.`

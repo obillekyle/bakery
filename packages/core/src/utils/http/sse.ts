@@ -13,6 +13,8 @@
  * write after the client has gone throws where nobody is catching.
  */
 
+import { Bakery } from '../../core/bakery'
+
 /** One event. Every field is optional except the payload. */
 export interface SSEMessage {
   /** Serialized with `JSON.stringify` unless it is already a string. */
@@ -105,6 +107,11 @@ export function sse(
   const encoder = new TextEncoder()
   const { keepAlive = 15_000, retry } = options
 
+  // A quiet stream is not a finished one, and `Bun.serve` closes a connection
+  // that stays quiet past its idle timeout. Lifted for this request only: the
+  // stream ends when the client leaves or `close()` runs.
+  Bakery.server?.timeout(req, 0)
+
   let controller: ReadableStreamDefaultController<Uint8Array> | null = null
   let closed = false
   let cleanup: (() => void) | void
@@ -123,16 +130,22 @@ export function sse(
     }
   }
 
-  function finish() {
-    if (closed) return
-    closed = true
-    if (keepAliveTimer) clearInterval(keepAliveTimer)
+  function runCleanup() {
+    const pending = cleanup
+    cleanup = undefined
     try {
-      cleanup?.()
+      pending?.()
     } catch {
       // A producer's cleanup that throws must not prevent the stream closing;
       // the connection is already going away either way.
     }
+  }
+
+  function finish() {
+    if (closed) return
+    closed = true
+    if (keepAliveTimer) clearInterval(keepAliveTimer)
+    runCleanup()
     try {
       controller?.close()
     } catch {
@@ -176,6 +189,9 @@ export function sse(
 
       try {
         cleanup = await producer(stream)
+        // The client can leave during that await. `finish` has then run, found
+        // no cleanup and will not run again, so this one would never be called.
+        if (closed) runCleanup()
       } catch {
         // A producer that throws ends the stream rather than leaving the client
         // hanging on a connection nobody will write to again.

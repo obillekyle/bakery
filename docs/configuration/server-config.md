@@ -253,7 +253,7 @@ may carry their own `cors`. Full option table and the reasoning in
 
 ## `trustProxy`
 
-Off by default. Turning it on tells three separate pieces of code to believe
+Off by default. Turning it on tells four separate pieces of code to believe
 forwarding headers:
 
 - the client IP comes from `cf-connecting-ip`, `x-forwarded-for`, `x-real-ip`
@@ -261,7 +261,9 @@ forwarding headers:
 - the hostname comes from `x-forwarded-host` instead of `Host`
   (`core/bakery.ts`);
 - `x-forwarded-proto: https` marks the session cookie `Secure`
-  (`packages/core/src/session.ts`).
+  (`packages/core/src/session.ts`);
+- when a browser sends `Origin` with no `Sec-Fetch-Site`, it is compared with
+  the forwarded scheme and host (`utils/http/csrf.ts`).
 
 Turn it on **only** when a proxy you control is the sole path to the process.
 With it on and the port exposed directly, any client can forge its own IP,
@@ -389,8 +391,10 @@ through.
   (`packages/core/src/startup.ts`).
 - `onError(error)`: every request error, with `{ errorCode, errorText,
   errorBody }`. Return a `Response` to replace the error page; return nothing to
-  fall through to the error-handler registry (`router.ts`). The default
-  logs a warning tagged with the hostname (`config.ts`).
+  fall through to the error-handler registry (`router.ts`). The `Response` is
+  sent as written, so a page that should stay a 404 says so:
+  `new Response(html, { status: error.errorCode })`. The default logs a warning
+  tagged with the hostname (`config.ts`).
 - `onShutdown()`: runs **first** in the shutdown sequence, before the
   framework's own hooks flush the caches and close the databases
   (`packages/cli/src/shutdown.ts`). It goes first on purpose: it is the only
