@@ -7,6 +7,7 @@
  * arrive with the victim's session attached.
  */
 
+import { Bakery } from '../../core/bakery'
 import { Try } from '../isomorphic/try'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
@@ -15,19 +16,46 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 const SAME_SITE_VALUES = new Set(['same-origin', 'same-site', 'none'])
 
 /**
+ * The origin a browser sees for this request.
+ *
+ * A proxy that ends TLS leaves the request looking like `http://app.example`
+ * while the browser reports `https://app.example`. Under `trustProxy` the
+ * proxy's forwarded scheme and host are believed, as `getHostname` and the
+ * session's `Secure` flag believe them. Without it the request's own URL
+ * decides, since any client could send those headers.
+ */
+export function requestOrigin(req: Request, url: URL): string {
+  if (!Bakery.config.trustProxy) return url.origin
+
+  const forwarded = (name: string) =>
+    req.headers.get(name)?.split(',')[0].trim()
+  const scheme = forwarded('x-forwarded-proto') || url.protocol.slice(0, -1)
+  const host = forwarded('x-forwarded-host') || url.host
+
+  return Try(() => new URL(`${scheme}://${host}`).origin) ?? url.origin
+}
+
+/**
  * Returns a reason string when the request looks cross-site, or `null` when it
  * is safe to process. Requests with neither `Origin` nor `Sec-Fetch-Site` (curl,
  * server-to-server, older clients) are allowed: browsers always send at least
  * one of them on a cross-origin request.
+ *
+ * A same-origin `Sec-Fetch-Site` settles it before `Origin` is read. A browser
+ * sets that header and page script cannot, and it is right behind a proxy that
+ * ends TLS, where `Origin` names a scheme this server never saw: measured, every
+ * browser write there answered 403, with `trustProxy` on or off. A client that
+ * forges the header could forge `Origin` as well, so nothing is lost.
  */
 export function checkSameOrigin(req: Request, url: URL): string | null {
   const fetchSite = req.headers.get('sec-fetch-site')
   if (fetchSite && !SAME_SITE_VALUES.has(fetchSite)) {
     return `cross-site request rejected (Sec-Fetch-Site: ${fetchSite})`
   }
+  if (fetchSite === 'same-origin' || fetchSite === 'none') return null
 
   const origin = req.headers.get('origin')
-  if (origin && origin !== 'null' && origin !== url.origin) {
+  if (origin && origin !== 'null' && origin !== requestOrigin(req, url)) {
     return `cross-origin request rejected (Origin: ${origin})`
   }
 

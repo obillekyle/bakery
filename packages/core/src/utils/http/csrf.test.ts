@@ -1,7 +1,16 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
+import {
+  __resetTestConfig,
+  __setTestConfig,
+  initConfig,
+} from '../../core/config'
 import { checkCsrf, checkSameOrigin, checkWebSocketOrigin } from './csrf'
 
 const url = new URL('https://app.example/api/admin/students')
+
+beforeAll(async () => {
+  await initConfig()
+})
 
 function req(method: string, headers: Record<string, string> = {}) {
   return new Request(url.href, {
@@ -79,6 +88,96 @@ describe('checkSameOrigin', () => {
   test('checks origin even for safe methods', () => {
     expect(
       checkSameOrigin(req('GET', { origin: 'https://evil.example' }), url),
+    ).toContain('cross-origin')
+  })
+})
+
+/**
+ * A proxy that ends TLS leaves the request looking like `http://app.example`
+ * while the browser reports `https://app.example`. Measured before this: every
+ * browser write there answered 403, with `trustProxy` on or off, while a client
+ * sending no `Origin` passed.
+ */
+describe('behind a proxy that ends TLS', () => {
+  const proxied = new URL('http://app.example/api/notes')
+  const behind = (headers: Record<string, string>) =>
+    new Request(proxied.href, { method: 'POST', headers, body: '{}' })
+
+  afterEach(() => {
+    __resetTestConfig()
+  })
+
+  test('a browser passes on its Sec-Fetch-Site, with trustProxy off', () => {
+    expect(
+      checkCsrf(
+        behind({
+          origin: 'https://app.example',
+          'sec-fetch-site': 'same-origin',
+        }),
+        proxied,
+      ),
+    ).toBeNull()
+  })
+
+  test('an attacker page is still refused, with trustProxy on', () => {
+    __setTestConfig({ trustProxy: true })
+    const forwarded = { 'x-forwarded-proto': 'https' }
+
+    expect(
+      checkCsrf(
+        behind({
+          ...forwarded,
+          origin: 'https://evil.example',
+          'sec-fetch-site': 'cross-site',
+        }),
+        proxied,
+      ),
+    ).toContain('cross-site')
+    expect(
+      checkCsrf(
+        behind({
+          ...forwarded,
+          origin: 'https://evil.example',
+          'sec-fetch-site': 'same-site',
+        }),
+        proxied,
+      ),
+    ).toContain('cross-origin')
+    expect(
+      checkCsrf(
+        behind({ ...forwarded, origin: 'https://evil.example' }),
+        proxied,
+      ),
+    ).toContain('cross-origin')
+  })
+
+  test('with only an Origin, the forwarded scheme needs trustProxy', () => {
+    const request = behind({
+      origin: 'https://app.example',
+      'x-forwarded-proto': 'https',
+    })
+
+    expect(checkCsrf(request, proxied)).toContain('cross-origin')
+
+    __setTestConfig({ trustProxy: true })
+    expect(checkCsrf(request, proxied)).toBeNull()
+  })
+
+  test('under trustProxy, a forwarded host counts and a missing scheme does not', () => {
+    __setTestConfig({ trustProxy: true })
+
+    expect(
+      checkCsrf(
+        behind({
+          origin: 'https://public.example',
+          'x-forwarded-proto': 'https, http',
+          'x-forwarded-host': 'public.example',
+        }),
+        proxied,
+      ),
+    ).toBeNull()
+    expect(
+      checkCsrf(behind({ origin: 'https://app.example' }), proxied),
     ).toContain('cross-origin')
   })
 })

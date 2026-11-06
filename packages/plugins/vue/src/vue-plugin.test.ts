@@ -1181,6 +1181,39 @@ describe('Server action request validation (CSRF)', () => {
     )
     expect(res).toBeNull()
   })
+
+  test('accepts a browser behind a proxy that ends TLS', () => {
+    // The request reaches Bun as http://; the browser's Origin says https://.
+    const res = validateActionRequest(
+      makeRequest({
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://localhost:3000',
+          'sec-fetch-site': 'same-origin',
+        },
+        body: '{}',
+      }),
+      url,
+    )
+    expect(res).toBeNull()
+  })
+
+  test('an Origin alone still has to match', () => {
+    const res = validateActionRequest(
+      makeRequest({
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://localhost:3000',
+        },
+        body: '{}',
+      }),
+      url,
+    )
+    expect(res).not.toBeNull()
+    expect(res!.status).toBe(403)
+  })
 })
 
 describe('Action dispatch never runs the component it rejects', () => {
