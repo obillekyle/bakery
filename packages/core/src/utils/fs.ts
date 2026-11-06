@@ -781,7 +781,10 @@ export namespace FileSystem {
     if (content == null) return null
     await mkdir(cacheDir)
     await rawFile.write(content)
-    return built(rawFile)
+    // A new handle: `rawFile` read its size before the file existed, so serving
+    // it answered 200 with `content-length: 0` and no body. Measured on a cold
+    // font, which Chrome then reports as failed; the next request read the file.
+    return built(Bun.file(rawPath))
   }
 
   /**
