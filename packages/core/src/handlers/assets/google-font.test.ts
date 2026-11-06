@@ -77,6 +77,68 @@ describe('GoogleFontHandler - the gstatic proxy is allow-listed', () => {
     const deep = `s/${'a/'.repeat(200)}font.woff2`
     expect(await statusOf(`/_gf/gstatic/${deep}`)).toBe(404)
   })
+
+  test('refuses a subset address that is not one', async () => {
+    for (const query of [
+      '',
+      '?skey=abc&v=v32',
+      '?kit=abc&junk=1',
+      '?kit=abc&kit=def',
+      '?kit=a/b',
+      '?kit=',
+      '?kit=a=b',
+      `?kit=${'a'.repeat(300)}`,
+    ]) {
+      expect(await statusOf('/_gf/gstatic/l/font', query)).toBe(404)
+    }
+  })
+})
+
+/**
+ * A `&text=` subset, the one accepting branch tested here. Fetch is replaced
+ * for the length of the test, so this still talks to nobody.
+ */
+describe('GoogleFontHandler - a &text= subset reaches gstatic', () => {
+  const realFetch = globalThis.fetch
+  const kit = `test-${Bun.randomUUIDv7()}`
+  const other = `test-${Bun.randomUUIDv7()}`
+  const asked: string[] = []
+  const payload = new Uint8Array(3468).fill(7)
+
+  beforeAll(() => {
+    globalThis.fetch = (async (url: string) => {
+      asked.push(String(url))
+      return new Response(payload)
+    }) as unknown as typeof fetch
+  })
+
+  afterAll(() => {
+    globalThis.fetch = realFetch
+  })
+
+  const hit = (query: string) =>
+    GoogleFontHandler.handle(
+      '/_gf/gstatic/l/font',
+      request('/_gf/gstatic/l/font', query),
+    ) as unknown as Promise<Bun.BunFile>
+
+  test('asks for it by its query, and serves the bytes on the first request', async () => {
+    const file = await hit(`?kit=${kit}&skey=abc&v=v32`)
+
+    expect(asked).toEqual([
+      `https://fonts.gstatic.com/l/font?kit=${kit}&skey=abc&v=v32`,
+    ])
+    expect(file.size).toBe(payload.length)
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(payload)
+  })
+
+  test('another order is the same entry, and another kit is not', async () => {
+    await hit(`?v=v32&skey=abc&kit=${kit}`)
+    expect(asked).toHaveLength(1)
+
+    await hit(`?kit=${other}&skey=abc&v=v32`)
+    expect(asked).toHaveLength(2)
+  })
 })
 
 /**
