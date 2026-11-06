@@ -333,9 +333,13 @@ if (typeof document !== 'undefined') {
     // A `source: 'document'` rule with href_matches '/*' and eager eagerness
     // ignored the exclusions above and fully loaded (and ran the JS of) every
     // same-origin link, including things like /logout or a destructive GET.
+    //
+    // Prefetch waits for intent too. With no eagerness a list rule fetches at
+    // once, so a sidebar of 32 links asked for all 32 pages at every load (1.5 s
+    // and 6 MB on one app); moderate asked for none at load and one on a hover.
     const urlList = Array.from(urls)
     specScript.textContent = JSON.stringify({
-      prefetch: [{ source: 'list', urls: urlList }],
+      prefetch: [{ source: 'list', urls: urlList, eagerness: 'moderate' }],
       prerender: [{ source: 'list', urls: urlList, eagerness: 'moderate' }],
     })
 
