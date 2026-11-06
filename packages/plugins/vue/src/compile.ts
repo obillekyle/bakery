@@ -123,6 +123,13 @@ export function vuePluginOptionsFingerprint(): string {
   )
 }
 
+/**
+ * Elements no component resolves. `selectedcontent` belongs to the customizable
+ * `<select>`, and Vue's list of HTML tags predates it: compiled as a component,
+ * every page holding one warned in development.
+ */
+const BUILT_IN_ELEMENTS = ['iconify-icon', 'selectedcontent']
+
 export function resolveIsCustomElement(tag: string): boolean {
   const ce = vuePluginOptions?.customElements
   const userFn = vuePluginOptions?.compilerOptions?.isCustomElement
@@ -137,9 +144,7 @@ export function resolveIsCustomElement(tag: string): boolean {
     if (userFn(tag)) return true
   }
 
-  if (tag === 'iconify-icon') return true
-
-  return false
+  return BUILT_IN_ELEMENTS.includes(tag)
 }
 
 export async function parseVue(
@@ -286,10 +291,13 @@ export async function compileStyleBlock(
 export function assembleComponent(options: AssembleComponentOptions): string {
   const { scriptCode, renderCode, isRoot, scopeId, layoutRoute } = options
   const COMPONENT_VAR = '__sfc__'
-  let output = scriptCode.replace(
-    /\bexport\s+default\s*/,
-    `const ${COMPONENT_VAR} = `,
-  )
+  // A plain `<script>` with no `export default` has nothing to rewrite, and
+  // everything below hangs off the variable all the same. Measured: the module
+  // answered 200 and died with `ReferenceError: __sfc__ is not defined`, on a
+  // blank page, with `--build` exiting 0.
+  let output = /\bexport\s+default\b/.test(scriptCode)
+    ? scriptCode.replace(/\bexport\s+default\s*/, `const ${COMPONENT_VAR} = `)
+    : `${scriptCode}\nconst ${COMPONENT_VAR} = {};`
 
   if (renderCode) {
     // No export strip here, deliberately. `compileTemplateBlock` has already
@@ -353,12 +361,15 @@ export function assembleComponent(options: AssembleComponentOptions): string {
  */
 function buildRuntimeCustomElementCheck(): string {
   const ce = vuePluginOptions.customElements
+  const builtIn = JSON.stringify(BUILT_IN_ELEMENTS)
 
   if (typeof ce === 'function') {
-    return `(tag) => { try { return (${ce.toString()})(tag) || tag === 'iconify-icon' } catch { return tag === 'iconify-icon' } }`
+    return `(tag) => { try { return (${ce.toString()})(tag) || ${builtIn}.includes(tag) } catch { return ${builtIn}.includes(tag) } }`
   }
 
-  const tags = [...new Set([...(Array.isArray(ce) ? ce : []), 'iconify-icon'])]
+  const tags = [
+    ...new Set([...(Array.isArray(ce) ? ce : []), ...BUILT_IN_ELEMENTS]),
+  ]
   return `(tag) => ${JSON.stringify(tags)}.includes(tag)`
 }
 
