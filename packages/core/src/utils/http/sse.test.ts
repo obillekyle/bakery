@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { Bakery } from '../../core/bakery'
 import { encodeSSE, sse } from './sse'
 
 /** Read the whole stream to a string. */
@@ -49,6 +50,56 @@ describe('encodeSSE', () => {
 
 describe('sse', () => {
   const req = () => new Request('http://localhost/events')
+
+  test('a cleanup that arrives after the client left still runs', async () => {
+    // `finish` runs on the abort and finds no cleanup yet. Measured before the
+    // fix: the producer's timer went on ticking for the life of the process.
+    const leaving = new AbortController()
+    let release!: () => void
+    const gate = new Promise<void>(resolve => {
+      release = resolve
+    })
+    let cleaned = 0
+
+    sse(
+      new Request('http://localhost/events', { signal: leaving.signal }),
+      async () => {
+        await gate
+        return () => {
+          cleaned++
+        }
+      },
+      { keepAlive: 0 },
+    )
+
+    leaving.abort()
+    expect(cleaned).toBe(0)
+
+    release()
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(cleaned).toBe(1)
+  })
+
+  test('lifts the idle timeout for its own request', async () => {
+    // A stream with nothing to say is not finished, and `Bun.serve` would close
+    // it. Measured with the 15 s keep-alive: reset at 12,001 ms, one chunk read.
+    const calls: unknown[][] = []
+    const original = Bakery.server
+    Bakery.server = {
+      timeout: (...args: unknown[]) => calls.push(args),
+    } as unknown as typeof Bakery.server
+
+    try {
+      const own = req()
+      await drain(sse(own, s => s.close(), { keepAlive: 0 }))
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0][0]).toBe(own)
+      expect(calls[0][1]).toBe(0)
+    } finally {
+      Bakery.server = original
+    }
+  })
 
   test('sets the headers a stream needs to survive', async () => {
     const res = sse(req(), s => s.close(), { keepAlive: 0 })
