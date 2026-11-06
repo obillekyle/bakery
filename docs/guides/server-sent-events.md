@@ -44,7 +44,8 @@ get wrong is the framing, and every mistake in it is silent:
   callback, where nothing is catching. `stream.send` after close is a no-op.
 - **An idle connection gets cut by proxies at 30 to 60s**, and the browser
   reconnects silently, so the symptom is duplicated server work, not an error.
-  A keep-alive comment every 15s prevents it.
+  A keep-alive comment every 15s prevents it. Bakery's own idle timeout does not
+  apply to a stream: `sse()` lifts it for that request.
 - **nginx buffers proxied responses by default**, holding every event until the
   buffer fills. Works in development, hangs in production. The response carries
   `X-Accel-Buffering: no`.

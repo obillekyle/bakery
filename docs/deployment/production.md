@@ -190,11 +190,12 @@ export default defineConfig({
 })
 ```
 
-`trustProxy: true` makes three things read forwarded headers: the client IP
+`trustProxy: true` makes four things read forwarded headers: the client IP
 (which the rate limiter keys on), the hostname (which multi-host routing uses),
-and `x-forwarded-proto` (which marks the session cookie `Secure`). Only turn it
-on when the proxy is the sole path to the process: otherwise any client can
-forge all three. Binding `host: '127.0.0.1'` is how you guarantee that.
+`x-forwarded-proto` (which marks the session cookie `Secure`), and the origin an
+`Origin` header is compared with when a browser sends no `Sec-Fetch-Site`. Only
+turn it on when the proxy is the sole path to the process: otherwise any client
+can forge all four. Binding `host: '127.0.0.1'` is how you guarantee that.
 
 ```nginx
 location / {
@@ -211,6 +212,10 @@ location / {
 ```
 
 The `Upgrade` lines are needed for WebSocket routes.
+
+A connection that stays quiet for 60 seconds is closed with no answer, which is
+also nginx's default `proxy_read_timeout`. A handler that may run longer than
+that belongs in a job with a status route. An `sse()` stream is exempt.
 
 **Rate limiting is already on** (100 burst, 10/s refill, per client IP): the
 startup banner says so whenever the default is in effect. Do not
