@@ -42,12 +42,16 @@ const GF_MAX_GSTATIC_PATH = 256
  * A path under `fonts.gstatic.com`, as the rewritten CSS references it:
  * `s/roboto/v47/KFOmCnqEu92Fr1Mu4mxK.woff2`.
  *
- * Every segment must start with an alphanumeric, which is what rules out `..`
- * and an empty segment (`//`) without a second pass over the string, and the
- * extension list keeps this to font payloads.
+ * Every segment must start with something other than a dot, which is what
+ * rules out `..`, `.` and a dot-file, and must hold at least that one
+ * character, which rules out an empty segment (`//`), all without a second
+ * pass over the string. The first character may be `_` or `-` because file
+ * names are base64url: Figtree v9's are `_Xms-HUzqDCFdgfMm4q9DbZs.woff2` and
+ * `_Xms-HUzqDCFdgfMm4S9DQ.woff2`, and an alphanumeric-only start answered both
+ * with a 404. The extension list keeps this to font payloads.
  */
 const GF_GSTATIC_PATH =
-  /^[a-zA-Z0-9][a-zA-Z0-9._-]*(?:\/[a-zA-Z0-9][a-zA-Z0-9._-]*)*\.(?:woff2?|ttf|otf|eot|svg)$/
+  /^[a-zA-Z0-9_-][a-zA-Z0-9._-]*(?:\/[a-zA-Z0-9_-][a-zA-Z0-9._-]*)*\.(?:woff2?|ttf|otf|eot|svg)$/
 
 /**
  * How many distinct upstream assets this handler will keep on disk.
